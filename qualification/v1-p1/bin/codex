@@ -11,12 +11,108 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
+import uuid
+import ctypes
 from pathlib import Path
 
 
 def emit(value: object) -> None:
     print(json.dumps(value, separators=(",", ":")), flush=True)
+
+
+def set_parent_death_signal() -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(1, signal.SIGKILL, 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "prctl(PR_SET_PDEATHSIG) failed")
+
+
+def controlled_profile() -> int:
+    """Honor the sidecar sandbox mode while retaining a deterministic leaf."""
+    workspace = Path.cwd()
+    original_parent = os.getppid()
+
+    def watch_parent() -> None:
+        while True:
+            time.sleep(0.05)
+            if os.getppid() != original_parent:
+                os.kill(os.getpid(), signal.SIGKILL)
+
+    threading.Thread(target=watch_parent, daemon=True).start()
+    state = Path(os.environ["BROODLING_FIXTURE_STATE"])
+    state.mkdir(parents=True, exist_ok=True)
+    writable = "--sandbox" in sys.argv and sys.argv[sys.argv.index("--sandbox") + 1] == "workspace-write"
+    command = [
+        "/usr/bin/bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc",
+        "--unshare-pid", "--unshare-net", "--die-with-parent",
+        "--bind", str(state), str(state), "--chdir", str(workspace),
+        "--setenv", "BROODLING_INSIDE_PROFILE", "1",
+    ]
+    command.extend(["--bind" if writable else "--ro-bind", str(workspace), str(workspace)])
+    command.extend([str(Path(__file__).resolve()), *sys.argv[1:]])
+    completed = subprocess.run(command, check=False)
+    return completed.returncode
+
+
+def real_provider() -> int:
+    """Run the installed Codex CLI with the narrow V1 provider profile."""
+    executable = os.environ["BROODLING_REAL_CODEX"]
+    arguments = sys.argv[1:]
+    filtered: list[str] = []
+    index = 0
+    while index < len(arguments):
+        if (
+            arguments[index] in {"--config", "-c"}
+            and index + 1 < len(arguments)
+            and arguments[index + 1].startswith("sandbox_workspace_write.network_access=")
+        ):
+            index += 2
+            continue
+        filtered.append(arguments[index])
+        index += 1
+    if filtered and filtered[0] == "exec":
+        filtered[1:1] = [
+            "--ignore-user-config",
+            "--ephemeral",
+            "--config",
+            'sandbox_workspace_write.network_access=false',
+        ]
+    state = Path(os.environ["BROODLING_PROFILE_STATE"])
+    profile_home = state.parent / "profile-home"
+    profile_home.mkdir(exist_ok=True)
+    provider_environment = os.environ.copy()
+    provider_environment["HOME"] = str(profile_home)
+    invocation = {
+        "id": str(uuid.uuid4()),
+        "argv": [executable, *filtered],
+        "cwd": str(Path.cwd()),
+        "home": provider_environment["HOME"],
+        "codexHome": provider_environment.get("CODEX_HOME"),
+        "recordedNs": time.time_ns(),
+    }
+    prompt = sys.stdin.read()
+    completed = subprocess.run(
+        [executable, *filtered],
+        input=prompt,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=provider_environment,
+        check=False,
+    )
+    invocation.update({
+        "returnCode": completed.returncode,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+        "completedNs": time.time_ns(),
+    })
+    append(state / "real-provider.jsonl", invocation)
+    sys.stdout.write(completed.stdout)
+    sys.stdout.flush()
+    sys.stderr.write(completed.stderr)
+    sys.stderr.flush()
+    return completed.returncode
 
 
 def append(path: Path, value: object) -> None:
@@ -100,6 +196,11 @@ def response(node: str, invocation: int, scenario: str) -> object:
 
 
 def main() -> int:
+    set_parent_death_signal()
+    if "broodling-p1-controlled-leaf" not in sys.argv:
+        return real_provider()
+    if os.environ.get("BROODLING_INSIDE_PROFILE") != "1":
+        return controlled_profile()
     prompt = sys.stdin.read()
     match = re.search(r"BROODLING_NODE=([a-z0-9_]+)", prompt)
     if not match:

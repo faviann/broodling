@@ -4,7 +4,7 @@
 
 **Scope:** qualification only; W1, W2, W5 and W7 individually
 
-**Verdicts:** **W1 PASS; W2 FAIL; W5 PASS; W7 FAIL**
+**Verdicts:** **W1 PASS; W2 FAIL; W5 PASS; W7 PASS**
 **G1-V1:** **NOT PASSED.** This issue does not qualify W3, W4 or W6 and does not perform the
 separate gate review.
 
@@ -19,22 +19,30 @@ The run used clean Zeroshot source `d0909615d6ba3c179b58bce15a059f40400ec995`
 x86-64 with Python 3.13.5 and Cargo 1.97.0.
 
 The selected profile is `LocalTarget`, one single host, one attached uniquely named Git worktree
-per fixture Attempt, and `sessionScope: execution`. Every worktree branch starts at immutable B1.
-Worktrees of the same fixture repository deliberately share Git common metadata so that the claimed
-boundary is tested rather than inferred from different paths. The graph, runtime and initial input
-are retained verbatim in the machine record. No `GitDelivery` is present. Only the Codex provider
-leaf is controlled; its SHA-256 is
-`2eb6c6326180ac104896f2e4f2f70e285e68839209d0e9d855662d5ba97a46fe`.
+per fixture Attempt, and `sessionScope: execution`. Worktrees are placed under a dedicated
+non-temporary workspace root; `/tmp` and `/dev/shm` are not workspace roots. Every branch starts at
+immutable B1. Same-repository worktrees deliberately share Git common metadata so the boundary is
+tested rather than inferred from unrelated repositories.
+
+The pinned sidecar selects Codex `read-only` for verifiers and `workspace-write` for mutators. A
+narrow launcher preserves those modes while forcing network off, ignoring ambient Codex user
+configuration, using ephemeral sessions, adding no writable roots, and giving the agent an empty
+`HOME`. Controlled timing/counterexample leaves run in Bubblewrap 0.12.0 with a private PID/network
+namespace, read-only host root, only the current mutator worktree writable, and parent-death
+containment. Real confinement probes used `codex-cli 0.153.4`, OpenAI `gpt-5.6-sol`, low effort.
+The launcher/controlled-leaf SHA-256 is
+`e12c867a8129cbc9d1616b2fbbd77a3f1044c5e7ea3df241a7a9bef56c474741`; the driver SHA-256 is
+`2801b58b3f7bb2a9991025fd4e5ecbd9e5484212ba313397edf2c577b4c62cfc`.
 
 The machine evidence is [issue-8-run-record.json](evidence/issue-8-run-record.json), SHA-256
-`7449b6ab2b6768d1e73d6f7d9df80769fd0008de970336411d481c9d95845dcd`. That checksum is the
+`81147190fc7d2909e29ef3d8f4fbcd672a64352cd5070c9d13d1be4c8dcfaa1b`. That checksum is the
 committed record before any later rerun; use the repository blob as the retained authority if the
 record is regenerated. The driver records prompt digests rather than prompts or credentials.
 
 ## W1 — PASS
 
 Before submission, the fixture wrote the immutable Contract/Attempt relationship, B1
-`d771662ccecccd3762ff7a3116c585577b49780b`, exclusive worktree, stable submission key,
+`ae74cc66d5ac66d6c9d1fdb2659accfbdaee79a4`, exclusive worktree, stable submission key,
 candidate SHA-256 `5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962`, and instruction
 SHA-256 `32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f`. The admitted record
 also retains the instruction bytes and raw-evidence digest, sufficient to verify fresh
@@ -42,11 +50,11 @@ rematerialization.
 
 The caller process exited 87 immediately after `Client.submit()` returned without returning its
 handle. Inventory and unchanged replay exposed exactly one new run,
-`01a07896-23c0-7fe3-b9c0-b63698cfe32d`. Replaying the same key recovered that run. A conflicting
+`01a078be-1487-73d2-8f73-1a25edb6b855`. Replaying the same key recovered that run. A conflicting
 request and, separately, the same key from live B2 source both raised `SubmissionConflictError`
 naming that run; neither changed inventory.
 
-Live HEAD moved to `8cb2ca2bb5130a3bfb2331c3c51706efbe9f3e1e` with different candidate and instruction bytes.
+Live HEAD moved to `ea70227942125941b6ffc03913939a8ec537a4de` with different candidate and instruction bytes.
 A new worktree explicitly materialized B1 and reproduced both admitted digests rather than B2.
 
 **Limits:** this is the issue-prescribed caller-process acknowledgement-loss window, not every
@@ -61,29 +69,33 @@ directory was the same, and the C1 → repair → C2 control produced two fresh 
 different candidate digests. The unchanged-candidate/valid-evidence applicability control also
 succeeded.
 
-The selected profile did not enforce the required boundary:
+The narrow profile fixed the host boundary failures from `7f49202`:
 
-- reviewer, adjudicator and final-assessor candidate writes all succeeded in run
-  `01a07896-334e-75a0-b8b0-c026cee6cc6a`;
-- a detached lingering writer outlived its implementing leaf and changed the candidate to
-  `LINGERING_WRITER` in run `01a07896-38d2-7f62-a62a-545f157d3790`;
-- a graph-authorized worker wrote a shared path outside its candidate worktree in run
-  `01a07896-4371-7272-a209-5e3c5159d523`;
-- removal of required `evidence/raw.txt` still yielded runtime success in run
-  `01a07896-47e1-71c2-9832-1148355d350b`;
-- forged Contract/source/evidence/predecessor claims reached the accepting fixture route in run
-  `01a07896-4cc4-7631-817b-5bc5ef568dd8`;
-- the W7 controlled probe additionally changed the same repository's shared Git config and refs.
+- reviewer, adjudicator and final-assessor probes all ran with the same real Codex `read-only`
+  profile. Each target remained unchanged. At least one attempt per named role issued the write and
+  recorded `Read-only file system`; earlier provider refusals were retained rather than selected
+  away;
+- mutator run `01a078bf-82a4-77d3-bba8-c6ed00bb26d1` changed its own candidate, but its sibling
+  shared-path write and direct local-remote push did not persist. Its delayed background writer was
+  gone after provider completion and the candidate retained only the authorized mutation;
+- shared Git configuration/refs stayed unchanged;
+- the C1 → repair → C2 control renewed review against a different candidate digest;
+- a complete fixture matrix showed intentional untracked and relevant generated files change the
+  candidate-material digest while an environment-only file does not; changing generated material
+  changed the digest without changing HEAD.
 
-These are counterexamples, not Broodling acceptance. Separate paths and graph role names do not
-provide read-only assurance, writer lifetime containment, shared-path protection, or trusted
-applicability.
+Trusted applicability is still absent. Required `evidence/raw.txt` was removed before submission,
+yet run `01a078bf-d8de-7c13-b511-25abb3ab2e73` succeeded. Forged Contract/source/evidence/predecessor
+claims still reached success in `01a078bf-ddc2-7271-b0c2-e476e5da9213`. The unchanged valid control
+succeeded. In `01a078bf-e693-7e22-baa4-007469b8a106`, the graph terminated before the deliberately
+delayed observer completed, proving that a callback cannot supply the missing gate.
 
-**Not executed after the decisive failures:** an additional delayed-observer race and a complete
-intentional-untracked/generated-content matrix. Historical #5 already establishes that an external
-observer can lose its race, but it is not promoted to a new-profile positive. These omitted cases
-cannot improve the verdict and must be rerun with the other W2 cases if a narrower enforcing profile
-is proposed. No generic sealing or completed-occurrence mechanism was introduced.
+The smallest remaining dependency is a supported synchronous in-run applicability operation that
+obtains the current complete candidate-material set, verifies required raw evidence, binds trusted
+Contract/source/evidence/predecessor identities into the authority occurrence, and gates dependent
+progression. It must account for intentional untracked/generated material under the admitted
+candidate policy. This finding does not prescribe a generic seal/archive service or completed-run
+recovery mechanism.
 
 **Affected consumers:** G2-V1, G3-V1 and G4-V1.
 
@@ -93,18 +105,20 @@ The real transport exercised five independent abandonment windows:
 
 | Window | Run | Durable terminal observation |
 |---|---|---|
-| stop during adjudication | `01a07896-5230-77d0-83cb-a37b3b5d8a7a` | `force_stopped` |
-| stop during mutation | `01a07896-55ce-7740-869d-91131df5cc57` | `force_stopped` |
-| controller `SIGKILL` | `01a07896-59fa-7211-b3a4-dd47a313786e` | `runtime_lost` |
-| caller exit after directive/repair dispatch | `01a07896-6002-7a23-b166-85acf8d1ab36` | `force_stopped` |
-| caller exit after final output/runtime result but before disposition | `01a07896-65ad-7c40-b541-7f80e4d2c242` | existing success observed, Attempt abandoned |
+| stop during adjudication | `01a078bf-f42a-7092-b62f-914ef20f15af` | `force_stopped` |
+| stop during mutation | `01a078bf-f7a8-7b80-90f3-2c41621ce390` | `force_stopped` |
+| controller `SIGKILL` | `01a078bf-fcb7-7220-a8c8-a57abd032dba` | `runtime_lost` |
+| caller exit after directive/repair dispatch | `01a078c0-0285-7c31-b28e-e5d4b534bf68` | `force_stopped` |
+| caller exit after final output/runtime result but before disposition | `01a078c0-0b9e-76d2-8ac5-1a9b96252f47` | existing success observed, Attempt abandoned |
 
 The fixture durably marked each Attempt ineligible before requesting/observing termination or, for
 the already-terminal final-output window, before reconciliation. Repeated `force_stop()` returned
 the same terminal result. Each old worktree was retired only after a terminal result. No old result
-changed its `eligible: false` fact.
+changed its `eligible: false` fact. After every case, `/proc` inspection found no provider process
+whose command line named the old run. This includes the controller-`SIGKILL` case that exposed an
+orphan under the uncontrolled profile during investigation.
 
-Replacement run `01a07896-6ad6-7543-80a2-928e3e8263cc` used a new Attempt, run, branch,
+Replacement run `01a078c0-1185-7163-a5ee-285b5ee1c7ab` used a new Attempt, run, branch,
 worktree, controlled-leaf state and execution-scoped sessions. It started at B1 with
 `ORIGINAL_B1`, not live HEAD or either old mutation. All provider invocations were first
 invocations in their fresh state and no abandoned-only candidate/directive/evidence/acceptance
@@ -117,41 +131,33 @@ observations retained here; no distributed or hostile-environment claim is made.
 administrative history remained outside replacement semantic input. W2's independent profile
 failures still block its consumers and G1-V1.
 
-## W7 — FAIL
+## W7 — PASS
 
 The minimal fixture admission configuration admitted the genuinely empty-effect Contract and
 rejected, without deleting obligations, required commit delivery, push, PR/merge, issue
 comment/closure/label/relationship, and publication-dependent evidence. Run
-`01a07896-6e80-7050-9bc2-07c38ec187ef` completed the no-effect control. An unused optional local
-permission caused no effect. Run `01a07896-73c5-7320-bfce-851ba4838bf7` returned bare runtime
+`01a078c0-184c-7761-a365-0738cd719d56` completed the no-effect control. An unused optional local
+permission caused no effect. Run `01a078c0-21e6-7d43-a16a-2389693a5df3` returned bare runtime
 success with a final `gap`; fixture disposition remained false, so runtime success was not treated
 as acceptance.
 
-The execution boundary nevertheless failed. In run
-`01a07896-7db5-7062-a6ca-1c950c08aa7f`, the controlled agent process successfully:
+Real-provider run `01a078c0-330a-7810-85be-c3d15e22fdef` attempted to change shared Git config,
+create a tag, and push `HEAD` directly to a controlled sibling bare remote. Git config/tag writes
+were rejected by read-only shared metadata; the remote rejected object creation and remained
+unchanged. The installed Git and `gh` executables remained visible, but visibility conveyed no
+ambient authority: the empty profile `HOME` had no readable GitHub hosts file and network was
+forced off. The probe did not read credential contents, contact GitHub, or attempt a GitHub
+mutation.
 
-1. changed shared Git configuration;
-2. created a tag in shared repository metadata; and
-3. pushed that tag to the controlled local bare remote.
-
-The process could resolve `/usr/bin/git` and the installed `gh`, and could read the configured
-GitHub hosts file. The probe recorded only accessibility, never file contents or credentials. No
-GitHub command or remote mutation was attempted. All authoritative-mutation targets were
-host-local controlled fixtures.
-
-Excluding `GitDelivery`, declaring no effect, and omitting a credential from the explicit runtime
-connection are therefore insufficient: ordinary agent execution can bypass the boundary through
-ambient tools, readable credential configuration and shared Git state.
-
-**Affected consumers:** G2-V1, G4-V1 and G5-V1. The smallest missing dependency is a supported
-execution/profile configuration that removes those credential/tool/mutation paths while retaining
-the real V1 graph. This is not a request for an effect executor, receipt system or reconciliation
-suite.
+This is a narrow no-effect execution boundary, not proof that tool absence is required or that an
+effect-capable profile is safe. Controlled host provisioning of worktrees/remotes remains outside
+agent delivery authority. No effect executor, receipt, reconciliation, sealing, scheduler, or
+session-management subsystem was introduced.
 
 ## Disposition
 
-Issue #8's qualification work is complete even though two witnesses fail. W2 and W7 block G1-V1;
-their consumers cannot proceed. W1 and W5 remain bounded passes on the exact profile above. The
-historical Q/G1 verdicts remain unchanged. This work did not begin issue #9 or later work, implement
-Broodling product code, restore v0.3 recovery/effect requirements, invoke a real provider, or make
+Issue #8's requalification records three bounded passes and one failure. W2 still blocks G1-V1 and
+G2/G3/G4-V1; W7 no longer independently blocks its consumers. W1, W5 and W7 pass only on the exact
+profile above. The historical Q/G1 verdicts remain unchanged. This work did not begin issue #9 or later work, implement
+Broodling product code, restore v0.3 recovery/effect requirements, or make
 an unauthorized GitHub mutation.

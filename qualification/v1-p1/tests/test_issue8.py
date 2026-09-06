@@ -15,7 +15,7 @@ class Issue8EvidenceTests(unittest.TestCase):
     def test_separate_verdicts_match_observations(self) -> None:
         self.assertEqual(
             self.record["verdicts"],
-            {"W1": "PASS", "W2": "FAIL", "W5": "PASS", "W7": "FAIL"},
+            {"W1": "PASS", "W2": "FAIL", "W5": "PASS", "W7": "PASS"},
         )
         for witness, verdict in self.record["verdicts"].items():
             checks = self.record[witness]["checks"]
@@ -39,14 +39,18 @@ class Issue8EvidenceTests(unittest.TestCase):
 
     def test_failures_are_observed_not_unknown(self) -> None:
         w2 = self.record["W2"]["checks"]
-        self.assertFalse(w2["assuranceWriteRejected"])
-        self.assertFalse(w2["lingeringWriterContained"])
         self.assertFalse(w2["missingArtifactBlocked"])
         self.assertFalse(w2["forgedIdentifiersBlocked"])
-        w7 = self.record["W7"]["checks"]
-        self.assertFalse(w7["agentEffectBypassRejected"])
-        self.assertFalse(w7["controlledRemoteUnchanged"])
-        self.assertFalse(w7["sharedGitMetadataProtected"])
+        self.assertFalse(w2["delayedObserverGatedProgression"])
+
+    def test_narrow_profile_controls_are_observed(self) -> None:
+        w2 = self.record["W2"]["checks"]
+        self.assertTrue(w2["assuranceWriteRejected"])
+        self.assertTrue(w2["lingeringWriterContained"])
+        self.assertTrue(w2["sharedWritablePathProtected"])
+        self.assertTrue(w2["intentionalUntrackedAndGeneratedDistinguished"])
+        self.assertTrue(self.record["W5"]["checks"]["allOldProviderProcessesContained"])
+        self.assertTrue(all(self.record["W7"]["checks"].values()))
 
 
 if __name__ == "__main__":

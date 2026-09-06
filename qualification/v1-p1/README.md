@@ -4,11 +4,13 @@ This directory contains the qualification-only fixture for Broodling issue #8. I
 official Python SDK and matching Rust sidecar build described by the historical P1 harness, while
 keeping the new V1 observations separate from `qualification/p1`.
 
-Only the provider leaf is controlled. SDK request encoding and subprocess transport, Rust
+SDK request encoding and subprocess transport, Rust
 preflight/admission, source resolution, the local controller, graph execution/reduction,
 submission-key reconciliation, force-stop/runtime-loss handling, and durable status/result paths
-remain real. The fixture creates minimal administrative JSON only to mark an Attempt ineligible
-before cessation/restart; it is not Broodling product code or a selected store design.
+remain real. Controlled leaves expose deterministic transport windows and applicability
+counterexamples. W2/W7 confinement probes use the installed real Codex/OpenAI provider. The
+fixture creates minimal administrative JSON only to mark an Attempt ineligible before
+cessation/restart; it is not Broodling product code or a selected store design.
 
 ## Reproduction
 
@@ -21,21 +23,34 @@ Build and install it using the historical [P1 instructions](../p1/README.md#repr
 ```bash
 RUN_ROOT=$(mktemp -d /dev/shm/b8.XXXXXX)
 rmdir "$RUN_ROOT"
+WORKSPACE_ROOT=$(mktemp -d /path/on/non-temporary-filesystem/b8.XXXXXX)
+rmdir "$WORKSPACE_ROOT"
 
 VENV=/path/to/venv
 WHEEL=/path/to/zeroshot_rust-0.1.0.dev0-py3-none-linux_x86_64.whl
 
 "$VENV/bin/python" qualification/v1-p1/issue8_qualify.py \
   --run-root "$RUN_ROOT" \
+  --workspace-root "$WORKSPACE_ROOT" \
   --output "$RUN_ROOT/issue-8-run-record.json" \
   --zeroshot-source /path/to/zeroshot \
   --wheel "$WHEEL" \
-  --timeout 60
+  --timeout 60 \
+  --real-timeout 300 \
+  --real-model gpt-5.6-sol
 ```
 
 Keep `RUN_ROOT` short: the pinned sidecar rejects a local-controller Unix socket path that exceeds
-its limit. The run root must be absent or empty. The driver creates attached per-Attempt branches
-at immutable B1 because this build rejects detached worktrees.
+its limit. Put `WORKSPACE_ROOT` on a non-temporary filesystem; Codex treats `/tmp` and `/dev/shm`
+as special writable scratch locations, so they do not establish the intended sibling-path
+boundary. Both roots must be absent or empty. The driver creates attached per-Attempt branches at
+immutable B1 because this build rejects detached worktrees.
+
+The qualification launcher requires Linux Bubblewrap at `/usr/bin/bwrap` (qualified version
+0.12.0) and the installed Codex CLI. It preserves sidecar-selected `read-only`/`workspace-write`
+modes, forces network off, ignores ambient Codex user configuration, uses ephemeral executions and
+an empty agent `HOME`, and places controlled leaves in private PID/network namespaces. Real Codex
+authentication remains outside the committed evidence; no GitHub credential is supplied.
 
 The committed [report](issue-8-w1-w2-w5-w7.md) explains the verdicts and limits. The
 [machine record](evidence/issue-8-run-record.json) retains all run IDs, request fixtures, terminal
