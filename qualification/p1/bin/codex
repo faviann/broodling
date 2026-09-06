@@ -28,14 +28,43 @@ def next_invocation(state: Path, node: str) -> int:
 
 
 def response_for(node: str, invocation: int, scenario: str) -> object:
-    if node == "review":
-        label = "found" if scenario == "repair-then-accept" and invocation == 1 else "clean"
+    if node == "identity_check":
+        label = "stale" if scenario == "q3-stale-applicability" else "applicable"
+        return {"output": None, "signals": {"applicability": label}, "diagnostic": None}
+    if node == "review" or node.startswith("review_"):
+        repair_scenarios = {
+            "repair-then-accept",
+            "q3-repair-resolve",
+            "q3-sticky-omission",
+            "q3-final-gap-after-repair",
+        }
+        label = "found" if (
+            scenario in repair_scenarios
+            and node == "review"
+            and (scenario != "repair-then-accept" or invocation == 1)
+        ) else "clean"
         return {"output": None, "signals": {"findings": label}, "diagnostic": None}
     if node == "adjudicate_authority":
-        label = "repair" if scenario == "repair-then-accept" and invocation == 1 else "advance"
-        return {"output": None, "signals": {"directive": label}, "diagnostic": None}
-    if node == "final_assessment_authority":
-        label = "gap" if scenario == "gap" else "accepted"
+        if scenario == "repair-then-accept":
+            label = "repair" if invocation == 1 else "advance"
+            return {"output": None, "signals": {"directive": label}, "diagnostic": None}
+        if scenario == "q3-contradictory-payload-signal":
+            return {
+                "output": {"claimedDecision": "open_d1"},
+                "signals": {"decision": "none"},
+                "diagnostic": None,
+            }
+        label = "open_d1" if scenario in {
+            "q3-repair-resolve",
+            "q3-sticky-omission",
+            "q3-final-gap-after-repair",
+        } else "none"
+        return {"output": None, "signals": {"decision": label}, "diagnostic": None}
+    if node == "resolution_authority" or node.startswith("resolution_authority_"):
+        label = "open_d1" if scenario == "q3-sticky-omission" else "resolve_d1"
+        return {"output": None, "signals": {"resolution": label}, "diagnostic": None}
+    if node == "final_assessment_authority" or node.startswith("final_assessment_authority_"):
+        label = "gap" if scenario in {"gap", "q3-final-gap-after-repair"} else "accepted"
         return {"output": None, "signals": {"assessment": label}, "diagnostic": None}
     return None
 
@@ -46,7 +75,13 @@ def scenario_parts(value: str) -> tuple[str, str, str, int | None]:
     response_scenario = parts[0]
     fault = parts[1] if len(parts) == 2 else parts[0]
     selected = fault.split(":")
-    if len(selected) not in (2, 3) or selected[0] not in ("crash", "hang", "malformed"):
+    if len(selected) not in (2, 3) or selected[0] not in (
+        "crash",
+        "hang",
+        "malformed",
+        "missing",
+        "reviewer_claim",
+    ):
         return response_scenario, "", "", None
     occurrence = int(selected[2]) if len(selected) == 3 else None
     return response_scenario, selected[0], selected[1], occurrence
@@ -54,7 +89,7 @@ def scenario_parts(value: str) -> tuple[str, str, str, int | None]:
 
 def main() -> int:
     prompt = sys.stdin.read()
-    match = re.search(r"BROODLING_NODE=([a-z_]+)", prompt)
+    match = re.search(r"BROODLING_NODE=([a-z0-9_]+)", prompt)
     if match is None:
         print("fixture prompt did not identify a node", file=sys.stderr)
         return 64
@@ -74,6 +109,11 @@ def main() -> int:
         "scenario": scenario,
         "promptSha256": hashlib.sha256(prompt.encode()).hexdigest(),
     }
+    input_match = re.search(
+        r"Input JSON:\n([^\n]+)\nRuntime-owned response contract:", prompt
+    )
+    if input_match is not None:
+        capture["input"] = json.loads(input_match.group(1))
     with (state / "driver.jsonl").open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(capture, sort_keys=True) + "\n")
 
@@ -90,6 +130,14 @@ def main() -> int:
     emit({"type": "turn.started"})
     if selected_here and behavior == "malformed":
         response: object = {"wrong": True}
+    elif selected_here and behavior == "missing":
+        response = {"signals": {}, "diagnostic": None}
+    elif selected_here and behavior == "reviewer_claim":
+        response = {
+            "output": None,
+            "signals": {"decision": "resolve_d1"},
+            "diagnostic": None,
+        }
     else:
         response = response_for(node, invocation, response_scenario)
     envelope = json.dumps({"response": response}, separators=(",", ":"))

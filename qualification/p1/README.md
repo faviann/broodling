@@ -110,3 +110,10 @@ The issue-scoped [Q1/Q2/Q6 report](issue-3-q1-q2-q6.md) and
 [retained run record](evidence/issue-3-run-record.json) record the executed external qualification.
 Q2 passes. Q1 and Q6 are blocked by the absence of a supported completed-occurrence recovery
 surface, so G1-core remains blocked and issue #3 remains open.
+
+## Issue #4 result
+
+The issue-scoped [Q3 report](issue-4-q3.md), [qualification driver](issue4_qualify.py), and
+[retained run record](evidence/issue-4-run-record.json) qualify fail-closed routing and sticky
+within-run obligations through the real SDK/sidecar path. Q3 passes. G1-core remains blocked only
+as already recorded by issue #3 Q1/Q6; issue #4 does not attempt to resolve that dependency.

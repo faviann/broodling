@@ -107,6 +107,41 @@ class HarnessFixtureTests(unittest.TestCase):
         )
         self.assertEqual(record["integrationBoundary"]["prohibitedReadersUsed"], [])
 
+    def test_issue4_evidence_matches_qualified_verdict(self) -> None:
+        record = json.loads((P1 / "evidence/issue-4-run-record.json").read_text())
+        self.assertEqual(record["verdicts"], {"G1-core": "BLOCKED", "Q3": "PASS"})
+        self.assertTrue(all(record["acceptanceChecks"].values()))
+        self.assertFalse(record["integrationBoundary"]["broodlingValidationOrScheduling"])
+        self.assertEqual(record["integrationBoundary"]["prohibitedReadersUsed"], [])
+
+        cases = record["cases"]
+        self.assertTrue(cases["clean_control"]["result"]["succeeded"])
+        self.assertTrue(cases["red_repair_control"]["result"]["succeeded"])
+        self.assertEqual(
+            cases["sticky_omission"]["result"]["failure"], "obligations_exhausted"
+        )
+        self.assertEqual(
+            cases["final_gap_after_clean_adjudication"]["result"]["failure"],
+            "semantic_gap",
+        )
+        self.assertEqual(cases["refusal"]["result"]["failure"], "force_stopped")
+
+        repair_inputs = [
+            event["input"]
+            for event in cases["red_repair_control"]["controlledDriverEvents"]
+            if event["node"] == "repair_1"
+        ]
+        self.assertEqual(repair_inputs, [{"directive": "open_d1"}])
+        resolution_inputs = [
+            event["input"]
+            for event in cases["red_repair_control"]["controlledDriverEvents"]
+            if event["node"] == "resolution_authority_1"
+        ]
+        self.assertEqual(
+            resolution_inputs,
+            [{"findings": "clean", "outstanding": "open_d1"}],
+        )
+
     def test_controlled_leaf_can_target_a_repeated_occurrence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory)
