@@ -1,0 +1,3218 @@
+{
+  "W1": {
+    "admissionBeforeSubmission": {
+      "attemptId": "w1-a1",
+      "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+      "contractId": "contract-v1",
+      "eligible": true,
+      "exclusiveOwner": "work-unit-w1",
+      "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+      "runId": null,
+      "startingRevision": "d771662ccecccd3762ff7a3116c585577b49780b",
+      "submissionKey": "broodling-issue8-w1-lost-ack-v1",
+      "worktree": "/dev/shm/b8.epOeeZ/worktrees/w1-a1"
+    },
+    "attempt1": {
+      "candidate": "ORIGINAL_B1\n",
+      "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+      "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+      "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+      "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+      "path": "/dev/shm/b8.epOeeZ/worktrees/w1-a1",
+      "rawEvidenceExists": true
+    },
+    "b1": "d771662ccecccd3762ff7a3116c585577b49780b",
+    "checks": {
+      "changedSourceConflictCreatedNoRun": true,
+      "changedSourceConflictIdentifiedSameRun": true,
+      "conflictCreatedNoRun": true,
+      "conflictIdentifiedSameRun": true,
+      "freshContentAndInstructionsMatchAdmission": true,
+      "freshWorktreeUsesB1": true,
+      "liveHeadActuallyChanged": true,
+      "lostAcknowledgementExitedAtControlledPoint": true,
+      "oneRunCreated": true,
+      "replayRecoveredSameRun": true
+    },
+    "freshAttempt": {
+      "candidate": "ORIGINAL_B1\n",
+      "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+      "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+      "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+      "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+      "path": "/dev/shm/b8.epOeeZ/worktrees/w1-a2-fresh",
+      "rawEvidenceExists": true
+    },
+    "inventoryDelta": [
+      "01a07896-23c0-7fe3-b9c0-b63698cfe32d"
+    ],
+    "liveHeadB2": "8cb2ca2bb5130a3bfb2331c3c51706efbe9f3e1e",
+    "requestConflict": {
+      "existingRunId": "01a07896-23c0-7fe3-b9c0-b63698cfe32d",
+      "message": "submission key already identifies a different admitted run (01a07896-23c0-7fe3-b9c0-b63698cfe32d)",
+      "type": "SubmissionConflictError"
+    },
+    "result": {
+      "failure": null,
+      "output": {
+        "fixture": "broodling-p1-repair-then-accept-v1"
+      },
+      "run_id": "01a07896-23c0-7fe3-b9c0-b63698cfe32d",
+      "succeeded": true
+    },
+    "runId": "01a07896-23c0-7fe3-b9c0-b63698cfe32d",
+    "sourceConflict": {
+      "existingRunId": "01a07896-23c0-7fe3-b9c0-b63698cfe32d",
+      "message": "submission key already identifies a different admitted run (01a07896-23c0-7fe3-b9c0-b63698cfe32d)",
+      "type": "SubmissionConflictError"
+    },
+    "verdict": "PASS"
+  },
+  "W2": {
+    "cases": {
+      "assuranceWrite": {
+        "events": [
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-assurance-write",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729504849220556,
+            "response": null,
+            "scenario": "clean;assurance-write",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": {
+              "path": "/dev/shm/b8.epOeeZ/worktrees/w2-assurance-write/candidate.txt",
+              "sha256": "a79518f8376dd674684e9da1bdc50b86ffffbe122f37685e952a3046a00779bc",
+              "succeeded": true
+            },
+            "candidateAfter": "a79518f8376dd674684e9da1bdc50b86ffffbe122f37685e952a3046a00779bc",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-assurance-write",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729505040412058,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "clean"
+              }
+            },
+            "scenario": "clean;assurance-write",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": {
+              "path": "/dev/shm/b8.epOeeZ/worktrees/w2-assurance-write/candidate.txt",
+              "sha256": "2763cc3d9a90ce8a378bd2e970e15093a826865710f22c2e1217ad3e674e90ce",
+              "succeeded": true
+            },
+            "candidateAfter": "2763cc3d9a90ce8a378bd2e970e15093a826865710f22c2e1217ad3e674e90ce",
+            "candidateBefore": "a79518f8376dd674684e9da1bdc50b86ffffbe122f37685e952a3046a00779bc",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-assurance-write",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "adjudicate_authority",
+            "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729505231083839,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "directive": "advance"
+              }
+            },
+            "scenario": "clean;assurance-write",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "2763cc3d9a90ce8a378bd2e970e15093a826865710f22c2e1217ad3e674e90ce",
+            "candidateBefore": "2763cc3d9a90ce8a378bd2e970e15093a826865710f22c2e1217ad3e674e90ce",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-assurance-write",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "round_complete",
+            "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729505420333068,
+            "response": null,
+            "scenario": "clean;assurance-write",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": {
+              "path": "/dev/shm/b8.epOeeZ/worktrees/w2-assurance-write/candidate.txt",
+              "sha256": "2103cc8f92a6ddc66c2fde68822f334a56184dbb49d2091145c78382101ba8a4",
+              "succeeded": true
+            },
+            "candidateAfter": "2103cc8f92a6ddc66c2fde68822f334a56184dbb49d2091145c78382101ba8a4",
+            "candidateBefore": "2763cc3d9a90ce8a378bd2e970e15093a826865710f22c2e1217ad3e674e90ce",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-assurance-write",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "final_assessment_authority",
+            "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729505611521960,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "assessment": "accepted"
+              }
+            },
+            "scenario": "clean;assurance-write",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "fixture": "broodling-p1-repair-then-accept-v1"
+          },
+          "run_id": "01a07896-334e-75a0-b8b0-c026cee6cc6a",
+          "succeeded": true
+        },
+        "runId": "01a07896-334e-75a0-b8b0-c026cee6cc6a",
+        "scenario": "clean;assurance-write",
+        "status": {
+          "active_executions": [],
+          "cursor": "v2:32",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-334e-75a0-b8b0-c026cee6cc6a",
+            "succeeded": true
+          },
+          "run_id": "01a07896-334e-75a0-b8b0-c026cee6cc6a",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w2-assurance-write",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "workspace": {
+          "candidate": "UNAUTHORIZED_final_assessment_authority\n",
+          "candidateSha256": "2103cc8f92a6ddc66c2fde68822f334a56184dbb49d2091145c78382101ba8a4",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w2-assurance-write",
+          "rawEvidenceExists": true
+        },
+        "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w2-assurance-write"
+      },
+      "forgedIdentifiers": {
+        "events": [
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-forged",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "q4_processor",
+            "promptSha256": "7a24dc4e68acabcad655d57c2f2af9a6b7cf6de9a41db0887ef2169ae3d97d62",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729511362871967,
+            "response": {
+              "candidateSha256": "forged-candidate",
+              "contractId": "forged-contract",
+              "evidenceId": "forged-evidence",
+              "predecessorId": "forged-predecessor"
+            },
+            "scenario": "q4-forged",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-forged",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "q4_authority",
+            "promptSha256": "3b2523ef81db22ff772346737f5d3899adc6e18d42172ad9bc807bdf5e80dec4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729511547867506,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "applicability": "accept"
+              }
+            },
+            "scenario": "q4-forged",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "claimedCandidateSha256": "forged-candidate",
+            "claimedContractId": "forged-contract",
+            "claimedEvidenceId": "forged-evidence",
+            "claimedPredecessorId": "forged-predecessor",
+            "expectedCandidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "expectedContractId": "contract-v1",
+            "expectedEvidenceId": "evidence-v1",
+            "expectedPredecessorId": "predecessor-v1"
+          },
+          "run_id": "01a07896-4cc4-7631-817b-5bc5ef568dd8",
+          "succeeded": true
+        },
+        "runId": "01a07896-4cc4-7631-817b-5bc5ef568dd8",
+        "scenario": "q4-forged",
+        "workspace": {
+          "candidate": "ORIGINAL_B1\n",
+          "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w2-forged",
+          "rawEvidenceExists": true
+        }
+      },
+      "lingeringWriter": {
+        "events": [
+          {
+            "action": {
+              "detachedPid": 1629908
+            },
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-lingering",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729506234114520,
+            "response": null,
+            "scenario": "clean;lingering-writer",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "37df33ba41246530b8d7ec2c1de30e8adb76b5ba830ee283598c634b7e57fc85",
+            "candidateBefore": "37df33ba41246530b8d7ec2c1de30e8adb76b5ba830ee283598c634b7e57fc85",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-lingering",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729507144507016,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "clean"
+              }
+            },
+            "scenario": "clean;lingering-writer",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "37df33ba41246530b8d7ec2c1de30e8adb76b5ba830ee283598c634b7e57fc85",
+            "candidateBefore": "37df33ba41246530b8d7ec2c1de30e8adb76b5ba830ee283598c634b7e57fc85",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-lingering",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "adjudicate_authority",
+            "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729507297524777,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "directive": "advance"
+              }
+            },
+            "scenario": "clean;lingering-writer",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "37df33ba41246530b8d7ec2c1de30e8adb76b5ba830ee283598c634b7e57fc85",
+            "candidateBefore": "37df33ba41246530b8d7ec2c1de30e8adb76b5ba830ee283598c634b7e57fc85",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-lingering",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "round_complete",
+            "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729507457972703,
+            "response": null,
+            "scenario": "clean;lingering-writer",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "37df33ba41246530b8d7ec2c1de30e8adb76b5ba830ee283598c634b7e57fc85",
+            "candidateBefore": "37df33ba41246530b8d7ec2c1de30e8adb76b5ba830ee283598c634b7e57fc85",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-lingering",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "final_assessment_authority",
+            "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729507551100373,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "assessment": "accepted"
+              }
+            },
+            "scenario": "clean;lingering-writer",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "fixture": "broodling-p1-repair-then-accept-v1"
+          },
+          "run_id": "01a07896-38d2-7f62-a62a-545f157d3790",
+          "succeeded": true
+        },
+        "runId": "01a07896-38d2-7f62-a62a-545f157d3790",
+        "scenario": "clean;lingering-writer",
+        "status": {
+          "active_executions": [],
+          "cursor": "v2:32",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-38d2-7f62-a62a-545f157d3790",
+            "succeeded": true
+          },
+          "run_id": "01a07896-38d2-7f62-a62a-545f157d3790",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w2-lingering",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "workspace": {
+          "candidate": "LINGERING_WRITER\n",
+          "candidateSha256": "37df33ba41246530b8d7ec2c1de30e8adb76b5ba830ee283598c634b7e57fc85",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w2-lingering",
+          "rawEvidenceExists": true
+        },
+        "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w2-lingering"
+      },
+      "missingArtifact": {
+        "events": [
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-missing-artifact",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729509998754628,
+            "response": null,
+            "scenario": "clean;missing-artifact",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": {
+              "removedRawArtifact": true
+            },
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-missing-artifact",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": false,
+            "recordedNs": 1788729510108000056,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "clean"
+              }
+            },
+            "scenario": "clean;missing-artifact",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-missing-artifact",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "adjudicate_authority",
+            "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+            "rawArtifactExists": false,
+            "recordedNs": 1788729510307861949,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "directive": "advance"
+              }
+            },
+            "scenario": "clean;missing-artifact",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-missing-artifact",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "round_complete",
+            "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+            "rawArtifactExists": false,
+            "recordedNs": 1788729510504840603,
+            "response": null,
+            "scenario": "clean;missing-artifact",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-missing-artifact",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "final_assessment_authority",
+            "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+            "rawArtifactExists": false,
+            "recordedNs": 1788729510700210883,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "assessment": "accepted"
+              }
+            },
+            "scenario": "clean;missing-artifact",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "fixture": "broodling-p1-repair-then-accept-v1"
+          },
+          "run_id": "01a07896-47e1-71c2-9832-1148355d350b",
+          "succeeded": true
+        },
+        "runId": "01a07896-47e1-71c2-9832-1148355d350b",
+        "scenario": "clean;missing-artifact",
+        "status": {
+          "active_executions": [],
+          "cursor": "v2:32",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-47e1-71c2-9832-1148355d350b",
+            "succeeded": true
+          },
+          "run_id": "01a07896-47e1-71c2-9832-1148355d350b",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w2-missing-artifact",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "workspace": {
+          "candidate": "ORIGINAL_B1\n",
+          "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w2-missing-artifact",
+          "rawEvidenceExists": false
+        },
+        "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w2-missing-artifact"
+      },
+      "sharedPath": {
+        "events": [
+          {
+            "action": {
+              "path": "/dev/shm/b8.epOeeZ/shared.txt",
+              "sha256": "f99aec5a382f73a69d00dff8269f72967806faef255ac6e9d8561b10eea97871",
+              "succeeded": true
+            },
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-shared",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729508909948486,
+            "response": null,
+            "scenario": "clean;shared-path",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-shared",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729509062870512,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "clean"
+              }
+            },
+            "scenario": "clean;shared-path",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-shared",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "adjudicate_authority",
+            "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729509169950769,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "directive": "advance"
+              }
+            },
+            "scenario": "clean;shared-path",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-shared",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "round_complete",
+            "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729509329373770,
+            "response": null,
+            "scenario": "clean;shared-path",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-shared",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "final_assessment_authority",
+            "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729509522092589,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "assessment": "accepted"
+              }
+            },
+            "scenario": "clean;shared-path",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "fixture": "broodling-p1-repair-then-accept-v1"
+          },
+          "run_id": "01a07896-4371-7272-a209-5e3c5159d523",
+          "succeeded": true
+        },
+        "runId": "01a07896-4371-7272-a209-5e3c5159d523",
+        "scenario": "clean;shared-path",
+        "status": {
+          "active_executions": [],
+          "cursor": "v2:32",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-4371-7272-a209-5e3c5159d523",
+            "succeeded": true
+          },
+          "run_id": "01a07896-4371-7272-a209-5e3c5159d523",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w2-shared",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "workspace": {
+          "candidate": "ORIGINAL_B1\n",
+          "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w2-shared",
+          "rawEvidenceExists": true
+        },
+        "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w2-shared"
+      },
+      "unchangedControl": {
+        "events": [
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-applicable-control",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "q4_processor",
+            "promptSha256": "7a24dc4e68acabcad655d57c2f2af9a6b7cf6de9a41db0887ef2169ae3d97d62",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729512007503923,
+            "response": {
+              "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "contractId": "contract-v1",
+              "evidenceId": "evidence-v1",
+              "predecessorId": "predecessor-v1"
+            },
+            "scenario": "q4-unchanged",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-applicable-control",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "q4_authority",
+            "promptSha256": "ea809da95ec8b26528cac337f7938234fda655fd463dafd412e496cf157b336a",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729512233446163,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "applicability": "accept"
+              }
+            },
+            "scenario": "q4-unchanged",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "claimedCandidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "claimedContractId": "contract-v1",
+            "claimedEvidenceId": "evidence-v1",
+            "claimedPredecessorId": "predecessor-v1",
+            "expectedCandidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "expectedContractId": "contract-v1",
+            "expectedEvidenceId": "evidence-v1",
+            "expectedPredecessorId": "predecessor-v1"
+          },
+          "run_id": "01a07896-4f3c-7ee2-9a08-da25c8bd05e5",
+          "succeeded": true
+        },
+        "runId": "01a07896-4f3c-7ee2-9a08-da25c8bd05e5",
+        "scenario": "q4-unchanged",
+        "workspace": {
+          "candidate": "ORIGINAL_B1\n",
+          "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w2-applicable-control",
+          "rawEvidenceExists": true
+        }
+      },
+      "workUnits": [
+        {
+          "events": [
+            {
+              "action": {
+                "path": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1/candidate.txt",
+                "sha256": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+                "succeeded": true
+              },
+              "candidateAfter": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+              "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "implement",
+              "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729502819258094,
+              "response": null,
+              "scenario": "repair",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": null,
+              "candidateAfter": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+              "candidateBefore": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "review",
+              "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729503012078847,
+              "response": {
+                "diagnostic": null,
+                "output": null,
+                "signals": {
+                  "findings": "found"
+                }
+              },
+              "scenario": "repair",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": null,
+              "candidateAfter": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+              "candidateBefore": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "adjudicate_authority",
+              "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729503209973864,
+              "response": {
+                "diagnostic": null,
+                "output": null,
+                "signals": {
+                  "directive": "repair"
+                }
+              },
+              "scenario": "repair",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": {
+                "path": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1/candidate.txt",
+                "sha256": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+                "succeeded": true
+              },
+              "candidateAfter": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+              "candidateBefore": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "repair",
+              "promptSha256": "6e722ff5912d2a60b508ffc52ddd5f37f93df195ed5914e575d9a348290646ff",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729503408357271,
+              "response": null,
+              "scenario": "repair",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": null,
+              "candidateAfter": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+              "candidateBefore": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1",
+              "home": "/home/faviann",
+              "invocation": 2,
+              "node": "review",
+              "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729503602090530,
+              "response": {
+                "diagnostic": null,
+                "output": null,
+                "signals": {
+                  "findings": "clean"
+                }
+              },
+              "scenario": "repair",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": null,
+              "candidateAfter": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+              "candidateBefore": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1",
+              "home": "/home/faviann",
+              "invocation": 2,
+              "node": "adjudicate_authority",
+              "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729503794186150,
+              "response": {
+                "diagnostic": null,
+                "output": null,
+                "signals": {
+                  "directive": "advance"
+                }
+              },
+              "scenario": "repair",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": null,
+              "candidateAfter": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+              "candidateBefore": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "round_complete",
+              "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729503996537488,
+              "response": null,
+              "scenario": "repair",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": null,
+              "candidateAfter": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+              "candidateBefore": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "final_assessment_authority",
+              "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729504201947867,
+              "response": {
+                "diagnostic": null,
+                "output": null,
+                "signals": {
+                  "assessment": "accepted"
+                }
+              },
+              "scenario": "repair",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            }
+          ],
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-2b58-7112-80bb-07b41c598933",
+            "succeeded": true
+          },
+          "runId": "01a07896-2b58-7112-80bb-07b41c598933",
+          "scenario": "repair",
+          "status": {
+            "active_executions": [],
+            "cursor": "v2:50",
+            "phase": "finished",
+            "result": {
+              "failure": null,
+              "output": {
+                "fixture": "broodling-p1-repair-then-accept-v1"
+              },
+              "run_id": "01a07896-2b58-7112-80bb-07b41c598933",
+              "succeeded": true
+            },
+            "run_id": "01a07896-2b58-7112-80bb-07b41c598933",
+            "size": "small",
+            "source": {
+              "branch": "qualification/w2-work-unit-1",
+              "repository": "example/broodling-v1-fixture",
+              "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+            },
+            "title": "Broodling issue 8 V1 qualification"
+          },
+          "workspace": {
+            "candidate": "C2_FROM_REPAIR\n",
+            "candidateSha256": "e00728f716a1ba7a459739954ce37fe3b626061ecd9e4c3cf96d059a8277db11",
+            "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+            "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+            "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+            "path": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1",
+            "rawEvidenceExists": true
+          },
+          "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-1"
+        },
+        {
+          "events": [
+            {
+              "action": null,
+              "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-2",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "implement",
+              "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729502898649402,
+              "response": null,
+              "scenario": "clean",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": null,
+              "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-2",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "review",
+              "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729503112013737,
+              "response": {
+                "diagnostic": null,
+                "output": null,
+                "signals": {
+                  "findings": "clean"
+                }
+              },
+              "scenario": "clean",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": null,
+              "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-2",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "adjudicate_authority",
+              "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729503304248996,
+              "response": {
+                "diagnostic": null,
+                "output": null,
+                "signals": {
+                  "directive": "advance"
+                }
+              },
+              "scenario": "clean",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": null,
+              "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-2",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "round_complete",
+              "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729503495568886,
+              "response": null,
+              "scenario": "clean",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            },
+            {
+              "action": null,
+              "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+              "carryoverCanariesSeen": [],
+              "codexHome": "/home/faviann/.codex",
+              "cwd": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-2",
+              "home": "/home/faviann",
+              "invocation": 1,
+              "node": "final_assessment_authority",
+              "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+              "rawArtifactExists": true,
+              "recordedNs": 1788729503691009112,
+              "response": {
+                "diagnostic": null,
+                "output": null,
+                "signals": {
+                  "assessment": "accepted"
+                }
+              },
+              "scenario": "clean",
+              "toolAndCredentialAccess": {
+                "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+                "gitExecutable": "/usr/bin/git",
+                "githubHostsFileReadable": true
+              }
+            }
+          ],
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-2b5b-77e1-ae19-187a9d4c0f96",
+            "succeeded": true
+          },
+          "runId": "01a07896-2b5b-77e1-ae19-187a9d4c0f96",
+          "scenario": "clean",
+          "status": {
+            "active_executions": [],
+            "cursor": "v2:32",
+            "phase": "finished",
+            "result": {
+              "failure": null,
+              "output": {
+                "fixture": "broodling-p1-repair-then-accept-v1"
+              },
+              "run_id": "01a07896-2b5b-77e1-ae19-187a9d4c0f96",
+              "succeeded": true
+            },
+            "run_id": "01a07896-2b5b-77e1-ae19-187a9d4c0f96",
+            "size": "small",
+            "source": {
+              "branch": "qualification/w2-work-unit-2",
+              "repository": "example/broodling-v1-fixture",
+              "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+            },
+            "title": "Broodling issue 8 V1 qualification"
+          },
+          "workspace": {
+            "candidate": "ORIGINAL_B1\n",
+            "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+            "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+            "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+            "path": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-2",
+            "rawEvidenceExists": true
+          },
+          "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w2-work-unit-2"
+        }
+      ]
+    },
+    "checks": {
+      "assuranceWriteRejected": false,
+      "c1C2ReviewsRenewed": true,
+      "distinctExclusivePaths": true,
+      "forgedIdentifiersBlocked": false,
+      "lingeringWriterContained": false,
+      "missingArtifactBlocked": false,
+      "sameTargetRepositorySupported": true,
+      "sharedWritablePathProtected": false,
+      "unchangedValidControlAccepted": true
+    },
+    "limitations": "The controlled leaf is cooperative evidence instrumentation, not hostile-agent confinement. The failed probes show the selected LocalTarget profile provides no candidate/read-only/shared-path enforcement.",
+    "verdict": "FAIL"
+  },
+  "W5": {
+    "cases": {
+      "callerAfterDirective": {
+        "abandonment": {
+          "attemptId": "w5-caller-directive",
+          "eligible": false,
+          "reason": "caller-interrupted-after-directive",
+          "runId": "01a07896-6002-7a23-b166-85acf8d1ab36"
+        },
+        "childExitCode": 86,
+        "expectedExitCode": 86,
+        "marker": {
+          "runId": "01a07896-6002-7a23-b166-85acf8d1ab36",
+          "window": "after-directive"
+        },
+        "resultAfterReconciliation": {
+          "failure": "force_stopped",
+          "output": null,
+          "run_id": "01a07896-6002-7a23-b166-85acf8d1ab36",
+          "succeeded": false
+        },
+        "runId": "01a07896-6002-7a23-b166-85acf8d1ab36",
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:24",
+          "phase": "finished",
+          "result": {
+            "failure": "force_stopped",
+            "output": null,
+            "run_id": "01a07896-6002-7a23-b166-85acf8d1ab36",
+            "succeeded": false
+          },
+          "run_id": "01a07896-6002-7a23-b166-85acf8d1ab36",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w5-caller-directive",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "window": "after-directive",
+        "worktreeRetired": true
+      },
+      "callerAfterFinal": {
+        "abandonment": {
+          "attemptId": "w5-caller-final",
+          "eligible": false,
+          "reason": "caller-interrupted-after-final",
+          "runId": "01a07896-65ad-7c40-b541-7f80e4d2c242"
+        },
+        "childExitCode": 85,
+        "expectedExitCode": 85,
+        "marker": {
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-65ad-7c40-b541-7f80e4d2c242",
+            "succeeded": true
+          },
+          "runId": "01a07896-65ad-7c40-b541-7f80e4d2c242"
+        },
+        "resultAfterReconciliation": {
+          "failure": null,
+          "output": {
+            "fixture": "broodling-p1-repair-then-accept-v1"
+          },
+          "run_id": "01a07896-65ad-7c40-b541-7f80e4d2c242",
+          "succeeded": true
+        },
+        "runId": "01a07896-65ad-7c40-b541-7f80e4d2c242",
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:32",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-65ad-7c40-b541-7f80e4d2c242",
+            "succeeded": true
+          },
+          "run_id": "01a07896-65ad-7c40-b541-7f80e4d2c242",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w5-caller-final",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "window": "after-final",
+        "worktreeRetired": true
+      },
+      "controllerLoss": {
+        "abandonment": {
+          "attemptId": "w5-controller-loss",
+          "eligible": false,
+          "reason": "controller-loss",
+          "runId": "01a07896-59fa-7211-b3a4-dd47a313786e"
+        },
+        "controller": {
+          "argv": [
+            "/dev/shm/broodling-issue3.SxWiFT/venv/lib/python3.13/site-packages/zeroshot/_bin/zeroshot-rust",
+            "__zeroshot-run-controller",
+            "--bootstrap",
+            "/dev/shm/b8.epOeeZ/native-state/runs/01a07896-59fa-7211-b3a4-dd47a313786e/controller.bootstrap.json"
+          ],
+          "pid": 1631832,
+          "signal": "SIGKILL"
+        },
+        "result": {
+          "failure": "runtime_lost",
+          "output": null,
+          "run_id": "01a07896-59fa-7211-b3a4-dd47a313786e",
+          "succeeded": false
+        },
+        "runId": "01a07896-59fa-7211-b3a4-dd47a313786e",
+        "statusBeforeKill": {
+          "active_executions": [
+            {
+              "execution": "nv2-62fdbd7e96d3c75da343fa842cc4751c6b15714f99d5b414a2c960b0f83f50bb",
+              "node": "final_assessment_authority"
+            }
+          ],
+          "cursor": "v2:26",
+          "phase": "running",
+          "result": null,
+          "run_id": "01a07896-59fa-7211-b3a4-dd47a313786e",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w5-controller-loss",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:28",
+          "phase": "finished",
+          "result": {
+            "failure": "runtime_lost",
+            "output": null,
+            "run_id": "01a07896-59fa-7211-b3a4-dd47a313786e",
+            "succeeded": false
+          },
+          "run_id": "01a07896-59fa-7211-b3a4-dd47a313786e",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w5-controller-loss",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "worktreeRetired": true
+      },
+      "replacement": {
+        "events": [
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w5-replacement",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729519071110265,
+            "response": null,
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w5-replacement",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729519166113191,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "clean"
+              }
+            },
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w5-replacement",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "adjudicate_authority",
+            "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729519251410831,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "directive": "advance"
+              }
+            },
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w5-replacement",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "round_complete",
+            "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729519401714230,
+            "response": null,
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w5-replacement",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "final_assessment_authority",
+            "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729519569016862,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "assessment": "accepted"
+              }
+            },
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "fixture": "broodling-p1-repair-then-accept-v1"
+          },
+          "run_id": "01a07896-6ad6-7543-80a2-928e3e8263cc",
+          "succeeded": true
+        },
+        "runId": "01a07896-6ad6-7543-80a2-928e3e8263cc",
+        "scenario": "clean",
+        "status": {
+          "active_executions": [],
+          "cursor": "v2:32",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-6ad6-7543-80a2-928e3e8263cc",
+            "succeeded": true
+          },
+          "run_id": "01a07896-6ad6-7543-80a2-928e3e8263cc",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w5-replacement",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "workspace": {
+          "candidate": "ORIGINAL_B1\n",
+          "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w5-replacement",
+          "rawEvidenceExists": true
+        },
+        "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w5-replacement"
+      },
+      "stopAdjudication": {
+        "abandonment": {
+          "attemptId": "w5-stop-adjudication",
+          "eligible": false,
+          "reason": "qualification-stop",
+          "runId": "01a07896-5230-77d0-83cb-a37b3b5d8a7a"
+        },
+        "events": [
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w5-stop-adjudication",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729512774165308,
+            "response": null,
+            "scenario": "clean;hang:adjudicate_authority",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w5-stop-adjudication",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729512957958474,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "clean"
+              }
+            },
+            "scenario": "clean;hang:adjudicate_authority",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "repeatedStop": {
+          "failure": "force_stopped",
+          "output": null,
+          "run_id": "01a07896-5230-77d0-83cb-a37b3b5d8a7a",
+          "succeeded": false
+        },
+        "result": {
+          "failure": "force_stopped",
+          "output": null,
+          "run_id": "01a07896-5230-77d0-83cb-a37b3b5d8a7a",
+          "succeeded": false
+        },
+        "runId": "01a07896-5230-77d0-83cb-a37b3b5d8a7a",
+        "statusAtAbandonment": {
+          "active_executions": [
+            {
+              "execution": "nv2-0254496d007f39a971d8b35436b9c8e3824d450383504cdbe16b1c6c5b78237a",
+              "node": "adjudicate_authority"
+            }
+          ],
+          "cursor": "v2:14",
+          "phase": "running",
+          "result": null,
+          "run_id": "01a07896-5230-77d0-83cb-a37b3b5d8a7a",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w5-stop-adjudication",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:18",
+          "phase": "finished",
+          "result": {
+            "failure": "force_stopped",
+            "output": null,
+            "run_id": "01a07896-5230-77d0-83cb-a37b3b5d8a7a",
+            "succeeded": false
+          },
+          "run_id": "01a07896-5230-77d0-83cb-a37b3b5d8a7a",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w5-stop-adjudication",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "worktreeRetired": true
+      },
+      "stopMutation": {
+        "abandonment": {
+          "attemptId": "w5-stop-mutation",
+          "eligible": false,
+          "reason": "qualification-stop",
+          "runId": "01a07896-55ce-7740-869d-91131df5cc57"
+        },
+        "events": [
+          {
+            "action": {
+              "path": "/dev/shm/b8.epOeeZ/worktrees/w5-stop-mutation/candidate.txt",
+              "sha256": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+              "succeeded": true
+            },
+            "candidateAfter": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w5-stop-mutation",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729513693879686,
+            "response": null,
+            "scenario": "repair;hang:repair",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+            "candidateBefore": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w5-stop-mutation",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729513882164579,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "found"
+              }
+            },
+            "scenario": "repair;hang:repair",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+            "candidateBefore": "657a3d0848142a64c8e3ac0383bd6b64f3623cdc4cf97b56350e2d293e82a202",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w5-stop-mutation",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "adjudicate_authority",
+            "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729514056998315,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "directive": "repair"
+              }
+            },
+            "scenario": "repair;hang:repair",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "repeatedStop": {
+          "failure": "force_stopped",
+          "output": null,
+          "run_id": "01a07896-55ce-7740-869d-91131df5cc57",
+          "succeeded": false
+        },
+        "result": {
+          "failure": "force_stopped",
+          "output": null,
+          "run_id": "01a07896-55ce-7740-869d-91131df5cc57",
+          "succeeded": false
+        },
+        "runId": "01a07896-55ce-7740-869d-91131df5cc57",
+        "statusAtAbandonment": {
+          "active_executions": [
+            {
+              "execution": "nv2-b6147165327f33a4ca6b6bd3fdbdb72378dda21c28b052039515f4236b19f475",
+              "node": "repair"
+            }
+          ],
+          "cursor": "v2:20",
+          "phase": "running",
+          "result": null,
+          "run_id": "01a07896-55ce-7740-869d-91131df5cc57",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w5-stop-mutation",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:24",
+          "phase": "finished",
+          "result": {
+            "failure": "force_stopped",
+            "output": null,
+            "run_id": "01a07896-55ce-7740-869d-91131df5cc57",
+            "succeeded": false
+          },
+          "run_id": "01a07896-55ce-7740-869d-91131df5cc57",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w5-stop-mutation",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "worktreeRetired": true
+      }
+    },
+    "checks": {
+      "allOldAttemptsDurablyIneligible": true,
+      "allOldWorktreesRetiredAfterTerminal": true,
+      "callerDirectiveWindow": true,
+      "callerFinalWindow": true,
+      "controllerLossObserved": true,
+      "freshProviderStateAndSessionScope": true,
+      "lateTerminalResultsCannotRestoreEligibility": true,
+      "repeatedStopIdempotent": true,
+      "replacementFromOriginalB1": true,
+      "replacementNewRunAndWorktree": true,
+      "stopDuringAdjudication": true,
+      "stopDuringMutation": true,
+      "zeroAutomaticSemanticCarryoverObserved": true
+    },
+    "limitations": "Wholesale abandonment is proven without reading or carrying completed occurrence semantics. Process containment is limited to this single-host controlled-leaf profile; no same-run takeover, distributed fencing, or completed-occurrence recovery is claimed.",
+    "verdict": "PASS"
+  },
+  "W7": {
+    "cases": {
+      "effectBypass": {
+        "events": [
+          {
+            "action": {
+              "actions": [
+                {
+                  "argv": [
+                    "git",
+                    "config",
+                    "broodling.probe",
+                    "shared-metadata-mutated"
+                  ],
+                  "returnCode": 0,
+                  "stderr": "",
+                  "stdout": ""
+                },
+                {
+                  "argv": [
+                    "git",
+                    "tag",
+                    "v1-effect-bypass-probe"
+                  ],
+                  "returnCode": 0,
+                  "stderr": "",
+                  "stdout": ""
+                },
+                {
+                  "argv": [
+                    "git",
+                    "push",
+                    "probe",
+                    "refs/tags/v1-effect-bypass-probe"
+                  ],
+                  "returnCode": 0,
+                  "stderr": "To /dev/shm/b8.epOeeZ/controlled-remote.git\n * [new tag]         v1-effect-bypass-probe -> v1-effect-bypass-probe\n",
+                  "stdout": ""
+                }
+              ]
+            },
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-effect-bypass",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729523959323359,
+            "response": null,
+            "scenario": "clean;effect-bypass",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-effect-bypass",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729524163735487,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "clean"
+              }
+            },
+            "scenario": "clean;effect-bypass",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-effect-bypass",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "adjudicate_authority",
+            "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729524327930458,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "directive": "advance"
+              }
+            },
+            "scenario": "clean;effect-bypass",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-effect-bypass",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "round_complete",
+            "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729524423722797,
+            "response": null,
+            "scenario": "clean;effect-bypass",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-effect-bypass",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "final_assessment_authority",
+            "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729524580700517,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "assessment": "accepted"
+              }
+            },
+            "scenario": "clean;effect-bypass",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "fixture": "broodling-p1-repair-then-accept-v1"
+          },
+          "run_id": "01a07896-7db5-7062-a6ca-1c950c08aa7f",
+          "succeeded": true
+        },
+        "runId": "01a07896-7db5-7062-a6ca-1c950c08aa7f",
+        "scenario": "clean;effect-bypass",
+        "status": {
+          "active_executions": [],
+          "cursor": "v2:32",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-7db5-7062-a6ca-1c950c08aa7f",
+            "succeeded": true
+          },
+          "run_id": "01a07896-7db5-7062-a6ca-1c950c08aa7f",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w7-effect-bypass",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "workspace": {
+          "candidate": "ORIGINAL_B1\n",
+          "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w7-effect-bypass",
+          "rawEvidenceExists": true
+        },
+        "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w7-effect-bypass"
+      },
+      "noEffect": {
+        "events": [
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-no-effect",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729519965754011,
+            "response": null,
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-no-effect",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729520134502521,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "clean"
+              }
+            },
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-no-effect",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "adjudicate_authority",
+            "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729520320404449,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "directive": "advance"
+              }
+            },
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-no-effect",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "round_complete",
+            "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729520512858436,
+            "response": null,
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-no-effect",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "final_assessment_authority",
+            "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729520704343881,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "assessment": "accepted"
+              }
+            },
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "fixture": "broodling-p1-repair-then-accept-v1"
+          },
+          "run_id": "01a07896-6e80-7050-9bc2-07c38ec187ef",
+          "succeeded": true
+        },
+        "runId": "01a07896-6e80-7050-9bc2-07c38ec187ef",
+        "scenario": "clean",
+        "status": {
+          "active_executions": [],
+          "cursor": "v2:32",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-6e80-7050-9bc2-07c38ec187ef",
+            "succeeded": true
+          },
+          "run_id": "01a07896-6e80-7050-9bc2-07c38ec187ef",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w7-no-effect",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "workspace": {
+          "candidate": "ORIGINAL_B1\n",
+          "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w7-no-effect",
+          "rawEvidenceExists": true
+        },
+        "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w7-no-effect"
+      },
+      "optionalPermission": {
+        "events": [
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-optional-permission",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729522507121642,
+            "response": null,
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-optional-permission",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729522636281341,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "clean"
+              }
+            },
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-optional-permission",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "adjudicate_authority",
+            "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729522856623257,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "directive": "advance"
+              }
+            },
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-optional-permission",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "round_complete",
+            "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729523053312034,
+            "response": null,
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-optional-permission",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "final_assessment_authority",
+            "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729523252259531,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "assessment": "accepted"
+              }
+            },
+            "scenario": "clean",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "fixture": "broodling-p1-repair-then-accept-v1"
+          },
+          "run_id": "01a07896-786e-7072-9cb3-1066d774e15e",
+          "succeeded": true
+        },
+        "runId": "01a07896-786e-7072-9cb3-1066d774e15e",
+        "scenario": "clean",
+        "status": {
+          "active_executions": [],
+          "cursor": "v2:32",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-786e-7072-9cb3-1066d774e15e",
+            "succeeded": true
+          },
+          "run_id": "01a07896-786e-7072-9cb3-1066d774e15e",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w7-optional-permission",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "workspace": {
+          "candidate": "ORIGINAL_B1\n",
+          "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w7-optional-permission",
+          "rawEvidenceExists": true
+        },
+        "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w7-optional-permission"
+      },
+      "semanticGap": {
+        "events": [
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-final-gap",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "implement",
+            "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729521361390627,
+            "response": null,
+            "scenario": "clean;final-gap",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-final-gap",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "review",
+            "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729521550759971,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "findings": "clean"
+              }
+            },
+            "scenario": "clean;final-gap",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-final-gap",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "adjudicate_authority",
+            "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729521742546534,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "directive": "advance"
+              }
+            },
+            "scenario": "clean;final-gap",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-final-gap",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "round_complete",
+            "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729521933416971,
+            "response": null,
+            "scenario": "clean;final-gap",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          },
+          {
+            "action": null,
+            "candidateAfter": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "candidateBefore": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+            "carryoverCanariesSeen": [],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/b8.epOeeZ/worktrees/w7-final-gap",
+            "home": "/home/faviann",
+            "invocation": 1,
+            "node": "final_assessment_authority",
+            "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+            "rawArtifactExists": true,
+            "recordedNs": 1788729522149308766,
+            "response": {
+              "diagnostic": null,
+              "output": null,
+              "signals": {
+                "assessment": "gap"
+              }
+            },
+            "scenario": "clean;final-gap",
+            "toolAndCredentialAccess": {
+              "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+              "gitExecutable": "/usr/bin/git",
+              "githubHostsFileReadable": true
+            }
+          }
+        ],
+        "result": {
+          "failure": null,
+          "output": {
+            "fixture": "broodling-p1-repair-then-accept-v1"
+          },
+          "run_id": "01a07896-73c5-7320-bfce-851ba4838bf7",
+          "succeeded": true
+        },
+        "runId": "01a07896-73c5-7320-bfce-851ba4838bf7",
+        "scenario": "clean;final-gap",
+        "status": {
+          "active_executions": [],
+          "cursor": "v2:32",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a07896-73c5-7320-bfce-851ba4838bf7",
+            "succeeded": true
+          },
+          "run_id": "01a07896-73c5-7320-bfce-851ba4838bf7",
+          "size": "small",
+          "source": {
+            "branch": "qualification/w7-final-gap",
+            "repository": "example/broodling-v1-fixture",
+            "revision": "d771662ccecccd3762ff7a3116c585577b49780b"
+          },
+          "title": "Broodling issue 8 V1 qualification"
+        },
+        "workspace": {
+          "candidate": "ORIGINAL_B1\n",
+          "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+          "gitCommonDir": "/dev/shm/b8.epOeeZ/source/.git",
+          "head": "d771662ccecccd3762ff7a3116c585577b49780b",
+          "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+          "path": "/dev/shm/b8.epOeeZ/worktrees/w7-final-gap",
+          "rawEvidenceExists": true
+        },
+        "workspacePath": "/dev/shm/b8.epOeeZ/worktrees/w7-final-gap"
+      }
+    },
+    "checks": {
+      "agentCredentialAndToolPathsProtected": false,
+      "agentEffectBypassRejected": false,
+      "bareRuntimeSuccessNotAccepted": true,
+      "controlledRemoteUnchanged": false,
+      "effectContractsRejectedWithoutStripping": true,
+      "genuineNoEffectAdmitted": true,
+      "gitDeliveryExcluded": true,
+      "noEffectRunCompleted": true,
+      "sharedGitMetadataProtected": false,
+      "unusedOptionalPermissionCausedNoEffect": true
+    },
+    "contracts": {
+      "commitDelivery": {
+        "admitted": false,
+        "preservedObligations": [
+          "commit-as-delivery"
+        ],
+        "reason": "unsupported_required_effect"
+      },
+      "effectDependentEvidence": {
+        "admitted": false,
+        "preservedObligations": [
+          "evidence-after-publication"
+        ],
+        "reason": "unsupported_required_effect"
+      },
+      "issueMutation": {
+        "admitted": false,
+        "preservedObligations": [
+          "issue-comment",
+          "issue-close",
+          "issue-label",
+          "issue-relationship"
+        ],
+        "reason": "unsupported_required_effect"
+      },
+      "noEffect": {
+        "admitted": true,
+        "preservedObligations": [],
+        "reason": null
+      },
+      "noEffectWithUnusedOptionalPermission": {
+        "admitted": true,
+        "optionalPermissions": [
+          "controlled-local-git-probe"
+        ],
+        "preservedObligations": [],
+        "reason": null
+      },
+      "pullRequestMerge": {
+        "admitted": false,
+        "preservedObligations": [
+          "pull-request",
+          "merge"
+        ],
+        "reason": "unsupported_required_effect"
+      },
+      "push": {
+        "admitted": false,
+        "preservedObligations": [
+          "push"
+        ],
+        "reason": "unsupported_required_effect"
+      }
+    },
+    "effectProbe": {
+      "actions": [
+        {
+          "argv": [
+            "git",
+            "config",
+            "broodling.probe",
+            "shared-metadata-mutated"
+          ],
+          "returnCode": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        {
+          "argv": [
+            "git",
+            "tag",
+            "v1-effect-bypass-probe"
+          ],
+          "returnCode": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        {
+          "argv": [
+            "git",
+            "push",
+            "probe",
+            "refs/tags/v1-effect-bypass-probe"
+          ],
+          "returnCode": 0,
+          "stderr": "To /dev/shm/b8.epOeeZ/controlled-remote.git\n * [new tag]         v1-effect-bypass-probe -> v1-effect-bypass-probe\n",
+          "stdout": ""
+        }
+      ]
+    },
+    "limitations": "All mutation targets were controlled local fixtures. No GitHub write was attempted. The failed boundary demonstrates that excluding GitDelivery and omitting credentials is insufficient when an agent process can invoke Git against shared metadata/remotes; the readable configured GitHub hosts file was detected without reading or recording its contents.",
+    "toolAndCredentialAccess": {
+      "ghExecutable": "/home/faviann/.nix-profile/bin/gh",
+      "gitExecutable": "/usr/bin/git",
+      "githubHostsFileReadable": true
+    },
+    "verdict": "FAIL"
+  },
+  "build": {
+    "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
+    "controlledLeafSha256": "2eb6c6326180ac104896f2e4f2f70e285e68839209d0e9d855662d5ba97a46fe",
+    "driverSha256": "aa26062ef484884c12d66a1cc7c2d3d3bf63698b88a74c9abe73cce1a7df1205",
+    "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+    "python": "3.13.5",
+    "sdkDistribution": "zeroshot-rust",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecar": "/dev/shm/broodling-issue3.SxWiFT/venv/lib/python3.13/site-packages/zeroshot/_bin/zeroshot-rust",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86",
+    "sidecarVersion": "zeroshot-rust 0.1.0",
+    "wheel": "/dev/shm/broodling-issue3.SxWiFT/dist/zeroshot_rust-0.1.0.dev0-py3-none-linux_x86_64.whl",
+    "wheelSha256": "16bc7919f913ccc00853b5a917bc164800c5b44d3b4c4c99f2131d09f9ebeebb",
+    "zeroshotRevision": "d0909615d6ba3c179b58bce15a059f40400ec995",
+    "zeroshotTree": "03b9b027f9a9dd0e03cc827aae0e95dd3e8f2b4d"
+  },
+  "fixture": {
+    "admittedContract": {
+      "attemptId": "attempt-admission-template",
+      "candidateSha256": "5c5cd9cbb543a8b26894f78b4b8c68d060d9f515e32f2e470e4d95067b96a962",
+      "contractId": "contract-v1",
+      "instructions": "FROZEN_INSTRUCTIONS_V1\n",
+      "instructionsSha256": "32446e03f7d914446929492c1d9b88a48fb5f3db6d3c927283dbc393856caa9f",
+      "rawEvidenceSha256": "fb51e21d237e910f2fcaed89c14f1cd71208e1dbf43367676ecffee1592df85a",
+      "requiredEffects": [],
+      "startingRevision": "d771662ccecccd3762ff7a3116c585577b49780b"
+    },
+    "controlledLeaves": [
+      "all agent/provider occurrences"
+    ],
+    "graph": {
+      "initialInput": {
+        "fields": {
+          "fixture": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          }
+        },
+        "kind": "record"
+      },
+      "policy": {
+        "default": "deny",
+        "policy": "policy.native-v2@1"
+      },
+      "profile": "openengine.graph.full/v1",
+      "root": {
+        "children": [
+          {
+            "attempts": 1,
+            "input": {
+              "kind": "null"
+            },
+            "inputBindings": [],
+            "instructions": "BROODLING_NODE=implement. Produce the controlled implementation fixture outcome.",
+            "kind": "step",
+            "name": "implement",
+            "output": {
+              "kind": "null"
+            },
+            "timeoutMs": 30000,
+            "worker": "agent.broodling-implement@1",
+            "writeBindings": []
+          },
+          {
+            "body": {
+              "children": [
+                {
+                  "attempts": 1,
+                  "diagnostic": {
+                    "kind": "null"
+                  },
+                  "input": {
+                    "kind": "null"
+                  },
+                  "inputBindings": [],
+                  "instructions": "BROODLING_NODE=review. Produce the controlled ordinary-review outcome.",
+                  "kind": "verifier",
+                  "name": "review",
+                  "output": {
+                    "kind": "null"
+                  },
+                  "signals": {
+                    "findings": [
+                      "found",
+                      "clean"
+                    ]
+                  },
+                  "timeoutMs": 30000,
+                  "worker": "agent.broodling-review@1",
+                  "writeBindings": []
+                },
+                {
+                  "attempts": 1,
+                  "diagnostic": {
+                    "kind": "null"
+                  },
+                  "input": {
+                    "kind": "null"
+                  },
+                  "inputBindings": [],
+                  "instructions": "BROODLING_NODE=adjudicate_authority. Produce the controlled designated-authority outcome.",
+                  "kind": "verifier",
+                  "name": "adjudicate_authority",
+                  "output": {
+                    "kind": "null"
+                  },
+                  "signals": {
+                    "directive": [
+                      "repair",
+                      "advance"
+                    ]
+                  },
+                  "timeoutMs": 30000,
+                  "worker": "agent.broodling-adjudicate@1",
+                  "writeBindings": []
+                },
+                {
+                  "branches": [
+                    {
+                      "node": {
+                        "attempts": 1,
+                        "input": {
+                          "kind": "null"
+                        },
+                        "inputBindings": [],
+                        "instructions": "BROODLING_NODE=repair. Produce the controlled ordinary-repair outcome.",
+                        "kind": "step",
+                        "name": "repair",
+                        "output": {
+                          "kind": "null"
+                        },
+                        "timeoutMs": 30000,
+                        "worker": "agent.broodling-repair@1",
+                        "writeBindings": []
+                      },
+                      "when": {
+                        "kind": "in",
+                        "labels": [
+                          "repair"
+                        ],
+                        "value": {
+                          "field": "directive",
+                          "name": "adjudicate_authority",
+                          "source": "signal"
+                        }
+                      }
+                    }
+                  ],
+                  "kind": "choice",
+                  "name": "directive_route",
+                  "otherwise": {
+                    "attempts": 1,
+                    "input": {
+                      "kind": "null"
+                    },
+                    "inputBindings": [],
+                    "instructions": "BROODLING_NODE=round_complete. Produce the controlled ordinary round-complete outcome.",
+                    "kind": "step",
+                    "name": "round_complete",
+                    "output": {
+                      "kind": "null"
+                    },
+                    "timeoutMs": 30000,
+                    "worker": "agent.broodling-round-complete@1",
+                    "writeBindings": []
+                  },
+                  "promotedStatePaths": [],
+                  "state": {
+                    "fields": {
+                      "fixture": {
+                        "required": true,
+                        "type": {
+                          "kind": "string"
+                        }
+                      }
+                    },
+                    "kind": "record"
+                  }
+                }
+              ],
+              "kind": "seq",
+              "name": "review_repair_round",
+              "promotedStatePaths": [],
+              "state": {
+                "fields": {
+                  "fixture": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  }
+                },
+                "kind": "record"
+              }
+            },
+            "kind": "loop",
+            "maxIterations": 3,
+            "name": "review_repair_rounds",
+            "promotedStatePaths": [],
+            "state": {
+              "fields": {
+                "fixture": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                }
+              },
+              "kind": "record"
+            },
+            "until": {
+              "kind": "in",
+              "labels": [
+                "advance"
+              ],
+              "value": {
+                "field": "directive",
+                "name": "adjudicate_authority",
+                "source": "signal"
+              }
+            }
+          },
+          {
+            "attempts": 1,
+            "diagnostic": {
+              "kind": "null"
+            },
+            "input": {
+              "kind": "null"
+            },
+            "inputBindings": [],
+            "instructions": "BROODLING_NODE=final_assessment_authority. Produce the controlled designated final-assessment outcome.",
+            "kind": "verifier",
+            "name": "final_assessment_authority",
+            "output": {
+              "kind": "null"
+            },
+            "signals": {
+              "assessment": [
+                "accepted",
+                "gap"
+              ]
+            },
+            "timeoutMs": 30000,
+            "worker": "agent.broodling-final-assessment@1",
+            "writeBindings": []
+          },
+          {
+            "bindings": [
+              {
+                "target": [
+                  "fixture"
+                ],
+                "value": {
+                  "path": [
+                    "fixture"
+                  ],
+                  "source": "state"
+                }
+              }
+            ],
+            "kind": "succeed",
+            "name": "fixture_complete",
+            "output": {
+              "fields": {
+                "fixture": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                }
+              },
+              "kind": "record"
+            }
+          }
+        ],
+        "kind": "seq",
+        "name": "qualification",
+        "promotedStatePaths": [],
+        "state": {
+          "fields": {
+            "fixture": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            }
+          },
+          "kind": "record"
+        }
+      }
+    },
+    "graphSha256": "87d25709d89753bd6c38d7b52f9cb4951fa9b6d0daa564d6da1292f3ffb9f9a1",
+    "initialInput": {
+      "fixture": "broodling-p1-repair-then-accept-v1"
+    },
+    "initialInputSha256": "115fe115661648962a925ff7947d9da592f6554a51fe404c6f7449a2d4b7a019",
+    "runtime": {
+      "harness": "codex",
+      "nodes": {
+        "adjudicate_authority": {
+          "connections": {
+            "fixture": [
+              "OPENAI_API_KEY",
+              "BROODLING_FIXTURE_SCENARIO",
+              "BROODLING_FIXTURE_STATE",
+              "BROODLING_V1_CANDIDATE_SHA",
+              "BROODLING_V1_SHARED_PATH"
+            ]
+          },
+          "effort": "low",
+          "kind": "agent",
+          "model": "broodling-p1-controlled-leaf",
+          "sessionScope": "execution"
+        },
+        "final_assessment_authority": {
+          "connections": {
+            "fixture": [
+              "OPENAI_API_KEY",
+              "BROODLING_FIXTURE_SCENARIO",
+              "BROODLING_FIXTURE_STATE",
+              "BROODLING_V1_CANDIDATE_SHA",
+              "BROODLING_V1_SHARED_PATH"
+            ]
+          },
+          "effort": "low",
+          "kind": "agent",
+          "model": "broodling-p1-controlled-leaf",
+          "sessionScope": "execution"
+        },
+        "implement": {
+          "connections": {
+            "fixture": [
+              "OPENAI_API_KEY",
+              "BROODLING_FIXTURE_SCENARIO",
+              "BROODLING_FIXTURE_STATE",
+              "BROODLING_V1_CANDIDATE_SHA",
+              "BROODLING_V1_SHARED_PATH"
+            ]
+          },
+          "effort": "low",
+          "kind": "agent",
+          "model": "broodling-p1-controlled-leaf",
+          "sessionScope": "execution"
+        },
+        "repair": {
+          "connections": {
+            "fixture": [
+              "OPENAI_API_KEY",
+              "BROODLING_FIXTURE_SCENARIO",
+              "BROODLING_FIXTURE_STATE",
+              "BROODLING_V1_CANDIDATE_SHA",
+              "BROODLING_V1_SHARED_PATH"
+            ]
+          },
+          "effort": "low",
+          "kind": "agent",
+          "model": "broodling-p1-controlled-leaf",
+          "sessionScope": "execution"
+        },
+        "review": {
+          "connections": {
+            "fixture": [
+              "OPENAI_API_KEY",
+              "BROODLING_FIXTURE_SCENARIO",
+              "BROODLING_FIXTURE_STATE",
+              "BROODLING_V1_CANDIDATE_SHA",
+              "BROODLING_V1_SHARED_PATH"
+            ]
+          },
+          "effort": "low",
+          "kind": "agent",
+          "model": "broodling-p1-controlled-leaf",
+          "sessionScope": "execution"
+        },
+        "round_complete": {
+          "connections": {
+            "fixture": [
+              "OPENAI_API_KEY",
+              "BROODLING_FIXTURE_SCENARIO",
+              "BROODLING_FIXTURE_STATE",
+              "BROODLING_V1_CANDIDATE_SHA",
+              "BROODLING_V1_SHARED_PATH"
+            ]
+          },
+          "effort": "low",
+          "kind": "agent",
+          "model": "broodling-p1-controlled-leaf",
+          "sessionScope": "execution"
+        }
+      },
+      "provider": "openai",
+      "size": "small"
+    },
+    "runtimeSha256": "5fa18f2536c815b8fbb4ca3f08a2170c66b41d2688779ffe13eb6c321f5acc36"
+  },
+  "profile": {
+    "credentialPolicy": "Test-only OPENAI_API_KEY; no live provider or GitHub credential passed. Controlled local bare remote only.",
+    "harness": "codex",
+    "host": "single Linux x86-64 host",
+    "instrumentation": "Controlled Codex JSONL leaf records prompt digests, candidate bytes/digests, raw-artifact presence and probe results; SDK status/result and administrative facts are retained.",
+    "provider": "openai",
+    "providerLeaf": "controlled",
+    "retention": "Committed machine record retains observations; disposable LocalTarget state/worktrees are not a production retention promise.",
+    "sessionScope": "execution",
+    "sourcePolicy": "Each Git worktree has a unique qualification branch created at immutable B1 because the pinned sidecar rejects detached HEAD; same-repository worktrees intentionally share Git common metadata for W2/W7 probes.",
+    "stateDir": "/dev/shm/b8.epOeeZ/native-state",
+    "target": "LocalTarget",
+    "worktreePolicy": "One path per fixture Attempt; retirement only after terminal force_stopped/runtime_lost observation."
+  },
+  "recordedAt": "2026-09-06T21:18:44.695169+00:00",
+  "schema": "broodling.issue-8-v1-qualification/v1",
+  "scope": {
+    "g1V1": "not_evaluated_by_issue_8",
+    "issue": 8,
+    "laterIssueWork": false,
+    "productCodeImplemented": false,
+    "witnesses": [
+      "W1",
+      "W2",
+      "W5",
+      "W7"
+    ]
+  },
+  "verdicts": {
+    "W1": "PASS",
+    "W2": "FAIL",
+    "W5": "PASS",
+    "W7": "FAIL"
+  }
+}

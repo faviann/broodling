@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""Controlled Codex leaf for issue #8 V1 boundary probes."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+def emit(value: object) -> None:
+    print(json.dumps(value, separators=(",", ":")), flush=True)
+
+
+def append(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(value, sort_keys=True) + "\n")
+
+
+def count(state: Path, node: str) -> int:
+    path = state / f"{node}.count"
+    try:
+        value = int(path.read_text(encoding="utf-8")) + 1
+    except FileNotFoundError:
+        value = 1
+    path.write_text(f"{value}\n", encoding="utf-8")
+    return value
+
+
+def digest(path: Path) -> str | None:
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+
+
+def try_write(path: Path, text: str) -> dict[str, object]:
+    try:
+        path.write_text(text, encoding="utf-8")
+        return {"succeeded": True, "path": str(path), "sha256": digest(path)}
+    except Exception as error:  # evidence must retain the exact rejecting error
+        return {"succeeded": False, "path": str(path), "error": repr(error)}
+
+
+def detached_late_write(path: Path) -> int:
+    pid = os.fork()
+    if pid == 0:
+        os.setsid()
+        time.sleep(0.8)
+        try_write(path, "LINGERING_WRITER\n")
+        os._exit(0)
+    return pid
+
+
+def git_probe(workspace: Path, state: Path) -> dict[str, object]:
+    actions: list[dict[str, object]] = []
+    commands = [
+        ["git", "config", "broodling.probe", "shared-metadata-mutated"],
+        ["git", "tag", "v1-effect-bypass-probe"],
+        ["git", "push", "probe", "refs/tags/v1-effect-bypass-probe"],
+    ]
+    for command in commands:
+        completed = subprocess.run(
+            command, cwd=workspace, text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, check=False,
+        )
+        actions.append({
+            "argv": command, "returnCode": completed.returncode,
+            "stdout": completed.stdout, "stderr": completed.stderr,
+        })
+    record = {"actions": actions}
+    append(state / "effect-probe.jsonl", record)
+    return record
+
+
+def response(node: str, invocation: int, scenario: str) -> object:
+    if node == "review":
+        found = scenario.startswith("repair") and invocation == 1
+        return {"output": None, "signals": {"findings": "found" if found else "clean"}, "diagnostic": None}
+    if node == "adjudicate_authority":
+        repair = scenario.startswith("repair") and invocation == 1
+        return {"output": None, "signals": {"directive": "repair" if repair else "advance"}, "diagnostic": None}
+    if node == "final_assessment_authority":
+        assessment = "gap" if "final-gap" in scenario else "accepted"
+        return {"output": None, "signals": {"assessment": assessment}, "diagnostic": None}
+    if node == "q4_processor":
+        if "forged" in scenario:
+            values = ["forged-candidate", "forged-contract", "forged-evidence", "forged-predecessor"]
+        else:
+            values = [os.environ["BROODLING_V1_CANDIDATE_SHA"], "contract-v1", "evidence-v1", "predecessor-v1"]
+        return dict(zip(("candidateSha256", "contractId", "evidenceId", "predecessorId"), values, strict=True))
+    if node == "q4_authority":
+        return {"output": None, "signals": {"applicability": "accept"}, "diagnostic": None}
+    return None
+
+
+def main() -> int:
+    prompt = sys.stdin.read()
+    match = re.search(r"BROODLING_NODE=([a-z0-9_]+)", prompt)
+    if not match:
+        print("missing BROODLING_NODE", file=sys.stderr)
+        return 64
+    node = match.group(1)
+    state = Path(os.environ["BROODLING_FIXTURE_STATE"])
+    state.mkdir(parents=True, exist_ok=True)
+    invocation = count(state, node)
+    scenario = os.environ.get("BROODLING_FIXTURE_SCENARIO", "clean")
+    workspace = Path.cwd()
+    candidate = workspace / "candidate.txt"
+    raw = workspace / "evidence" / "raw.txt"
+
+    before = digest(candidate)
+    action: dict[str, object] | None = None
+    if node == "implement" and scenario.startswith("repair"):
+        action = try_write(candidate, "C1_FROM_IMPLEMENT\n")
+    if node == "repair":
+        action = try_write(candidate, "C2_FROM_REPAIR\n")
+    if node in {"review", "adjudicate_authority", "final_assessment_authority"} and "assurance-write" in scenario:
+        action = try_write(candidate, f"UNAUTHORIZED_{node}\n")
+    if node == "review" and "missing-artifact" in scenario and raw.exists():
+        raw.unlink()
+        action = {"removedRawArtifact": True}
+    if node == "implement" and "lingering-writer" in scenario:
+        action = {"detachedPid": detached_late_write(candidate)}
+    if node == "implement" and "shared-path" in scenario:
+        action = try_write(Path(os.environ["BROODLING_V1_SHARED_PATH"]), "SHARED_PATH_MUTATED\n")
+    if node == "implement" and "effect-bypass" in scenario:
+        action = git_probe(workspace, state)
+
+    controlled_response = response(node, invocation, scenario)
+    home = Path(os.environ.get("HOME", "/nonexistent"))
+    event = {
+        "node": node, "invocation": invocation, "scenario": scenario,
+        "cwd": str(workspace), "candidateBefore": before,
+        "candidateAfter": digest(candidate), "rawArtifactExists": raw.exists(),
+        "action": action, "promptSha256": hashlib.sha256(prompt.encode()).hexdigest(),
+        "response": controlled_response,
+        "carryoverCanariesSeen": [
+            value for value in ("ABANDONED_CANDIDATE", "ABANDONED_DIRECTIVE", "ABANDONED_ACCEPTANCE", "ABANDONED_EVIDENCE")
+            if value in prompt
+        ],
+        "toolAndCredentialAccess": {
+            "gitExecutable": shutil.which("git"), "ghExecutable": shutil.which("gh"),
+            "githubHostsFileReadable": os.access(home / ".config/gh/hosts.yml", os.R_OK),
+        },
+        "recordedNs": time.time_ns(), "home": os.environ.get("HOME"),
+        "codexHome": os.environ.get("CODEX_HOME"),
+    }
+    append(state / "driver.jsonl", event)
+
+    hang_node = None
+    for part in scenario.split(";"):
+        if part.startswith("hang:"):
+            hang_node = part.split(":", 1)[1]
+    if hang_node == node:
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+        signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+        while True:
+            time.sleep(1)
+
+    emit({"type": "thread.started", "thread_id": f"v1-{node}-{invocation}"})
+    emit({"type": "turn.started"})
+    emit({"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps({"response": controlled_response}, separators=(",", ":"))}})
+    emit({"type": "turn.completed", "usage": {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}})
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

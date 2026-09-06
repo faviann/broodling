@@ -35,8 +35,10 @@ acceptance. Reviewer execution is fresh with a narrowly controlled automatic-con
 
 ## Status
 
-The v0.4 target and dependency sequence are documented. **New G1-V1 qualification witnesses are
-NOT RUN; the narrowed profile is not yet qualified.** Product language, framework, storage and
+The v0.4 target and dependency sequence are documented. Issue #8's
+[V1 qualification](qualification/v1-p1/issue-8-w1-w2-w5-w7.md) records **W1 PASS, W2 FAIL, W5
+PASS and W7 FAIL** on one pinned SDK/sidecar profile. **G1-V1 is not passed**; W3, W4 and W6 are
+outside issue #8 and are not evaluated by that result. Product language, framework, storage and
 product implementation remain unresolved. Exact effects/reconciliation and cross-Attempt
 reuse/recovery are deferred capabilities, not V1 prerequisites.
 
