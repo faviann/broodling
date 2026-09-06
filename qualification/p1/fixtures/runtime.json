@@ -1,0 +1,85 @@
+{
+  "harness": "codex",
+  "provider": "openai",
+  "size": "small",
+  "nodes": {
+    "implement": {
+      "kind": "agent",
+      "model": "broodling-p1-controlled-leaf",
+      "effort": "low",
+      "sessionScope": "execution",
+      "connections": {
+        "fixture": [
+          "OPENAI_API_KEY",
+          "BROODLING_FIXTURE_SCENARIO",
+          "BROODLING_FIXTURE_STATE"
+        ]
+      }
+    },
+    "review": {
+      "kind": "agent",
+      "model": "broodling-p1-controlled-leaf",
+      "effort": "low",
+      "sessionScope": "execution",
+      "connections": {
+        "fixture": [
+          "OPENAI_API_KEY",
+          "BROODLING_FIXTURE_SCENARIO",
+          "BROODLING_FIXTURE_STATE"
+        ]
+      }
+    },
+    "adjudicate_authority": {
+      "kind": "agent",
+      "model": "broodling-p1-controlled-leaf",
+      "effort": "low",
+      "sessionScope": "execution",
+      "connections": {
+        "fixture": [
+          "OPENAI_API_KEY",
+          "BROODLING_FIXTURE_SCENARIO",
+          "BROODLING_FIXTURE_STATE"
+        ]
+      }
+    },
+    "repair": {
+      "kind": "agent",
+      "model": "broodling-p1-controlled-leaf",
+      "effort": "low",
+      "sessionScope": "execution",
+      "connections": {
+        "fixture": [
+          "OPENAI_API_KEY",
+          "BROODLING_FIXTURE_SCENARIO",
+          "BROODLING_FIXTURE_STATE"
+        ]
+      }
+    },
+    "round_complete": {
+      "kind": "agent",
+      "model": "broodling-p1-controlled-leaf",
+      "effort": "low",
+      "sessionScope": "execution",
+      "connections": {
+        "fixture": [
+          "OPENAI_API_KEY",
+          "BROODLING_FIXTURE_SCENARIO",
+          "BROODLING_FIXTURE_STATE"
+        ]
+      }
+    },
+    "final_assessment_authority": {
+      "kind": "agent",
+      "model": "broodling-p1-controlled-leaf",
+      "effort": "low",
+      "sessionScope": "execution",
+      "connections": {
+        "fixture": [
+          "OPENAI_API_KEY",
+          "BROODLING_FIXTURE_SCENARIO",
+          "BROODLING_FIXTURE_STATE"
+        ]
+      }
+    }
+  }
+}

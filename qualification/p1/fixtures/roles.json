@@ -1,0 +1,12 @@
+{
+  "schema": "broodling.p1-fixture-roles/v1",
+  "roles": {
+    "implement": "ordinary",
+    "review": "ordinary",
+    "adjudicate_authority": "designated_authority",
+    "repair": "ordinary",
+    "round_complete": "ordinary",
+    "final_assessment_authority": "designated_authority"
+  },
+  "note": "This fixture designation prepares later witnesses; it does not itself qualify semantic authority or any G1 claim."
+}

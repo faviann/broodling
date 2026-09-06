@@ -1,0 +1,193 @@
+{
+  "profile": "openengine.graph.full/v1",
+  "initialInput": {
+    "kind": "record",
+    "fields": {
+      "fixture": {
+        "required": true,
+        "type": { "kind": "string" }
+      }
+    }
+  },
+  "policy": { "policy": "policy.native-v2@1", "default": "deny" },
+  "root": {
+    "kind": "seq",
+    "name": "qualification",
+    "state": {
+      "kind": "record",
+      "fields": {
+        "fixture": {
+          "required": true,
+          "type": { "kind": "string" }
+        }
+      }
+    },
+    "children": [
+      {
+        "kind": "step",
+        "name": "implement",
+        "worker": "agent.broodling-implement@1",
+        "instructions": "BROODLING_NODE=implement. Produce the controlled implementation fixture outcome.",
+        "input": { "kind": "null" },
+        "output": { "kind": "null" },
+        "inputBindings": [],
+        "writeBindings": [],
+        "timeoutMs": 30000,
+        "attempts": 1
+      },
+      {
+        "kind": "loop",
+        "name": "review_repair_rounds",
+        "state": {
+          "kind": "record",
+          "fields": {
+            "fixture": {
+              "required": true,
+              "type": { "kind": "string" }
+            }
+          }
+        },
+        "body": {
+          "kind": "seq",
+          "name": "review_repair_round",
+          "state": {
+            "kind": "record",
+            "fields": {
+              "fixture": {
+                "required": true,
+                "type": { "kind": "string" }
+              }
+            }
+          },
+          "children": [
+            {
+              "kind": "verifier",
+              "name": "review",
+              "worker": "agent.broodling-review@1",
+              "instructions": "BROODLING_NODE=review. Produce the controlled ordinary-review outcome.",
+              "input": { "kind": "null" },
+              "output": { "kind": "null" },
+              "inputBindings": [],
+              "writeBindings": [],
+              "timeoutMs": 30000,
+              "attempts": 1,
+              "signals": { "findings": ["found", "clean"] },
+              "diagnostic": { "kind": "null" }
+            },
+            {
+              "kind": "verifier",
+              "name": "adjudicate_authority",
+              "worker": "agent.broodling-adjudicate@1",
+              "instructions": "BROODLING_NODE=adjudicate_authority. Produce the controlled designated-authority outcome.",
+              "input": { "kind": "null" },
+              "output": { "kind": "null" },
+              "inputBindings": [],
+              "writeBindings": [],
+              "timeoutMs": 30000,
+              "attempts": 1,
+              "signals": { "directive": ["repair", "advance"] },
+              "diagnostic": { "kind": "null" }
+            },
+            {
+              "kind": "choice",
+              "name": "directive_route",
+              "state": {
+                "kind": "record",
+                "fields": {
+                  "fixture": {
+                    "required": true,
+                    "type": { "kind": "string" }
+                  }
+                }
+              },
+              "branches": [
+                {
+                  "when": {
+                    "kind": "in",
+                    "value": {
+                      "name": "adjudicate_authority",
+                      "source": "signal",
+                      "field": "directive"
+                    },
+                    "labels": ["repair"]
+                  },
+                  "node": {
+                    "kind": "step",
+                    "name": "repair",
+                    "worker": "agent.broodling-repair@1",
+                    "instructions": "BROODLING_NODE=repair. Produce the controlled ordinary-repair outcome.",
+                    "input": { "kind": "null" },
+                    "output": { "kind": "null" },
+                    "inputBindings": [],
+                    "writeBindings": [],
+                    "timeoutMs": 30000,
+                    "attempts": 1
+                  }
+                }
+              ],
+              "otherwise": {
+                "kind": "step",
+                "name": "round_complete",
+                "worker": "agent.broodling-round-complete@1",
+                "instructions": "BROODLING_NODE=round_complete. Produce the controlled ordinary round-complete outcome.",
+                "input": { "kind": "null" },
+                "output": { "kind": "null" },
+                "inputBindings": [],
+                "writeBindings": [],
+                "timeoutMs": 30000,
+                "attempts": 1
+              },
+              "promotedStatePaths": []
+            }
+          ],
+          "promotedStatePaths": []
+        },
+        "until": {
+          "kind": "in",
+          "value": {
+            "name": "adjudicate_authority",
+            "source": "signal",
+            "field": "directive"
+          },
+          "labels": ["advance"]
+        },
+        "maxIterations": 3,
+        "promotedStatePaths": []
+      },
+      {
+        "kind": "verifier",
+        "name": "final_assessment_authority",
+        "worker": "agent.broodling-final-assessment@1",
+        "instructions": "BROODLING_NODE=final_assessment_authority. Produce the controlled designated final-assessment outcome.",
+        "input": { "kind": "null" },
+        "output": { "kind": "null" },
+        "inputBindings": [],
+        "writeBindings": [],
+        "timeoutMs": 30000,
+        "attempts": 1,
+        "signals": { "assessment": ["accepted", "gap"] },
+        "diagnostic": { "kind": "null" }
+      },
+      {
+        "kind": "succeed",
+        "name": "fixture_complete",
+        "output": {
+          "kind": "record",
+          "fields": {
+            "fixture": {
+              "required": true,
+              "type": { "kind": "string" }
+            }
+          }
+        },
+        "bindings": [
+          {
+            "target": ["fixture"],
+            "value": { "source": "state", "path": ["fixture"] }
+          }
+        ]
+      }
+    ],
+    "promotedStatePaths": []
+  }
+}

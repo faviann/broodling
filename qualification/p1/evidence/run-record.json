@@ -1,0 +1,97 @@
+{
+  "schema": "broodling.p1-harness-evidence/v1",
+  "scope": {
+    "issue": 2,
+    "g1Core": "not_evaluated",
+    "g1Effects": "not_evaluated",
+    "productArchitectureDecision": "deferred",
+    "semanticQuality": "not_evaluated",
+    "workUnitSuccess": "not_claimed"
+  },
+  "testedAt": "2026-09-06",
+  "testedSource": {
+    "zeroshotRevision": "d0909615d6ba3c179b58bce15a059f40400ec995",
+    "zeroshotTree": "03b9b027f9a9dd0e03cc827aae0e95dd3e8f2b4d",
+    "disposableWorkspace": "/dev/shm/broodling-p1.MmV5mJ/workspace",
+    "workspaceRepository": "example/broodling-p1-fixture",
+    "workspaceBranch": "qualification/p1",
+    "workspaceRevision": "f3428c0afe0749bba99e7377c52977757b09f56e"
+  },
+  "build": {
+    "profile": "Cargo dev, unoptimized plus debuginfo",
+    "rustc": "1.97.0 (2d8144b78 2026-07-07)",
+    "cargo": "1.97.0 (c980f4866 2026-06-30)",
+    "python": "3.13.5",
+    "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+    "sdkDistribution": "zeroshot-rust",
+    "sdkVersion": "0.1.0.dev0",
+    "wheel": "zeroshot_rust-0.1.0.dev0-py3-none-linux_x86_64.whl",
+    "wheelSha256": "153d19c2ea1b5f6a58cd06a20d6c4003071ced0669c3155a94b476a3bb2dd9ae",
+    "sidecarVersion": "zeroshot-rust 0.1.0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86",
+    "controlledLeafSha256": "22ee9d793741de6447d88c83c8c97b7fa64e3c786abd88a0ed184c29301436ae"
+  },
+  "submittedValues": {
+    "graph": {
+      "path": "qualification/p1/fixtures/graph.json",
+      "sha256": "a6ce48f397eceacfce848e8736b28e96e299ee1fea21935793b5b4afff6e04d8"
+    },
+    "runtime": {
+      "path": "qualification/p1/fixtures/runtime.json",
+      "sha256": "2edd556280eb3af68bef77a2f86dfaee8b113f095de52257716b560e80d011df"
+    },
+    "initialInput": {
+      "path": "qualification/p1/fixtures/initial-input.json",
+      "sha256": "6aa9b0b38dcfe5aabb75000c27b0da754acfe18364abee033e252e5c74917e7d"
+    },
+    "roles": {
+      "path": "qualification/p1/fixtures/roles.json",
+      "sha256": "51b78704305ff4533326f03292dcc1d4c046d6f37e6c02f132a59fcbac56dbc1"
+    }
+  },
+  "profile": {
+    "target": "official Python SDK LocalTarget and bundled Rust sidecar",
+    "harness": "codex",
+    "provider": "openai",
+    "model": "broodling-p1-controlled-leaf",
+    "credentialAssumption": "A non-secret test placeholder satisfies the exact declared OPENAI_API_KEY binding; no live provider is contacted.",
+    "contextAssumption": "The native-built prompt reaches the controlled leaf. Q5 owns effective-context qualification.",
+    "doubled": "Only the provider leaf process at qualification/p1/bin/codex.",
+    "real": "SDK request encoding/transport; Rust preflight, admission, source resolution, controller, graph execution/reduction, durable observation, and force-stop."
+  },
+  "runs": [
+    {
+      "fixture": "repair-then-accept",
+      "submissionKey": "broodling-p1-current-harness-check-20260906",
+      "returnedRunId": "01a0777d-953a-7b80-84e0-b287b393f455",
+      "recordedAt": "2026-09-06T16:11:55.485195+00:00",
+      "terminalCursor": "v2:50",
+      "terminalPhase": "finished",
+      "succeeded": true,
+      "failure": null,
+      "output": { "fixture": "broodling-p1-repair-then-accept-v1" },
+      "controlledExecutions": [
+        "implement@1",
+        "review@1",
+        "adjudicate_authority@1",
+        "repair@1",
+        "review@2",
+        "adjudicate_authority@2",
+        "round_complete@1",
+        "final_assessment_authority@1"
+      ]
+    },
+    {
+      "fixture": "hang:final_assessment_authority",
+      "submissionKey": "broodling-p1-stop-run-final-20260906",
+      "returnedRunId": "01a0777a-c0f4-7373-ac5e-8a067efc8404",
+      "recordedAt": "2026-09-06T16:08:49.705555+00:00",
+      "interruptionPointObserved": "final_assessment_authority",
+      "terminalCursor": "v2:30",
+      "terminalPhase": "finished",
+      "succeeded": false,
+      "failure": "force_stopped",
+      "output": null
+    }
+  ]
+}
