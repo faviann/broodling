@@ -28,6 +28,10 @@ def next_invocation(state: Path, node: str) -> int:
 
 
 def response_for(node: str, invocation: int, scenario: str) -> object:
+    if node == "q7_prepare":
+        return None
+    if node == "q7_assessment":
+        return {"output": None, "signals": {"assessment": "accepted"}, "diagnostic": None}
     if node == "q4_processor":
         claims = {
             "candidateSha256": os.environ["BROODLING_Q4_EXPECTED_CANDIDATE"],
@@ -121,6 +125,10 @@ def main() -> int:
     )
 
     workspace = Path.cwd()
+    if node == "q7_prepare":
+        (workspace / "candidate.txt").write_text(
+            f"controlled Q7 candidate for {scenario}\n", encoding="utf-8"
+        )
     if node == "q4_processor":
         if scenario in {"q4-changed-candidate", "q4-observer-delay"}:
             (workspace / "candidate.txt").write_text("candidate-v2\n", encoding="utf-8")

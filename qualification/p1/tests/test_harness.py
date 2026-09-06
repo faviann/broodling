@@ -176,6 +176,30 @@ class HarnessFixtureTests(unittest.TestCase):
         self.assertEqual(output["ambientSkillCanary"], "Q5_AMBIENT_SKILL_CANARY")
         self.assertEqual(output["workspaceNarrativeCanary"], "NOT_VISIBLE")
 
+    def test_issue6_evidence_matches_qualified_verdict(self) -> None:
+        record = json.loads((P1 / "evidence/issue-6-run-record.json").read_text())
+        self.assertEqual(record["verdicts"], {"G1-effects": "BLOCKED", "Q7": "BLOCKED"})
+        self.assertTrue(all(record["acceptanceChecks"].values()))
+        self.assertFalse(record["integrationBoundary"]["broodlingValidationOrScheduling"])
+        self.assertEqual(record["integrationBoundary"]["prohibitedReadersUsed"], [])
+
+        before = record["cases"]["beforeAssessment"]
+        after = record["cases"]["afterAssessment"]
+        unsupported = record["cases"]["unsupportedExactEffect"]
+        self.assertFalse(before["result"]["succeeded"])
+        self.assertFalse(after["result"]["succeeded"])
+        self.assertTrue(before["workspaceAfterRun"]["headChanged"])
+        self.assertTrue(after["workspaceAfterRun"]["headChanged"])
+        self.assertEqual(
+            [event["node"] for event in before["controlledDriverEvents"]],
+            ["q7_prepare"],
+        )
+        self.assertEqual(
+            [event["node"] for event in after["controlledDriverEvents"]],
+            ["q7_prepare", "q7_assessment"],
+        )
+        self.assertFalse(unsupported["admitted"])
+
     def test_controlled_leaf_can_target_a_repeated_occurrence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory)

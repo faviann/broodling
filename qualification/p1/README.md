@@ -127,3 +127,14 @@ trusted applicability handoff and reviewer automatic-context boundary. Both Q4 a
 by concrete Zeroshot/profile integration dependencies. The Q5 context witness used the real Codex
 CLI/provider; Q4 controlled only the provider leaf. Issue #5 remains open, and this qualification
 does not attempt to resolve issue #3 Q1/Q6 or begin a later phase.
+
+## Issue #6 result
+
+The issue-scoped [Q7 report](issue-6-q7.md),
+[qualification driver](issue6_qualify.py), and
+[retained run record](evidence/issue-6-run-record.json) qualify exact trusted-effect coordination
+through the real SDK/sidecar path. Q7 and G1-effects are blocked: the only trusted effect bindings
+are bundled PR/merge delivery, and the runtime rejects a generic exact-effect worker. The live
+witnesses confirm fail-closed in-run ordering but cannot execute or reconcile either narrower
+fixture intent without widening its authority. No production GitHub mutation was attempted with a
+valid credential, and this qualification does not begin P6 or resolve the G1-core dependencies.

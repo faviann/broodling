@@ -1,0 +1,2000 @@
+{
+  "acceptanceChecks": {
+    "afterAssessmentPrerequisiteRanBeforeDelivery": true,
+    "beforeAssessmentDidNotReachAssessmentWithoutReceipt": true,
+    "beforeAssessmentEffectEnteredTrustedDelivery": true,
+    "genericExactEffectWorkerRejected": true,
+    "noRemoteMutationCredentialUsed": true,
+    "stockDeliveryCommittedWorkspaceInBothCases": true,
+    "stockDeliveryDidNotYieldVerifiedReceipt": true
+  },
+  "authorizedFixtureIntents": {
+    "afterAssessment": {
+      "forbiddenBundledEffects": [
+        "commit",
+        "push",
+        "pull request",
+        "merge",
+        "issue closure"
+      ],
+      "intentId": "q7-post-acceptance-marker-v1",
+      "operation": "write one controlled accepted-candidate marker",
+      "prerequisite": "current semantic acceptance"
+    },
+    "beforeAssessment": {
+      "forbiddenBundledEffects": [
+        "pull request",
+        "merge",
+        "issue closure",
+        "repeated final publication"
+      ],
+      "intentId": "q7-prototype-publication-v1",
+      "operation": "publish controlled prototype bytes",
+      "prerequisite": "candidate prepared"
+    }
+  },
+  "build": {
+    "controlledLeafSha256": "59c1a251a76e14a4f4352608fe3b5cbaba157e0029cae67a3c3f573ebdbe1e35",
+    "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+    "python": "3.13.5",
+    "qualificationHarnessSha256": "57d16228b43d58e44e06b4c75e839b736a6cb1eaa093de475f63386bafe83ef2",
+    "sdkDistribution": "zeroshot-rust",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86",
+    "sidecarVersion": "zeroshot-rust 0.1.0",
+    "wheel": "zeroshot_rust-0.1.0.dev0-py3-none-linux_x86_64.whl",
+    "wheelSha256": "153d19c2ea1b5f6a58cd06a20d6c4003071ced0669c3155a94b476a3bb2dd9ae"
+  },
+  "cases": {
+    "afterAssessment": {
+      "controlledDriverEvents": [
+        {
+          "argv": [
+            "exec",
+            "--sandbox",
+            "workspace-write",
+            "--config",
+            "model_provider=\"openai\"",
+            "--config",
+            "approval_policy=\"never\"",
+            "--config",
+            "sandbox_workspace_write.network_access=true",
+            "--json",
+            "--model",
+            "broodling-p1-controlled-leaf",
+            "--config",
+            "model_reasoning_effort=\"low\"",
+            "--skip-git-repo-check",
+            "--config",
+            "web_search=\"disabled\"",
+            "--output-schema",
+            "/dev/shm/broodling-issue6.JOGZw7/native-state/runs/01a077ef-7a95-7d61-b059-c1f57c2b8e7a/runtime/writer-execution-1/response-schema-01a077ef-7ad2-7c90-be3f-019d1398b8d3.json",
+            "-"
+          ],
+          "codexHome": "/home/faviann/.codex",
+          "cwd": "/dev/shm/broodling-issue6.JOGZw7/workspaces/after_assessment",
+          "home": "/home/faviann",
+          "input": null,
+          "node": "q7_prepare",
+          "promptSha256": "73fe8c119374f63e9f0d8cdf8d6f465c9585a01e534d52aeb849ade2e3a5f261",
+          "providerInvocation": 1,
+          "recordedNs": 1788718578428930741,
+          "scenario": "q7-after_assessment"
+        },
+        {
+          "argv": [
+            "exec",
+            "--sandbox",
+            "read-only",
+            "--config",
+            "model_provider=\"openai\"",
+            "--config",
+            "approval_policy=\"never\"",
+            "--json",
+            "--model",
+            "broodling-p1-controlled-leaf",
+            "--config",
+            "model_reasoning_effort=\"low\"",
+            "--skip-git-repo-check",
+            "--config",
+            "web_search=\"disabled\"",
+            "--output-schema",
+            "/dev/shm/broodling-issue6.JOGZw7/native-state/runs/01a077ef-7a95-7d61-b059-c1f57c2b8e7a/runtime/verifier-execution-2/response-schema-01a077ef-7b63-73c3-84ff-4109f56b8a11.json",
+            "-"
+          ],
+          "codexHome": "/home/faviann/.codex",
+          "cwd": "/dev/shm/broodling-issue6.JOGZw7/workspaces/after_assessment",
+          "home": "/home/faviann",
+          "input": null,
+          "node": "q7_assessment",
+          "promptSha256": "ed7ed9e94858dd3bae7bf7fd09c8ca2e4a0e9f43607aa49fd969e281ad600224",
+          "providerInvocation": 1,
+          "recordedNs": 1788718578638598454,
+          "scenario": "q7-after_assessment"
+        }
+      ],
+      "credential": "literal deliberately-invalid test token (value not retained)",
+      "durableLogs": [
+        {
+          "cursor": "v2:3",
+          "execution": "nv2-1c783d36876db65d51144e3610d02f4eac8602e90011874cc7ec6fc9cf2d87c4",
+          "level": "debug",
+          "message": "Codex turn started",
+          "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+          "target": "agent",
+          "timestamp": 1788718578442
+        },
+        {
+          "cursor": "v2:4",
+          "execution": "nv2-1c783d36876db65d51144e3610d02f4eac8602e90011874cc7ec6fc9cf2d87c4",
+          "level": "info",
+          "message": "{\"response\":null}",
+          "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+          "target": "agent",
+          "timestamp": 1788718578442
+        },
+        {
+          "cursor": "v2:5",
+          "execution": "nv2-1c783d36876db65d51144e3610d02f4eac8602e90011874cc7ec6fc9cf2d87c4",
+          "level": "debug",
+          "message": "Codex turn completed",
+          "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+          "target": "agent",
+          "timestamp": 1788718578442
+        },
+        {
+          "cursor": "v2:9",
+          "execution": "nv2-46b2cf71860c677d77ff4ba5a538b680ee44cf96dcf408b8d8f20f9fbb127caa",
+          "level": "debug",
+          "message": "Codex turn started",
+          "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+          "target": "agent",
+          "timestamp": 1788718578640
+        },
+        {
+          "cursor": "v2:10",
+          "execution": "nv2-46b2cf71860c677d77ff4ba5a538b680ee44cf96dcf408b8d8f20f9fbb127caa",
+          "level": "info",
+          "message": "{\"response\":{\"output\":null,\"signals\":{\"assessment\":\"accepted\"},\"diagnostic\":null}}",
+          "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+          "target": "agent",
+          "timestamp": 1788718578640
+        },
+        {
+          "cursor": "v2:11",
+          "execution": "nv2-46b2cf71860c677d77ff4ba5a538b680ee44cf96dcf408b8d8f20f9fbb127caa",
+          "level": "debug",
+          "message": "Codex turn completed",
+          "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+          "target": "agent",
+          "timestamp": 1788718578640
+        },
+        {
+          "cursor": "v2:15",
+          "execution": "nv2-a1cb56a3f58511723db9381608714b29b54b0cff63e35810278580c3b877b067",
+          "level": "debug",
+          "message": "delivery: preparing workspace revision",
+          "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+          "target": "agent",
+          "timestamp": 1788718578754
+        },
+        {
+          "cursor": "v2:16",
+          "execution": "nv2-a1cb56a3f58511723db9381608714b29b54b0cff63e35810278580c3b877b067",
+          "level": "debug",
+          "message": "delivery: pushing run branch",
+          "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+          "target": "agent",
+          "timestamp": 1788718578796
+        }
+      ],
+      "remoteTarget": "example/broodling-p1-fixture",
+      "result": {
+        "failure": "delivery_failed",
+        "output": null,
+        "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+        "succeeded": false
+      },
+      "runId": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+      "submittedGraph": {
+        "initialInput": {
+          "fields": {
+            "deliveryMessage": {
+              "required": false,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "fixture": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "headRevision": {
+              "required": false,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "mode": {
+              "required": false,
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "merge"
+                ]
+              }
+            },
+            "outcome": {
+              "required": false,
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "merged",
+                  "conflict",
+                  "ci_failed"
+                ]
+              }
+            },
+            "pullRequestId": {
+              "required": false,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "repository": {
+              "required": false,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "targetBranch": {
+              "required": false,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "version": {
+              "required": false,
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "v1"
+                ]
+              }
+            }
+          },
+          "kind": "record"
+        },
+        "policy": {
+          "default": "deny",
+          "policy": "policy.native-v2@1"
+        },
+        "profile": "openengine.graph.full/v1",
+        "root": {
+          "children": [
+            {
+              "attempts": 1,
+              "input": {
+                "kind": "null"
+              },
+              "inputBindings": [],
+              "instructions": "BROODLING_NODE=q7_prepare. Produce the controlled Q7 response.",
+              "kind": "step",
+              "name": "q7_prepare",
+              "output": {
+                "kind": "null"
+              },
+              "timeoutMs": 1000,
+              "worker": "agent.broodling-q7-prepare@1",
+              "writeBindings": []
+            },
+            {
+              "attempts": 1,
+              "diagnostic": {
+                "kind": "null"
+              },
+              "input": {
+                "kind": "null"
+              },
+              "inputBindings": [],
+              "instructions": "BROODLING_NODE=q7_assessment. Produce the controlled Q7 response.",
+              "kind": "verifier",
+              "name": "q7_assessment",
+              "output": {
+                "kind": "null"
+              },
+              "signals": {
+                "assessment": [
+                  "accepted",
+                  "rejected"
+                ]
+              },
+              "timeoutMs": 1000,
+              "worker": "agent.broodling-q7-assessment@1",
+              "writeBindings": []
+            },
+            {
+              "branches": [
+                {
+                  "node": {
+                    "children": [
+                      {
+                        "attempts": 1,
+                        "diagnostic": {
+                          "fields": {
+                            "message": {
+                              "required": true,
+                              "type": {
+                                "kind": "string"
+                              }
+                            }
+                          },
+                          "kind": "record"
+                        },
+                        "input": {
+                          "kind": "null"
+                        },
+                        "inputBindings": [],
+                        "instructions": null,
+                        "kind": "verifier",
+                        "name": "q7_effect",
+                        "output": {
+                          "fields": {
+                            "headRevision": {
+                              "required": true,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "mode": {
+                              "required": true,
+                              "type": {
+                                "kind": "enum",
+                                "values": [
+                                  "merge"
+                                ]
+                              }
+                            },
+                            "outcome": {
+                              "required": true,
+                              "type": {
+                                "kind": "enum",
+                                "values": [
+                                  "merged",
+                                  "conflict",
+                                  "ci_failed"
+                                ]
+                              }
+                            },
+                            "pullRequestId": {
+                              "required": true,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "repository": {
+                              "required": true,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "targetBranch": {
+                              "required": true,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "version": {
+                              "required": true,
+                              "type": {
+                                "kind": "enum",
+                                "values": [
+                                  "v1"
+                                ]
+                              }
+                            }
+                          },
+                          "kind": "record"
+                        },
+                        "signals": {
+                          "delivery": [
+                            "merged",
+                            "conflict",
+                            "ci_failed"
+                          ]
+                        },
+                        "timeoutMs": 20000,
+                        "worker": "builtin.git-delivery.merge@1",
+                        "writeBindings": [
+                          {
+                            "target": [
+                              "version"
+                            ],
+                            "value": {
+                              "channel": "out",
+                              "node": "q7_effect",
+                              "path": [
+                                "version"
+                              ]
+                            }
+                          },
+                          {
+                            "target": [
+                              "repository"
+                            ],
+                            "value": {
+                              "channel": "out",
+                              "node": "q7_effect",
+                              "path": [
+                                "repository"
+                              ]
+                            }
+                          },
+                          {
+                            "target": [
+                              "targetBranch"
+                            ],
+                            "value": {
+                              "channel": "out",
+                              "node": "q7_effect",
+                              "path": [
+                                "targetBranch"
+                              ]
+                            }
+                          },
+                          {
+                            "target": [
+                              "headRevision"
+                            ],
+                            "value": {
+                              "channel": "out",
+                              "node": "q7_effect",
+                              "path": [
+                                "headRevision"
+                              ]
+                            }
+                          },
+                          {
+                            "target": [
+                              "pullRequestId"
+                            ],
+                            "value": {
+                              "channel": "out",
+                              "node": "q7_effect",
+                              "path": [
+                                "pullRequestId"
+                              ]
+                            }
+                          },
+                          {
+                            "target": [
+                              "mode"
+                            ],
+                            "value": {
+                              "channel": "out",
+                              "node": "q7_effect",
+                              "path": [
+                                "mode"
+                              ]
+                            }
+                          },
+                          {
+                            "target": [
+                              "outcome"
+                            ],
+                            "value": {
+                              "channel": "out",
+                              "node": "q7_effect",
+                              "path": [
+                                "outcome"
+                              ]
+                            }
+                          },
+                          {
+                            "target": [
+                              "deliveryMessage"
+                            ],
+                            "value": {
+                              "channel": "diagnostic",
+                              "node": "q7_effect",
+                              "path": [
+                                "message"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "branches": [
+                          {
+                            "node": {
+                              "kind": "fail",
+                              "name": "q7_delivery_failed",
+                              "reason": "delivery_failed"
+                            },
+                            "when": {
+                              "kind": "in",
+                              "labels": [
+                                "crash",
+                                "malformed",
+                                "refusal",
+                                "timeout"
+                              ],
+                              "value": {
+                                "field": null,
+                                "name": "q7_effect",
+                                "source": "error"
+                              }
+                            }
+                          }
+                        ],
+                        "kind": "choice",
+                        "name": "q7_delivery_result",
+                        "otherwise": {
+                          "bindings": [],
+                          "kind": "succeed",
+                          "name": "q7_done",
+                          "output": {
+                            "kind": "null"
+                          }
+                        },
+                        "promotedStatePaths": [],
+                        "state": {
+                          "fields": {
+                            "deliveryMessage": {
+                              "required": false,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "fixture": {
+                              "required": true,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "headRevision": {
+                              "required": false,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "mode": {
+                              "required": false,
+                              "type": {
+                                "kind": "enum",
+                                "values": [
+                                  "merge"
+                                ]
+                              }
+                            },
+                            "outcome": {
+                              "required": false,
+                              "type": {
+                                "kind": "enum",
+                                "values": [
+                                  "merged",
+                                  "conflict",
+                                  "ci_failed"
+                                ]
+                              }
+                            },
+                            "pullRequestId": {
+                              "required": false,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "repository": {
+                              "required": false,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "targetBranch": {
+                              "required": false,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "version": {
+                              "required": false,
+                              "type": {
+                                "kind": "enum",
+                                "values": [
+                                  "v1"
+                                ]
+                              }
+                            }
+                          },
+                          "kind": "record"
+                        }
+                      }
+                    ],
+                    "kind": "seq",
+                    "name": "q7_accepted_delivery",
+                    "promotedStatePaths": [],
+                    "state": {
+                      "fields": {
+                        "deliveryMessage": {
+                          "required": false,
+                          "type": {
+                            "kind": "string"
+                          }
+                        },
+                        "fixture": {
+                          "required": true,
+                          "type": {
+                            "kind": "string"
+                          }
+                        },
+                        "headRevision": {
+                          "required": false,
+                          "type": {
+                            "kind": "string"
+                          }
+                        },
+                        "mode": {
+                          "required": false,
+                          "type": {
+                            "kind": "enum",
+                            "values": [
+                              "merge"
+                            ]
+                          }
+                        },
+                        "outcome": {
+                          "required": false,
+                          "type": {
+                            "kind": "enum",
+                            "values": [
+                              "merged",
+                              "conflict",
+                              "ci_failed"
+                            ]
+                          }
+                        },
+                        "pullRequestId": {
+                          "required": false,
+                          "type": {
+                            "kind": "string"
+                          }
+                        },
+                        "repository": {
+                          "required": false,
+                          "type": {
+                            "kind": "string"
+                          }
+                        },
+                        "targetBranch": {
+                          "required": false,
+                          "type": {
+                            "kind": "string"
+                          }
+                        },
+                        "version": {
+                          "required": false,
+                          "type": {
+                            "kind": "enum",
+                            "values": [
+                              "v1"
+                            ]
+                          }
+                        }
+                      },
+                      "kind": "record"
+                    }
+                  },
+                  "when": {
+                    "kind": "in",
+                    "labels": [
+                      "accepted"
+                    ],
+                    "value": {
+                      "field": "assessment",
+                      "name": "q7_assessment",
+                      "source": "signal"
+                    }
+                  }
+                }
+              ],
+              "kind": "choice",
+              "name": "q7_after_acceptance",
+              "otherwise": {
+                "kind": "fail",
+                "name": "acceptance_required",
+                "reason": "acceptance_required"
+              },
+              "promotedStatePaths": [],
+              "state": {
+                "fields": {
+                  "deliveryMessage": {
+                    "required": false,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "fixture": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "headRevision": {
+                    "required": false,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "mode": {
+                    "required": false,
+                    "type": {
+                      "kind": "enum",
+                      "values": [
+                        "merge"
+                      ]
+                    }
+                  },
+                  "outcome": {
+                    "required": false,
+                    "type": {
+                      "kind": "enum",
+                      "values": [
+                        "merged",
+                        "conflict",
+                        "ci_failed"
+                      ]
+                    }
+                  },
+                  "pullRequestId": {
+                    "required": false,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "repository": {
+                    "required": false,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "targetBranch": {
+                    "required": false,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "version": {
+                    "required": false,
+                    "type": {
+                      "kind": "enum",
+                      "values": [
+                        "v1"
+                      ]
+                    }
+                  }
+                },
+                "kind": "record"
+              }
+            }
+          ],
+          "kind": "seq",
+          "name": "q7_after_assessment",
+          "promotedStatePaths": [],
+          "state": {
+            "fields": {
+              "deliveryMessage": {
+                "required": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "fixture": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "headRevision": {
+                "required": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "mode": {
+                "required": false,
+                "type": {
+                  "kind": "enum",
+                  "values": [
+                    "merge"
+                  ]
+                }
+              },
+              "outcome": {
+                "required": false,
+                "type": {
+                  "kind": "enum",
+                  "values": [
+                    "merged",
+                    "conflict",
+                    "ci_failed"
+                  ]
+                }
+              },
+              "pullRequestId": {
+                "required": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "repository": {
+                "required": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "targetBranch": {
+                "required": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "version": {
+                "required": false,
+                "type": {
+                  "kind": "enum",
+                  "values": [
+                    "v1"
+                  ]
+                }
+              }
+            },
+            "kind": "record"
+          }
+        }
+      },
+      "submittedRuntime": {
+        "harness": "codex",
+        "nodes": {
+          "q7_assessment": {
+            "connections": {
+              "fixture": [
+                "OPENAI_API_KEY",
+                "BROODLING_FIXTURE_SCENARIO",
+                "BROODLING_FIXTURE_STATE"
+              ]
+            },
+            "effort": "low",
+            "kind": "agent",
+            "model": "broodling-p1-controlled-leaf",
+            "sessionScope": "execution"
+          },
+          "q7_effect": {
+            "connections": {
+              "github": [
+                "GH_TOKEN"
+              ]
+            },
+            "kind": "git_delivery"
+          },
+          "q7_prepare": {
+            "connections": {
+              "fixture": [
+                "OPENAI_API_KEY",
+                "BROODLING_FIXTURE_SCENARIO",
+                "BROODLING_FIXTURE_STATE"
+              ]
+            },
+            "effort": "low",
+            "kind": "agent",
+            "model": "broodling-p1-controlled-leaf",
+            "sessionScope": "execution"
+          }
+        },
+        "provider": "openai",
+        "size": "small"
+      },
+      "terminalStatus": {
+        "active_executions": [],
+        "cursor": "v2:18",
+        "phase": "finished",
+        "result": {
+          "failure": "delivery_failed",
+          "output": null,
+          "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+          "succeeded": false
+        },
+        "run_id": "01a077ef-7a95-7d61-b059-c1f57c2b8e7a",
+        "size": "small",
+        "source": {
+          "branch": "qualification/p1",
+          "repository": "example/broodling-p1-fixture",
+          "revision": "4fe2dfe8bb3f8e551cc8170c408479e4ac46e6a7"
+        },
+        "title": "Broodling issue 6 Q7: after_assessment"
+      },
+      "workspaceAfterRun": {
+        "baseRevision": "4fe2dfe8bb3f8e551cc8170c408479e4ac46e6a7",
+        "candidateAtHead": "controlled Q7 candidate for q7-after_assessment",
+        "headAuthor": "Zeroshot <delivery@zeroshot.invalid>",
+        "headChanged": true,
+        "headRevision": "ad579fd1ae374064f7392ecf62864f78a9db74df",
+        "headSubject": "feat: complete Zeroshot task",
+        "statusPorcelain": ""
+      }
+    },
+    "beforeAssessment": {
+      "controlledDriverEvents": [
+        {
+          "argv": [
+            "exec",
+            "--sandbox",
+            "workspace-write",
+            "--config",
+            "model_provider=\"openai\"",
+            "--config",
+            "approval_policy=\"never\"",
+            "--config",
+            "sandbox_workspace_write.network_access=true",
+            "--json",
+            "--model",
+            "broodling-p1-controlled-leaf",
+            "--config",
+            "model_reasoning_effort=\"low\"",
+            "--skip-git-repo-check",
+            "--config",
+            "web_search=\"disabled\"",
+            "--output-schema",
+            "/dev/shm/broodling-issue6.JOGZw7/native-state/runs/01a077ef-779b-73b0-997b-e7b96d446107/runtime/writer-execution-1/response-schema-01a077ef-781c-78e1-8c95-dea7ef38abd7.json",
+            "-"
+          ],
+          "codexHome": "/home/faviann/.codex",
+          "cwd": "/dev/shm/broodling-issue6.JOGZw7/workspaces/before_assessment",
+          "home": "/home/faviann",
+          "input": null,
+          "node": "q7_prepare",
+          "promptSha256": "73fe8c119374f63e9f0d8cdf8d6f465c9585a01e534d52aeb849ade2e3a5f261",
+          "providerInvocation": 1,
+          "recordedNs": 1788718577739494024,
+          "scenario": "q7-before_assessment"
+        }
+      ],
+      "credential": "literal deliberately-invalid test token (value not retained)",
+      "durableLogs": [
+        {
+          "cursor": "v2:3",
+          "execution": "nv2-2c6e9c0f8195ceb3c609b9e408dd351d92e48d05ef6f3e25c1798bd6168fae54",
+          "level": "debug",
+          "message": "Codex turn started",
+          "run_id": "01a077ef-779b-73b0-997b-e7b96d446107",
+          "target": "agent",
+          "timestamp": 1788718577740
+        },
+        {
+          "cursor": "v2:4",
+          "execution": "nv2-2c6e9c0f8195ceb3c609b9e408dd351d92e48d05ef6f3e25c1798bd6168fae54",
+          "level": "info",
+          "message": "{\"response\":null}",
+          "run_id": "01a077ef-779b-73b0-997b-e7b96d446107",
+          "target": "agent",
+          "timestamp": 1788718577740
+        },
+        {
+          "cursor": "v2:5",
+          "execution": "nv2-2c6e9c0f8195ceb3c609b9e408dd351d92e48d05ef6f3e25c1798bd6168fae54",
+          "level": "debug",
+          "message": "Codex turn completed",
+          "run_id": "01a077ef-779b-73b0-997b-e7b96d446107",
+          "target": "agent",
+          "timestamp": 1788718577740
+        },
+        {
+          "cursor": "v2:9",
+          "execution": "nv2-fb2d973c50278d44c3e566d7c41b84c5443dad330426911ceadee8a9d3e71560",
+          "level": "debug",
+          "message": "delivery: preparing workspace revision",
+          "run_id": "01a077ef-779b-73b0-997b-e7b96d446107",
+          "target": "agent",
+          "timestamp": 1788718577790
+        },
+        {
+          "cursor": "v2:10",
+          "execution": "nv2-fb2d973c50278d44c3e566d7c41b84c5443dad330426911ceadee8a9d3e71560",
+          "level": "debug",
+          "message": "delivery: pushing run branch",
+          "run_id": "01a077ef-779b-73b0-997b-e7b96d446107",
+          "target": "agent",
+          "timestamp": 1788718577823
+        }
+      ],
+      "remoteTarget": "example/broodling-p1-fixture",
+      "result": {
+        "failure": "delivery_failed",
+        "output": null,
+        "run_id": "01a077ef-779b-73b0-997b-e7b96d446107",
+        "succeeded": false
+      },
+      "runId": "01a077ef-779b-73b0-997b-e7b96d446107",
+      "submittedGraph": {
+        "initialInput": {
+          "fields": {
+            "deliveryMessage": {
+              "required": false,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "fixture": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "headRevision": {
+              "required": false,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "mode": {
+              "required": false,
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "pr"
+                ]
+              }
+            },
+            "outcome": {
+              "required": false,
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "opened"
+                ]
+              }
+            },
+            "pullRequestId": {
+              "required": false,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "repository": {
+              "required": false,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "targetBranch": {
+              "required": false,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "version": {
+              "required": false,
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "v1"
+                ]
+              }
+            }
+          },
+          "kind": "record"
+        },
+        "policy": {
+          "default": "deny",
+          "policy": "policy.native-v2@1"
+        },
+        "profile": "openengine.graph.full/v1",
+        "root": {
+          "children": [
+            {
+              "attempts": 1,
+              "input": {
+                "kind": "null"
+              },
+              "inputBindings": [],
+              "instructions": "BROODLING_NODE=q7_prepare. Produce the controlled Q7 response.",
+              "kind": "step",
+              "name": "q7_prepare",
+              "output": {
+                "kind": "null"
+              },
+              "timeoutMs": 1000,
+              "worker": "agent.broodling-q7-prepare@1",
+              "writeBindings": []
+            },
+            {
+              "attempts": 1,
+              "diagnostic": {
+                "fields": {
+                  "message": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  }
+                },
+                "kind": "record"
+              },
+              "input": {
+                "kind": "null"
+              },
+              "inputBindings": [],
+              "instructions": null,
+              "kind": "verifier",
+              "name": "q7_effect",
+              "output": {
+                "fields": {
+                  "headRevision": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "mode": {
+                    "required": true,
+                    "type": {
+                      "kind": "enum",
+                      "values": [
+                        "pr"
+                      ]
+                    }
+                  },
+                  "outcome": {
+                    "required": true,
+                    "type": {
+                      "kind": "enum",
+                      "values": [
+                        "opened"
+                      ]
+                    }
+                  },
+                  "pullRequestId": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "repository": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "targetBranch": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "version": {
+                    "required": true,
+                    "type": {
+                      "kind": "enum",
+                      "values": [
+                        "v1"
+                      ]
+                    }
+                  }
+                },
+                "kind": "record"
+              },
+              "signals": {
+                "delivery": [
+                  "opened"
+                ]
+              },
+              "timeoutMs": 20000,
+              "worker": "builtin.git-delivery.pr@1",
+              "writeBindings": [
+                {
+                  "target": [
+                    "version"
+                  ],
+                  "value": {
+                    "channel": "out",
+                    "node": "q7_effect",
+                    "path": [
+                      "version"
+                    ]
+                  }
+                },
+                {
+                  "target": [
+                    "repository"
+                  ],
+                  "value": {
+                    "channel": "out",
+                    "node": "q7_effect",
+                    "path": [
+                      "repository"
+                    ]
+                  }
+                },
+                {
+                  "target": [
+                    "targetBranch"
+                  ],
+                  "value": {
+                    "channel": "out",
+                    "node": "q7_effect",
+                    "path": [
+                      "targetBranch"
+                    ]
+                  }
+                },
+                {
+                  "target": [
+                    "headRevision"
+                  ],
+                  "value": {
+                    "channel": "out",
+                    "node": "q7_effect",
+                    "path": [
+                      "headRevision"
+                    ]
+                  }
+                },
+                {
+                  "target": [
+                    "pullRequestId"
+                  ],
+                  "value": {
+                    "channel": "out",
+                    "node": "q7_effect",
+                    "path": [
+                      "pullRequestId"
+                    ]
+                  }
+                },
+                {
+                  "target": [
+                    "mode"
+                  ],
+                  "value": {
+                    "channel": "out",
+                    "node": "q7_effect",
+                    "path": [
+                      "mode"
+                    ]
+                  }
+                },
+                {
+                  "target": [
+                    "outcome"
+                  ],
+                  "value": {
+                    "channel": "out",
+                    "node": "q7_effect",
+                    "path": [
+                      "outcome"
+                    ]
+                  }
+                },
+                {
+                  "target": [
+                    "deliveryMessage"
+                  ],
+                  "value": {
+                    "channel": "diagnostic",
+                    "node": "q7_effect",
+                    "path": [
+                      "message"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "branches": [
+                {
+                  "node": {
+                    "kind": "fail",
+                    "name": "q7_delivery_failed",
+                    "reason": "delivery_failed"
+                  },
+                  "when": {
+                    "kind": "in",
+                    "labels": [
+                      "crash",
+                      "malformed",
+                      "refusal",
+                      "timeout"
+                    ],
+                    "value": {
+                      "field": null,
+                      "name": "q7_effect",
+                      "source": "error"
+                    }
+                  }
+                }
+              ],
+              "kind": "choice",
+              "name": "q7_delivery_result",
+              "otherwise": {
+                "children": [
+                  {
+                    "attempts": 1,
+                    "diagnostic": {
+                      "kind": "null"
+                    },
+                    "input": {
+                      "fields": {
+                        "headRevision": {
+                          "required": true,
+                          "type": {
+                            "kind": "string"
+                          }
+                        },
+                        "mode": {
+                          "required": true,
+                          "type": {
+                            "kind": "enum",
+                            "values": [
+                              "pr"
+                            ]
+                          }
+                        },
+                        "outcome": {
+                          "required": true,
+                          "type": {
+                            "kind": "enum",
+                            "values": [
+                              "opened"
+                            ]
+                          }
+                        },
+                        "pullRequestId": {
+                          "required": true,
+                          "type": {
+                            "kind": "string"
+                          }
+                        },
+                        "repository": {
+                          "required": true,
+                          "type": {
+                            "kind": "string"
+                          }
+                        },
+                        "targetBranch": {
+                          "required": true,
+                          "type": {
+                            "kind": "string"
+                          }
+                        },
+                        "version": {
+                          "required": true,
+                          "type": {
+                            "kind": "enum",
+                            "values": [
+                              "v1"
+                            ]
+                          }
+                        }
+                      },
+                      "kind": "record"
+                    },
+                    "inputBindings": [
+                      {
+                        "target": [
+                          "version"
+                        ],
+                        "value": {
+                          "path": [
+                            "version"
+                          ],
+                          "source": "state"
+                        }
+                      },
+                      {
+                        "target": [
+                          "repository"
+                        ],
+                        "value": {
+                          "path": [
+                            "repository"
+                          ],
+                          "source": "state"
+                        }
+                      },
+                      {
+                        "target": [
+                          "targetBranch"
+                        ],
+                        "value": {
+                          "path": [
+                            "targetBranch"
+                          ],
+                          "source": "state"
+                        }
+                      },
+                      {
+                        "target": [
+                          "headRevision"
+                        ],
+                        "value": {
+                          "path": [
+                            "headRevision"
+                          ],
+                          "source": "state"
+                        }
+                      },
+                      {
+                        "target": [
+                          "pullRequestId"
+                        ],
+                        "value": {
+                          "path": [
+                            "pullRequestId"
+                          ],
+                          "source": "state"
+                        }
+                      },
+                      {
+                        "target": [
+                          "mode"
+                        ],
+                        "value": {
+                          "path": [
+                            "mode"
+                          ],
+                          "source": "state"
+                        }
+                      },
+                      {
+                        "target": [
+                          "outcome"
+                        ],
+                        "value": {
+                          "path": [
+                            "outcome"
+                          ],
+                          "source": "state"
+                        }
+                      }
+                    ],
+                    "instructions": "BROODLING_NODE=q7_assessment. Produce the controlled Q7 response.",
+                    "kind": "verifier",
+                    "name": "q7_assessment",
+                    "output": {
+                      "kind": "null"
+                    },
+                    "signals": {
+                      "assessment": [
+                        "accepted",
+                        "rejected"
+                      ]
+                    },
+                    "timeoutMs": 1000,
+                    "worker": "agent.broodling-q7-assessment@1",
+                    "writeBindings": []
+                  },
+                  {
+                    "bindings": [],
+                    "kind": "succeed",
+                    "name": "q7_done",
+                    "output": {
+                      "kind": "null"
+                    }
+                  }
+                ],
+                "kind": "seq",
+                "name": "q7_assess_receipt",
+                "promotedStatePaths": [],
+                "state": {
+                  "fields": {
+                    "deliveryMessage": {
+                      "required": false,
+                      "type": {
+                        "kind": "string"
+                      }
+                    },
+                    "fixture": {
+                      "required": true,
+                      "type": {
+                        "kind": "string"
+                      }
+                    },
+                    "headRevision": {
+                      "required": false,
+                      "type": {
+                        "kind": "string"
+                      }
+                    },
+                    "mode": {
+                      "required": false,
+                      "type": {
+                        "kind": "enum",
+                        "values": [
+                          "pr"
+                        ]
+                      }
+                    },
+                    "outcome": {
+                      "required": false,
+                      "type": {
+                        "kind": "enum",
+                        "values": [
+                          "opened"
+                        ]
+                      }
+                    },
+                    "pullRequestId": {
+                      "required": false,
+                      "type": {
+                        "kind": "string"
+                      }
+                    },
+                    "repository": {
+                      "required": false,
+                      "type": {
+                        "kind": "string"
+                      }
+                    },
+                    "targetBranch": {
+                      "required": false,
+                      "type": {
+                        "kind": "string"
+                      }
+                    },
+                    "version": {
+                      "required": false,
+                      "type": {
+                        "kind": "enum",
+                        "values": [
+                          "v1"
+                        ]
+                      }
+                    }
+                  },
+                  "kind": "record"
+                }
+              },
+              "promotedStatePaths": [],
+              "state": {
+                "fields": {
+                  "deliveryMessage": {
+                    "required": false,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "fixture": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "headRevision": {
+                    "required": false,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "mode": {
+                    "required": false,
+                    "type": {
+                      "kind": "enum",
+                      "values": [
+                        "pr"
+                      ]
+                    }
+                  },
+                  "outcome": {
+                    "required": false,
+                    "type": {
+                      "kind": "enum",
+                      "values": [
+                        "opened"
+                      ]
+                    }
+                  },
+                  "pullRequestId": {
+                    "required": false,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "repository": {
+                    "required": false,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "targetBranch": {
+                    "required": false,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "version": {
+                    "required": false,
+                    "type": {
+                      "kind": "enum",
+                      "values": [
+                        "v1"
+                      ]
+                    }
+                  }
+                },
+                "kind": "record"
+              }
+            }
+          ],
+          "kind": "seq",
+          "name": "q7_before_assessment",
+          "promotedStatePaths": [],
+          "state": {
+            "fields": {
+              "deliveryMessage": {
+                "required": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "fixture": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "headRevision": {
+                "required": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "mode": {
+                "required": false,
+                "type": {
+                  "kind": "enum",
+                  "values": [
+                    "pr"
+                  ]
+                }
+              },
+              "outcome": {
+                "required": false,
+                "type": {
+                  "kind": "enum",
+                  "values": [
+                    "opened"
+                  ]
+                }
+              },
+              "pullRequestId": {
+                "required": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "repository": {
+                "required": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "targetBranch": {
+                "required": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "version": {
+                "required": false,
+                "type": {
+                  "kind": "enum",
+                  "values": [
+                    "v1"
+                  ]
+                }
+              }
+            },
+            "kind": "record"
+          }
+        }
+      },
+      "submittedRuntime": {
+        "harness": "codex",
+        "nodes": {
+          "q7_assessment": {
+            "connections": {
+              "fixture": [
+                "OPENAI_API_KEY",
+                "BROODLING_FIXTURE_SCENARIO",
+                "BROODLING_FIXTURE_STATE"
+              ]
+            },
+            "effort": "low",
+            "kind": "agent",
+            "model": "broodling-p1-controlled-leaf",
+            "sessionScope": "execution"
+          },
+          "q7_effect": {
+            "connections": {
+              "github": [
+                "GH_TOKEN"
+              ]
+            },
+            "kind": "git_delivery"
+          },
+          "q7_prepare": {
+            "connections": {
+              "fixture": [
+                "OPENAI_API_KEY",
+                "BROODLING_FIXTURE_SCENARIO",
+                "BROODLING_FIXTURE_STATE"
+              ]
+            },
+            "effort": "low",
+            "kind": "agent",
+            "model": "broodling-p1-controlled-leaf",
+            "sessionScope": "execution"
+          }
+        },
+        "provider": "openai",
+        "size": "small"
+      },
+      "terminalStatus": {
+        "active_executions": [],
+        "cursor": "v2:12",
+        "phase": "finished",
+        "result": {
+          "failure": "delivery_failed",
+          "output": null,
+          "run_id": "01a077ef-779b-73b0-997b-e7b96d446107",
+          "succeeded": false
+        },
+        "run_id": "01a077ef-779b-73b0-997b-e7b96d446107",
+        "size": "small",
+        "source": {
+          "branch": "qualification/p1",
+          "repository": "example/broodling-p1-fixture",
+          "revision": "4fe2dfe8bb3f8e551cc8170c408479e4ac46e6a7"
+        },
+        "title": "Broodling issue 6 Q7: before_assessment"
+      },
+      "workspaceAfterRun": {
+        "baseRevision": "4fe2dfe8bb3f8e551cc8170c408479e4ac46e6a7",
+        "candidateAtHead": "controlled Q7 candidate for q7-before_assessment",
+        "headAuthor": "Zeroshot <delivery@zeroshot.invalid>",
+        "headChanged": true,
+        "headRevision": "f18a7e9a9095ed0ddaaacad422aea6b52b9cf878",
+        "headSubject": "feat: complete Zeroshot task",
+        "statusPorcelain": ""
+      }
+    },
+    "unsupportedExactEffect": {
+      "admitted": false,
+      "code": "request.invalid",
+      "details": {},
+      "error": "run validation failed: Git delivery binding q7_exact_effect uses unsupported worker builtin.trusted-effect@1",
+      "node": "q7_exact_effect",
+      "path": [],
+      "submittedGraph": {
+        "initialInput": {
+          "fields": {
+            "intentId": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "payload": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "source": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "target": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            }
+          },
+          "kind": "record"
+        },
+        "policy": {
+          "default": "deny",
+          "policy": "policy.native-v2@1"
+        },
+        "profile": "openengine.graph.full/v1",
+        "root": {
+          "children": [
+            {
+              "attempts": 1,
+              "diagnostic": {
+                "kind": "null"
+              },
+              "input": {
+                "fields": {
+                  "intentId": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "payload": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "source": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "target": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  }
+                },
+                "kind": "record"
+              },
+              "inputBindings": [
+                {
+                  "target": [
+                    "intentId"
+                  ],
+                  "value": {
+                    "path": [
+                      "intentId"
+                    ],
+                    "source": "state"
+                  }
+                },
+                {
+                  "target": [
+                    "source"
+                  ],
+                  "value": {
+                    "path": [
+                      "source"
+                    ],
+                    "source": "state"
+                  }
+                },
+                {
+                  "target": [
+                    "target"
+                  ],
+                  "value": {
+                    "path": [
+                      "target"
+                    ],
+                    "source": "state"
+                  }
+                },
+                {
+                  "target": [
+                    "payload"
+                  ],
+                  "value": {
+                    "path": [
+                      "payload"
+                    ],
+                    "source": "state"
+                  }
+                }
+              ],
+              "instructions": null,
+              "kind": "verifier",
+              "name": "q7_exact_effect",
+              "output": {
+                "fields": {
+                  "receipt": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  }
+                },
+                "kind": "record"
+              },
+              "signals": {
+                "effect": [
+                  "verified",
+                  "uncertain"
+                ]
+              },
+              "timeoutMs": 1000,
+              "worker": "builtin.trusted-effect@1",
+              "writeBindings": []
+            }
+          ],
+          "kind": "seq",
+          "name": "q7_exact_effect_admission",
+          "promotedStatePaths": [],
+          "state": {
+            "fields": {
+              "intentId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "payload": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "source": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "target": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          }
+        }
+      },
+      "submittedRuntime": {
+        "harness": "codex",
+        "nodes": {
+          "q7_exact_effect": {
+            "connections": {},
+            "kind": "git_delivery"
+          }
+        },
+        "provider": "openai",
+        "size": "small"
+      }
+    }
+  },
+  "dependency": {
+    "consumingGate": "G1-effects; therefore P6 and every effect-dependent/publication-dependent Contract remain blocked.",
+    "missingCapability": "A supported trusted generic exact-effect operation that consumes one durable authorized intent (source/payload/target/prerequisites), synchronously returns a verified result to dependent nodes in the same run, and exposes exact post-run readback/reconciliation without a coding Attempt.",
+    "stockDeliveryMismatch": "The only trusted bindings are GitDelivery PR/merge. Both commit all workspace changes, push a deterministic run branch, and create or rediscover a pull request; merge mode additionally inspects checks and requests merge. Neither can execute either narrower fixture intent without widening authority."
+  },
+  "integrationBoundary": {
+    "broodlingValidationOrScheduling": false,
+    "controlledRemoteSafety": "The target is example/broodling-p1-fixture and GH_TOKEN is a literal known-invalid fixture value, so delivery cannot authenticate or mutate GitHub.",
+    "doubled": "Only agent leaves. Git preparation/delivery, admission, controller, graph progression, durable status/result/logs, and SDK transport are real.",
+    "prohibitedReadersUsed": [],
+    "selected": "official Python SDK LocalTarget and matching unpatched Rust sidecar"
+  },
+  "limits": "Controlled-mechanics qualification only; no production Git/GitHub delivery operation or reconciliation was certified.",
+  "recordedAt": "2026-09-06T18:16:19.487301+00:00",
+  "schema": "broodling.p1.issue6-qualification/v1",
+  "scope": {
+    "issue": 6,
+    "questions": [
+      "Q7"
+    ]
+  },
+  "testedSource": {
+    "workspaceTemplateRevision": "4fe2dfe8bb3f8e551cc8170c408479e4ac46e6a7",
+    "zeroshotCheckoutClean": true,
+    "zeroshotRevision": "d0909615d6ba3c179b58bce15a059f40400ec995",
+    "zeroshotTree": "03b9b027f9a9dd0e03cc827aae0e95dd3e8f2b4d"
+  },
+  "verdicts": {
+    "G1-effects": "BLOCKED",
+    "Q7": "BLOCKED"
+  }
+}
