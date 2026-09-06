@@ -40,6 +40,18 @@ def response_for(node: str, invocation: int, scenario: str) -> object:
     return None
 
 
+def scenario_parts(value: str) -> tuple[str, str, str, int | None]:
+    """Return the response scenario and an optional controlled fault selector."""
+    parts = value.split(";")
+    response_scenario = parts[0]
+    fault = parts[1] if len(parts) == 2 else parts[0]
+    selected = fault.split(":")
+    if len(selected) not in (2, 3) or selected[0] not in ("crash", "hang", "malformed"):
+        return response_scenario, "", "", None
+    occurrence = int(selected[2]) if len(selected) == 3 else None
+    return response_scenario, selected[0], selected[1], occurrence
+
+
 def main() -> int:
     prompt = sys.stdin.read()
     match = re.search(r"BROODLING_NODE=([a-z_]+)", prompt)
@@ -51,8 +63,10 @@ def main() -> int:
     state.mkdir(parents=True, exist_ok=True)
     invocation = next_invocation(state, node)
     scenario = os.environ.get("BROODLING_FIXTURE_SCENARIO", "repair-then-accept")
-    behavior, _, selected = scenario.partition(":")
-    selected_node = selected or ""
+    response_scenario, behavior, selected_node, selected_occurrence = scenario_parts(scenario)
+    selected_here = selected_node == node and (
+        selected_occurrence is None or selected_occurrence == invocation
+    )
 
     capture = {
         "node": node,
@@ -63,10 +77,10 @@ def main() -> int:
     with (state / "driver.jsonl").open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(capture, sort_keys=True) + "\n")
 
-    if selected_node == node and behavior == "crash":
+    if selected_here and behavior == "crash":
         print(f"controlled crash at {node}", file=sys.stderr)
         return 70
-    if selected_node == node and behavior == "hang":
+    if selected_here and behavior == "hang":
         signal.signal(signal.SIGTERM, lambda _signum, _frame: sys.exit(0))
         signal.signal(signal.SIGINT, lambda _signum, _frame: sys.exit(0))
         while True:
@@ -74,10 +88,10 @@ def main() -> int:
 
     emit({"type": "thread.started", "thread_id": f"p1-{node}-{invocation}"})
     emit({"type": "turn.started"})
-    if selected_node == node and behavior == "malformed":
+    if selected_here and behavior == "malformed":
         response: object = {"wrong": True}
     else:
-        response = response_for(node, invocation, scenario)
+        response = response_for(node, invocation, response_scenario)
     envelope = json.dumps({"response": response}, separators=(",", ":"))
     emit({"type": "item.completed", "item": {"type": "agent_message", "text": envelope}})
     emit({

@@ -76,13 +76,72 @@ class HarnessFixtureTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 70)
         self.assertIn("controlled crash at review", completed.stderr)
 
-    def run_leaf(self, state: Path, node: str) -> object:
+    def test_issue3_evidence_matches_qualified_verdicts(self) -> None:
+        record = json.loads((P1 / "evidence/issue-3-run-record.json").read_text())
+        self.assertEqual(
+            record["verdicts"],
+            {"G1-core": "BLOCKED", "Q1": "BLOCKED", "Q2": "PASS", "Q6": "BLOCKED"},
+        )
+        q2 = record["Q2"]
+        self.assertEqual(q2["lostAcknowledgementChildExitCode"], 87)
+        self.assertEqual(q2["sameSourceReplayRunId"], q2["conflict"]["existingRunId"])
+        self.assertTrue(q2["noSecondRun"])
+
+        watches = record["Q1"]["successfulRepeatedRun"]["afterClientRestart"]["watchReplay"]
+        adjudicators = {
+            execution["execution"]
+            for status in watches
+            for execution in status["active_executions"]
+            if execution["node"] == "adjudicate_authority"
+        }
+        self.assertEqual(len(adjudicators), 2)
+        self.assertEqual(
+            record["Q1"]["stoppedRun"]["result"]["failure"], "force_stopped"
+        )
+        self.assertEqual(
+            record["Q6"]["controllerKilled"]["resultAfterExternalObserverRestart"]["failure"],
+            "runtime_lost",
+        )
+        self.assertEqual(
+            record["Q6"]["broodlingHarnessCrashBeforeCatchUp"]["childExitCode"], 86
+        )
+        self.assertEqual(record["integrationBoundary"]["prohibitedReadersUsed"], [])
+
+    def test_controlled_leaf_can_target_a_repeated_occurrence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            first = self.run_leaf(
+                state,
+                "adjudicate_authority",
+                "repair-then-accept;hang:adjudicate_authority:2",
+            )
+            with self.assertRaises(subprocess.TimeoutExpired):
+                subprocess.run(
+                    [str(P1 / "bin/codex")],
+                    input="BROODLING_NODE=adjudicate_authority",
+                    text=True,
+                    env=self.leaf_environment(
+                        state,
+                        "repair-then-accept;hang:adjudicate_authority:2",
+                    ),
+                    timeout=0.2,
+                    check=False,
+                    capture_output=True,
+                )
+        self.assertEqual(first["signals"]["directive"], "repair")
+
+    def run_leaf(
+        self,
+        state: Path,
+        node: str,
+        scenario: str = "repair-then-accept",
+    ) -> object:
         completed = subprocess.run(
             [str(P1 / "bin/codex")],
             input=f"BROODLING_NODE={node}",
             text=True,
             check=True,
-            env=self.leaf_environment(state, "repair-then-accept"),
+            env=self.leaf_environment(state, scenario),
             stdout=subprocess.PIPE,
         )
         events = [json.loads(line) for line in completed.stdout.splitlines()]

@@ -1,0 +1,2679 @@
+{
+  "Q1": {
+    "failedRun": {
+      "evidenceRef": "Q6.controllerKilled",
+      "runId": "01a077aa-968b-7d73-b49f-b579a270aac8"
+    },
+    "stoppedRun": {
+      "afterClientRestart": {
+        "logReplay": [
+          {
+            "cursor": "v2:3",
+            "execution": "nv2-bdbff426d2ac8d5e45e565761595e78556247cb01c343400d2e235f60e2cabf6",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062712
+          },
+          {
+            "cursor": "v2:4",
+            "execution": "nv2-bdbff426d2ac8d5e45e565761595e78556247cb01c343400d2e235f60e2cabf6",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062713
+          },
+          {
+            "cursor": "v2:5",
+            "execution": "nv2-bdbff426d2ac8d5e45e565761595e78556247cb01c343400d2e235f60e2cabf6",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062713
+          },
+          {
+            "cursor": "v2:9",
+            "execution": "nv2-f88250b3bee4d237731624bf281bc65488e1ed051e06090141a01dda2a2546bb",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062778
+          },
+          {
+            "cursor": "v2:10",
+            "execution": "nv2-f88250b3bee4d237731624bf281bc65488e1ed051e06090141a01dda2a2546bb",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"findings\":\"found\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062778
+          },
+          {
+            "cursor": "v2:11",
+            "execution": "nv2-f88250b3bee4d237731624bf281bc65488e1ed051e06090141a01dda2a2546bb",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062778
+          },
+          {
+            "cursor": "v2:15",
+            "execution": "nv2-27ab8e34c897872015123a482ed097db7b497df578763cad8147c8902c0e1d88",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062845
+          },
+          {
+            "cursor": "v2:16",
+            "execution": "nv2-27ab8e34c897872015123a482ed097db7b497df578763cad8147c8902c0e1d88",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"directive\":\"repair\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062845
+          },
+          {
+            "cursor": "v2:17",
+            "execution": "nv2-27ab8e34c897872015123a482ed097db7b497df578763cad8147c8902c0e1d88",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062845
+          },
+          {
+            "cursor": "v2:21",
+            "execution": "nv2-4e25b9667c45b29dfe9d792faebaf62ba412bd6e9660c00bf990d7522c9b32f3",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062923
+          },
+          {
+            "cursor": "v2:22",
+            "execution": "nv2-4e25b9667c45b29dfe9d792faebaf62ba412bd6e9660c00bf990d7522c9b32f3",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062923
+          },
+          {
+            "cursor": "v2:23",
+            "execution": "nv2-4e25b9667c45b29dfe9d792faebaf62ba412bd6e9660c00bf990d7522c9b32f3",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062923
+          },
+          {
+            "cursor": "v2:27",
+            "execution": "nv2-df33da1afa9c538c3079b84220cd314220adfcd37945b153b4b1ce2f512999e2",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714063058
+          },
+          {
+            "cursor": "v2:28",
+            "execution": "nv2-df33da1afa9c538c3079b84220cd314220adfcd37945b153b4b1ce2f512999e2",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"findings\":\"clean\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714063058
+          },
+          {
+            "cursor": "v2:29",
+            "execution": "nv2-df33da1afa9c538c3079b84220cd314220adfcd37945b153b4b1ce2f512999e2",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714063058
+          }
+        ],
+        "publicStatusFields": [
+          "run_id",
+          "title",
+          "source",
+          "size",
+          "cursor",
+          "phase",
+          "active_executions",
+          "result"
+        ],
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:36",
+          "phase": "finished",
+          "result": {
+            "failure": "force_stopped",
+            "output": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "succeeded": false
+          },
+          "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+          "size": "small",
+          "source": {
+            "branch": "qualification/p1",
+            "repository": "example/broodling-p1-fixture",
+            "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+          },
+          "title": "Broodling P1 issue 3 qualification fixture"
+        },
+        "watchReplay": [
+          {
+            "active_executions": [],
+            "cursor": "v2:1",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-bdbff426d2ac8d5e45e565761595e78556247cb01c343400d2e235f60e2cabf6",
+                "node": "implement"
+              }
+            ],
+            "cursor": "v2:2",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:7",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-f88250b3bee4d237731624bf281bc65488e1ed051e06090141a01dda2a2546bb",
+                "node": "review"
+              }
+            ],
+            "cursor": "v2:8",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:13",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-27ab8e34c897872015123a482ed097db7b497df578763cad8147c8902c0e1d88",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:14",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:19",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-4e25b9667c45b29dfe9d792faebaf62ba412bd6e9660c00bf990d7522c9b32f3",
+                "node": "repair"
+              }
+            ],
+            "cursor": "v2:20",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:25",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-df33da1afa9c538c3079b84220cd314220adfcd37945b153b4b1ce2f512999e2",
+                "node": "review"
+              }
+            ],
+            "cursor": "v2:26",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:31",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-1d5810e6aff7953b5bca895f13f8f0e7e74cf70031f89df981cdc03913fe8958",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:32",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-1d5810e6aff7953b5bca895f13f8f0e7e74cf70031f89df981cdc03913fe8958",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:33",
+            "phase": "stopping",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:35",
+            "phase": "stopping",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:36",
+            "phase": "finished",
+            "result": {
+              "failure": "force_stopped",
+              "output": null,
+              "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+              "succeeded": false
+            },
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          }
+        ]
+      },
+      "controlledDriverEvents": [
+        {
+          "node": "implement",
+          "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        },
+        {
+          "node": "review",
+          "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        },
+        {
+          "node": "adjudicate_authority",
+          "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        },
+        {
+          "node": "repair",
+          "promptSha256": "6e722ff5912d2a60b508ffc52ddd5f37f93df195ed5914e575d9a348290646ff",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        },
+        {
+          "node": "review",
+          "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+          "providerInvocation": 2,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        },
+        {
+          "node": "adjudicate_authority",
+          "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+          "providerInvocation": 2,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        }
+      ],
+      "result": {
+        "failure": "force_stopped",
+        "output": null,
+        "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+        "succeeded": false
+      },
+      "runId": "01a077aa-9318-7151-891f-2073d9ce4340",
+      "stopRequestedWhile": {
+        "active_executions": [
+          {
+            "execution": "nv2-1d5810e6aff7953b5bca895f13f8f0e7e74cf70031f89df981cdc03913fe8958",
+            "node": "adjudicate_authority"
+          }
+        ],
+        "cursor": "v2:32",
+        "phase": "running",
+        "result": null,
+        "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+        "size": "small",
+        "source": {
+          "branch": "qualification/p1",
+          "repository": "example/broodling-p1-fixture",
+          "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+        },
+        "title": "Broodling P1 issue 3 qualification fixture"
+      }
+    },
+    "successfulRepeatedRun": {
+      "afterClientRestart": {
+        "logReplay": [
+          {
+            "cursor": "v2:3",
+            "execution": "nv2-bb97e360beaf95bc5cb6c92f16c5659bf49d5ae2bf82c83f201b621c6686752a",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714061759
+          },
+          {
+            "cursor": "v2:4",
+            "execution": "nv2-bb97e360beaf95bc5cb6c92f16c5659bf49d5ae2bf82c83f201b621c6686752a",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714061759
+          },
+          {
+            "cursor": "v2:5",
+            "execution": "nv2-bb97e360beaf95bc5cb6c92f16c5659bf49d5ae2bf82c83f201b621c6686752a",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714061759
+          },
+          {
+            "cursor": "v2:9",
+            "execution": "nv2-17a2c19634f48ec32ab7e4ed86c4b0baf2677642c73e5bfcb06acca93583f94e",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714061914
+          },
+          {
+            "cursor": "v2:10",
+            "execution": "nv2-17a2c19634f48ec32ab7e4ed86c4b0baf2677642c73e5bfcb06acca93583f94e",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"findings\":\"found\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714061914
+          },
+          {
+            "cursor": "v2:11",
+            "execution": "nv2-17a2c19634f48ec32ab7e4ed86c4b0baf2677642c73e5bfcb06acca93583f94e",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714061914
+          },
+          {
+            "cursor": "v2:15",
+            "execution": "nv2-1324ce02535f5ae224b721c46d5ce037198d1c3482e149a23e47d2e53337c67c",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062022
+          },
+          {
+            "cursor": "v2:16",
+            "execution": "nv2-1324ce02535f5ae224b721c46d5ce037198d1c3482e149a23e47d2e53337c67c",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"directive\":\"repair\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062022
+          },
+          {
+            "cursor": "v2:17",
+            "execution": "nv2-1324ce02535f5ae224b721c46d5ce037198d1c3482e149a23e47d2e53337c67c",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062022
+          },
+          {
+            "cursor": "v2:21",
+            "execution": "nv2-f6d9bcf46038b3d45aeeacd903de0bc82909c303d9bc28541b0730535a06dfb4",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062098
+          },
+          {
+            "cursor": "v2:22",
+            "execution": "nv2-f6d9bcf46038b3d45aeeacd903de0bc82909c303d9bc28541b0730535a06dfb4",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062098
+          },
+          {
+            "cursor": "v2:23",
+            "execution": "nv2-f6d9bcf46038b3d45aeeacd903de0bc82909c303d9bc28541b0730535a06dfb4",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062098
+          },
+          {
+            "cursor": "v2:27",
+            "execution": "nv2-840192cd1892c473464c51585ca70f408d7e9e1559ae1c803c7b94b448da6eb2",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062203
+          },
+          {
+            "cursor": "v2:28",
+            "execution": "nv2-840192cd1892c473464c51585ca70f408d7e9e1559ae1c803c7b94b448da6eb2",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"findings\":\"clean\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062203
+          },
+          {
+            "cursor": "v2:29",
+            "execution": "nv2-840192cd1892c473464c51585ca70f408d7e9e1559ae1c803c7b94b448da6eb2",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062203
+          },
+          {
+            "cursor": "v2:33",
+            "execution": "nv2-fe6b1d2de20bde82a1a904a4d9bf6c5bda1464f92d4adc344dd8e476095d7775",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062314
+          },
+          {
+            "cursor": "v2:34",
+            "execution": "nv2-fe6b1d2de20bde82a1a904a4d9bf6c5bda1464f92d4adc344dd8e476095d7775",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"directive\":\"advance\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062314
+          },
+          {
+            "cursor": "v2:35",
+            "execution": "nv2-fe6b1d2de20bde82a1a904a4d9bf6c5bda1464f92d4adc344dd8e476095d7775",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062314
+          },
+          {
+            "cursor": "v2:39",
+            "execution": "nv2-36d5cfafe0d9a3bf0de33528e7651230a67649e89c532d1f8cef3c5ed2dec3a6",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062387
+          },
+          {
+            "cursor": "v2:40",
+            "execution": "nv2-36d5cfafe0d9a3bf0de33528e7651230a67649e89c532d1f8cef3c5ed2dec3a6",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062387
+          },
+          {
+            "cursor": "v2:41",
+            "execution": "nv2-36d5cfafe0d9a3bf0de33528e7651230a67649e89c532d1f8cef3c5ed2dec3a6",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062387
+          },
+          {
+            "cursor": "v2:45",
+            "execution": "nv2-22b7cca9ab53de026ce75b426beccae886cf5df4c4d631854f8dddb20e1ca204",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062465
+          },
+          {
+            "cursor": "v2:46",
+            "execution": "nv2-22b7cca9ab53de026ce75b426beccae886cf5df4c4d631854f8dddb20e1ca204",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"assessment\":\"accepted\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062465
+          },
+          {
+            "cursor": "v2:47",
+            "execution": "nv2-22b7cca9ab53de026ce75b426beccae886cf5df4c4d631854f8dddb20e1ca204",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "target": "agent",
+            "timestamp": 1788714062465
+          }
+        ],
+        "publicStatusFields": [
+          "run_id",
+          "title",
+          "source",
+          "size",
+          "cursor",
+          "phase",
+          "active_executions",
+          "result"
+        ],
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:50",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "fixture": "broodling-p1-repair-then-accept-v1"
+            },
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "succeeded": true
+          },
+          "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+          "size": "small",
+          "source": {
+            "branch": "qualification/p1",
+            "repository": "example/broodling-p1-fixture",
+            "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+          },
+          "title": "Broodling P1 issue 3 qualification fixture"
+        },
+        "watchReplay": [
+          {
+            "active_executions": [],
+            "cursor": "v2:1",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-bb97e360beaf95bc5cb6c92f16c5659bf49d5ae2bf82c83f201b621c6686752a",
+                "node": "implement"
+              }
+            ],
+            "cursor": "v2:2",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:7",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-17a2c19634f48ec32ab7e4ed86c4b0baf2677642c73e5bfcb06acca93583f94e",
+                "node": "review"
+              }
+            ],
+            "cursor": "v2:8",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:13",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-1324ce02535f5ae224b721c46d5ce037198d1c3482e149a23e47d2e53337c67c",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:14",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:19",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-f6d9bcf46038b3d45aeeacd903de0bc82909c303d9bc28541b0730535a06dfb4",
+                "node": "repair"
+              }
+            ],
+            "cursor": "v2:20",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:25",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-840192cd1892c473464c51585ca70f408d7e9e1559ae1c803c7b94b448da6eb2",
+                "node": "review"
+              }
+            ],
+            "cursor": "v2:26",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:31",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-fe6b1d2de20bde82a1a904a4d9bf6c5bda1464f92d4adc344dd8e476095d7775",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:32",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:37",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-36d5cfafe0d9a3bf0de33528e7651230a67649e89c532d1f8cef3c5ed2dec3a6",
+                "node": "round_complete"
+              }
+            ],
+            "cursor": "v2:38",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:43",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-22b7cca9ab53de026ce75b426beccae886cf5df4c4d631854f8dddb20e1ca204",
+                "node": "final_assessment_authority"
+              }
+            ],
+            "cursor": "v2:44",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:49",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:50",
+            "phase": "finished",
+            "result": {
+              "failure": null,
+              "output": {
+                "fixture": "broodling-p1-repair-then-accept-v1"
+              },
+              "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+              "succeeded": true
+            },
+            "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          }
+        ]
+      },
+      "controlledDriverEvents": [
+        {
+          "node": "implement",
+          "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept"
+        },
+        {
+          "node": "review",
+          "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept"
+        },
+        {
+          "node": "adjudicate_authority",
+          "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept"
+        },
+        {
+          "node": "repair",
+          "promptSha256": "6e722ff5912d2a60b508ffc52ddd5f37f93df195ed5914e575d9a348290646ff",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept"
+        },
+        {
+          "node": "review",
+          "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+          "providerInvocation": 2,
+          "scenario": "repair-then-accept"
+        },
+        {
+          "node": "adjudicate_authority",
+          "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+          "providerInvocation": 2,
+          "scenario": "repair-then-accept"
+        },
+        {
+          "node": "round_complete",
+          "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept"
+        },
+        {
+          "node": "final_assessment_authority",
+          "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept"
+        }
+      ],
+      "result": {
+        "failure": null,
+        "output": {
+          "fixture": "broodling-p1-repair-then-accept-v1"
+        },
+        "run_id": "01a077aa-8edb-7063-9561-91ebd768ed06",
+        "succeeded": true
+      },
+      "runId": "01a077aa-8edb-7063-9561-91ebd768ed06"
+    }
+  },
+  "Q2": {
+    "acknowledgementSimulation": "A separate Broodling-side client process exited with code 87 immediately after SDK submit returned, without communicating the Run handle or run ID to its parent.",
+    "conflict": {
+      "existingRunId": "01a077aa-8c7f-75d0-acc3-60a79bf64a4a",
+      "exitCode": 1,
+      "message": "submission key already identifies a different admitted run (01a077aa-8c7f-75d0-acc3-60a79bf64a4a)",
+      "type": "SubmissionConflictError"
+    },
+    "controlledDriverEvents": [
+      {
+        "node": "implement",
+        "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+        "providerInvocation": 1,
+        "scenario": "clean"
+      },
+      {
+        "node": "review",
+        "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+        "providerInvocation": 1,
+        "scenario": "clean"
+      },
+      {
+        "node": "adjudicate_authority",
+        "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+        "providerInvocation": 1,
+        "scenario": "clean"
+      },
+      {
+        "node": "round_complete",
+        "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+        "providerInvocation": 1,
+        "scenario": "clean"
+      },
+      {
+        "node": "final_assessment_authority",
+        "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+        "providerInvocation": 1,
+        "scenario": "clean"
+      }
+    ],
+    "inventoryAfterConflict": [
+      "01a077aa-8c7f-75d0-acc3-60a79bf64a4a"
+    ],
+    "inventoryDeltaAfterLostAcknowledgement": [
+      "01a077aa-8c7f-75d0-acc3-60a79bf64a4a"
+    ],
+    "inventoryDeltaBeforeReplay": [
+      "01a077aa-8c7f-75d0-acc3-60a79bf64a4a"
+    ],
+    "lostAcknowledgementChildExitCode": 87,
+    "noSecondRun": true,
+    "sameSourceReplayResult": {
+      "failure": null,
+      "output": {
+        "fixture": "broodling-p1-repair-then-accept-v1"
+      },
+      "run_id": "01a077aa-8c7f-75d0-acc3-60a79bf64a4a",
+      "succeeded": true
+    },
+    "sameSourceReplayRunId": "01a077aa-8c7f-75d0-acc3-60a79bf64a4a",
+    "sourceAfterHeadChange": "5011b804a04ac9685d779622d74eb2444302b17f",
+    "sourceBefore": "8356fc0614a201b5e3b16af72eb1807848a1dc73",
+    "submissionKey": "broodling-issue3-q2-ambiguous-v1"
+  },
+  "Q6": {
+    "broodlingHarnessCrashBeforeCatchUp": {
+      "afterClientRestart": {
+        "logReplay": [
+          {
+            "cursor": "v2:3",
+            "execution": "nv2-e870469f024b3d23f31e7243a91f77b078a07dc5211a04c906e588b47389cc11",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "target": "agent",
+            "timestamp": 1788714065025
+          },
+          {
+            "cursor": "v2:4",
+            "execution": "nv2-e870469f024b3d23f31e7243a91f77b078a07dc5211a04c906e588b47389cc11",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "target": "agent",
+            "timestamp": 1788714065025
+          },
+          {
+            "cursor": "v2:5",
+            "execution": "nv2-e870469f024b3d23f31e7243a91f77b078a07dc5211a04c906e588b47389cc11",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "target": "agent",
+            "timestamp": 1788714065027
+          },
+          {
+            "cursor": "v2:9",
+            "execution": "nv2-3b5a639462ac00c3354091e487d29c45dddd61ce29eb309aac58d9c3ce51f3e3",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "target": "agent",
+            "timestamp": 1788714065197
+          },
+          {
+            "cursor": "v2:10",
+            "execution": "nv2-3b5a639462ac00c3354091e487d29c45dddd61ce29eb309aac58d9c3ce51f3e3",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"findings\":\"found\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "target": "agent",
+            "timestamp": 1788714065204
+          },
+          {
+            "cursor": "v2:11",
+            "execution": "nv2-3b5a639462ac00c3354091e487d29c45dddd61ce29eb309aac58d9c3ce51f3e3",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "target": "agent",
+            "timestamp": 1788714065205
+          },
+          {
+            "cursor": "v2:15",
+            "execution": "nv2-6c730b80b6b351b9a8ebe2acdba400c8cdd61e98f4de2083c3933df2a3c75f1d",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "target": "agent",
+            "timestamp": 1788714065366
+          },
+          {
+            "cursor": "v2:16",
+            "execution": "nv2-6c730b80b6b351b9a8ebe2acdba400c8cdd61e98f4de2083c3933df2a3c75f1d",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"directive\":\"repair\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "target": "agent",
+            "timestamp": 1788714065366
+          },
+          {
+            "cursor": "v2:17",
+            "execution": "nv2-6c730b80b6b351b9a8ebe2acdba400c8cdd61e98f4de2083c3933df2a3c75f1d",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "target": "agent",
+            "timestamp": 1788714065366
+          }
+        ],
+        "publicStatusFields": [
+          "run_id",
+          "title",
+          "source",
+          "size",
+          "cursor",
+          "phase",
+          "active_executions",
+          "result"
+        ],
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:24",
+          "phase": "finished",
+          "result": {
+            "failure": "force_stopped",
+            "output": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "succeeded": false
+          },
+          "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+          "size": "small",
+          "source": {
+            "branch": "qualification/p1",
+            "repository": "example/broodling-p1-fixture",
+            "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+          },
+          "title": "Broodling P1 issue 3 qualification fixture"
+        },
+        "watchReplay": [
+          {
+            "active_executions": [],
+            "cursor": "v2:1",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-e870469f024b3d23f31e7243a91f77b078a07dc5211a04c906e588b47389cc11",
+                "node": "implement"
+              }
+            ],
+            "cursor": "v2:2",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:7",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-3b5a639462ac00c3354091e487d29c45dddd61ce29eb309aac58d9c3ce51f3e3",
+                "node": "review"
+              }
+            ],
+            "cursor": "v2:8",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:13",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-6c730b80b6b351b9a8ebe2acdba400c8cdd61e98f4de2083c3933df2a3c75f1d",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:14",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:19",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-6c708b7ad27db384cf3ac32cd0cd063fb3aa4c27f44b470d7a3179457cfe69f4",
+                "node": "repair"
+              }
+            ],
+            "cursor": "v2:20",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-6c708b7ad27db384cf3ac32cd0cd063fb3aa4c27f44b470d7a3179457cfe69f4",
+                "node": "repair"
+              }
+            ],
+            "cursor": "v2:21",
+            "phase": "stopping",
+            "result": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:23",
+            "phase": "stopping",
+            "result": null,
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:24",
+            "phase": "finished",
+            "result": {
+              "failure": "force_stopped",
+              "output": null,
+              "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+              "succeeded": false
+            },
+            "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          }
+        ]
+      },
+      "catchUpObservation": "No public SDK field supplies the completed adjudicator occurrence, bound input, or outcome to an exactly-once semantic catch-up consumer.",
+      "childExitCode": 86,
+      "controlledDriverEvents": [
+        {
+          "node": "implement",
+          "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:repair:1"
+        },
+        {
+          "node": "review",
+          "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:repair:1"
+        },
+        {
+          "node": "adjudicate_authority",
+          "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:repair:1"
+        },
+        {
+          "node": "repair",
+          "promptSha256": "6e722ff5912d2a60b508ffc52ddd5f37f93df195ed5914e575d9a348290646ff",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:repair:1"
+        }
+      ],
+      "resultAfterRestart": {
+        "failure": "force_stopped",
+        "output": null,
+        "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+        "succeeded": false
+      },
+      "runId": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+      "statusAtCrash": {
+        "active_executions": [
+          {
+            "execution": "nv2-6c708b7ad27db384cf3ac32cd0cd063fb3aa4c27f44b470d7a3179457cfe69f4",
+            "node": "repair"
+          }
+        ],
+        "cursor": "v2:20",
+        "phase": "running",
+        "result": null,
+        "run_id": "01a077aa-9bce-7fa1-b623-4d4f08c647b8",
+        "size": "small",
+        "source": {
+          "branch": "qualification/p1",
+          "repository": "example/broodling-p1-fixture",
+          "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+        },
+        "title": "Broodling P1 issue 3 qualification fixture"
+      }
+    },
+    "controllerKilled": {
+      "afterClientRestart": {
+        "logReplay": [
+          {
+            "cursor": "v2:3",
+            "execution": "nv2-63b25c5295f78027dc86ed564dc47801eceea6e3e24c65ee4f81187c6f8516b9",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714063703
+          },
+          {
+            "cursor": "v2:4",
+            "execution": "nv2-63b25c5295f78027dc86ed564dc47801eceea6e3e24c65ee4f81187c6f8516b9",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714063703
+          },
+          {
+            "cursor": "v2:5",
+            "execution": "nv2-63b25c5295f78027dc86ed564dc47801eceea6e3e24c65ee4f81187c6f8516b9",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714063704
+          },
+          {
+            "cursor": "v2:9",
+            "execution": "nv2-18e958c2ff6e2c22737d20eaf5554143a0b7e61e83658300b32e731c8c8bfbe0",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714063831
+          },
+          {
+            "cursor": "v2:10",
+            "execution": "nv2-18e958c2ff6e2c22737d20eaf5554143a0b7e61e83658300b32e731c8c8bfbe0",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"findings\":\"found\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714063831
+          },
+          {
+            "cursor": "v2:11",
+            "execution": "nv2-18e958c2ff6e2c22737d20eaf5554143a0b7e61e83658300b32e731c8c8bfbe0",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714063831
+          },
+          {
+            "cursor": "v2:15",
+            "execution": "nv2-3f9fe510811d6903223bf5969abee72b08dd89117221a9a8b0bc1b212cefe264",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714063936
+          },
+          {
+            "cursor": "v2:16",
+            "execution": "nv2-3f9fe510811d6903223bf5969abee72b08dd89117221a9a8b0bc1b212cefe264",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"directive\":\"repair\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714063936
+          },
+          {
+            "cursor": "v2:17",
+            "execution": "nv2-3f9fe510811d6903223bf5969abee72b08dd89117221a9a8b0bc1b212cefe264",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714063936
+          },
+          {
+            "cursor": "v2:21",
+            "execution": "nv2-548e288de778be44a85ecffab6a1ceda94f23217edbc8c3bb6dc0e1b706c5191",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064067
+          },
+          {
+            "cursor": "v2:22",
+            "execution": "nv2-548e288de778be44a85ecffab6a1ceda94f23217edbc8c3bb6dc0e1b706c5191",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064067
+          },
+          {
+            "cursor": "v2:23",
+            "execution": "nv2-548e288de778be44a85ecffab6a1ceda94f23217edbc8c3bb6dc0e1b706c5191",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064067
+          },
+          {
+            "cursor": "v2:27",
+            "execution": "nv2-8f176209c1bbcb494208ce250f4a9a42205d58fc9f64e81b4f202a3d9587b436",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064198
+          },
+          {
+            "cursor": "v2:28",
+            "execution": "nv2-8f176209c1bbcb494208ce250f4a9a42205d58fc9f64e81b4f202a3d9587b436",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"findings\":\"clean\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064205
+          },
+          {
+            "cursor": "v2:29",
+            "execution": "nv2-8f176209c1bbcb494208ce250f4a9a42205d58fc9f64e81b4f202a3d9587b436",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064205
+          },
+          {
+            "cursor": "v2:33",
+            "execution": "nv2-8ff12c012c33bb1139183f0583b474925d495f2b6801238cc5fc9a84ce55c87d",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064350
+          },
+          {
+            "cursor": "v2:34",
+            "execution": "nv2-8ff12c012c33bb1139183f0583b474925d495f2b6801238cc5fc9a84ce55c87d",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"directive\":\"advance\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064350
+          },
+          {
+            "cursor": "v2:35",
+            "execution": "nv2-8ff12c012c33bb1139183f0583b474925d495f2b6801238cc5fc9a84ce55c87d",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064350
+          },
+          {
+            "cursor": "v2:39",
+            "execution": "nv2-f6a0f17c5f10da361a3a06d69ae16e448ee6972e034864617c796f11d3b01a6a",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064427
+          },
+          {
+            "cursor": "v2:40",
+            "execution": "nv2-f6a0f17c5f10da361a3a06d69ae16e448ee6972e034864617c796f11d3b01a6a",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064427
+          },
+          {
+            "cursor": "v2:41",
+            "execution": "nv2-f6a0f17c5f10da361a3a06d69ae16e448ee6972e034864617c796f11d3b01a6a",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "target": "agent",
+            "timestamp": 1788714064427
+          }
+        ],
+        "publicStatusFields": [
+          "run_id",
+          "title",
+          "source",
+          "size",
+          "cursor",
+          "phase",
+          "active_executions",
+          "result"
+        ],
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:46",
+          "phase": "finished",
+          "result": {
+            "failure": "runtime_lost",
+            "output": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "succeeded": false
+          },
+          "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+          "size": "small",
+          "source": {
+            "branch": "qualification/p1",
+            "repository": "example/broodling-p1-fixture",
+            "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+          },
+          "title": "Broodling P1 issue 3 qualification fixture"
+        },
+        "watchReplay": [
+          {
+            "active_executions": [],
+            "cursor": "v2:1",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-63b25c5295f78027dc86ed564dc47801eceea6e3e24c65ee4f81187c6f8516b9",
+                "node": "implement"
+              }
+            ],
+            "cursor": "v2:2",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:7",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-18e958c2ff6e2c22737d20eaf5554143a0b7e61e83658300b32e731c8c8bfbe0",
+                "node": "review"
+              }
+            ],
+            "cursor": "v2:8",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:13",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-3f9fe510811d6903223bf5969abee72b08dd89117221a9a8b0bc1b212cefe264",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:14",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:19",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-548e288de778be44a85ecffab6a1ceda94f23217edbc8c3bb6dc0e1b706c5191",
+                "node": "repair"
+              }
+            ],
+            "cursor": "v2:20",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:25",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-8f176209c1bbcb494208ce250f4a9a42205d58fc9f64e81b4f202a3d9587b436",
+                "node": "review"
+              }
+            ],
+            "cursor": "v2:26",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:31",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-8ff12c012c33bb1139183f0583b474925d495f2b6801238cc5fc9a84ce55c87d",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:32",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:37",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-f6a0f17c5f10da361a3a06d69ae16e448ee6972e034864617c796f11d3b01a6a",
+                "node": "round_complete"
+              }
+            ],
+            "cursor": "v2:38",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:43",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-11cd7b04b47c2ce99d28422c0dc18d04ee284ab45cd7a58aa0f08648ef0ec626",
+                "node": "final_assessment_authority"
+              }
+            ],
+            "cursor": "v2:44",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:45",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:46",
+            "phase": "finished",
+            "result": {
+              "failure": "runtime_lost",
+              "output": null,
+              "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+              "succeeded": false
+            },
+            "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          }
+        ]
+      },
+      "controlledDriverEvents": [
+        {
+          "node": "implement",
+          "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:final_assessment_authority:1"
+        },
+        {
+          "node": "review",
+          "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:final_assessment_authority:1"
+        },
+        {
+          "node": "adjudicate_authority",
+          "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:final_assessment_authority:1"
+        },
+        {
+          "node": "repair",
+          "promptSha256": "6e722ff5912d2a60b508ffc52ddd5f37f93df195ed5914e575d9a348290646ff",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:final_assessment_authority:1"
+        },
+        {
+          "node": "review",
+          "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+          "providerInvocation": 2,
+          "scenario": "repair-then-accept;hang:final_assessment_authority:1"
+        },
+        {
+          "node": "adjudicate_authority",
+          "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+          "providerInvocation": 2,
+          "scenario": "repair-then-accept;hang:final_assessment_authority:1"
+        },
+        {
+          "node": "round_complete",
+          "promptSha256": "36de3b670d22530766dbbb50c9e718482d993c2b070e183abf2f4b101408393d",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:final_assessment_authority:1"
+        },
+        {
+          "node": "final_assessment_authority",
+          "promptSha256": "c9291b39a7b9cbca0ab0b685a36ddf762ccd0161d43558b5dc8604fa22877bdf",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:final_assessment_authority:1"
+        }
+      ],
+      "controllerKill": {
+        "arguments": [
+          "/dev/shm/broodling-issue3.SxWiFT/venv/lib/python3.13/site-packages/zeroshot/_bin/zeroshot-rust",
+          "__zeroshot-run-controller",
+          "--bootstrap",
+          "/dev/shm/i3h/s/runs/01a077aa-968b-7d73-b49f-b579a270aac8/controller.bootstrap.json"
+        ],
+        "pid": 4186168,
+        "signal": "SIGKILL"
+      },
+      "resultAfterExternalObserverRestart": {
+        "failure": "runtime_lost",
+        "output": null,
+        "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+        "succeeded": false
+      },
+      "runId": "01a077aa-968b-7d73-b49f-b579a270aac8",
+      "statusBeforeKill": {
+        "active_executions": [
+          {
+            "execution": "nv2-11cd7b04b47c2ce99d28422c0dc18d04ee284ab45cd7a58aa0f08648ef0ec626",
+            "node": "final_assessment_authority"
+          }
+        ],
+        "cursor": "v2:44",
+        "phase": "running",
+        "result": null,
+        "run_id": "01a077aa-968b-7d73-b49f-b579a270aac8",
+        "size": "small",
+        "source": {
+          "branch": "qualification/p1",
+          "repository": "example/broodling-p1-fixture",
+          "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+        },
+        "title": "Broodling P1 issue 3 qualification fixture"
+      }
+    },
+    "stopWhileSecondAdjudicatorInFlight": {
+      "afterClientRestart": {
+        "logReplay": [
+          {
+            "cursor": "v2:3",
+            "execution": "nv2-bdbff426d2ac8d5e45e565761595e78556247cb01c343400d2e235f60e2cabf6",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062712
+          },
+          {
+            "cursor": "v2:4",
+            "execution": "nv2-bdbff426d2ac8d5e45e565761595e78556247cb01c343400d2e235f60e2cabf6",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062713
+          },
+          {
+            "cursor": "v2:5",
+            "execution": "nv2-bdbff426d2ac8d5e45e565761595e78556247cb01c343400d2e235f60e2cabf6",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062713
+          },
+          {
+            "cursor": "v2:9",
+            "execution": "nv2-f88250b3bee4d237731624bf281bc65488e1ed051e06090141a01dda2a2546bb",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062778
+          },
+          {
+            "cursor": "v2:10",
+            "execution": "nv2-f88250b3bee4d237731624bf281bc65488e1ed051e06090141a01dda2a2546bb",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"findings\":\"found\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062778
+          },
+          {
+            "cursor": "v2:11",
+            "execution": "nv2-f88250b3bee4d237731624bf281bc65488e1ed051e06090141a01dda2a2546bb",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062778
+          },
+          {
+            "cursor": "v2:15",
+            "execution": "nv2-27ab8e34c897872015123a482ed097db7b497df578763cad8147c8902c0e1d88",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062845
+          },
+          {
+            "cursor": "v2:16",
+            "execution": "nv2-27ab8e34c897872015123a482ed097db7b497df578763cad8147c8902c0e1d88",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"directive\":\"repair\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062845
+          },
+          {
+            "cursor": "v2:17",
+            "execution": "nv2-27ab8e34c897872015123a482ed097db7b497df578763cad8147c8902c0e1d88",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062845
+          },
+          {
+            "cursor": "v2:21",
+            "execution": "nv2-4e25b9667c45b29dfe9d792faebaf62ba412bd6e9660c00bf990d7522c9b32f3",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062923
+          },
+          {
+            "cursor": "v2:22",
+            "execution": "nv2-4e25b9667c45b29dfe9d792faebaf62ba412bd6e9660c00bf990d7522c9b32f3",
+            "level": "info",
+            "message": "{\"response\":null}",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062923
+          },
+          {
+            "cursor": "v2:23",
+            "execution": "nv2-4e25b9667c45b29dfe9d792faebaf62ba412bd6e9660c00bf990d7522c9b32f3",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714062923
+          },
+          {
+            "cursor": "v2:27",
+            "execution": "nv2-df33da1afa9c538c3079b84220cd314220adfcd37945b153b4b1ce2f512999e2",
+            "level": "debug",
+            "message": "Codex turn started",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714063058
+          },
+          {
+            "cursor": "v2:28",
+            "execution": "nv2-df33da1afa9c538c3079b84220cd314220adfcd37945b153b4b1ce2f512999e2",
+            "level": "info",
+            "message": "{\"response\":{\"output\":null,\"signals\":{\"findings\":\"clean\"},\"diagnostic\":null}}",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714063058
+          },
+          {
+            "cursor": "v2:29",
+            "execution": "nv2-df33da1afa9c538c3079b84220cd314220adfcd37945b153b4b1ce2f512999e2",
+            "level": "debug",
+            "message": "Codex turn completed",
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "target": "agent",
+            "timestamp": 1788714063058
+          }
+        ],
+        "publicStatusFields": [
+          "run_id",
+          "title",
+          "source",
+          "size",
+          "cursor",
+          "phase",
+          "active_executions",
+          "result"
+        ],
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:36",
+          "phase": "finished",
+          "result": {
+            "failure": "force_stopped",
+            "output": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "succeeded": false
+          },
+          "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+          "size": "small",
+          "source": {
+            "branch": "qualification/p1",
+            "repository": "example/broodling-p1-fixture",
+            "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+          },
+          "title": "Broodling P1 issue 3 qualification fixture"
+        },
+        "watchReplay": [
+          {
+            "active_executions": [],
+            "cursor": "v2:1",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-bdbff426d2ac8d5e45e565761595e78556247cb01c343400d2e235f60e2cabf6",
+                "node": "implement"
+              }
+            ],
+            "cursor": "v2:2",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:7",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-f88250b3bee4d237731624bf281bc65488e1ed051e06090141a01dda2a2546bb",
+                "node": "review"
+              }
+            ],
+            "cursor": "v2:8",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:13",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-27ab8e34c897872015123a482ed097db7b497df578763cad8147c8902c0e1d88",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:14",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:19",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-4e25b9667c45b29dfe9d792faebaf62ba412bd6e9660c00bf990d7522c9b32f3",
+                "node": "repair"
+              }
+            ],
+            "cursor": "v2:20",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:25",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-df33da1afa9c538c3079b84220cd314220adfcd37945b153b4b1ce2f512999e2",
+                "node": "review"
+              }
+            ],
+            "cursor": "v2:26",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:31",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-1d5810e6aff7953b5bca895f13f8f0e7e74cf70031f89df981cdc03913fe8958",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:32",
+            "phase": "running",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [
+              {
+                "execution": "nv2-1d5810e6aff7953b5bca895f13f8f0e7e74cf70031f89df981cdc03913fe8958",
+                "node": "adjudicate_authority"
+              }
+            ],
+            "cursor": "v2:33",
+            "phase": "stopping",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:35",
+            "phase": "stopping",
+            "result": null,
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          },
+          {
+            "active_executions": [],
+            "cursor": "v2:36",
+            "phase": "finished",
+            "result": {
+              "failure": "force_stopped",
+              "output": null,
+              "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+              "succeeded": false
+            },
+            "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+            "size": "small",
+            "source": {
+              "branch": "qualification/p1",
+              "repository": "example/broodling-p1-fixture",
+              "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+            },
+            "title": "Broodling P1 issue 3 qualification fixture"
+          }
+        ]
+      },
+      "controlledDriverEvents": [
+        {
+          "node": "implement",
+          "promptSha256": "c4a84bed7cc4aa77a68ac0e30044f158cfafc72f8c452d84d0d7d74ff6fdb9a4",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        },
+        {
+          "node": "review",
+          "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        },
+        {
+          "node": "adjudicate_authority",
+          "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        },
+        {
+          "node": "repair",
+          "promptSha256": "6e722ff5912d2a60b508ffc52ddd5f37f93df195ed5914e575d9a348290646ff",
+          "providerInvocation": 1,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        },
+        {
+          "node": "review",
+          "promptSha256": "b7aecbb8e9c21df078e31e784fadb780bfb265121b17c59fbf3b985fb7692c92",
+          "providerInvocation": 2,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        },
+        {
+          "node": "adjudicate_authority",
+          "promptSha256": "758f45032b98f73d9a34c37c29c8917d434bcc1ed74cc9be3223c8424191eb9b",
+          "providerInvocation": 2,
+          "scenario": "repair-then-accept;hang:adjudicate_authority:2"
+        }
+      ],
+      "result": {
+        "failure": "force_stopped",
+        "output": null,
+        "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+        "succeeded": false
+      },
+      "runId": "01a077aa-9318-7151-891f-2073d9ce4340",
+      "stopRequestedWhile": {
+        "active_executions": [
+          {
+            "execution": "nv2-1d5810e6aff7953b5bca895f13f8f0e7e74cf70031f89df981cdc03913fe8958",
+            "node": "adjudicate_authority"
+          }
+        ],
+        "cursor": "v2:32",
+        "phase": "running",
+        "result": null,
+        "run_id": "01a077aa-9318-7151-891f-2073d9ce4340",
+        "size": "small",
+        "source": {
+          "branch": "qualification/p1",
+          "repository": "example/broodling-p1-fixture",
+          "revision": "5011b804a04ac9685d779622d74eb2444302b17f"
+        },
+        "title": "Broodling P1 issue 3 qualification fixture"
+      }
+    }
+  },
+  "build": {
+    "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
+    "controlledLeafSha256": "4e7bf555695b4ac1c0635b62f6177c1065478da680c1d448813cfab4e39dd241",
+    "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+    "python": "3.13.5",
+    "qualificationHarnessSha256": "7b4ef407ffce503a3f98155dd0491b256cf05b8cdbf15268df7e7b10e0d564db",
+    "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+    "sdkDistribution": "zeroshot-rust",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86",
+    "sidecarVersion": "zeroshot-rust 0.1.0",
+    "wheel": "zeroshot_rust-0.1.0.dev0-py3-none-linux_x86_64.whl",
+    "wheelSha256": "16bc7919f913ccc00853b5a917bc164800c5b44d3b4c4c99f2131d09f9ebeebb"
+  },
+  "dependency": {
+    "consumer": "G1-core, then P2 and P4",
+    "internalButNotQualifying": "RunLedger.get/get_by_submission_key/snapshot_and_tail and StoredRun/NodeSnapshot/NodeState retain the facts, but they are Rust-internal and no public SDK/protocol projection exposes them.",
+    "missingContract": "A supported external read/recovery interface for retained admitted graph/runtime data and exact settled execution occurrences, including stable occurrence identity, trusted bound input, completed success/error or voided outcome, and completion cursor/order."
+  },
+  "integrationBoundary": {
+    "doubled": "Only the provider leaf process is controlled.",
+    "prohibitedReadersUsed": [],
+    "real": "SDK encoding/process transport; Rust preflight, admission, Git source resolution, controller, graph execution/reduction, durable status/watch/log and force-stop.",
+    "selected": "official Python SDK LocalTarget and matching Rust sidecar"
+  },
+  "recordedAt": "2026-09-06T17:01:05.799513+00:00",
+  "retentionAndCustodyAssumptions": {
+    "insufficiency": "Preserving the state directory does not make completed occurrence input/outcome available through the supported external SDK/protocol.",
+    "localRetention": "LocalTarget observations remain available only while the operator preserves the explicit state directory and the pinned implementation can read it; no broader retention SLA or cross-version migration contract was found.",
+    "supportedVersion": "The qualification applies only to the official SDK and matching sidecar built unpatched from the pinned Zeroshot commit and hashes in this record.",
+    "terminalBoundary": "The public finished status and terminal result are durable and replayed after client restart; force_stop waits for that boundary, and observing a dead controller terminalizes it as runtime_lost."
+  },
+  "schema": "broodling.p1.issue3-qualification/v1",
+  "scope": {
+    "issue": 3,
+    "questions": [
+      "Q1",
+      "Q2",
+      "Q6"
+    ]
+  },
+  "testedSource": {
+    "workspace": "/dev/shm/i3h/w",
+    "workspaceBranch": "qualification/p1",
+    "workspaceRevisionAfterQ2Change": "5011b804a04ac9685d779622d74eb2444302b17f",
+    "zeroshotCheckoutClean": true,
+    "zeroshotRevision": "d0909615d6ba3c179b58bce15a059f40400ec995",
+    "zeroshotTree": "03b9b027f9a9dd0e03cc827aae0e95dd3e8f2b4d"
+  },
+  "verdicts": {
+    "G1-core": "BLOCKED",
+    "Q1": "BLOCKED",
+    "Q2": "PASS",
+    "Q6": "BLOCKED"
+  }
+}

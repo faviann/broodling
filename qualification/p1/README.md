@@ -103,3 +103,10 @@ git diff --check
 The unit checks validate fixture agreement and the controlled leaf only. A successful acceptance
 check requires the external command above; replacing the real sidecar with the Python SDK test fake
 does not qualify this harness.
+
+## Issue #3 result
+
+The issue-scoped [Q1/Q2/Q6 report](issue-3-q1-q2-q6.md) and
+[retained run record](evidence/issue-3-run-record.json) record the executed external qualification.
+Q2 passes. Q1 and Q6 are blocked by the absence of a supported completed-occurrence recovery
+surface, so G1-core remains blocked and issue #3 remains open.
