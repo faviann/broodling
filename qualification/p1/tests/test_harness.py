@@ -142,6 +142,40 @@ class HarnessFixtureTests(unittest.TestCase):
             [{"findings": "clean", "outstanding": "open_d1"}],
         )
 
+    def test_issue5_evidence_matches_qualified_verdicts(self) -> None:
+        record = json.loads((P1 / "evidence/issue-5-run-record.json").read_text())
+        self.assertEqual(
+            record["verdicts"],
+            {"G1-core": "BLOCKED", "Q4": "BLOCKED", "Q5": "BLOCKED"},
+        )
+        self.assertTrue(all(record["q4"]["checks"].values()))
+        self.assertTrue(all(record["q5"]["checks"].values()))
+        self.assertFalse(record["integrationBoundary"]["broodlingValidationOrScheduling"])
+        self.assertEqual(record["integrationBoundary"]["prohibitedReadersUsed"], [])
+
+        cases = record["q4"]["cases"]
+        self.assertNotEqual(
+            cases["changed_candidate"]["candidateSha256After"],
+            cases["changed_candidate"]["authorityInput"]["expectedCandidateSha256"],
+        )
+        self.assertEqual(
+            cases["forged_identifiers"]["authorityInput"]["claimedContractId"],
+            "forged-contract",
+        )
+        self.assertFalse(cases["missing_raw_evidence"]["rawEvidenceExistsAfter"])
+        self.assertLess(
+            cases["delayed_observer"]["terminalObservedNs"],
+            cases["delayed_observer"]["delayedExternalObserver"]["completedNs"],
+        )
+
+        output = record["q5"]["case"]["result"]["output"]
+        self.assertEqual(
+            output["repositoryInstructionCanary"],
+            "Q5_REPOSITORY_INSTRUCTION_CANARY",
+        )
+        self.assertEqual(output["ambientSkillCanary"], "Q5_AMBIENT_SKILL_CANARY")
+        self.assertEqual(output["workspaceNarrativeCanary"], "NOT_VISIBLE")
+
     def test_controlled_leaf_can_target_a_repeated_occurrence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory)

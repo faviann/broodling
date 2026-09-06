@@ -117,3 +117,13 @@ The issue-scoped [Q3 report](issue-4-q3.md), [qualification driver](issue4_quali
 [retained run record](evidence/issue-4-run-record.json) qualify fail-closed routing and sticky
 within-run obligations through the real SDK/sidecar path. Q3 passes. G1-core remains blocked only
 as already recorded by issue #3 Q1/Q6; issue #4 does not attempt to resolve that dependency.
+
+## Issue #5 result
+
+The issue-scoped [Q4/Q5 report](issue-5-q4-q5.md),
+[qualification driver](issue5_qualify.py), and
+[retained run record](evidence/issue-5-run-record.json) qualify the selected local profile's
+trusted applicability handoff and reviewer automatic-context boundary. Both Q4 and Q5 are blocked
+by concrete Zeroshot/profile integration dependencies. The Q5 context witness used the real Codex
+CLI/provider; Q4 controlled only the provider leaf. Issue #5 remains open, and this qualification
+does not attempt to resolve issue #3 Q1/Q6 or begin a later phase.

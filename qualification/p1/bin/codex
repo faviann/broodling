@@ -28,6 +28,23 @@ def next_invocation(state: Path, node: str) -> int:
 
 
 def response_for(node: str, invocation: int, scenario: str) -> object:
+    if node == "q4_processor":
+        claims = {
+            "candidateSha256": os.environ["BROODLING_Q4_EXPECTED_CANDIDATE"],
+            "contractId": "contract-v1",
+            "evidenceId": "evidence-v1",
+            "predecessorId": "processor-expected",
+        }
+        if scenario == "q4-forged-identifiers":
+            claims = {
+                "candidateSha256": "forged-candidate",
+                "contractId": "forged-contract",
+                "evidenceId": "forged-evidence",
+                "predecessorId": "forged-predecessor",
+            }
+        return claims
+    if node == "q4_authority":
+        return {"output": None, "signals": {"applicability": "accept"}, "diagnostic": None}
     if node == "identity_check":
         label = "stale" if scenario == "q3-stale-applicability" else "applicable"
         return {"output": None, "signals": {"applicability": label}, "diagnostic": None}
@@ -103,11 +120,23 @@ def main() -> int:
         selected_occurrence is None or selected_occurrence == invocation
     )
 
+    workspace = Path.cwd()
+    if node == "q4_processor":
+        if scenario in {"q4-changed-candidate", "q4-observer-delay"}:
+            (workspace / "candidate.txt").write_text("candidate-v2\n", encoding="utf-8")
+        if scenario == "q4-missing-raw-evidence":
+            (workspace / "evidence" / "raw.txt").unlink()
+
     capture = {
         "node": node,
         "providerInvocation": invocation,
         "scenario": scenario,
         "promptSha256": hashlib.sha256(prompt.encode()).hexdigest(),
+        "recordedNs": time.time_ns(),
+        "argv": sys.argv[1:],
+        "cwd": str(workspace),
+        "home": os.environ.get("HOME"),
+        "codexHome": os.environ.get("CODEX_HOME"),
     }
     input_match = re.search(
         r"Input JSON:\n([^\n]+)\nRuntime-owned response contract:", prompt

@@ -1,0 +1,1975 @@
+{
+  "build": {
+    "controlledLeafSha256": "24d59cf73454b3b6842477cb0465ecfd4589764721ab5ba64943c08079e9df1e",
+    "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+    "python": "3.13.5",
+    "qualificationHarnessSha256": "63c97db5645dc56bf0ddeb2bba9bbb81db2bb8a09d8bfdef1928ff4bd044e542",
+    "sdkDistribution": "zeroshot-rust",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86",
+    "sidecarVersion": "zeroshot-rust 0.1.0",
+    "wheel": "zeroshot_rust-0.1.0.dev0-py3-none-linux_x86_64.whl",
+    "wheelSha256": "153d19c2ea1b5f6a58cd06a20d6c4003071ced0669c3155a94b476a3bb2dd9ae"
+  },
+  "dependencies": {
+    "Q4": "A supported trusted in-run operation that seals the current candidate and selected raw evidence, binds source/Contract/evidence/predecessor identities into the authority occurrence input, and synchronously gates dependent graph progression.",
+    "Q5": "A supported execution profile/control and provenance contract that disables or exhaustively admits project/user instructions, skills, config, session history, and tools for reviewer nodes while retaining only governed review context."
+  },
+  "fixtures": {
+    "q4Graph": {
+      "initialInput": {
+        "fields": {
+          "claimedCandidateSha256": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "claimedContractId": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "claimedEvidenceId": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "claimedPredecessorId": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "expectedCandidateSha256": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "expectedContractId": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "expectedEvidenceId": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "expectedPredecessorId": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          }
+        },
+        "kind": "record"
+      },
+      "policy": {
+        "default": "deny",
+        "policy": "policy.native-v2@1"
+      },
+      "profile": "openengine.graph.full/v1",
+      "root": {
+        "children": [
+          {
+            "attempts": 1,
+            "input": {
+              "kind": "null"
+            },
+            "inputBindings": [],
+            "instructions": "BROODLING_NODE=q4_processor. Produce the controlled processor claim.",
+            "kind": "step",
+            "name": "q4_processor",
+            "output": {
+              "fields": {
+                "candidateSha256": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "contractId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "evidenceId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "predecessorId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                }
+              },
+              "kind": "record"
+            },
+            "timeoutMs": 1000,
+            "worker": "agent.broodling-q4-processor@1",
+            "writeBindings": [
+              {
+                "target": [
+                  "claimedCandidateSha256"
+                ],
+                "value": {
+                  "channel": "out",
+                  "node": "q4_processor",
+                  "path": [
+                    "candidateSha256"
+                  ]
+                }
+              },
+              {
+                "target": [
+                  "claimedContractId"
+                ],
+                "value": {
+                  "channel": "out",
+                  "node": "q4_processor",
+                  "path": [
+                    "contractId"
+                  ]
+                }
+              },
+              {
+                "target": [
+                  "claimedEvidenceId"
+                ],
+                "value": {
+                  "channel": "out",
+                  "node": "q4_processor",
+                  "path": [
+                    "evidenceId"
+                  ]
+                }
+              },
+              {
+                "target": [
+                  "claimedPredecessorId"
+                ],
+                "value": {
+                  "channel": "out",
+                  "node": "q4_processor",
+                  "path": [
+                    "predecessorId"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "attempts": 1,
+            "diagnostic": {
+              "kind": "null"
+            },
+            "input": {
+              "fields": {
+                "claimedCandidateSha256": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "claimedContractId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "claimedEvidenceId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "claimedPredecessorId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "expectedCandidateSha256": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "expectedContractId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "expectedEvidenceId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "expectedPredecessorId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                }
+              },
+              "kind": "record"
+            },
+            "inputBindings": [
+              {
+                "target": [
+                  "expectedCandidateSha256"
+                ],
+                "value": {
+                  "path": [
+                    "expectedCandidateSha256"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "expectedContractId"
+                ],
+                "value": {
+                  "path": [
+                    "expectedContractId"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "expectedEvidenceId"
+                ],
+                "value": {
+                  "path": [
+                    "expectedEvidenceId"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "expectedPredecessorId"
+                ],
+                "value": {
+                  "path": [
+                    "expectedPredecessorId"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "claimedCandidateSha256"
+                ],
+                "value": {
+                  "path": [
+                    "claimedCandidateSha256"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "claimedContractId"
+                ],
+                "value": {
+                  "path": [
+                    "claimedContractId"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "claimedEvidenceId"
+                ],
+                "value": {
+                  "path": [
+                    "claimedEvidenceId"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "claimedPredecessorId"
+                ],
+                "value": {
+                  "path": [
+                    "claimedPredecessorId"
+                  ],
+                  "source": "state"
+                }
+              }
+            ],
+            "instructions": "BROODLING_NODE=q4_authority. Produce the controlled authority result.",
+            "kind": "verifier",
+            "name": "q4_authority",
+            "output": {
+              "kind": "null"
+            },
+            "signals": {
+              "applicability": [
+                "accept",
+                "reject"
+              ]
+            },
+            "timeoutMs": 1000,
+            "worker": "agent.broodling-q4-authority@1",
+            "writeBindings": []
+          },
+          {
+            "branches": [
+              {
+                "node": {
+                  "kind": "fail",
+                  "name": "stale_applicability",
+                  "reason": "stale_applicability"
+                },
+                "when": {
+                  "kind": "in",
+                  "labels": [
+                    "reject"
+                  ],
+                  "value": {
+                    "field": "applicability",
+                    "name": "q4_authority",
+                    "source": "signal"
+                  }
+                }
+              }
+            ],
+            "kind": "choice",
+            "name": "q4_route",
+            "otherwise": {
+              "bindings": [
+                {
+                  "target": [
+                    "expectedCandidateSha256"
+                  ],
+                  "value": {
+                    "path": [
+                      "expectedCandidateSha256"
+                    ],
+                    "source": "state"
+                  }
+                },
+                {
+                  "target": [
+                    "expectedContractId"
+                  ],
+                  "value": {
+                    "path": [
+                      "expectedContractId"
+                    ],
+                    "source": "state"
+                  }
+                },
+                {
+                  "target": [
+                    "expectedEvidenceId"
+                  ],
+                  "value": {
+                    "path": [
+                      "expectedEvidenceId"
+                    ],
+                    "source": "state"
+                  }
+                },
+                {
+                  "target": [
+                    "expectedPredecessorId"
+                  ],
+                  "value": {
+                    "path": [
+                      "expectedPredecessorId"
+                    ],
+                    "source": "state"
+                  }
+                },
+                {
+                  "target": [
+                    "claimedCandidateSha256"
+                  ],
+                  "value": {
+                    "path": [
+                      "claimedCandidateSha256"
+                    ],
+                    "source": "state"
+                  }
+                },
+                {
+                  "target": [
+                    "claimedContractId"
+                  ],
+                  "value": {
+                    "path": [
+                      "claimedContractId"
+                    ],
+                    "source": "state"
+                  }
+                },
+                {
+                  "target": [
+                    "claimedEvidenceId"
+                  ],
+                  "value": {
+                    "path": [
+                      "claimedEvidenceId"
+                    ],
+                    "source": "state"
+                  }
+                },
+                {
+                  "target": [
+                    "claimedPredecessorId"
+                  ],
+                  "value": {
+                    "path": [
+                      "claimedPredecessorId"
+                    ],
+                    "source": "state"
+                  }
+                }
+              ],
+              "kind": "succeed",
+              "name": "accepted",
+              "output": {
+                "fields": {
+                  "claimedCandidateSha256": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "claimedContractId": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "claimedEvidenceId": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "claimedPredecessorId": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "expectedCandidateSha256": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "expectedContractId": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "expectedEvidenceId": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  },
+                  "expectedPredecessorId": {
+                    "required": true,
+                    "type": {
+                      "kind": "string"
+                    }
+                  }
+                },
+                "kind": "record"
+              }
+            },
+            "promotedStatePaths": [
+              [
+                "expectedCandidateSha256"
+              ],
+              [
+                "expectedContractId"
+              ],
+              [
+                "expectedEvidenceId"
+              ],
+              [
+                "expectedPredecessorId"
+              ],
+              [
+                "claimedCandidateSha256"
+              ],
+              [
+                "claimedContractId"
+              ],
+              [
+                "claimedEvidenceId"
+              ],
+              [
+                "claimedPredecessorId"
+              ]
+            ],
+            "state": {
+              "fields": {
+                "claimedCandidateSha256": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "claimedContractId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "claimedEvidenceId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "claimedPredecessorId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "expectedCandidateSha256": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "expectedContractId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "expectedEvidenceId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "expectedPredecessorId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                }
+              },
+              "kind": "record"
+            }
+          }
+        ],
+        "kind": "seq",
+        "name": "q4_qualification",
+        "promotedStatePaths": [],
+        "state": {
+          "fields": {
+            "claimedCandidateSha256": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "claimedContractId": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "claimedEvidenceId": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "claimedPredecessorId": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "expectedCandidateSha256": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "expectedContractId": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "expectedEvidenceId": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "expectedPredecessorId": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            }
+          },
+          "kind": "record"
+        }
+      }
+    },
+    "q4GraphCanonicalSha256": "0ff03747e7f383a294459edf3628db45b823305b640de6d526ef8b8f9e84ed63",
+    "q4Runtime": {
+      "harness": "codex",
+      "nodes": {
+        "q4_authority": {
+          "connections": {
+            "fixture": [
+              "OPENAI_API_KEY",
+              "BROODLING_FIXTURE_SCENARIO",
+              "BROODLING_FIXTURE_STATE",
+              "BROODLING_Q4_EXPECTED_CANDIDATE"
+            ]
+          },
+          "effort": "low",
+          "kind": "agent",
+          "model": "broodling-p1-controlled-leaf",
+          "sessionScope": "execution"
+        },
+        "q4_processor": {
+          "connections": {
+            "fixture": [
+              "OPENAI_API_KEY",
+              "BROODLING_FIXTURE_SCENARIO",
+              "BROODLING_FIXTURE_STATE",
+              "BROODLING_Q4_EXPECTED_CANDIDATE"
+            ]
+          },
+          "effort": "low",
+          "kind": "agent",
+          "model": "broodling-p1-controlled-leaf",
+          "sessionScope": "execution"
+        }
+      },
+      "provider": "openai",
+      "size": "small"
+    },
+    "q4RuntimeCanonicalSha256": "291fb8bfc79ea8334f9a7b7e486f9cabfe802ef77b1a3f7ca42ab6fadf3aa1ce",
+    "q5Graph": {
+      "initialInput": {
+        "fields": {
+          "ambientSkillCanary": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "automaticToolSurface": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "comparisonBase": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "contract": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "governedInstructions": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "rawEvidence": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "repositoryInstructionCanary": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "source": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          },
+          "workspaceNarrativeCanary": {
+            "required": true,
+            "type": {
+              "kind": "string"
+            }
+          }
+        },
+        "kind": "record"
+      },
+      "policy": {
+        "default": "deny",
+        "policy": "policy.native-v2@1"
+      },
+      "profile": "openengine.graph.full/v1",
+      "root": {
+        "children": [
+          {
+            "attempts": 1,
+            "diagnostic": {
+              "kind": "null"
+            },
+            "input": {
+              "fields": {
+                "comparisonBase": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "contract": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "governedInstructions": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "rawEvidence": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "source": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                }
+              },
+              "kind": "record"
+            },
+            "inputBindings": [
+              {
+                "target": [
+                  "contract"
+                ],
+                "value": {
+                  "path": [
+                    "contract"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "source"
+                ],
+                "value": {
+                  "path": [
+                    "source"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "comparisonBase"
+                ],
+                "value": {
+                  "path": [
+                    "comparisonBase"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "rawEvidence"
+                ],
+                "value": {
+                  "path": [
+                    "rawEvidence"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "governedInstructions"
+                ],
+                "value": {
+                  "path": [
+                    "governedInstructions"
+                  ],
+                  "source": "state"
+                }
+              }
+            ],
+            "instructions": "Review the frozen input boundary. Report context actually visible to you. For each requested field use the exact canary when visible, otherwise 'NOT_VISIBLE'.",
+            "kind": "verifier",
+            "name": "q5_reviewer",
+            "output": {
+              "fields": {
+                "ambientSkillCanary": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "automaticToolSurface": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "repositoryInstructionCanary": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "workspaceNarrativeCanary": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                }
+              },
+              "kind": "record"
+            },
+            "signals": {
+              "review": [
+                "recorded"
+              ]
+            },
+            "timeoutMs": 120000,
+            "worker": "agent.broodling-q5-reviewer@1",
+            "writeBindings": [
+              {
+                "target": [
+                  "repositoryInstructionCanary"
+                ],
+                "value": {
+                  "channel": "out",
+                  "node": "q5_reviewer",
+                  "path": [
+                    "repositoryInstructionCanary"
+                  ]
+                }
+              },
+              {
+                "target": [
+                  "ambientSkillCanary"
+                ],
+                "value": {
+                  "channel": "out",
+                  "node": "q5_reviewer",
+                  "path": [
+                    "ambientSkillCanary"
+                  ]
+                }
+              },
+              {
+                "target": [
+                  "workspaceNarrativeCanary"
+                ],
+                "value": {
+                  "channel": "out",
+                  "node": "q5_reviewer",
+                  "path": [
+                    "workspaceNarrativeCanary"
+                  ]
+                }
+              },
+              {
+                "target": [
+                  "automaticToolSurface"
+                ],
+                "value": {
+                  "channel": "out",
+                  "node": "q5_reviewer",
+                  "path": [
+                    "automaticToolSurface"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "bindings": [
+              {
+                "target": [
+                  "contract"
+                ],
+                "value": {
+                  "path": [
+                    "contract"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "source"
+                ],
+                "value": {
+                  "path": [
+                    "source"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "comparisonBase"
+                ],
+                "value": {
+                  "path": [
+                    "comparisonBase"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "rawEvidence"
+                ],
+                "value": {
+                  "path": [
+                    "rawEvidence"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "governedInstructions"
+                ],
+                "value": {
+                  "path": [
+                    "governedInstructions"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "repositoryInstructionCanary"
+                ],
+                "value": {
+                  "path": [
+                    "repositoryInstructionCanary"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "ambientSkillCanary"
+                ],
+                "value": {
+                  "path": [
+                    "ambientSkillCanary"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "workspaceNarrativeCanary"
+                ],
+                "value": {
+                  "path": [
+                    "workspaceNarrativeCanary"
+                  ],
+                  "source": "state"
+                }
+              },
+              {
+                "target": [
+                  "automaticToolSurface"
+                ],
+                "value": {
+                  "path": [
+                    "automaticToolSurface"
+                  ],
+                  "source": "state"
+                }
+              }
+            ],
+            "kind": "succeed",
+            "name": "q5_recorded",
+            "output": {
+              "fields": {
+                "ambientSkillCanary": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "automaticToolSurface": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "comparisonBase": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "contract": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "governedInstructions": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "rawEvidence": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "repositoryInstructionCanary": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "source": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "workspaceNarrativeCanary": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                }
+              },
+              "kind": "record"
+            }
+          }
+        ],
+        "kind": "seq",
+        "name": "q5_context_qualification",
+        "promotedStatePaths": [],
+        "state": {
+          "fields": {
+            "ambientSkillCanary": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "automaticToolSurface": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "comparisonBase": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "contract": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "governedInstructions": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "rawEvidence": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "repositoryInstructionCanary": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "source": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            },
+            "workspaceNarrativeCanary": {
+              "required": true,
+              "type": {
+                "kind": "string"
+              }
+            }
+          },
+          "kind": "record"
+        }
+      }
+    },
+    "q5GraphCanonicalSha256": "6d7686357d2aed0d4e794eaa7e300b5be73bebab479c3db366c482d83b634ecb"
+  },
+  "integrationBoundary": {
+    "broodlingValidationOrScheduling": false,
+    "prohibitedReadersUsed": [],
+    "q4Doubled": "Only the provider leaf; SDK, source resolution, controller, graph execution/dataflow/routing and durable result are real.",
+    "q5Doubled": "None; the installed Codex CLI and configured OpenAI provider execute the reviewer.",
+    "selected": "official Python SDK LocalTarget and matching unpatched Rust sidecar"
+  },
+  "q4": {
+    "cases": {
+      "changed_candidate": {
+        "authorityInput": {
+          "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+          "claimedContractId": "contract-v1",
+          "claimedEvidenceId": "evidence-v1",
+          "claimedPredecessorId": "processor-expected",
+          "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+          "expectedContractId": "contract-v1",
+          "expectedEvidenceId": "evidence-v1",
+          "expectedPredecessorId": "processor-expected"
+        },
+        "candidateSha256After": "27d279a2ad29d9a1e5dd104e9e5d07d63c44c78af823dd97a508d0cb02b9e435",
+        "controlledDriverEvents": [
+          {
+            "argv": [
+              "exec",
+              "--sandbox",
+              "workspace-write",
+              "--config",
+              "model_provider=\"openai\"",
+              "--config",
+              "approval_policy=\"never\"",
+              "--config",
+              "sandbox_workspace_write.network_access=true",
+              "--json",
+              "--model",
+              "broodling-p1-controlled-leaf",
+              "--config",
+              "model_reasoning_effort=\"low\"",
+              "--skip-git-repo-check",
+              "--config",
+              "web_search=\"disabled\"",
+              "--output-schema",
+              "/dev/shm/broodling-issue5-state-c/runs/01a077de-8441-7ca3-905a-ce68ed23713c/runtime/writer-execution-1/response-schema-01a077de-84c7-72d3-b115-685607283113.json",
+              "-"
+            ],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/broodling-issue5-workspaces-c/changed_candidate",
+            "home": "/home/faviann",
+            "input": null,
+            "node": "q4_processor",
+            "promptSha256": "7a24dc4e68acabcad655d57c2f2af9a6b7cf6de9a41db0887ef2169ae3d97d62",
+            "providerInvocation": 1,
+            "recordedNs": 1788717466920647405,
+            "scenario": "q4-changed-candidate"
+          },
+          {
+            "argv": [
+              "exec",
+              "--sandbox",
+              "read-only",
+              "--config",
+              "model_provider=\"openai\"",
+              "--config",
+              "approval_policy=\"never\"",
+              "--json",
+              "--model",
+              "broodling-p1-controlled-leaf",
+              "--config",
+              "model_reasoning_effort=\"low\"",
+              "--skip-git-repo-check",
+              "--config",
+              "web_search=\"disabled\"",
+              "--output-schema",
+              "/dev/shm/broodling-issue5-state-c/runs/01a077de-8441-7ca3-905a-ce68ed23713c/runtime/verifier-execution-2/response-schema-01a077de-856e-7593-ac27-0c49c51f6001.json",
+              "-"
+            ],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/broodling-issue5-workspaces-c/changed_candidate",
+            "home": "/home/faviann",
+            "input": {
+              "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "claimedContractId": "contract-v1",
+              "claimedEvidenceId": "evidence-v1",
+              "claimedPredecessorId": "processor-expected",
+              "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "expectedContractId": "contract-v1",
+              "expectedEvidenceId": "evidence-v1",
+              "expectedPredecessorId": "processor-expected"
+            },
+            "node": "q4_authority",
+            "promptSha256": "f456fc76bc24edd7d6d5dec8b9c3bd4f440935a819af1010fdd888de6e780f94",
+            "providerInvocation": 1,
+            "recordedNs": 1788717467089424243,
+            "scenario": "q4-changed-candidate"
+          }
+        ],
+        "delayedExternalObserver": {
+          "enabled": false
+        },
+        "rawEvidenceExistsAfter": true,
+        "result": {
+          "failure": null,
+          "output": {
+            "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+            "claimedContractId": "contract-v1",
+            "claimedEvidenceId": "evidence-v1",
+            "claimedPredecessorId": "processor-expected",
+            "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+            "expectedContractId": "contract-v1",
+            "expectedEvidenceId": "evidence-v1",
+            "expectedPredecessorId": "processor-expected"
+          },
+          "run_id": "01a077de-8441-7ca3-905a-ce68ed23713c",
+          "succeeded": true
+        },
+        "runId": "01a077de-8441-7ca3-905a-ce68ed23713c",
+        "scenario": "q4-changed-candidate",
+        "terminalObservedNs": 1788717467180645139,
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:14",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "claimedContractId": "contract-v1",
+              "claimedEvidenceId": "evidence-v1",
+              "claimedPredecessorId": "processor-expected",
+              "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "expectedContractId": "contract-v1",
+              "expectedEvidenceId": "evidence-v1",
+              "expectedPredecessorId": "processor-expected"
+            },
+            "run_id": "01a077de-8441-7ca3-905a-ce68ed23713c",
+            "succeeded": true
+          },
+          "run_id": "01a077de-8441-7ca3-905a-ce68ed23713c",
+          "size": "small",
+          "source": {
+            "branch": "qualification/p1",
+            "repository": "example/broodling-p1-fixture",
+            "revision": "d73b6ccf4e7de1db6216b81e5bdb8827b5644eac"
+          },
+          "title": "Broodling issue 5 Q4: changed_candidate"
+        }
+      },
+      "delayed_observer": {
+        "authorityInput": {
+          "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+          "claimedContractId": "contract-v1",
+          "claimedEvidenceId": "evidence-v1",
+          "claimedPredecessorId": "processor-expected",
+          "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+          "expectedContractId": "contract-v1",
+          "expectedEvidenceId": "evidence-v1",
+          "expectedPredecessorId": "processor-expected"
+        },
+        "candidateSha256After": "27d279a2ad29d9a1e5dd104e9e5d07d63c44c78af823dd97a508d0cb02b9e435",
+        "controlledDriverEvents": [
+          {
+            "argv": [
+              "exec",
+              "--sandbox",
+              "workspace-write",
+              "--config",
+              "model_provider=\"openai\"",
+              "--config",
+              "approval_policy=\"never\"",
+              "--config",
+              "sandbox_workspace_write.network_access=true",
+              "--json",
+              "--model",
+              "broodling-p1-controlled-leaf",
+              "--config",
+              "model_reasoning_effort=\"low\"",
+              "--skip-git-repo-check",
+              "--config",
+              "web_search=\"disabled\"",
+              "--output-schema",
+              "/dev/shm/broodling-issue5-state-c/runs/01a077de-8bf3-74f1-8575-045c06f90462/runtime/writer-execution-1/response-schema-01a077de-8c80-72c3-8ae5-08067f9ab898.json",
+              "-"
+            ],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/broodling-issue5-workspaces-c/delayed_observer",
+            "home": "/home/faviann",
+            "input": null,
+            "node": "q4_processor",
+            "promptSha256": "7a24dc4e68acabcad655d57c2f2af9a6b7cf6de9a41db0887ef2169ae3d97d62",
+            "providerInvocation": 1,
+            "recordedNs": 1788717468898014157,
+            "scenario": "q4-observer-delay"
+          },
+          {
+            "argv": [
+              "exec",
+              "--sandbox",
+              "read-only",
+              "--config",
+              "model_provider=\"openai\"",
+              "--config",
+              "approval_policy=\"never\"",
+              "--json",
+              "--model",
+              "broodling-p1-controlled-leaf",
+              "--config",
+              "model_reasoning_effort=\"low\"",
+              "--skip-git-repo-check",
+              "--config",
+              "web_search=\"disabled\"",
+              "--output-schema",
+              "/dev/shm/broodling-issue5-state-c/runs/01a077de-8bf3-74f1-8575-045c06f90462/runtime/verifier-execution-2/response-schema-01a077de-8d19-73d3-8a9a-e7b8ba404f93.json",
+              "-"
+            ],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/broodling-issue5-workspaces-c/delayed_observer",
+            "home": "/home/faviann",
+            "input": {
+              "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "claimedContractId": "contract-v1",
+              "claimedEvidenceId": "evidence-v1",
+              "claimedPredecessorId": "processor-expected",
+              "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "expectedContractId": "contract-v1",
+              "expectedEvidenceId": "evidence-v1",
+              "expectedPredecessorId": "processor-expected"
+            },
+            "node": "q4_authority",
+            "promptSha256": "f456fc76bc24edd7d6d5dec8b9c3bd4f440935a819af1010fdd888de6e780f94",
+            "providerInvocation": 1,
+            "recordedNs": 1788717468996324018,
+            "scenario": "q4-observer-delay"
+          }
+        ],
+        "delayedExternalObserver": {
+          "candidateSha256": "27d279a2ad29d9a1e5dd104e9e5d07d63c44c78af823dd97a508d0cb02b9e435",
+          "completedNs": 1788717469408901039,
+          "enabled": true,
+          "noticedNs": 1788717468907605566
+        },
+        "rawEvidenceExistsAfter": true,
+        "result": {
+          "failure": null,
+          "output": {
+            "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+            "claimedContractId": "contract-v1",
+            "claimedEvidenceId": "evidence-v1",
+            "claimedPredecessorId": "processor-expected",
+            "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+            "expectedContractId": "contract-v1",
+            "expectedEvidenceId": "evidence-v1",
+            "expectedPredecessorId": "processor-expected"
+          },
+          "run_id": "01a077de-8bf3-74f1-8575-045c06f90462",
+          "succeeded": true
+        },
+        "runId": "01a077de-8bf3-74f1-8575-045c06f90462",
+        "scenario": "q4-observer-delay",
+        "terminalObservedNs": 1788717469088242307,
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:14",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "claimedContractId": "contract-v1",
+              "claimedEvidenceId": "evidence-v1",
+              "claimedPredecessorId": "processor-expected",
+              "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "expectedContractId": "contract-v1",
+              "expectedEvidenceId": "evidence-v1",
+              "expectedPredecessorId": "processor-expected"
+            },
+            "run_id": "01a077de-8bf3-74f1-8575-045c06f90462",
+            "succeeded": true
+          },
+          "run_id": "01a077de-8bf3-74f1-8575-045c06f90462",
+          "size": "small",
+          "source": {
+            "branch": "qualification/p1",
+            "repository": "example/broodling-p1-fixture",
+            "revision": "d73b6ccf4e7de1db6216b81e5bdb8827b5644eac"
+          },
+          "title": "Broodling issue 5 Q4: delayed_observer"
+        }
+      },
+      "forged_identifiers": {
+        "authorityInput": {
+          "claimedCandidateSha256": "forged-candidate",
+          "claimedContractId": "forged-contract",
+          "claimedEvidenceId": "forged-evidence",
+          "claimedPredecessorId": "forged-predecessor",
+          "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+          "expectedContractId": "contract-v1",
+          "expectedEvidenceId": "evidence-v1",
+          "expectedPredecessorId": "processor-expected"
+        },
+        "candidateSha256After": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+        "controlledDriverEvents": [
+          {
+            "argv": [
+              "exec",
+              "--sandbox",
+              "workspace-write",
+              "--config",
+              "model_provider=\"openai\"",
+              "--config",
+              "approval_policy=\"never\"",
+              "--config",
+              "sandbox_workspace_write.network_access=true",
+              "--json",
+              "--model",
+              "broodling-p1-controlled-leaf",
+              "--config",
+              "model_reasoning_effort=\"low\"",
+              "--skip-git-repo-check",
+              "--config",
+              "web_search=\"disabled\"",
+              "--output-schema",
+              "/dev/shm/broodling-issue5-state-c/runs/01a077de-86b5-71f1-8e7d-c65354baa88c/runtime/writer-execution-1/response-schema-01a077de-8749-7570-a8d1-aaa08111798b.json",
+              "-"
+            ],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/broodling-issue5-workspaces-c/forged_identifiers",
+            "home": "/home/faviann",
+            "input": null,
+            "node": "q4_processor",
+            "promptSha256": "7a24dc4e68acabcad655d57c2f2af9a6b7cf6de9a41db0887ef2169ae3d97d62",
+            "providerInvocation": 1,
+            "recordedNs": 1788717467578117051,
+            "scenario": "q4-forged-identifiers"
+          },
+          {
+            "argv": [
+              "exec",
+              "--sandbox",
+              "read-only",
+              "--config",
+              "model_provider=\"openai\"",
+              "--config",
+              "approval_policy=\"never\"",
+              "--json",
+              "--model",
+              "broodling-p1-controlled-leaf",
+              "--config",
+              "model_reasoning_effort=\"low\"",
+              "--skip-git-repo-check",
+              "--config",
+              "web_search=\"disabled\"",
+              "--output-schema",
+              "/dev/shm/broodling-issue5-state-c/runs/01a077de-86b5-71f1-8e7d-c65354baa88c/runtime/verifier-execution-2/response-schema-01a077de-8813-7d13-a4af-81b00f1ef8ff.json",
+              "-"
+            ],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/broodling-issue5-workspaces-c/forged_identifiers",
+            "home": "/home/faviann",
+            "input": {
+              "claimedCandidateSha256": "forged-candidate",
+              "claimedContractId": "forged-contract",
+              "claimedEvidenceId": "forged-evidence",
+              "claimedPredecessorId": "forged-predecessor",
+              "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "expectedContractId": "contract-v1",
+              "expectedEvidenceId": "evidence-v1",
+              "expectedPredecessorId": "processor-expected"
+            },
+            "node": "q4_authority",
+            "promptSha256": "75abc8935a604c77a0b8d342296361673f1959dbf3548d484b496625a429ae44",
+            "providerInvocation": 1,
+            "recordedNs": 1788717467765006902,
+            "scenario": "q4-forged-identifiers"
+          }
+        ],
+        "delayedExternalObserver": {
+          "enabled": false
+        },
+        "rawEvidenceExistsAfter": true,
+        "result": {
+          "failure": null,
+          "output": {
+            "claimedCandidateSha256": "forged-candidate",
+            "claimedContractId": "forged-contract",
+            "claimedEvidenceId": "forged-evidence",
+            "claimedPredecessorId": "forged-predecessor",
+            "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+            "expectedContractId": "contract-v1",
+            "expectedEvidenceId": "evidence-v1",
+            "expectedPredecessorId": "processor-expected"
+          },
+          "run_id": "01a077de-86b5-71f1-8e7d-c65354baa88c",
+          "succeeded": true
+        },
+        "runId": "01a077de-86b5-71f1-8e7d-c65354baa88c",
+        "scenario": "q4-forged-identifiers",
+        "terminalObservedNs": 1788717467855650131,
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:14",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "claimedCandidateSha256": "forged-candidate",
+              "claimedContractId": "forged-contract",
+              "claimedEvidenceId": "forged-evidence",
+              "claimedPredecessorId": "forged-predecessor",
+              "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "expectedContractId": "contract-v1",
+              "expectedEvidenceId": "evidence-v1",
+              "expectedPredecessorId": "processor-expected"
+            },
+            "run_id": "01a077de-86b5-71f1-8e7d-c65354baa88c",
+            "succeeded": true
+          },
+          "run_id": "01a077de-86b5-71f1-8e7d-c65354baa88c",
+          "size": "small",
+          "source": {
+            "branch": "qualification/p1",
+            "repository": "example/broodling-p1-fixture",
+            "revision": "d73b6ccf4e7de1db6216b81e5bdb8827b5644eac"
+          },
+          "title": "Broodling issue 5 Q4: forged_identifiers"
+        }
+      },
+      "missing_raw_evidence": {
+        "authorityInput": {
+          "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+          "claimedContractId": "contract-v1",
+          "claimedEvidenceId": "evidence-v1",
+          "claimedPredecessorId": "processor-expected",
+          "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+          "expectedContractId": "contract-v1",
+          "expectedEvidenceId": "evidence-v1",
+          "expectedPredecessorId": "processor-expected"
+        },
+        "candidateSha256After": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+        "controlledDriverEvents": [
+          {
+            "argv": [
+              "exec",
+              "--sandbox",
+              "workspace-write",
+              "--config",
+              "model_provider=\"openai\"",
+              "--config",
+              "approval_policy=\"never\"",
+              "--config",
+              "sandbox_workspace_write.network_access=true",
+              "--json",
+              "--model",
+              "broodling-p1-controlled-leaf",
+              "--config",
+              "model_reasoning_effort=\"low\"",
+              "--skip-git-repo-check",
+              "--config",
+              "web_search=\"disabled\"",
+              "--output-schema",
+              "/dev/shm/broodling-issue5-state-c/runs/01a077de-894a-7422-a981-1881bb985c7c/runtime/writer-execution-1/response-schema-01a077de-8998-7c51-8280-b2dd6e089334.json",
+              "-"
+            ],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/broodling-issue5-workspaces-c/missing_raw_evidence",
+            "home": "/home/faviann",
+            "input": null,
+            "node": "q4_processor",
+            "promptSha256": "7a24dc4e68acabcad655d57c2f2af9a6b7cf6de9a41db0887ef2169ae3d97d62",
+            "providerInvocation": 1,
+            "recordedNs": 1788717468154553108,
+            "scenario": "q4-missing-raw-evidence"
+          },
+          {
+            "argv": [
+              "exec",
+              "--sandbox",
+              "read-only",
+              "--config",
+              "model_provider=\"openai\"",
+              "--config",
+              "approval_policy=\"never\"",
+              "--json",
+              "--model",
+              "broodling-p1-controlled-leaf",
+              "--config",
+              "model_reasoning_effort=\"low\"",
+              "--skip-git-repo-check",
+              "--config",
+              "web_search=\"disabled\"",
+              "--output-schema",
+              "/dev/shm/broodling-issue5-state-c/runs/01a077de-894a-7422-a981-1881bb985c7c/runtime/verifier-execution-2/response-schema-01a077de-8a24-76a3-acfa-3a7d7a168f16.json",
+              "-"
+            ],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/broodling-issue5-workspaces-c/missing_raw_evidence",
+            "home": "/home/faviann",
+            "input": {
+              "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "claimedContractId": "contract-v1",
+              "claimedEvidenceId": "evidence-v1",
+              "claimedPredecessorId": "processor-expected",
+              "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "expectedContractId": "contract-v1",
+              "expectedEvidenceId": "evidence-v1",
+              "expectedPredecessorId": "processor-expected"
+            },
+            "node": "q4_authority",
+            "promptSha256": "f456fc76bc24edd7d6d5dec8b9c3bd4f440935a819af1010fdd888de6e780f94",
+            "providerInvocation": 1,
+            "recordedNs": 1788717468291578171,
+            "scenario": "q4-missing-raw-evidence"
+          }
+        ],
+        "delayedExternalObserver": {
+          "enabled": false
+        },
+        "rawEvidenceExistsAfter": false,
+        "result": {
+          "failure": null,
+          "output": {
+            "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+            "claimedContractId": "contract-v1",
+            "claimedEvidenceId": "evidence-v1",
+            "claimedPredecessorId": "processor-expected",
+            "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+            "expectedContractId": "contract-v1",
+            "expectedEvidenceId": "evidence-v1",
+            "expectedPredecessorId": "processor-expected"
+          },
+          "run_id": "01a077de-894a-7422-a981-1881bb985c7c",
+          "succeeded": true
+        },
+        "runId": "01a077de-894a-7422-a981-1881bb985c7c",
+        "scenario": "q4-missing-raw-evidence",
+        "terminalObservedNs": 1788717468517528157,
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:14",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "claimedContractId": "contract-v1",
+              "claimedEvidenceId": "evidence-v1",
+              "claimedPredecessorId": "processor-expected",
+              "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "expectedContractId": "contract-v1",
+              "expectedEvidenceId": "evidence-v1",
+              "expectedPredecessorId": "processor-expected"
+            },
+            "run_id": "01a077de-894a-7422-a981-1881bb985c7c",
+            "succeeded": true
+          },
+          "run_id": "01a077de-894a-7422-a981-1881bb985c7c",
+          "size": "small",
+          "source": {
+            "branch": "qualification/p1",
+            "repository": "example/broodling-p1-fixture",
+            "revision": "d73b6ccf4e7de1db6216b81e5bdb8827b5644eac"
+          },
+          "title": "Broodling issue 5 Q4: missing_raw_evidence"
+        }
+      },
+      "unchanged_control": {
+        "authorityInput": {
+          "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+          "claimedContractId": "contract-v1",
+          "claimedEvidenceId": "evidence-v1",
+          "claimedPredecessorId": "processor-expected",
+          "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+          "expectedContractId": "contract-v1",
+          "expectedEvidenceId": "evidence-v1",
+          "expectedPredecessorId": "processor-expected"
+        },
+        "candidateSha256After": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+        "controlledDriverEvents": [
+          {
+            "argv": [
+              "exec",
+              "--sandbox",
+              "workspace-write",
+              "--config",
+              "model_provider=\"openai\"",
+              "--config",
+              "approval_policy=\"never\"",
+              "--config",
+              "sandbox_workspace_write.network_access=true",
+              "--json",
+              "--model",
+              "broodling-p1-controlled-leaf",
+              "--config",
+              "model_reasoning_effort=\"low\"",
+              "--skip-git-repo-check",
+              "--config",
+              "web_search=\"disabled\"",
+              "--output-schema",
+              "/dev/shm/broodling-issue5-state-c/runs/01a077de-8253-79e0-8607-dfe2954024e0/runtime/writer-execution-1/response-schema-01a077de-82b0-7382-a0e5-15fa5bea2f54.json",
+              "-"
+            ],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/broodling-issue5-workspaces-c/unchanged_control",
+            "home": "/home/faviann",
+            "input": null,
+            "node": "q4_processor",
+            "promptSha256": "7a24dc4e68acabcad655d57c2f2af9a6b7cf6de9a41db0887ef2169ae3d97d62",
+            "providerInvocation": 1,
+            "recordedNs": 1788717466332659874,
+            "scenario": "q4-unchanged"
+          },
+          {
+            "argv": [
+              "exec",
+              "--sandbox",
+              "read-only",
+              "--config",
+              "model_provider=\"openai\"",
+              "--config",
+              "approval_policy=\"never\"",
+              "--json",
+              "--model",
+              "broodling-p1-controlled-leaf",
+              "--config",
+              "model_reasoning_effort=\"low\"",
+              "--skip-git-repo-check",
+              "--config",
+              "web_search=\"disabled\"",
+              "--output-schema",
+              "/dev/shm/broodling-issue5-state-c/runs/01a077de-8253-79e0-8607-dfe2954024e0/runtime/verifier-execution-2/response-schema-01a077de-831b-7202-bb92-0dfd228a036a.json",
+              "-"
+            ],
+            "codexHome": "/home/faviann/.codex",
+            "cwd": "/dev/shm/broodling-issue5-workspaces-c/unchanged_control",
+            "home": "/home/faviann",
+            "input": {
+              "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "claimedContractId": "contract-v1",
+              "claimedEvidenceId": "evidence-v1",
+              "claimedPredecessorId": "processor-expected",
+              "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "expectedContractId": "contract-v1",
+              "expectedEvidenceId": "evidence-v1",
+              "expectedPredecessorId": "processor-expected"
+            },
+            "node": "q4_authority",
+            "promptSha256": "f456fc76bc24edd7d6d5dec8b9c3bd4f440935a819af1010fdd888de6e780f94",
+            "providerInvocation": 1,
+            "recordedNs": 1788717466453437989,
+            "scenario": "q4-unchanged"
+          }
+        ],
+        "delayedExternalObserver": {
+          "enabled": false
+        },
+        "rawEvidenceExistsAfter": true,
+        "result": {
+          "failure": null,
+          "output": {
+            "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+            "claimedContractId": "contract-v1",
+            "claimedEvidenceId": "evidence-v1",
+            "claimedPredecessorId": "processor-expected",
+            "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+            "expectedContractId": "contract-v1",
+            "expectedEvidenceId": "evidence-v1",
+            "expectedPredecessorId": "processor-expected"
+          },
+          "run_id": "01a077de-8253-79e0-8607-dfe2954024e0",
+          "succeeded": true
+        },
+        "runId": "01a077de-8253-79e0-8607-dfe2954024e0",
+        "scenario": "q4-unchanged",
+        "terminalObservedNs": 1788717466547685146,
+        "terminalStatus": {
+          "active_executions": [],
+          "cursor": "v2:14",
+          "phase": "finished",
+          "result": {
+            "failure": null,
+            "output": {
+              "claimedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "claimedContractId": "contract-v1",
+              "claimedEvidenceId": "evidence-v1",
+              "claimedPredecessorId": "processor-expected",
+              "expectedCandidateSha256": "e7100a0df24bd95895e76cc3f5c881f2243b7c30bf75b6da205cd825402b8cff",
+              "expectedContractId": "contract-v1",
+              "expectedEvidenceId": "evidence-v1",
+              "expectedPredecessorId": "processor-expected"
+            },
+            "run_id": "01a077de-8253-79e0-8607-dfe2954024e0",
+            "succeeded": true
+          },
+          "run_id": "01a077de-8253-79e0-8607-dfe2954024e0",
+          "size": "small",
+          "source": {
+            "branch": "qualification/p1",
+            "repository": "example/broodling-p1-fixture",
+            "revision": "d73b6ccf4e7de1db6216b81e5bdb8827b5644eac"
+          },
+          "title": "Broodling issue 5 Q4: unchanged_control"
+        }
+      }
+    },
+    "checks": {
+      "changedCandidateStillAccepted": true,
+      "forgedIdentifiersStillAccepted": true,
+      "graphFinishedBeforeObserver": true,
+      "missingRawEvidenceStillAccepted": true,
+      "unchangedControlAccepted": true
+    }
+  },
+  "q5": {
+    "case": {
+      "codexVersion": "codex-cli 0.153.4",
+      "result": {
+        "failure": null,
+        "output": {
+          "ambientSkillCanary": "Q5_AMBIENT_SKILL_CANARY",
+          "automaticToolSurface": "Q5_TOOL_SURFACE_CANARY",
+          "comparisonBase": "seed",
+          "contract": "frozen-contract-v1",
+          "governedInstructions": "report effective context",
+          "rawEvidence": "selected-evidence-v1",
+          "repositoryInstructionCanary": "Q5_REPOSITORY_INSTRUCTION_CANARY",
+          "source": "candidate-v1",
+          "workspaceNarrativeCanary": "NOT_VISIBLE"
+        },
+        "run_id": "01a077de-8f17-76a1-90d1-56284264ceff",
+        "succeeded": true
+      },
+      "runId": "01a077de-8f17-76a1-90d1-56284264ceff",
+      "runtime": {
+        "harness": "codex",
+        "nodes": {
+          "q5_reviewer": {
+            "connections": {},
+            "effort": "low",
+            "kind": "agent",
+            "model": "gpt-5.6-sol",
+            "sessionScope": "execution"
+          }
+        },
+        "provider": "openai",
+        "size": "small"
+      },
+      "terminalStatus": {
+        "active_executions": [],
+        "cursor": "v2:17",
+        "phase": "finished",
+        "result": {
+          "failure": null,
+          "output": {
+            "ambientSkillCanary": "Q5_AMBIENT_SKILL_CANARY",
+            "automaticToolSurface": "Q5_TOOL_SURFACE_CANARY",
+            "comparisonBase": "seed",
+            "contract": "frozen-contract-v1",
+            "governedInstructions": "report effective context",
+            "rawEvidence": "selected-evidence-v1",
+            "repositoryInstructionCanary": "Q5_REPOSITORY_INSTRUCTION_CANARY",
+            "source": "candidate-v1",
+            "workspaceNarrativeCanary": "NOT_VISIBLE"
+          },
+          "run_id": "01a077de-8f17-76a1-90d1-56284264ceff",
+          "succeeded": true
+        },
+        "run_id": "01a077de-8f17-76a1-90d1-56284264ceff",
+        "size": "small",
+        "source": {
+          "branch": "qualification/p1",
+          "repository": "example/broodling-p1-fixture",
+          "revision": "d73b6ccf4e7de1db6216b81e5bdb8827b5644eac"
+        },
+        "title": "Broodling issue 5 Q5 real Codex context"
+      },
+      "workspaceCanaries": {
+        "ambientSkill": "Q5_AMBIENT_SKILL_CANARY",
+        "repositoryInstructions": "Q5_REPOSITORY_INSTRUCTION_CANARY",
+        "toolSurface": "Q5_TOOL_SURFACE_CANARY",
+        "workspaceNarrative": "Q5_WORKSPACE_NARRATIVE_CANARY"
+      }
+    },
+    "checks": {
+      "ambientSkillWasVisible": true,
+      "automaticToolSurfaceWasVisible": true,
+      "realCodexRunSucceeded": true,
+      "repositoryInstructionWasAutomatic": true,
+      "workspaceNarrativeWasNotAutomaticallyBound": true
+    }
+  },
+  "recordedAt": "2026-09-06T17:58:18.276967+00:00",
+  "schema": "broodling.p1.issue5-qualification/v1",
+  "scope": {
+    "issue": 5,
+    "questions": [
+      "Q4",
+      "Q5"
+    ]
+  },
+  "testedSource": {
+    "workspaceTemplateRevision": "d73b6ccf4e7de1db6216b81e5bdb8827b5644eac",
+    "zeroshotCheckoutClean": true,
+    "zeroshotRevision": "d0909615d6ba3c179b58bce15a059f40400ec995",
+    "zeroshotTree": "03b9b027f9a9dd0e03cc827aae0e95dd3e8f2b4d"
+  },
+  "verdicts": {
+    "G1-core": "BLOCKED",
+    "Q4": "BLOCKED",
+    "Q5": "BLOCKED"
+  }
+}

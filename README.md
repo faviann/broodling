@@ -27,7 +27,9 @@ available. Issue #3 executed Q1, Q2, and Q6 against the pinned real SDK/sidecar 
 while Q1 and Q6 are blocked on a supported completed-occurrence recovery surface. Issue #4
 qualifies Q3 PASS for fail-closed routing and sticky within-run obligations through the same real
 integration. G1-core therefore remains blocked by Q1/Q6. Product language, framework, storage,
-and product implementation remain deferred.
+and product implementation remain deferred. Issue #5 additionally qualifies Q4 and Q5 as blocked:
+the selected local profile lacks a trusted synchronous current-candidate/evidence handoff and an
+exhaustive reviewer automatic-context control/provenance contract.
 
 See the [P0/G0 baseline and fixture inventory](docs/baseline/p0-g0-inventory.md) for the unchanged governing inputs, all 25 target invariants, P1 witness specifications, historical-protection map, and G0 review. G0 PASS records specification completeness, not executed integration or semantic tests.
 
