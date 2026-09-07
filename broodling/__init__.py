@@ -11,10 +11,10 @@ This package implements the durable facts for one Work Unit:
 * one immutable current Attempt, its original starting state B1, and the one
   dedicated disposable worktree it exclusively owns.
 
-It durably correlates an Attempt to its one Zeroshot run, holds no runtime
-execution state, and implements no
-abandon/restart, assurance, candidate-provenance or effect machinery. Those
-belong to later V1 phases.
+It durably correlates an Attempt to its one Zeroshot run and authors the V1
+assurance graph. Execution state, typed validation and routing remain in
+Zeroshot. Abandon/restart, final result custody, Work Unit disposition and
+effects are outside this implementation boundary.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from .closability import (
     ClosabilityFinding,
     assess,
 )
+from .codex_profile import QualifiedCodexProfile
 from .contract import (
     Contract,
     Criterion,
@@ -82,6 +83,8 @@ __version__ = "0.1.0"
 
 __all__ = [
     "ADMITTED",
+    "DISPOSABLE_WORKTREE_MARKER",
+    "REJECTED",
     "AdmissionDecisionRecord",
     "AttemptAdmissionError",
     "AttemptConflict",
@@ -96,7 +99,6 @@ __all__ = [
     "ContractImmutabilityError",
     "ContractRevisionRecord",
     "Criterion",
-    "DISPOSABLE_WORKTREE_MARKER",
     "EntitledSourceRecord",
     "EvidencePopulation",
     "GitCommandError",
@@ -104,7 +106,7 @@ __all__ = [
     "Obligation",
     "Prerequisite",
     "ProvisionedWorktree",
-    "REJECTED",
+    "QualifiedCodexProfile",
     "RequiredEffect",
     "SchemaVersionMismatch",
     "SourceAttribution",
@@ -112,8 +114,8 @@ __all__ = [
     "SourceEntitlement",
     "SourceNotEntitled",
     "SourceSubmission",
-    "StartingState",
     "StaleAttempt",
+    "StartingState",
     "StoreLocationError",
     "SubmissionConflict",
     "SubmissionCoordinator",

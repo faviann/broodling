@@ -11,6 +11,10 @@ dependencies = []
 
 [tool.setuptools]
 packages = ["broodling"]
+include-package-data = false
+
+[tool.setuptools.package-data]
+broodling = ["codex_bin/codex"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

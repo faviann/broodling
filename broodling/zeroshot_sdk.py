@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 
+from .codex_profile import QualifiedCodexProfile
 from .errors import SubmissionConflict, UnsupportedRuntime
 from .profile import QUALIFIED_ZEROSHOT_BOUNDARY
 
@@ -66,16 +67,55 @@ class ZeroshotSubmitter:
     no-effect execution/containment profile remains the caller's responsibility.
     """
 
-    def __init__(self, state_dir: Path | str) -> None:
+    def __init__(
+        self,
+        state_dir: Path | str,
+        *,
+        codex_profile: QualifiedCodexProfile | None = None,
+    ) -> None:
+        self.codex_profile = codex_profile
         self.target = {
             "stateDir": str(Path(state_dir).expanduser().resolve()),
             "environment": {"PATH": os.environ.get("PATH", "")},
         }
+        if codex_profile is not None:
+            self.target["environment"] = codex_profile.environment(
+                os.environ.get("PATH", "")
+            )
+            self.target["codexProfile"] = codex_profile.identity()
+
+    def require_assurance_profile(self) -> None:
+        if self.codex_profile is None:
+            raise UnsupportedRuntime(
+                "product assurance requires the qualified Codex profile"
+            )
+
+    def _profile_identity(self) -> None:
+        if (
+            self.codex_profile is not None
+            and self.codex_profile.identity() != self.target["codexProfile"]
+        ):
+            raise UnsupportedRuntime(
+                "qualified launcher changed after target configuration"
+            )
+
+    def validate_first_dispatch(self, workspace: Path) -> None:
+        if self.codex_profile is not None:
+            self._profile_identity()
+            self.codex_profile.validate(
+                workspace, path=self.target["environment"]["PATH"]
+            )
 
     def submit(self, request: dict) -> str:
         assert_no_effect_runtime(request["runtime"])
-        if set(request["target"]["environment"]) != {"PATH"}:
-            raise UnsupportedRuntime("P2 passes only PATH to the sidecar")
+        if self.codex_profile is None:
+            if set(request["target"]["environment"]) != {"PATH"}:
+                raise UnsupportedRuntime("P2 passes only PATH to the sidecar")
+        elif request["target"] != self.target:
+            raise UnsupportedRuntime(
+                "qualified provider profile differs from persisted target"
+            )
+        self._profile_identity()
         assert_qualified_integration()
         return asyncio.run(self._submit(request))
 

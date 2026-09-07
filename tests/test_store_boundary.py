@@ -1,10 +1,8 @@
 """The store must stay an admission nucleus: not a RunLedger mirror, not the harness.
 
-These tests are the stop boundary of issues #12 and #13 expressed as assertions.
-The nucleus now owns Attempt/B1/worktree administration, so those words are
-allowed; adding run/occurrence/candidate-seal state, an assurance or review
-graph, a recovery projection, an effect, or a dependency on the qualification
-harness still fails here first.
+The admission schema stays within P2 while the P3 graph is a public runtime
+definition. No runtime history, candidate-seal state, recovery projection,
+effects or dependency on the qualification harness belongs in the store.
 """
 
 from __future__ import annotations
@@ -14,8 +12,9 @@ import sys
 import unittest
 from pathlib import Path
 
-from broodling.schema import SCHEMA_SQL, TABLES
 from support import StoreTestCase
+
+from broodling.schema import SCHEMA_SQL, TABLES
 
 PACKAGE = Path(__file__).resolve().parents[1] / "broodling"
 
@@ -42,10 +41,10 @@ DEFERRED_VOCABULARY = (
 )
 
 #: Modules permitted to start a process. Provisioning a worktree means running
-#: `git` locally, which is administrative host setup; nothing else in the package
-#: may spawn anything, and no module at all may open a socket or a network
-#: client.
-PROCESS_CAPABLE_MODULES = {"git.py"}
+#: `git` locally. The qualified Codex profile checks the installed CLI version
+#: before first dispatch; it does not start graph occurrences. Those belong to
+#: the public SDK and sidecar.
+PROCESS_CAPABLE_MODULES = {"git.py", "codex_profile.py"}
 
 #: Modules permitted to take a host-local file lock. Materializing one Attempt's
 #: worktree is single-writer on this host, which is what `fcntl` buys; it is
@@ -189,7 +188,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
                 allowed = {"asyncio"} if module.name == "zeroshot_sdk.py" else set()
                 self.assertEqual(imported_roots(module) & forbidden, allowed)
 
-    def test_only_the_git_module_may_start_a_process(self) -> None:
+    def test_only_git_and_profile_preflight_may_start_a_process(self) -> None:
         for module in product_modules():
             if module.name in PROCESS_CAPABLE_MODULES:
                 continue

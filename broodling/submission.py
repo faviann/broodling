@@ -113,6 +113,31 @@ class SubmissionCoordinator:
         self.prepare(attempt_id, **request)
         return self.reconcile(attempt_id)
 
+    def prepare_assurance(self, attempt_id: str) -> AttemptSubmission:
+        """Freeze the product protocol and the Attempt's admitted Contract.
+
+        This path accepts no caller graph, runtime, or initialized assurance
+        state. The ordinary P2 request boundary still enforces the same durable
+        identity and rejects a different protocol already frozen for the Attempt.
+        """
+        from .assurance_graph import assurance_graph, assurance_runtime, initial_state
+
+        self.submitter.require_assurance_profile()
+        attempt = self.store.get_attempt(attempt_id)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        return self.prepare(
+            attempt_id,
+            graph=assurance_graph(),
+            runtime=assurance_runtime(),
+            initial_input=initial_state(revision.canonical_bytes.decode("utf-8")),
+            title="Broodling V1 assurance Attempt",
+        )
+
+    def submit_assurance(self, attempt_id: str) -> AttemptSubmission:
+        """Submit the product graph using the existing one-run correlation."""
+        self.prepare_assurance(attempt_id)
+        return self.reconcile(attempt_id)
+
     def reconcile(self, attempt_id: str) -> AttemptSubmission:
         # Commit dispatch intent separately, before ever calling the SDK. A
         # merely prepared request still requires B1, even after a restart.
@@ -123,6 +148,7 @@ class SubmissionCoordinator:
             if record.state == "prepared":
                 self._source(attempt, assignment, require_b1=True)
                 self._origin(record, assignment)
+                self.submitter.validate_first_dispatch(assignment.path)
                 connection.execute(
                     "UPDATE attempt_submissions SET state = 'dispatched' WHERE attempt_id = ?",
                     (attempt_id,),
