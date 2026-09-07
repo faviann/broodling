@@ -48,9 +48,22 @@ Under the corrected v0.5 witness scope:
 - **W5 is satisfied** by the existing issue-#8 abandon/restart evidence.
 - **W7 is satisfied** by the existing issue-#8 no-effect evidence.
 
-The separate [G1-V1 gate review](qualification/v1-p1/issue-11-g1-v1.md) is **COMPLETE with G1-V1 PASS** for the narrowed single-host, no-effect V1 profile. This qualifies the V1-P1 evidence boundary only; V1-P2 product implementation has not been started by the gate review. Exact effects/reconciliation and completed-run recovery/cross-Attempt reuse remain deferred capabilities.
+The separate [G1-V1 gate review](qualification/v1-p1/issue-11-g1-v1.md) is **COMPLETE with G1-V1 PASS** for the narrowed single-host, no-effect V1 profile. That gate qualifies the V1-P1 evidence boundary only. Exact effects/reconciliation and completed-run recovery/cross-Attempt reuse remain deferred capabilities.
+
+**V1-P2 has begun.** The [admission nucleus](docs/implementation/v1-p2-admission-nucleus.md) implements Work Unit identity, source entitlement, immutable Contract revisions and V1 no-effect Closability/admission. Attempts, worktrees, Zeroshot runs, the assurance graph, recovery/catch-up and effects are not implemented.
 
 The historical [G1-core review](qualification/p1/issue-7-g1-core.md) remains **BLOCKED** under v0.3. Q2 and the bounded Q3 fixture retain their historical scoped passes; Q1/Q4/Q5/Q6 remain blocked, and [Q7/G1-effects](qualification/p1/issue-6-q7.md) remains independently blocked. v0.5 does not relabel those historical results.
+
+## Product code
+
+The Broodling product package is `broodling/`, a Python 3.13 package with no dependencies outside the standard library. It owns one SQLite database holding the durable admission facts; it does not import or invoke the Zeroshot SDK or sidecar, and it does not mirror the Zeroshot RunLedger.
+
+```bash
+python -m pytest tests
+python -m unittest discover -s tests
+```
+
+The [V1-P2 implementation record](docs/implementation/v1-p2-admission-nucleus.md) states the selected Python/SQLite versions, the qualified Zeroshot SDK/sidecar version boundary the product configuration records, the schema and the retained implementation evidence.
 
 ## Baseline and qualification provenance
 

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "broodling"
+version = "0.1.0"
+description = "Broodling V1-P2 admission nucleus: Work Unit identity, source entitlement, immutable Contract revisions and no-effect admission."
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.setuptools]
+packages = ["broodling"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
