@@ -1,7 +1,7 @@
 """Recorded product configuration and qualified V1 profile boundary.
 
-V1-P2 records the qualified boundary; it does not import, invoke or re-run the
-Zeroshot SDK/sidecar. The qualification evidence for these versions is retained
+V1-P2 submits through the qualified SDK/sidecar without rerunning qualification.
+The qualification evidence for these versions is retained
 under ``qualification/v1-p1`` and reviewed by the G1-V1 gate record.
 """
 
@@ -18,9 +18,8 @@ from .errors import UnsupportedRuntime
 MIN_PYTHON = (3, 13)
 MIN_SQLITE = (3, 37, 0)
 
-#: External runtime boundary qualified by V1-P1 and reviewed at G1-V1. P2 stores
-#: no Zeroshot state and creates no run; this is the version boundary the product
-#: configuration is entitled to submit to once V1-P3 exists.
+#: External runtime boundary qualified by V1-P1 and reviewed at G1-V1. P2 owns
+#: submission correlation only; execution state remains in Zeroshot.
 QUALIFIED_ZEROSHOT_BOUNDARY: dict[str, str] = {
     "integration": "official Python SDK LocalTarget -> matching Rust sidecar",
     "zeroshotRevision": "d0909615d6ba3c179b58bce15a059f40400ec995",

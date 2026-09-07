@@ -2,7 +2,8 @@
 
 **Issues:** [#12](https://github.com/faviann/broodling/issues/12) (admission
 nucleus), [#13](https://github.com/faviann/broodling/issues/13) (Attempt, B1 and
-disposable worktree)
+disposable worktree), [#14](https://github.com/faviann/broodling/issues/14)
+(submission correlation)
 **Date:** 7 September 2026
 **Governing pair:** [target v0.5](../governing/broodling-target-responsibility-boundary-design-v0.5.md),
 [implementation/dependency plan v0.5](../governing/broodling-implementation-dependency-plan-v0.5.md).
@@ -15,7 +16,8 @@ added the durable Attempt layer on top of it: one immutable Attempt bound to one
 admitted Contract revision, its original starting state B1, and the one dedicated
 disposable worktree that Attempt exclusively owns.
 
-Sections 1 and 2 are #12; section 3 is #13.
+Sections 1–3 retain the #12/#13 foundation; section 6 adds #14. Current schema
+and integration descriptions below include the #14 extension.
 
 ## 1. Selected product configuration
 
@@ -24,18 +26,18 @@ Sections 1 and 2 are #12; section 3 is #13.
 | Language/runtime | Python 3.13 (`requires-python = ">=3.13"`); recorded here on CPython **3.13.5**, Linux x86-64 | The G1-V1 profile was qualified through the official Python SDK on Python 3.13.x. P2 needs durable admission logic, not in-process Zeroshot access. |
 | Packaging | one importable package, `broodling/`, plus `pyproject.toml` | The plan defers CLI/service packaging to V1-P5. A domain package is enough to run the store tests. |
 | Persistence | one Broodling-owned SQLite database via the standard library `sqlite3`; recorded here on SQLite **3.46.1** | V1 is single-host. P2 needs transactional uniqueness and immutable administrative records, not a distributed database or an ORM. |
-| Schema | version **2**, definition digest `bbd7b68bdc66e6bc626f6f5d556e0efa3c9398476eb78b3f3ad75400ade29779` | Recorded in `schema_meta` at initialization and re-checked on every open, so a store written by different DDL is refused rather than migrated implicitly. |
+| Schema | version **3**; exact definition digest in `broodling/schema.py` and the #14 machine record | The exact published v2 definition (`bbd7b68b…`) upgrades transactionally; unknown versions/definitions are refused. |
 | Table mode | SQLite `STRICT` tables (needs SQLite ≥ 3.37) | Makes column typing an enforced durable property instead of a convention. |
 | Durability | `journal_mode=WAL`, `synchronous=FULL`, `foreign_keys=ON` | A committed fact survives process death; an interrupted write leaves nothing. |
 | Store location | outside disposable Attempt worktrees; `BROODLING_STORE`, else `$XDG_STATE_HOME/broodling/broodling.sqlite3` | The record must outlive an abandoned Attempt and its retired worktree. |
 | Worktree root | caller-configured, absolute, durable; `/tmp`, `/dev/shm`, `/var/tmp` and `/run` refused, as is any root inside a repository or another Attempt's enclosure | The qualified profile requires a dedicated non-temporary worktree root. A root a reboot or a tmpfs eviction can clear is not durable Attempt state. |
-| Git | the local `git` binary, invoked with a fixed argument vector and a `GIT_*`-stripped environment (`broodling/git.py`) | Worktree provisioning is host-local administrative setup. Nothing else in the package starts a process, and no module opens a socket or network client. |
+| Git | the local `git` binary, invoked with a fixed argument vector and a `GIT_*`-stripped environment (`broodling/git.py`) | Worktree provisioning is host-local administrative setup. The submission adapter additionally invokes the qualified SDK/sidecar; no product socket/network client is added. |
 
 ### 1.1 Qualified external runtime boundary
 
-V1-P2 records this boundary and submits nothing to it. No Zeroshot SDK or sidecar is
-imported, installed or executed by the product package, and **no P1
-qualification was re-run** for this issue.
+Issues #12/#13 recorded this boundary without invoking it. Issue #14 adds
+submission through this exact SDK/sidecar, with lazy loading and build checks.
+**No P1 qualification or G2 review was re-run** for the remediation.
 
 | Item | Value |
 |---|---|
@@ -60,6 +62,7 @@ work_units                     one repository + one primary issue
   admission_decisions          one decision per revision, with findings
   attempts                     one current Attempt: one revision + B1
     worktree_assignments       the one worktree path/branch it owns
+    attempt_submissions        immutable request/key and single run correlation
 ```
 
 Durable ids are derived, not allocated: a Work Unit id is a digest of its
@@ -315,8 +318,7 @@ caller was not, and only the caller can see the difference.
 
 ## 5. Stop boundary
 
-Not implemented here, by design: Zeroshot run submission and run correlation, the
-assurance graph, reviewer/adjudicator/final-assessor wiring, candidate seals or
+Not implemented here, by design: the assurance graph, reviewer/adjudicator/final-assessor wiring, candidate seals or
 provenance, evidence records, stop/abandon/restart and worktree retirement,
 completed-run recovery or catch-up, final-result custody and disposition, effects
 or GitHub mutation, multi-host leases or fencing, schedulers, session management
@@ -327,11 +329,56 @@ survives nothing, and is not a step towards a lease or fencing system.
 `tests/test_store_boundary.py` asserts this boundary: the table set is fixed, no
 table or column carries later-phase or RunLedger vocabulary, the store exposes no
 run/recovery/abandon/review operation, only `broodling/git.py` may start a
-process, and no module imports a socket or network client, a Zeroshot client or
-the qualification harness. `tests/test_worktree_provisioning.py` adds the
+process, and no module imports a socket/network client or the qualification harness.
+Only `zeroshot_sdk.py` may lazily load the qualified SDK and invoke its sidecar.
+The sole runtime fact in the schema is the immutable correlation ID of §6. `tests/test_worktree_provisioning.py` adds the
 behavioural half: after provisioning, a configured remote has no refs, the source
 checkout is untouched, and the only new local ref is the Attempt's disposable
 branch.
 
 The qualification fixtures under `qualification/` remain evidence. None of them
 was promoted into the product package.
+
+
+## 6. Durable submission correlation (#14, G2 remediation)
+
+The current #14 implementation is built directly on `7b334bf` (current main with
+the #13 remediation). The unpublished `012c32f` and local WIP branch are not
+implementation authority. The [remediation record](../../qualification/v1-p2/issue-14-correlation.md)
+answers G2 §5.1/§5.2; the historical gate record remains unchanged.
+
+`SubmissionCoordinator.prepare` freezes a canonical JSON request and one key,
+`broodling:v1:<attempt-id>`. It checks durable currentness, admitted Contract and
+frozen material, exclusive provisioned worktree/branch/repository ownership and
+clean B1. The request pins the caller's opaque graph/runtime/input/title,
+workspace, branch, common Git directory, origin URL, immutable B1/material and
+runtime state directory/complete environment. Conflicting bytes are rejected.
+
+`reconcile` commits dispatch intent before calling the SDK. A prepared request
+still needs clean B1; a dispatched request may replay after its accepted run has
+changed the dedicated worktree. The same transaction boundary as admission
+serializes each SDK call and its correlation write; process death rolls back
+only the uncommitted result, leaving the durable request/dispatch intent.
+
+The adapter preserves `SubmissionConflictError.existing_run_id`. On unchanged
+replay, after checking the same source ownership and configuration, a changed
+HEAD explains the qualified resolved-source conflict. That public ID becomes
+the immutable correlation. Dirty files alone do not change the source digest
+and cannot excuse a conflict. Different request bytes, source ownership, origin
+or runtime target stay rejected; unexplained public conflicts become terminal
+administrative `blocked`. No path mints another key, Attempt or run to bypass a
+conflict. This uses the existing exclusive-writer/retained-runtime-state profile,
+not a general mechanism to distinguish arbitrary external writers.
+
+Schema v3 adds only `attempt_submissions` (Attempt/key/request, administrative
+state/error, optional unique run ID). Database triggers prohibit key/request
+changes, correlation replacement or deletion. The exact published v2 schema is
+upgraded transactionally without changing #12/#13 rows, DDL or provisioning
+locks; foreign schema fingerprints fail closed.
+
+`ZeroshotSubmitter` verifies the qualified SDK version, exact installed Python
+source digest and sidecar hash. It passes only PATH, refuses GitDelivery, and
+calls no status/history/list/get/wait API or private runtime database. Runtime
+state remains canonical in Zeroshot. The inert caller-owned integration fixture
+and single controlled mutation step are tests only; no W3 assurance graph,
+provider/model judgment or final-result interpretation enters product code.

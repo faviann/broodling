@@ -70,3 +70,19 @@ class WorktreeOwnershipConflict(BroodlingError):
 
 class GitCommandError(BroodlingError):
     """A local Git command Broodling needs for administrative setup failed."""
+
+
+class StaleAttempt(BroodlingError):
+    """Only the durable current Attempt may submit or reconcile."""
+
+
+class SubmissionNotReady(BroodlingError):
+    """The admitted source/worktree is not ready for first dispatch."""
+
+
+class SubmissionConflict(BroodlingError):
+    """Competing submission authority; never permission to mint another key."""
+
+    def __init__(self, message: str, *, existing_run_id: str = "") -> None:
+        super().__init__(message)
+        self.existing_run_id = existing_run_id

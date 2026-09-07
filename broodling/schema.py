@@ -20,12 +20,14 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+V2_SCHEMA_SHA256 = "bbd7b68bdc66e6bc626f6f5d556e0efa3c9398476eb78b3f3ad75400ade29779"
 
 #: Tables this schema owns. The set is asserted by the tests, so a RunLedger
 #: mirror cannot be added without the boundary test failing.
 TABLES: tuple[str, ...] = (
     "admission_decisions",
+    "attempt_submissions",
     "attempts",
     "contract_revisions",
     "contract_source_attributions",
@@ -261,6 +263,37 @@ BEGIN
     SELECT RAISE(ABORT, 'worktree ownership is durable');
 END;
 """
+
+SUBMISSION_SQL = """
+CREATE TABLE attempt_submissions (
+    attempt_id TEXT PRIMARY KEY REFERENCES attempts (attempt_id),
+    submission_key TEXT NOT NULL UNIQUE,
+    request_json TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('prepared', 'dispatched', 'correlated', 'blocked')),
+    zeroshot_run_id TEXT UNIQUE,
+    error_detail TEXT,
+    CHECK ((state = 'correlated') = (zeroshot_run_id IS NOT NULL)),
+    CHECK (zeroshot_run_id IS NULL OR length(trim(zeroshot_run_id)) > 0),
+    CHECK ((state = 'blocked') = (error_detail IS NOT NULL))
+) STRICT;
+
+CREATE TRIGGER attempt_submissions_stable BEFORE UPDATE ON attempt_submissions
+WHEN OLD.attempt_id <> NEW.attempt_id
+  OR OLD.submission_key <> NEW.submission_key
+  OR OLD.request_json <> NEW.request_json
+  OR NOT ((OLD.state = 'prepared' AND NEW.state = 'dispatched')
+       OR (OLD.state = 'dispatched' AND NEW.state IN ('correlated', 'blocked')))
+BEGIN
+    SELECT RAISE(ABORT, 'submission identity and correlation are immutable');
+END;
+
+CREATE TRIGGER attempt_submissions_no_delete BEFORE DELETE ON attempt_submissions
+BEGIN
+    SELECT RAISE(ABORT, 'submission identity is durable');
+END;
+"""
+
+SCHEMA_SQL += SUBMISSION_SQL
 
 #: Digest of the exact DDL this build initializes. Recorded in ``schema_meta`` so
 #: a store written by a different DDL text is detected on reopen.

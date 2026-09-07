@@ -1,0 +1,28 @@
+#!/usr/bin/python3
+"""Deterministic, no-provider Codex protocol fixture for one graph mutation."""
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+prompt = sys.stdin.read()
+if "BROODLING_P2_MUTATION" not in prompt:
+    raise SystemExit("unexpected fixture invocation")
+workspace = Path.cwd()
+deadline = time.monotonic() + 30
+while not (workspace.parent / "allow-mutation").exists():
+    if time.monotonic() > deadline:
+        raise SystemExit("mutation gate did not open")
+    time.sleep(0.01)
+(workspace / "README.md").write_text("graph-authorized P2 mutation\n")
+subprocess.run(["git", "add", "README.md"], check=True, capture_output=True)
+subprocess.run(["git", "commit", "--quiet", "-m", "P2 fixture candidate mutation"], check=True, capture_output=True)
+(workspace / "mutation-finished").touch()
+for event in (
+    {"type": "thread.started", "thread_id": "p2-controlled-mutation"},
+    {"type": "turn.started"},
+    {"type": "item.completed", "item": {"type": "agent_message", "text": '{"response":null}'}},
+    {"type": "turn.completed", "usage": {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}},
+):
+    print(json.dumps(event), flush=True)

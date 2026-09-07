@@ -221,3 +221,9 @@ def head_commit(worktree: Path) -> str:
 
 def current_branch(worktree: Path) -> str:
     return run(worktree, "rev-parse", "--abbrev-ref", "HEAD").strip()
+
+
+def origin_url(worktree: Path) -> str | None:
+    """Pin the source configuration consumed by the qualified local target."""
+    value = _try(worktree, "config", "--get", "remote.origin.url")
+    return None if value is None else value.strip()

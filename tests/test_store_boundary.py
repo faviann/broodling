@@ -93,6 +93,7 @@ class SchemaBoundaryTests(StoreTestCase):
             TABLES,
             (
                 "admission_decisions",
+                "attempt_submissions",
                 "attempts",
                 "contract_revisions",
                 "contract_source_attributions",
@@ -119,13 +120,15 @@ class SchemaBoundaryTests(StoreTestCase):
                 ).fetchall()
             )
         for name in names:
+            if name == "zeroshot_run_id":
+                continue  # The sole runtime fact: immutable Attempt correlation.
             for term in DEFERRED_VOCABULARY:
                 with self.subTest(name=name, term=term):
                     self.assertNotIn(term, name.lower())
 
     def test_the_schema_text_declares_no_deferred_machinery(self) -> None:
         lowered = SCHEMA_SQL.lower()
-        for term in ("runledger", "zeroshot", "run_id", "candidate_seal", "abandon"):
+        for term in ("runledger", "candidate_seal", "abandon"):
             with self.subTest(term=term):
                 self.assertNotIn(term, lowered)
 
@@ -135,6 +138,8 @@ class RuntimeBoundaryTests(unittest.TestCase):
         for module in product_modules():
             with self.subTest(module=module.name):
                 allowed = set(STDLIB_ONLY)
+                if module.name == "zeroshot_sdk.py":
+                    allowed.update({"asyncio", "importlib", "zeroshot"})
                 if module.name in LOCK_CAPABLE_MODULES:
                     allowed.add("fcntl")
                 roots = imported_roots(module) - {"broodling"}
@@ -160,23 +165,29 @@ class RuntimeBoundaryTests(unittest.TestCase):
             with self.subTest(module=module.name):
                 roots = imported_roots(module)
                 self.assertNotIn("qualification", roots)
-                self.assertFalse(
-                    {root for root in roots if root.startswith("zeroshot")}
-                )
+                if module.name != "zeroshot_sdk.py":
+                    self.assertFalse(
+                        {root for root in roots if root.startswith("zeroshot")}
+                    )
 
     def test_importing_broodling_loads_no_runtime_client(self) -> None:
-        loaded = {
-            name
-            for name in sys.modules
-            if name.startswith(("zeroshot", "qualification"))
-        }
-        self.assertEqual(loaded, set())
+        import subprocess
+
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import broodling, sys; assert not any(n.startswith(('zeroshot', 'qualification')) for n in sys.modules)",
+            ],
+            check=True,
+        )
 
     def test_the_package_opens_no_socket_or_network_client(self) -> None:
         forbidden = {"socket", "http", "urllib", "ssl", "asyncio"}
         for module in product_modules():
             with self.subTest(module=module.name):
-                self.assertEqual(imported_roots(module) & forbidden, set())
+                allowed = {"asyncio"} if module.name == "zeroshot_sdk.py" else set()
+                self.assertEqual(imported_roots(module) & forbidden, allowed)
 
     def test_only_the_git_module_may_start_a_process(self) -> None:
         for module in product_modules():
@@ -217,3 +228,42 @@ class ApiBoundaryTests(StoreTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SubmissionBoundaryTests(StoreTestCase):
+    def test_only_minimal_correlation_facts_are_stored(self):
+        columns = self.store.connection.execute(
+            "PRAGMA table_info(attempt_submissions)"
+        ).fetchall()
+        self.assertEqual(
+            [column["name"] for column in columns],
+            [
+                "attempt_id",
+                "submission_key",
+                "request_json",
+                "state",
+                "zeroshot_run_id",
+                "error_detail",
+            ],
+        )
+
+    def test_sdk_adapter_has_no_observation_or_private_storage_surface(self):
+        tree = ast.parse((PACKAGE / "zeroshot_sdk.py").read_text())
+        forbidden = {
+            "status",
+            "history",
+            "watch",
+            "wait",
+            "logs",
+            "list_runs",
+            "get_run",
+            "force_stop",
+            "connect",
+        }
+        calls = {
+            node.func.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        }
+        self.assertFalse(calls & forbidden)
+        self.assertNotIn("sqlite3", imported_roots(PACKAGE / "zeroshot_sdk.py"))

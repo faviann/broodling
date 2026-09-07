@@ -7,8 +7,8 @@
 | `issue13_concurrency.py`, `issue13_racer.py` | The retained reproducer behind it. |
 | `evidence/` | Machine records from the runs the report cites. |
 
-Unlike the V1-P1 fixtures, nothing here needs the Zeroshot SDK or sidecar. The
-reproducer drives only the Broodling product package and the local `git` binary.
+The #13 reproducer needs only Broodling and local Git. The #14 integration
+witnesses additionally require the exact qualified Zeroshot SDK/sidecar.
 
 ## Reproducing the #13 concurrency evidence
 
@@ -66,3 +66,27 @@ The same facts are asserted in the suite, which needs no arguments:
 ```bash
 .venv/bin/python -m pytest tests/test_attempt_crash_recovery.py
 ```
+
+
+## Reproducing the #14 correlation evidence
+
+See [issue-14-correlation.md](issue-14-correlation.md) for scope and retained
+results. Use the G1-V1 wheel/build from the [qualified boundary](../v1-p1/issue-11-g1-v1.md).
+The adapter rejects any different SDK source, version or sidecar hash. In the
+recorded environment `SDK_PYTHON` was
+`/home/faviann/.cache/broodling-zeroshot-venv/bin/python`.
+
+```bash
+SDK_PYTHON=/path/to/qualified-venv/bin/python
+"$SDK_PYTHON" -m pytest tests -q
+"$SDK_PYTHON" qualification/v1-p2/issue14_regression.py --legacy-b1-guard
+# Expected failure above: replay was improperly required to remain at B1.
+"$SDK_PYTHON" qualification/v1-p2/issue14_regression.py
+"$SDK_PYTHON" qualification/v1-p2/issue14_evidence.py \
+  --output /path/to/issue-14-graph-crash.json
+```
+
+Without the SDK, normal `python -m pytest tests` runs admission/storage/control
+tests and explicitly skips the real integration cases. The evidence scripts
+require the qualified build and cannot report a skipped integration as a pass.
+These commands run #14 product tests, not G2 or V1-P3.

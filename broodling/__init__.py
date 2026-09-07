@@ -11,7 +11,8 @@ This package implements the durable facts for one Work Unit:
 * one immutable current Attempt, its original starting state B1, and the one
   dedicated disposable worktree it exclusively owns.
 
-It submits no Zeroshot run, holds no runtime execution state, and implements no
+It durably correlates an Attempt to its one Zeroshot run, holds no runtime
+execution state, and implements no
 abandon/restart, assurance, candidate-provenance or effect machinery. Those
 belong to later V1 phases.
 """
@@ -45,13 +46,16 @@ from .errors import (
     SchemaVersionMismatch,
     SourceAttributionError,
     SourceNotEntitled,
+    StaleAttempt,
     StoreLocationError,
+    SubmissionConflict,
+    SubmissionNotReady,
     UnknownRecord,
     UnsupportedRuntime,
     UnsupportedStartingState,
     UnsupportedWorkspaceRoot,
-    WorkUnitIdentityConflict,
     WorktreeOwnershipConflict,
+    WorkUnitIdentityConflict,
 )
 from .identity import WorkReference
 from .provisioning import AttemptProvisioner, ProvisionedWorktree
@@ -62,15 +66,17 @@ from .store import (
     BroodlingStore,
     ContractRevisionRecord,
     EntitledSourceRecord,
-    WorkUnitRecord,
     WorktreeAssignmentRecord,
+    WorkUnitRecord,
     default_store_path,
 )
+from .submission import AttemptSubmission, SubmissionCoordinator
 from .workspace import (
     DISPOSABLE_WORKTREE_MARKER,
     WorktreeAllocation,
     assert_durable_workspace_root,
 )
+from .zeroshot_sdk import ZeroshotSubmitter
 
 __version__ = "0.1.0"
 
@@ -81,6 +87,7 @@ __all__ = [
     "AttemptConflict",
     "AttemptProvisioner",
     "AttemptRecord",
+    "AttemptSubmission",
     "BroodlingError",
     "BroodlingStore",
     "ClosabilityAssessment",
@@ -106,7 +113,11 @@ __all__ = [
     "SourceNotEntitled",
     "SourceSubmission",
     "StartingState",
+    "StaleAttempt",
     "StoreLocationError",
+    "SubmissionConflict",
+    "SubmissionCoordinator",
+    "SubmissionNotReady",
     "UnknownRecord",
     "UnsupportedRuntime",
     "UnsupportedStartingState",
@@ -117,6 +128,7 @@ __all__ = [
     "WorktreeAllocation",
     "WorktreeAssignmentRecord",
     "WorktreeOwnershipConflict",
+    "ZeroshotSubmitter",
     "__version__",
     "assert_durable_workspace_root",
     "assess",

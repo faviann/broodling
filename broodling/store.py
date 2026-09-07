@@ -43,12 +43,18 @@ from .errors import (
     SourceAttributionError,
     SourceNotEntitled,
     UnknownRecord,
-    WorkUnitIdentityConflict,
     WorktreeOwnershipConflict,
+    WorkUnitIdentityConflict,
 )
 from .identity import WorkReference, digest
 from .profile import assert_supported_runtime, product_configuration
-from .schema import SCHEMA_SHA256, SCHEMA_SQL, SCHEMA_VERSION
+from .schema import (
+    SCHEMA_SHA256,
+    SCHEMA_SQL,
+    SCHEMA_VERSION,
+    SUBMISSION_SQL,
+    V2_SCHEMA_SHA256,
+)
 from .starting_state import StartingState, admitted_material_digest
 from .workspace import (
     WorktreeAllocation,
@@ -288,6 +294,27 @@ class BroodlingStore:
             self._connection.execute("COMMIT")
             return
         meta = self.schema_meta()
+        if (
+            meta.get("schema_version") == "2"
+            and meta.get("schema_sha256") == V2_SCHEMA_SHA256
+        ):
+            # Acquire before rereading: concurrent openers must migrate once.
+            with self._write() as connection:
+                if self.schema_meta().get("schema_version") == "2":
+                    statement = ""
+                    for line in SUBMISSION_SQL.splitlines(keepends=True):
+                        statement += line
+                        if sqlite3.complete_statement(statement):
+                            connection.execute(statement)
+                            statement = ""
+                    connection.executemany(
+                        "UPDATE schema_meta SET value = ? WHERE key = ?",
+                        [
+                            (str(SCHEMA_VERSION), "schema_version"),
+                            (SCHEMA_SHA256, "schema_sha256"),
+                        ],
+                    )
+            meta = self.schema_meta()
         if meta.get("schema_version") != str(SCHEMA_VERSION):
             raise SchemaVersionMismatch(
                 f"store at {self.path} has schema version "
