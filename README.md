@@ -42,13 +42,13 @@ Issue #8's preserved [V1 qualification report](qualification/v1-p1/issue-8-w1-w2
 Under the corrected v0.5 witness scope:
 
 - **W1 is satisfied** by the existing issue-#8 evidence.
-- **W2 is satisfied on the recorded profile** by the existing host-containment evidence; no standalone W2 rerun remains. The old missing-evidence case moves to W3/W6 evidence sufficiency, model-supplied applicability IDs are non-authoritative, and the delayed-observer requirement is removed.
-- **W5 is satisfied** by the existing issue-#8 evidence.
-- **W7 is satisfied** by the existing issue-#8 evidence.
+- **W2 is satisfied on the recorded profile** by the existing host-containment evidence; the historical v0.4 W2 FAIL remains unchanged. Missing-evidence sufficiency is covered by W3/W6, model-supplied applicability IDs are non-authoritative, and the delayed-observer requirement is removed.
 - **W3 PASS** is recorded by issue #9's [actual assurance-graph qualification](qualification/v1-p1/issue-9-w3.md) on the compatible profile.
-- **W4 and W6 remain NOT RUN.**
+- **W4 PASS** and **W6 PASS** are recorded by issue #10's [controlled-reviewer and normal-final-result qualification](qualification/v1-p1/issue-10-w4-w6.md) on the compatible profile.
+- **W5 is satisfied** by the existing issue-#8 abandon/restart evidence.
+- **W7 is satisfied** by the existing issue-#8 no-effect evidence.
 
-**G1-V1 is not passed.** Existing issues #10 and #11 remain the qualification/gate path; product implementation remains blocked until the gate passes. Exact effects/reconciliation and cross-Attempt reuse/recovery remain deferred capabilities.
+The separate [G1-V1 gate review](qualification/v1-p1/issue-11-g1-v1.md) is **COMPLETE with G1-V1 PASS** for the narrowed single-host, no-effect V1 profile. This qualifies the V1-P1 evidence boundary only; V1-P2 product implementation has not been started by the gate review. Exact effects/reconciliation and completed-run recovery/cross-Attempt reuse remain deferred capabilities.
 
 The historical [G1-core review](qualification/p1/issue-7-g1-core.md) remains **BLOCKED** under v0.3. Q2 and the bounded Q3 fixture retain their historical scoped passes; Q1/Q4/Q5/Q6 remain blocked, and [Q7/G1-effects](qualification/p1/issue-6-q7.md) remains independently blocked. v0.5 does not relabel those historical results.
 
