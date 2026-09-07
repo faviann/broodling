@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+"""Mixed real-reviewer/controlled leaf for issue #10 qualification."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import uuid
+from pathlib import Path
+
+
+def emit(value: object) -> None:
+    print(json.dumps(value, separators=(",", ":")), flush=True)
+
+
+def append(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(value, sort_keys=True) + "\n")
+
+
+def node_and_input(prompt: str) -> tuple[str, object]:
+    match = re.search(r"BROODLING_NODE=([a-z0-9_]+)", prompt)
+    if match is None:
+        raise ValueError("fixture prompt did not identify a node")
+    input_match = re.search(r"Input JSON:\n([^\n]+)\nRuntime-owned response contract:", prompt)
+    return match.group(1), json.loads(input_match.group(1)) if input_match else None
+
+
+def next_invocation(state: Path, node: str) -> int:
+    counter = state / f"{node}.count"
+    try:
+        value = int(counter.read_text(encoding="utf-8")) + 1
+    except FileNotFoundError:
+        value = 1
+    counter.write_text(f"{value}\n", encoding="utf-8")
+    return value
+
+
+def real_reviewer(prompt: str, node: str, input_value: object) -> int:
+    state = Path(os.environ["BROODLING_FIXTURE_STATE"])
+    state.mkdir(parents=True, exist_ok=True)
+    scenario = os.environ.get("BROODLING_FIXTURE_SCENARIO", "w4-clean")
+    delivered = prompt
+    if scenario == "w4-contaminated":
+        delivered += (
+            "\nAUTOMATIC_TRANSCRIPT_CONTAMINATION_CONTROL:\n"
+            "FORBIDDEN_WORKER_NARRATIVE_7Q9\n"
+            "FORBIDDEN_PRIOR_REVIEW_4M2\n"
+            "FORBIDDEN_ADJUDICATION_8K1\n"
+            "FORBIDDEN_REPAIR_RATIONALE_6P3\n"
+            "FORBIDDEN_AMBIENT_SETTING_2V5\n"
+            "FORBIDDEN_AMBIENT_SKILL_9N4\n"
+        )
+    arguments = sys.argv[1:]
+    filtered: list[str] = []
+    index = 0
+    while index < len(arguments):
+        if (
+            arguments[index] in {"--config", "-c"}
+            and index + 1 < len(arguments)
+            and arguments[index + 1].startswith("sandbox_workspace_write.network_access=")
+        ):
+            index += 2
+            continue
+        filtered.append(arguments[index])
+        index += 1
+    if filtered and filtered[0] == "exec":
+        filtered[1:1] = [
+            "--ignore-user-config", "--ignore-rules", "--ephemeral",
+            "--config", "sandbox_workspace_write.network_access=false",
+        ]
+    environment = os.environ.copy()
+    required = ["BROODLING_PROFILE_HOME", "BROODLING_ISOLATED_CODEX_HOME", "BROODLING_REAL_CODEX"]
+    missing = [name for name in required if name not in environment]
+    if missing:
+        append(state / "real-reviewer.jsonl", {"node": node, "scenario": scenario, "launcherError": f"missing environment: {missing}"})
+        return 78
+    environment["HOME"] = environment["BROODLING_PROFILE_HOME"]
+    environment["CODEX_HOME"] = environment["BROODLING_ISOLATED_CODEX_HOME"]
+    started = time.time_ns()
+    completed = subprocess.run(
+        [os.environ["BROODLING_REAL_CODEX"], *filtered], input=delivered, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=environment, check=False,
+    )
+    event = {
+        "id": str(uuid.uuid4()), "node": node, "scenario": scenario,
+        "input": input_value, "argv": [os.environ["BROODLING_REAL_CODEX"], *filtered],
+        "cwd": str(Path.cwd()), "home": environment["HOME"],
+        "codexHome": environment["CODEX_HOME"], "prompt": delivered,
+        "stdout": completed.stdout, "stderr": completed.stderr,
+        "returnCode": completed.returncode, "startedNs": started,
+        "completedNs": time.time_ns(),
+    }
+    append(state / "real-reviewer.jsonl", event)
+    sys.stdout.write(completed.stdout)
+    sys.stdout.flush()
+    sys.stderr.write(completed.stderr)
+    sys.stderr.flush()
+    return completed.returncode
+
+
+def controlled(prompt: str, node: str, input_value: object) -> int:
+    state = Path(os.environ["BROODLING_FIXTURE_STATE"])
+    state.mkdir(parents=True, exist_ok=True)
+    invocation = next_invocation(state, node)
+    scenario = os.environ.get("BROODLING_FIXTURE_SCENARIO", "w6-valid-repaired")
+    workspace = Path.cwd()
+    candidate = workspace / "candidate.txt"
+    raw = workspace / "evidence/raw.txt"
+    if node == "implement":
+        candidate.write_text("C1_FROM_IMPLEMENT\nSOURCE_VISIBLE_CANARY_A17\n", encoding="utf-8")
+        if scenario == "w6-missing-initial":
+            raw.unlink(missing_ok=True)
+    elif node == "repair":
+        candidate.write_text(f"C{invocation + 1}_FROM_REPAIR\nSOURCE_VISIBLE_CANARY_A17\n", encoding="utf-8")
+        if scenario == "w6-missing-repair":
+            raw.unlink(missing_ok=True)
+    event = {
+        "node": node, "invocation": invocation, "scenario": scenario,
+        "input": input_value, "candidate": candidate.read_text(encoding="utf-8"),
+        "rawEvidenceExists": raw.exists(),
+        "rawEvidenceContent": raw.read_text(encoding="utf-8") if raw.exists() else None,
+        "argv": sys.argv[1:],
+        "cwd": str(workspace), "recordedNs": time.time_ns(),
+    }
+    append(state / "driver.jsonl", event)
+    emit({"type": "thread.started", "thread_id": f"w10-{node}-{invocation}-{uuid.uuid4()}"})
+    emit({"type": "turn.started"})
+    if node == "implement":
+        response: object = (
+            {"candidateGeneration": "c1", "authority": "accepted"}
+            if scenario == "w6-ordinary-authority" else {"candidateGeneration": "c1"}
+        )
+    elif node == "repair":
+        response = {"candidateGeneration": f"c{min(invocation + 1, 4)}"}
+    elif node == "round_complete":
+        response = {"output": None, "signals": {"status": "completed"}, "diagnostic": {"note": "controlled"}}
+    elif node.endswith("evidence_check"):
+        response = {"output": None, "signals": {"availability": "valid" if raw.exists() else "missing"}, "diagnostic": {"note": "raw observation checked"}}
+    elif node.endswith("review"):
+        findings = "found" if node == "initial_review" and scenario not in {"w4-clean", "w4-contaminated", "w6-clean"} else "clean"
+        response = {"output": None, "signals": {"findings": findings}, "diagnostic": {"note": "controlled review"}}
+    elif node == "adjudicate_authority":
+        response = {"output": None, "signals": {"decision": "none" if scenario in {"w4-clean", "w4-contaminated", "w6-clean"} else "open_d1"}, "diagnostic": {"note": "controlled adjudication"}}
+    elif node == "resolution_authority":
+        resolution = "open_d1" if scenario == "w6-unresolved" else "resolved_d1"
+        response = {"output": None, "signals": {"resolution": resolution}, "diagnostic": {"note": "controlled resolution"}}
+    elif node.startswith("final_assessment_authority"):
+        gaps = {"w6-wrong-population", "w6-wrong-host", "w6-wrong-mode", "w6-wrong-artifact", "w6-contradiction", "w6-semantic-gap"}
+        if scenario == "w6-final-missing-output":
+            response = {"signals": {}, "diagnostic": None}
+        else:
+            assessment = "gap" if scenario in gaps else "accepted"
+            rationale = (
+                f"criterion-level assessment={assessment}; scenario={scenario}; "
+                f"generation={input_value.get('candidateGeneration')}; candidate source inspected; "
+                f"raw evidence population/host/mode/artifact and contradictions assessed; "
+                f"evidence={input_value.get('evidence')}; obligation={input_value.get('obligation')}"
+            )
+            diagnostic = {"note": rationale}
+            if scenario == "w6-forged-final-diagnostics":
+                diagnostic.update({"contractId": "forged-contract", "sourceId": "forged-source", "evidenceId": "forged-evidence", "predecessorId": "forged-predecessor"})
+            response = {"output": None, "signals": {"assessment": assessment}, "diagnostic": diagnostic}
+            event["finalResponse"] = response
+            append(state / "final-output.jsonl", event)
+    else:
+        raise ValueError(node)
+    emit({"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps({"response": response}, separators=(",", ":"))}})
+    emit({"type": "turn.completed", "usage": {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}})
+    return 0
+
+
+def main() -> int:
+    prompt = sys.stdin.read()
+    try:
+        node, input_value = node_and_input(prompt)
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 64
+    if os.environ.get("BROODLING_REAL_REVIEWER") == "1" and node.endswith("review"):
+        return real_reviewer(prompt, node, input_value)
+    return controlled(prompt, node, input_value)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

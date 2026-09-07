@@ -1,6 +1,6 @@
 # V1-P1 qualification
 
-This directory contains qualification-only fixtures for Broodling issues #8 and #9. They reuse the
+This directory contains qualification-only fixtures for Broodling issues #8, #9 and #10. They reuse the
 official Python SDK and matching Rust sidecar build described by the historical P1 harness, while
 keeping the new V1 observations separate from `qualification/p1`.
 
@@ -11,6 +11,37 @@ remain real. Controlled leaves expose deterministic transport windows and applic
 counterexamples. W2/W7 confinement probes use the installed real Codex/OpenAI provider. The
 fixture creates minimal administrative JSON only to mark an Attempt ineligible before
 cessation/restart; it is not Broodling product code or a selected store design.
+
+## Issue #10 / W4 and W6 reproduction
+
+Use the same pinned source, wheel, non-temporary workspace-root rule and short `/dev/shm` run root
+described below, then:
+
+```bash
+RUN_ROOT=$(mktemp -d /dev/shm/b10.XXXXXX)
+rmdir "$RUN_ROOT"
+WORKSPACE_ROOT=$(mktemp -d /path/on/non-temporary-filesystem/b10.XXXXXX)
+rmdir "$WORKSPACE_ROOT"
+
+VENV=/path/to/venv
+WHEEL=/path/to/zeroshot_rust-0.1.0.dev0-py3-none-linux_x86_64.whl
+
+"$VENV/bin/python" qualification/v1-p1/issue10_qualify.py \
+  --run-root "$RUN_ROOT" \
+  --workspace-root "$WORKSPACE_ROOT" \
+  --output "$RUN_ROOT/issue-10-run-record.json" \
+  --zeroshot-source /path/to/zeroshot \
+  --wheel "$WHEEL" \
+  --timeout 60 \
+  --real-timeout 300 \
+  --real-model gpt-5.6-sol
+```
+
+W4 requires an authenticated installed Codex CLI. The harness copies only `auth.json` to an
+isolated `CODEX_HOME` for the run, does not retain it, and removes that isolated home before exit.
+The [W4/W6 report](issue-10-w4-w6.md) and
+[machine record](evidence/issue-10-run-record.json) describe the canary controls, exact W3-compatible
+graphs/profile, public normal-result path, evidence/custody matrix, verdicts and finite limits.
 
 ## Issue #9 / W3 reproduction
 
@@ -88,6 +119,6 @@ observations, controlled-leaf events, administrative facts, and probe results.
 ```bash
 python3 -m unittest discover -s qualification/v1-p1/tests -v
 python3 -m unittest discover -s qualification/p1/tests -v
-python3 -m py_compile qualification/v1-p1/issue8_qualify.py qualification/v1-p1/issue9_qualify.py qualification/v1-p1/bin/codex qualification/v1-p1/w3-bin/codex
+python3 -m py_compile qualification/v1-p1/issue8_qualify.py qualification/v1-p1/issue9_qualify.py qualification/v1-p1/issue10_qualify.py qualification/v1-p1/bin/codex qualification/v1-p1/w3-bin/codex qualification/v1-p1/issue10-bin/codex
 git diff --check
 ```
