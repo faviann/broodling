@@ -5,12 +5,20 @@ Run as ``python tests/attempt_crash_child.py <store> <root> <repo> <revision-id>
 unwinds: no ``finally``, no ROLLBACK, no worktree cleanup. Whatever survives is
 what SQLite and Git actually committed.
 
+Two crash points are not crashes. ``stop_after_admit`` returns the moment the
+Attempt is durable, so a race can witness admission on its own without a
+provisioning outcome standing in front of it. ``report`` runs the whole
+operation and prints, as JSON, what this caller was actually handed — including
+the state of the worktree at the instant it was handed over, which only the
+caller can see.
+
 The first line of stdout is always the Attempt id the request derives, so the
 parent can assert convergence even when the child died before committing it.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import time
@@ -80,14 +88,36 @@ def main() -> int:
     attempt = provisioner.admit(revision_id, repository, revision)
     if crash_point == "after_attempt_commit":
         os._exit(97)
+    if crash_point == "stop_after_admit":
+        print(attempt.attempt_id, flush=True)
+        store.close()
+        return 0
 
-    provisioner.provision(attempt.attempt_id)
+    provisioned = provisioner.provision(attempt.attempt_id)
     if crash_point == "after_provision":
         os._exit(97)
 
-    print(attempt.attempt_id, flush=True)
+    if crash_point == "report":
+        print(json.dumps(answer(provisioned)), flush=True)
+    else:
+        print(attempt.attempt_id, flush=True)
     store.close()
     return 0
+
+
+def answer(provisioned) -> dict:
+    """What this caller was handed, read at the moment it was handed over."""
+
+    return {
+        "attempt_id": provisioned.attempt.attempt_id,
+        "worktree_path": str(provisioned.path),
+        "branch": provisioned.branch,
+        "provisioned": provisioned.assignment.provisioned,
+        "head": product_git.head_commit(provisioned.path),
+        "tracked_files": len(
+            product_git.run(provisioned.path, "ls-files").splitlines()
+        ),
+    }
 
 
 if __name__ == "__main__":

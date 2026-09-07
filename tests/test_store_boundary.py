@@ -47,6 +47,12 @@ DEFERRED_VOCABULARY = (
 #: client.
 PROCESS_CAPABLE_MODULES = {"git.py"}
 
+#: Modules permitted to take a host-local file lock. Materializing one Attempt's
+#: worktree is single-writer on this host, which is what `fcntl` buys; it is
+#: mutual exclusion between live processes, never durable authority, so nothing
+#: that records a durable fact may reach for it.
+LOCK_CAPABLE_MODULES = {"provisioning.py"}
+
 STDLIB_ONLY = {
     "__future__",
     "collections",
@@ -128,10 +134,24 @@ class RuntimeBoundaryTests(unittest.TestCase):
     def test_the_product_package_imports_only_the_standard_library(self) -> None:
         for module in product_modules():
             with self.subTest(module=module.name):
+                allowed = set(STDLIB_ONLY)
+                if module.name in LOCK_CAPABLE_MODULES:
+                    allowed.add("fcntl")
                 roots = imported_roots(module) - {"broodling"}
-                self.assertLessEqual(
-                    roots, STDLIB_ONLY, f"{module.name} grew a dependency"
-                )
+                self.assertLessEqual(roots, allowed, f"{module.name} grew a dependency")
+
+    def test_only_provisioning_may_take_a_host_lock(self) -> None:
+        """A file lock is host-local mutual exclusion, not durable authority.
+
+        The store's constraints decide who owns what; only the module that has
+        to keep two live processes out of one half-built worktree may lock.
+        """
+
+        for module in product_modules():
+            if module.name in LOCK_CAPABLE_MODULES:
+                continue
+            with self.subTest(module=module.name):
+                self.assertNotIn("fcntl", imported_roots(module))
 
     def test_the_product_package_does_not_import_the_qualification_harness(
         self,

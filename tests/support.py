@@ -148,8 +148,16 @@ def git(repository: Path, *arguments: str) -> str:
     return completed.stdout.strip()
 
 
-def make_repository(path: Path, *, content: str = "original admitted state\n") -> str:
-    """Create a repository with one commit and return that commit's object id."""
+def make_repository(
+    path: Path, *, content: str = "original admitted state\n", bulk: int = 0
+) -> str:
+    """Create a repository with one commit and return that commit's object id.
+
+    ``bulk`` adds that many further files to B1. Checking a tree out is not
+    instant, and a caller racing another one can only observe the difference
+    when the checkout takes long enough to be observed at all; ``bulk`` is how a
+    test buys that window instead of hoping for it.
+    """
 
     path.mkdir(parents=True, exist_ok=True)
     git(path, "init", "--quiet", "-b", "main")
@@ -157,7 +165,9 @@ def make_repository(path: Path, *, content: str = "original admitted state\n") -
     git(path, "config", "user.email", "broodling-p2@example.invalid")
     git(path, "config", "commit.gpgsign", "false")
     (path / "README.md").write_text(content, encoding="utf-8")
-    git(path, "add", "README.md")
+    for index in range(bulk):
+        (path / f"b1-{index:04d}.txt").write_text("B1\n" * 200, encoding="utf-8")
+    git(path, "add", "-A")
     git(path, "commit", "--quiet", "-m", "B1")
     return git(path, "rev-parse", "HEAD")
 

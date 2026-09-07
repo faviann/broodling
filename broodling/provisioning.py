@@ -18,6 +18,23 @@ allocates a replacement. Where the host state cannot be recognized as this
 Attempt's, provisioning fails closed rather than taking over somebody's
 directory.
 
+That argument only holds against an *interrupted* run, whose leftovers have
+stopped changing. It does not hold against a *concurrent* one: ``git worktree
+add`` publishes its result in stages — the registration, then the attached
+branch, then the checked-out tree — so a second process reading host state
+mid-creation sees a worktree that is registered but detached, or a directory
+that exists but is not yet registered, or a branch that is attached over a tree
+that is not yet B1. None of those intermediate states is distinguishable, by
+reading, from foreign or half-built state, so a reader either refuses its own
+Attempt's worktree or acknowledges one that has not finished arriving.
+
+Materializing one Attempt is therefore single-writer on this host: ``provision``
+holds an exclusive lock on that Attempt's enclosure for the whole operation, so
+every observation it makes is of settled state. The lock is host-local mutual
+exclusion between live processes, not durable authority — durable authority is
+the store's, and the kernel drops the lock when a process dies, which is what
+keeps crash recovery converging exactly as before.
+
 Worktree and branch creation here are host-local administrative setup, not
 authoritative delivery: the branch is disposable runtime scaffolding, never
 pushed and never treated as delivery.
@@ -25,6 +42,10 @@ pushed and never treated as delivery.
 
 from __future__ import annotations
 
+import fcntl
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -117,19 +138,32 @@ class AttemptProvisioner:
     def provision(self, attempt_id: str) -> ProvisionedWorktree:
         """Materialize this Attempt's worktree at B1. Idempotent and converging.
 
-        Repeat it as often as you like: an already-materialized worktree is
-        recognized and left alone, an interrupted one is finished, and a
-        worktree that has gone missing is rebuilt from the recorded B1 — never
-        from live ``HEAD``.
+        Repeat it as often as you like, from as many processes as you like: an
+        already-materialized worktree is recognized and left alone, an
+        interrupted one is finished, and a worktree that has gone missing is
+        rebuilt from the recorded B1 — never from live ``HEAD``.
+
+        Concurrent callers converge rather than compete. They queue on this
+        Attempt's enclosure, so each one reads host state that some other
+        process has finished writing, and every one of them returns the same
+        worktree at the same B1 on the same branch.
         """
 
         attempt = self.store.get_attempt(attempt_id)
         assignment = self.store.worktree_assignment(attempt_id)
-        repository = Path(attempt.b1_repository)
-        path = assignment.path
-        enclosure = path.parent
+        enclosure = assignment.path.parent
 
         self._claim_enclosure(enclosure, attempt_id)
+        with _sole_provisioner(enclosure):
+            return self._materialize(attempt, assignment)
+
+    def _materialize(
+        self, attempt: AttemptRecord, assignment: WorktreeAssignmentRecord
+    ) -> ProvisionedWorktree:
+        """Bring the host in line with the reservation. Runs single-writer."""
+
+        repository = Path(attempt.b1_repository)
+        path = assignment.path
         entry = git.find_worktree(repository, path)
 
         if entry is not None:
@@ -144,9 +178,10 @@ class AttemptProvisioner:
         try:
             self._create(repository, attempt, assignment, force=registered_elsewhere)
         except GitCommandError:
-            # A concurrent provisioning of this same Attempt may have won the
-            # race between the check and the create. Converging on its result is
-            # the whole point; only an unexplained failure propagates.
+            # An interrupted run may have left exactly the worktree this one was
+            # about to create — a half-registered path Git now refuses to add
+            # over. Converging on it is the whole point; only a failure that did
+            # not leave this Attempt's worktree behind propagates.
             if not self._already_materialized(repository, assignment):
                 raise
         return self._acknowledge(attempt)
@@ -251,6 +286,30 @@ class AttemptProvisioner:
             attempt=attempt,
             assignment=self.store.acknowledge_worktree_provisioned(attempt.attempt_id),
         )
+
+
+@contextmanager
+def _sole_provisioner(enclosure: Path) -> Iterator[None]:
+    """Hold an Attempt's enclosure against every other live provisioner.
+
+    Scoped to the enclosure because that is exactly one Attempt's scaffolding:
+    two Attempts never share one, so two Work Units never queue on each other.
+
+    The lock lives only as long as the file descriptor. A process that is killed
+    mid-provisioning releases it without unwinding, which is what lets the crash
+    windows recover by simply repeating the operation.
+    """
+
+    handle = os.open(
+        enclosure / workspace.PROVISIONING_LOCK,
+        os.O_CREAT | os.O_WRONLY | os.O_CLOEXEC,
+        0o600,
+    )
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(handle)
 
 
 def _is_live_worktree(path: Path) -> bool:

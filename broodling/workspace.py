@@ -29,6 +29,12 @@ DISPOSABLE_WORKTREE_MARKER = ".broodling-disposable-worktree"
 #: Directory the Git worktree itself is checked out into, inside the enclosure.
 WORKTREE_DIRECTORY = "worktree"
 
+#: Lock file, in the enclosure, that makes materializing one Attempt's worktree a
+#: single-writer operation on this host. It sits beside the marker rather than
+#: inside the checkout, for the same reason the marker does: the candidate tree
+#: is exactly B1 and nothing else.
+PROVISIONING_LOCK = ".broodling-provisioning.lock"
+
 #: Roots the qualified V1 profile does not accept as a workspace root. The
 #: profile requires a dedicated *non-temporary* root: a worktree that a reboot,
 #: a tmpfs eviction or a system cleaner can remove out from under an admitted

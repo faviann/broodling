@@ -198,6 +198,14 @@ either observes the winner's identical Attempt or gets `AttemptConflict`. It can
 never open a second current authority. Retiring an Attempt so a replacement can
 become current is V1-P4 abandon/restart and is deliberately absent.
 
+Currentness is witnessed where it is decided.
+`test_identical_concurrent_admissions_alone_resolve_one_attempt` races four
+admissions and stops there, with no provisioning outcome standing in front of
+the result — so a provisioning failure can never again make this fact ambiguous,
+which is what the [G2-V1 review](../../qualification/v1-p2/issue-15-g2-v1.md)
+found it had. The full diagnosis is in
+[issue-13-concurrency.md](../../qualification/v1-p2/issue-13-concurrency.md).
+
 ### 3.3 Allocation before provisioning
 
 `AttemptProvisioner.admit` resolves B1, then writes the Attempt *and* its
@@ -248,9 +256,34 @@ rematerialized worktree is built from B1, so it carries no prior candidate,
 directive, evidence, acceptance or session state; no cross-Attempt reuse path
 exists.
 
+### 3.5 One live provisioner per Attempt
+
+The table above reasons about *interrupted* runs, whose leftovers have stopped
+changing. A *concurrent* run is a different problem. `git worktree add` publishes
+its result in stages — the registration, then the attached branch, then the
+checked-out tree — and none of the intermediate states is distinguishable, by
+reading, from foreign or half-built state. A reader that lands inside one either
+refuses its own Attempt's worktree or acknowledges one that has not finished
+arriving. On a B1 of any real size the last window is the wide one: measured at
+880–1020 ms against 3.4 ms for the others.
+
+Materializing one Attempt is therefore single-writer on this host. `provision`
+holds `flock` on `.broodling-provisioning.lock` in that Attempt's enclosure for
+the whole operation, so every observation it makes is of settled state and every
+concurrent caller is handed the same finished worktree at B1.
+
+The lock is host-local mutual exclusion between live processes, never durable
+authority — that stays with the store's constraints, which is why
+`tests/test_store_boundary.py` lets only `provisioning.py` import `fcntl`. The
+kernel drops it when a process dies, so the crash windows above recover by
+repetition exactly as before, and it is scoped to the enclosure, which is exactly
+one Attempt's scaffolding, so two Work Units never queue on each other. V1 is
+single-host by qualification; this is not, and must not become, a multi-host
+lease or fencing mechanism.
+
 ## 4. Retained implementation evidence
 
-`python -m pytest tests` (or `python -m unittest discover -s tests`), 171 tests.
+`python -m pytest tests` (or `python -m unittest discover -s tests`), 175 tests.
 The Attempt tests drive the real `git` binary against fixture repositories. They
 need a durable workspace root, which by definition cannot be `/tmp`: they use
 `~/.cache/broodling-tests`, overridable with `BROODLING_TEST_WORKSPACE_ROOT`, and
@@ -267,12 +300,16 @@ skip if that location is itself non-durable.
 | Supported and unsupported B1 material; live-HEAD drift; frozen-material digest | `tests/test_starting_state.py` |
 | Attempt/revision binding; one-current enforcement; Attempt immutability; workspace-root policy | `tests/test_attempt_admission.py` |
 | Worktree at exactly B1; idempotent and rematerializing provisioning; same-repository distinct worktrees; ownership conflicts; no delivery effect | `tests/test_worktree_provisioning.py` |
-| Attempt/provisioning crash windows; acknowledgement loss; concurrent identical and conflicting admission | `tests/test_attempt_crash_recovery.py` |
-| Not a RunLedger mirror; harness not promoted into product code | `tests/test_store_boundary.py` |
+| Attempt/provisioning crash windows; acknowledgement loss; concurrent identical and conflicting admission; concurrent provisioning convergence and exclusion | `tests/test_attempt_crash_recovery.py` |
+| Not a RunLedger mirror; harness not promoted into product code; only provisioning may take a host lock | `tests/test_store_boundary.py` |
+| Reproducible concurrency evidence: Git's publication stages, and a classified N-way race | `qualification/v1-p2/issue13_concurrency.py` |
 
 The crash cases run the write in a child process that calls `os._exit` mid-flight
 — nothing unwinds, so what survives is what SQLite and Git actually committed.
-The concurrency cases start two children behind a gate file so they really race.
+The concurrency cases start their children behind a gate file so they really
+race, and each child reports what *it* was handed rather than what the durable
+state settled to afterwards: the durable state is correct in cases where the
+caller was not, and only the caller can see the difference.
 
 ## 5. Stop boundary
 
@@ -281,7 +318,9 @@ assurance graph, reviewer/adjudicator/final-assessor wiring, candidate seals or
 provenance, evidence records, stop/abandon/restart and worktree retirement,
 completed-run recovery or catch-up, final-result custody and disposition, effects
 or GitHub mutation, multi-host leases or fencing, schedulers, session management
-and any product API/CLI.
+and any product API/CLI. The provisioning lock of §3.5 is host-local mutual
+exclusion between live processes on one machine; it holds no durable state,
+survives nothing, and is not a step towards a lease or fencing system.
 
 `tests/test_store_boundary.py` asserts this boundary: the table set is fixed, no
 table or column carries later-phase or RunLedger vocabulary, the store exposes no
