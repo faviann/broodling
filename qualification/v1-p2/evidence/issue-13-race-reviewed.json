@@ -1,0 +1,1131 @@
+{
+  "environment": {
+    "python": "3.13.5",
+    "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+    "git": "git version 2.47.3",
+    "broodling_commit": "00db4a2e403622bcbf9e8fe5a7a0727737ca29a6",
+    "uncommitted_paths": [
+      "qualification/v1-p2/issue13_concurrency.py",
+      "qualification/v1-p2/issue13_racer.py"
+    ],
+    "cpu_count": 16,
+    "recorded_at": "2026-09-07T19:57:22+00:00"
+  },
+  "race": {
+    "rounds": 12,
+    "racers_per_round": 4,
+    "files_in_b1": 3000,
+    "rounds_with_violations": 12,
+    "violation_kinds": {
+      "inconsistent_result": 36
+    },
+    "converged": false,
+    "failing_rounds": [
+      {
+        "round": 0,
+        "b1": "8c0a89f890f08d8fdf0f33f4c5d065cef0692ac6",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e3aee92d83a1834cdb64422802839eddbe202432dd287f3ec2843763749f8377",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-onuxjp7m/workspaces/faviann-broodling-13-e3aee92d83a1834cdb644228/worktree",
+            "branch": "broodling/faviann-broodling-13/e3aee92d83a1834cdb644228",
+            "provisioned": true,
+            "observed_head": "8c0a89f890f08d8fdf0f33f4c5d065cef0692ac6",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e3aee92d83a1834cdb64422802839eddbe202432dd287f3ec2843763749f8377",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-onuxjp7m/workspaces/faviann-broodling-13-e3aee92d83a1834cdb644228/worktree",
+            "branch": "broodling/faviann-broodling-13/e3aee92d83a1834cdb644228",
+            "provisioned": true,
+            "observed_head": "8c0a89f890f08d8fdf0f33f4c5d065cef0692ac6",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e3aee92d83a1834cdb64422802839eddbe202432dd287f3ec2843763749f8377",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-onuxjp7m/workspaces/faviann-broodling-13-e3aee92d83a1834cdb644228/worktree",
+            "branch": "broodling/faviann-broodling-13/e3aee92d83a1834cdb644228",
+            "provisioned": true,
+            "observed_head": "8c0a89f890f08d8fdf0f33f4c5d065cef0692ac6",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e3aee92d83a1834cdb64422802839eddbe202432dd287f3ec2843763749f8377",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-onuxjp7m/workspaces/faviann-broodling-13-e3aee92d83a1834cdb644228/worktree",
+            "branch": "broodling/faviann-broodling-13/e3aee92d83a1834cdb644228",
+            "provisioned": true,
+            "observed_head": "8c0a89f890f08d8fdf0f33f4c5d065cef0692ac6",
+            "observed_tracked_files": 3000
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-e3aee92d83a1834cdb64422802839eddbe202432dd287f3ec2843763749f8377",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "8c0a89f890f08d8fdf0f33f4c5d065cef0692ac6"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-e3aee92d83a1834cdb64422802839eddbe202432dd287f3ec2843763749f8377",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "8c0a89f890f08d8fdf0f33f4c5d065cef0692ac6"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-e3aee92d83a1834cdb64422802839eddbe202432dd287f3ec2843763749f8377",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-onuxjp7m/workspaces/faviann-broodling-13-e3aee92d83a1834cdb644228/worktree",
+              "branch": "broodling/faviann-broodling-13/e3aee92d83a1834cdb644228",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-onuxjp7m/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-onuxjp7m/workspaces/faviann-broodling-13-e3aee92d83a1834cdb644228/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/e3aee92d83a1834cdb644228",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-onuxjp7m/workspaces/faviann-broodling-13-e3aee92d83a1834cdb644228/worktree": {
+              "head": "8c0a89f890f08d8fdf0f33f4c5d065cef0692ac6",
+              "branch": "broodling/faviann-broodling-13/e3aee92d83a1834cdb644228",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 1,
+        "b1": "ab250118c204316aa2c77f3821b6f43a3f0b493a",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-c983b050dbdbc6dd0f6cc0c3162dd7010bb55781e7cd1a20867cec97a0beb5d2",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-pbnxit_s/workspaces/faviann-broodling-13-c983b050dbdbc6dd0f6cc0c3/worktree",
+            "branch": "broodling/faviann-broodling-13/c983b050dbdbc6dd0f6cc0c3",
+            "provisioned": true,
+            "observed_head": "ab250118c204316aa2c77f3821b6f43a3f0b493a",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-c983b050dbdbc6dd0f6cc0c3162dd7010bb55781e7cd1a20867cec97a0beb5d2",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-pbnxit_s/workspaces/faviann-broodling-13-c983b050dbdbc6dd0f6cc0c3/worktree",
+            "branch": "broodling/faviann-broodling-13/c983b050dbdbc6dd0f6cc0c3",
+            "provisioned": true,
+            "observed_head": "ab250118c204316aa2c77f3821b6f43a3f0b493a",
+            "observed_tracked_files": 3000
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-c983b050dbdbc6dd0f6cc0c3162dd7010bb55781e7cd1a20867cec97a0beb5d2",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-pbnxit_s/workspaces/faviann-broodling-13-c983b050dbdbc6dd0f6cc0c3/worktree",
+            "branch": "broodling/faviann-broodling-13/c983b050dbdbc6dd0f6cc0c3",
+            "provisioned": true,
+            "observed_head": "ab250118c204316aa2c77f3821b6f43a3f0b493a",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-c983b050dbdbc6dd0f6cc0c3162dd7010bb55781e7cd1a20867cec97a0beb5d2",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-pbnxit_s/workspaces/faviann-broodling-13-c983b050dbdbc6dd0f6cc0c3/worktree",
+            "branch": "broodling/faviann-broodling-13/c983b050dbdbc6dd0f6cc0c3",
+            "provisioned": true,
+            "observed_head": "ab250118c204316aa2c77f3821b6f43a3f0b493a",
+            "observed_tracked_files": 0
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-c983b050dbdbc6dd0f6cc0c3162dd7010bb55781e7cd1a20867cec97a0beb5d2",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "ab250118c204316aa2c77f3821b6f43a3f0b493a"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-c983b050dbdbc6dd0f6cc0c3162dd7010bb55781e7cd1a20867cec97a0beb5d2",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "ab250118c204316aa2c77f3821b6f43a3f0b493a"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-c983b050dbdbc6dd0f6cc0c3162dd7010bb55781e7cd1a20867cec97a0beb5d2",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-pbnxit_s/workspaces/faviann-broodling-13-c983b050dbdbc6dd0f6cc0c3/worktree",
+              "branch": "broodling/faviann-broodling-13/c983b050dbdbc6dd0f6cc0c3",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-pbnxit_s/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-pbnxit_s/workspaces/faviann-broodling-13-c983b050dbdbc6dd0f6cc0c3/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/c983b050dbdbc6dd0f6cc0c3",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-pbnxit_s/workspaces/faviann-broodling-13-c983b050dbdbc6dd0f6cc0c3/worktree": {
+              "head": "ab250118c204316aa2c77f3821b6f43a3f0b493a",
+              "branch": "broodling/faviann-broodling-13/c983b050dbdbc6dd0f6cc0c3",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 2,
+        "b1": "1a988c13684eb3482844f1cf05b36c2252c688d4",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-1ac6c38226cda25dba9287cdadc330b52104b56b0fbffbf2bb8bc7a982d19934",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-fnw5gql6/workspaces/faviann-broodling-13-1ac6c38226cda25dba9287cd/worktree",
+            "branch": "broodling/faviann-broodling-13/1ac6c38226cda25dba9287cd",
+            "provisioned": true,
+            "observed_head": "1a988c13684eb3482844f1cf05b36c2252c688d4",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-1ac6c38226cda25dba9287cdadc330b52104b56b0fbffbf2bb8bc7a982d19934",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-fnw5gql6/workspaces/faviann-broodling-13-1ac6c38226cda25dba9287cd/worktree",
+            "branch": "broodling/faviann-broodling-13/1ac6c38226cda25dba9287cd",
+            "provisioned": true,
+            "observed_head": "1a988c13684eb3482844f1cf05b36c2252c688d4",
+            "observed_tracked_files": 3000
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-1ac6c38226cda25dba9287cdadc330b52104b56b0fbffbf2bb8bc7a982d19934",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-fnw5gql6/workspaces/faviann-broodling-13-1ac6c38226cda25dba9287cd/worktree",
+            "branch": "broodling/faviann-broodling-13/1ac6c38226cda25dba9287cd",
+            "provisioned": true,
+            "observed_head": "1a988c13684eb3482844f1cf05b36c2252c688d4",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-1ac6c38226cda25dba9287cdadc330b52104b56b0fbffbf2bb8bc7a982d19934",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-fnw5gql6/workspaces/faviann-broodling-13-1ac6c38226cda25dba9287cd/worktree",
+            "branch": "broodling/faviann-broodling-13/1ac6c38226cda25dba9287cd",
+            "provisioned": true,
+            "observed_head": "1a988c13684eb3482844f1cf05b36c2252c688d4",
+            "observed_tracked_files": 0
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-1ac6c38226cda25dba9287cdadc330b52104b56b0fbffbf2bb8bc7a982d19934",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "1a988c13684eb3482844f1cf05b36c2252c688d4"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-1ac6c38226cda25dba9287cdadc330b52104b56b0fbffbf2bb8bc7a982d19934",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "1a988c13684eb3482844f1cf05b36c2252c688d4"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-1ac6c38226cda25dba9287cdadc330b52104b56b0fbffbf2bb8bc7a982d19934",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-fnw5gql6/workspaces/faviann-broodling-13-1ac6c38226cda25dba9287cd/worktree",
+              "branch": "broodling/faviann-broodling-13/1ac6c38226cda25dba9287cd",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-fnw5gql6/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-fnw5gql6/workspaces/faviann-broodling-13-1ac6c38226cda25dba9287cd/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/1ac6c38226cda25dba9287cd",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-fnw5gql6/workspaces/faviann-broodling-13-1ac6c38226cda25dba9287cd/worktree": {
+              "head": "1a988c13684eb3482844f1cf05b36c2252c688d4",
+              "branch": "broodling/faviann-broodling-13/1ac6c38226cda25dba9287cd",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 3,
+        "b1": "e128d2583c86018f0ed5c82185a6068a48b10ce4",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-a4357f66c01f9e072081e1fc6ed54acea7cbe576e18a2401e7b36f744e4ed2fa",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-k44u68bu/workspaces/faviann-broodling-13-a4357f66c01f9e072081e1fc/worktree",
+            "branch": "broodling/faviann-broodling-13/a4357f66c01f9e072081e1fc",
+            "provisioned": true,
+            "observed_head": "e128d2583c86018f0ed5c82185a6068a48b10ce4",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-a4357f66c01f9e072081e1fc6ed54acea7cbe576e18a2401e7b36f744e4ed2fa",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-k44u68bu/workspaces/faviann-broodling-13-a4357f66c01f9e072081e1fc/worktree",
+            "branch": "broodling/faviann-broodling-13/a4357f66c01f9e072081e1fc",
+            "provisioned": true,
+            "observed_head": "e128d2583c86018f0ed5c82185a6068a48b10ce4",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-a4357f66c01f9e072081e1fc6ed54acea7cbe576e18a2401e7b36f744e4ed2fa",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-k44u68bu/workspaces/faviann-broodling-13-a4357f66c01f9e072081e1fc/worktree",
+            "branch": "broodling/faviann-broodling-13/a4357f66c01f9e072081e1fc",
+            "provisioned": true,
+            "observed_head": "e128d2583c86018f0ed5c82185a6068a48b10ce4",
+            "observed_tracked_files": 3000
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-a4357f66c01f9e072081e1fc6ed54acea7cbe576e18a2401e7b36f744e4ed2fa",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-k44u68bu/workspaces/faviann-broodling-13-a4357f66c01f9e072081e1fc/worktree",
+            "branch": "broodling/faviann-broodling-13/a4357f66c01f9e072081e1fc",
+            "provisioned": true,
+            "observed_head": "e128d2583c86018f0ed5c82185a6068a48b10ce4",
+            "observed_tracked_files": 0
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-a4357f66c01f9e072081e1fc6ed54acea7cbe576e18a2401e7b36f744e4ed2fa",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "e128d2583c86018f0ed5c82185a6068a48b10ce4"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-a4357f66c01f9e072081e1fc6ed54acea7cbe576e18a2401e7b36f744e4ed2fa",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "e128d2583c86018f0ed5c82185a6068a48b10ce4"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-a4357f66c01f9e072081e1fc6ed54acea7cbe576e18a2401e7b36f744e4ed2fa",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-k44u68bu/workspaces/faviann-broodling-13-a4357f66c01f9e072081e1fc/worktree",
+              "branch": "broodling/faviann-broodling-13/a4357f66c01f9e072081e1fc",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-k44u68bu/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-k44u68bu/workspaces/faviann-broodling-13-a4357f66c01f9e072081e1fc/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/a4357f66c01f9e072081e1fc",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-k44u68bu/workspaces/faviann-broodling-13-a4357f66c01f9e072081e1fc/worktree": {
+              "head": "e128d2583c86018f0ed5c82185a6068a48b10ce4",
+              "branch": "broodling/faviann-broodling-13/a4357f66c01f9e072081e1fc",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 4,
+        "b1": "fae5eb699188a980c7c5ab27d3a59119b0722cce",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e5c7bac5831c241339d1fa90fa7c2db55f71f76affc34cf913e187c835d03197",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-g4uk961p/workspaces/faviann-broodling-13-e5c7bac5831c241339d1fa90/worktree",
+            "branch": "broodling/faviann-broodling-13/e5c7bac5831c241339d1fa90",
+            "provisioned": true,
+            "observed_head": "fae5eb699188a980c7c5ab27d3a59119b0722cce",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e5c7bac5831c241339d1fa90fa7c2db55f71f76affc34cf913e187c835d03197",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-g4uk961p/workspaces/faviann-broodling-13-e5c7bac5831c241339d1fa90/worktree",
+            "branch": "broodling/faviann-broodling-13/e5c7bac5831c241339d1fa90",
+            "provisioned": true,
+            "observed_head": "fae5eb699188a980c7c5ab27d3a59119b0722cce",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e5c7bac5831c241339d1fa90fa7c2db55f71f76affc34cf913e187c835d03197",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-g4uk961p/workspaces/faviann-broodling-13-e5c7bac5831c241339d1fa90/worktree",
+            "branch": "broodling/faviann-broodling-13/e5c7bac5831c241339d1fa90",
+            "provisioned": true,
+            "observed_head": "fae5eb699188a980c7c5ab27d3a59119b0722cce",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e5c7bac5831c241339d1fa90fa7c2db55f71f76affc34cf913e187c835d03197",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-g4uk961p/workspaces/faviann-broodling-13-e5c7bac5831c241339d1fa90/worktree",
+            "branch": "broodling/faviann-broodling-13/e5c7bac5831c241339d1fa90",
+            "provisioned": true,
+            "observed_head": "fae5eb699188a980c7c5ab27d3a59119b0722cce",
+            "observed_tracked_files": 3000
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-e5c7bac5831c241339d1fa90fa7c2db55f71f76affc34cf913e187c835d03197",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "fae5eb699188a980c7c5ab27d3a59119b0722cce"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-e5c7bac5831c241339d1fa90fa7c2db55f71f76affc34cf913e187c835d03197",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "fae5eb699188a980c7c5ab27d3a59119b0722cce"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-e5c7bac5831c241339d1fa90fa7c2db55f71f76affc34cf913e187c835d03197",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-g4uk961p/workspaces/faviann-broodling-13-e5c7bac5831c241339d1fa90/worktree",
+              "branch": "broodling/faviann-broodling-13/e5c7bac5831c241339d1fa90",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-g4uk961p/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-g4uk961p/workspaces/faviann-broodling-13-e5c7bac5831c241339d1fa90/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/e5c7bac5831c241339d1fa90",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-g4uk961p/workspaces/faviann-broodling-13-e5c7bac5831c241339d1fa90/worktree": {
+              "head": "fae5eb699188a980c7c5ab27d3a59119b0722cce",
+              "branch": "broodling/faviann-broodling-13/e5c7bac5831c241339d1fa90",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 5,
+        "b1": "48d9e32b63e022a558c5a4f4cb65d156b251b5fc",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-843cc2e872bc7e611de7780f29bb59bba911d93b8e46ad39cb4595b7e52de686",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-k85w0y0s/workspaces/faviann-broodling-13-843cc2e872bc7e611de7780f/worktree",
+            "branch": "broodling/faviann-broodling-13/843cc2e872bc7e611de7780f",
+            "provisioned": true,
+            "observed_head": "48d9e32b63e022a558c5a4f4cb65d156b251b5fc",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-843cc2e872bc7e611de7780f29bb59bba911d93b8e46ad39cb4595b7e52de686",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-k85w0y0s/workspaces/faviann-broodling-13-843cc2e872bc7e611de7780f/worktree",
+            "branch": "broodling/faviann-broodling-13/843cc2e872bc7e611de7780f",
+            "provisioned": true,
+            "observed_head": "48d9e32b63e022a558c5a4f4cb65d156b251b5fc",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-843cc2e872bc7e611de7780f29bb59bba911d93b8e46ad39cb4595b7e52de686",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-k85w0y0s/workspaces/faviann-broodling-13-843cc2e872bc7e611de7780f/worktree",
+            "branch": "broodling/faviann-broodling-13/843cc2e872bc7e611de7780f",
+            "provisioned": true,
+            "observed_head": "48d9e32b63e022a558c5a4f4cb65d156b251b5fc",
+            "observed_tracked_files": 3000
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-843cc2e872bc7e611de7780f29bb59bba911d93b8e46ad39cb4595b7e52de686",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-k85w0y0s/workspaces/faviann-broodling-13-843cc2e872bc7e611de7780f/worktree",
+            "branch": "broodling/faviann-broodling-13/843cc2e872bc7e611de7780f",
+            "provisioned": true,
+            "observed_head": "48d9e32b63e022a558c5a4f4cb65d156b251b5fc",
+            "observed_tracked_files": 0
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-843cc2e872bc7e611de7780f29bb59bba911d93b8e46ad39cb4595b7e52de686",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "48d9e32b63e022a558c5a4f4cb65d156b251b5fc"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-843cc2e872bc7e611de7780f29bb59bba911d93b8e46ad39cb4595b7e52de686",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "48d9e32b63e022a558c5a4f4cb65d156b251b5fc"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-843cc2e872bc7e611de7780f29bb59bba911d93b8e46ad39cb4595b7e52de686",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-k85w0y0s/workspaces/faviann-broodling-13-843cc2e872bc7e611de7780f/worktree",
+              "branch": "broodling/faviann-broodling-13/843cc2e872bc7e611de7780f",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-k85w0y0s/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-k85w0y0s/workspaces/faviann-broodling-13-843cc2e872bc7e611de7780f/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/843cc2e872bc7e611de7780f",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-k85w0y0s/workspaces/faviann-broodling-13-843cc2e872bc7e611de7780f/worktree": {
+              "head": "48d9e32b63e022a558c5a4f4cb65d156b251b5fc",
+              "branch": "broodling/faviann-broodling-13/843cc2e872bc7e611de7780f",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 6,
+        "b1": "3a74fc5eba83d604d8127b6cac11d122789d4a03",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-f47ac29316058d1888d871b71d5628da316a663dc70545d4c2ff2de47efd4498",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-_3pish50/workspaces/faviann-broodling-13-f47ac29316058d1888d871b7/worktree",
+            "branch": "broodling/faviann-broodling-13/f47ac29316058d1888d871b7",
+            "provisioned": true,
+            "observed_head": "3a74fc5eba83d604d8127b6cac11d122789d4a03",
+            "observed_tracked_files": 3000
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-f47ac29316058d1888d871b71d5628da316a663dc70545d4c2ff2de47efd4498",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-_3pish50/workspaces/faviann-broodling-13-f47ac29316058d1888d871b7/worktree",
+            "branch": "broodling/faviann-broodling-13/f47ac29316058d1888d871b7",
+            "provisioned": true,
+            "observed_head": "3a74fc5eba83d604d8127b6cac11d122789d4a03",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-f47ac29316058d1888d871b71d5628da316a663dc70545d4c2ff2de47efd4498",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-_3pish50/workspaces/faviann-broodling-13-f47ac29316058d1888d871b7/worktree",
+            "branch": "broodling/faviann-broodling-13/f47ac29316058d1888d871b7",
+            "provisioned": true,
+            "observed_head": "3a74fc5eba83d604d8127b6cac11d122789d4a03",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-f47ac29316058d1888d871b71d5628da316a663dc70545d4c2ff2de47efd4498",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-_3pish50/workspaces/faviann-broodling-13-f47ac29316058d1888d871b7/worktree",
+            "branch": "broodling/faviann-broodling-13/f47ac29316058d1888d871b7",
+            "provisioned": true,
+            "observed_head": "3a74fc5eba83d604d8127b6cac11d122789d4a03",
+            "observed_tracked_files": 0
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-f47ac29316058d1888d871b71d5628da316a663dc70545d4c2ff2de47efd4498",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "3a74fc5eba83d604d8127b6cac11d122789d4a03"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-f47ac29316058d1888d871b71d5628da316a663dc70545d4c2ff2de47efd4498",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "3a74fc5eba83d604d8127b6cac11d122789d4a03"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-f47ac29316058d1888d871b71d5628da316a663dc70545d4c2ff2de47efd4498",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-_3pish50/workspaces/faviann-broodling-13-f47ac29316058d1888d871b7/worktree",
+              "branch": "broodling/faviann-broodling-13/f47ac29316058d1888d871b7",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-_3pish50/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-_3pish50/workspaces/faviann-broodling-13-f47ac29316058d1888d871b7/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/f47ac29316058d1888d871b7",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-_3pish50/workspaces/faviann-broodling-13-f47ac29316058d1888d871b7/worktree": {
+              "head": "3a74fc5eba83d604d8127b6cac11d122789d4a03",
+              "branch": "broodling/faviann-broodling-13/f47ac29316058d1888d871b7",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 7,
+        "b1": "b14cef54283e503675c31e55c86742e04f7880d4",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e3570b68435755de7e4275e86ef286cfdf98b49271c92acdac1067cf8f97170d",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-opqq62ab/workspaces/faviann-broodling-13-e3570b68435755de7e4275e8/worktree",
+            "branch": "broodling/faviann-broodling-13/e3570b68435755de7e4275e8",
+            "provisioned": true,
+            "observed_head": "b14cef54283e503675c31e55c86742e04f7880d4",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e3570b68435755de7e4275e86ef286cfdf98b49271c92acdac1067cf8f97170d",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-opqq62ab/workspaces/faviann-broodling-13-e3570b68435755de7e4275e8/worktree",
+            "branch": "broodling/faviann-broodling-13/e3570b68435755de7e4275e8",
+            "provisioned": true,
+            "observed_head": "b14cef54283e503675c31e55c86742e04f7880d4",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e3570b68435755de7e4275e86ef286cfdf98b49271c92acdac1067cf8f97170d",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-opqq62ab/workspaces/faviann-broodling-13-e3570b68435755de7e4275e8/worktree",
+            "branch": "broodling/faviann-broodling-13/e3570b68435755de7e4275e8",
+            "provisioned": true,
+            "observed_head": "b14cef54283e503675c31e55c86742e04f7880d4",
+            "observed_tracked_files": 3000
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-e3570b68435755de7e4275e86ef286cfdf98b49271c92acdac1067cf8f97170d",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-opqq62ab/workspaces/faviann-broodling-13-e3570b68435755de7e4275e8/worktree",
+            "branch": "broodling/faviann-broodling-13/e3570b68435755de7e4275e8",
+            "provisioned": true,
+            "observed_head": "b14cef54283e503675c31e55c86742e04f7880d4",
+            "observed_tracked_files": 0
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-e3570b68435755de7e4275e86ef286cfdf98b49271c92acdac1067cf8f97170d",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "b14cef54283e503675c31e55c86742e04f7880d4"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-e3570b68435755de7e4275e86ef286cfdf98b49271c92acdac1067cf8f97170d",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "b14cef54283e503675c31e55c86742e04f7880d4"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-e3570b68435755de7e4275e86ef286cfdf98b49271c92acdac1067cf8f97170d",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-opqq62ab/workspaces/faviann-broodling-13-e3570b68435755de7e4275e8/worktree",
+              "branch": "broodling/faviann-broodling-13/e3570b68435755de7e4275e8",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-opqq62ab/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-opqq62ab/workspaces/faviann-broodling-13-e3570b68435755de7e4275e8/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/e3570b68435755de7e4275e8",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-opqq62ab/workspaces/faviann-broodling-13-e3570b68435755de7e4275e8/worktree": {
+              "head": "b14cef54283e503675c31e55c86742e04f7880d4",
+              "branch": "broodling/faviann-broodling-13/e3570b68435755de7e4275e8",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 8,
+        "b1": "1e0f065b4754d305509df64cd02927abfbed00a2",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-4c488747ba288405c4ecfbb4dea905274241fe1fc034ddd53a5e62232071ecec",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-a5rc99kh/workspaces/faviann-broodling-13-4c488747ba288405c4ecfbb4/worktree",
+            "branch": "broodling/faviann-broodling-13/4c488747ba288405c4ecfbb4",
+            "provisioned": true,
+            "observed_head": "1e0f065b4754d305509df64cd02927abfbed00a2",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-4c488747ba288405c4ecfbb4dea905274241fe1fc034ddd53a5e62232071ecec",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-a5rc99kh/workspaces/faviann-broodling-13-4c488747ba288405c4ecfbb4/worktree",
+            "branch": "broodling/faviann-broodling-13/4c488747ba288405c4ecfbb4",
+            "provisioned": true,
+            "observed_head": "1e0f065b4754d305509df64cd02927abfbed00a2",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-4c488747ba288405c4ecfbb4dea905274241fe1fc034ddd53a5e62232071ecec",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-a5rc99kh/workspaces/faviann-broodling-13-4c488747ba288405c4ecfbb4/worktree",
+            "branch": "broodling/faviann-broodling-13/4c488747ba288405c4ecfbb4",
+            "provisioned": true,
+            "observed_head": "1e0f065b4754d305509df64cd02927abfbed00a2",
+            "observed_tracked_files": 3000
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-4c488747ba288405c4ecfbb4dea905274241fe1fc034ddd53a5e62232071ecec",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-a5rc99kh/workspaces/faviann-broodling-13-4c488747ba288405c4ecfbb4/worktree",
+            "branch": "broodling/faviann-broodling-13/4c488747ba288405c4ecfbb4",
+            "provisioned": true,
+            "observed_head": "1e0f065b4754d305509df64cd02927abfbed00a2",
+            "observed_tracked_files": 0
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-4c488747ba288405c4ecfbb4dea905274241fe1fc034ddd53a5e62232071ecec",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "1e0f065b4754d305509df64cd02927abfbed00a2"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-4c488747ba288405c4ecfbb4dea905274241fe1fc034ddd53a5e62232071ecec",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "1e0f065b4754d305509df64cd02927abfbed00a2"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-4c488747ba288405c4ecfbb4dea905274241fe1fc034ddd53a5e62232071ecec",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-a5rc99kh/workspaces/faviann-broodling-13-4c488747ba288405c4ecfbb4/worktree",
+              "branch": "broodling/faviann-broodling-13/4c488747ba288405c4ecfbb4",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-a5rc99kh/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-a5rc99kh/workspaces/faviann-broodling-13-4c488747ba288405c4ecfbb4/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/4c488747ba288405c4ecfbb4",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-a5rc99kh/workspaces/faviann-broodling-13-4c488747ba288405c4ecfbb4/worktree": {
+              "head": "1e0f065b4754d305509df64cd02927abfbed00a2",
+              "branch": "broodling/faviann-broodling-13/4c488747ba288405c4ecfbb4",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 9,
+        "b1": "69a24791d10511316e3dc312f7959dcbd803f660",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-ef4e5e0b25997f0c1469c91452b1a26b0c42e2f457c66acc83cdcf13a89cff39",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-osnwqmge/workspaces/faviann-broodling-13-ef4e5e0b25997f0c1469c914/worktree",
+            "branch": "broodling/faviann-broodling-13/ef4e5e0b25997f0c1469c914",
+            "provisioned": true,
+            "observed_head": "69a24791d10511316e3dc312f7959dcbd803f660",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-ef4e5e0b25997f0c1469c91452b1a26b0c42e2f457c66acc83cdcf13a89cff39",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-osnwqmge/workspaces/faviann-broodling-13-ef4e5e0b25997f0c1469c914/worktree",
+            "branch": "broodling/faviann-broodling-13/ef4e5e0b25997f0c1469c914",
+            "provisioned": true,
+            "observed_head": "69a24791d10511316e3dc312f7959dcbd803f660",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-ef4e5e0b25997f0c1469c91452b1a26b0c42e2f457c66acc83cdcf13a89cff39",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-osnwqmge/workspaces/faviann-broodling-13-ef4e5e0b25997f0c1469c914/worktree",
+            "branch": "broodling/faviann-broodling-13/ef4e5e0b25997f0c1469c914",
+            "provisioned": true,
+            "observed_head": "69a24791d10511316e3dc312f7959dcbd803f660",
+            "observed_tracked_files": 3000
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-ef4e5e0b25997f0c1469c91452b1a26b0c42e2f457c66acc83cdcf13a89cff39",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-osnwqmge/workspaces/faviann-broodling-13-ef4e5e0b25997f0c1469c914/worktree",
+            "branch": "broodling/faviann-broodling-13/ef4e5e0b25997f0c1469c914",
+            "provisioned": true,
+            "observed_head": "69a24791d10511316e3dc312f7959dcbd803f660",
+            "observed_tracked_files": 0
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-ef4e5e0b25997f0c1469c91452b1a26b0c42e2f457c66acc83cdcf13a89cff39",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "69a24791d10511316e3dc312f7959dcbd803f660"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-ef4e5e0b25997f0c1469c91452b1a26b0c42e2f457c66acc83cdcf13a89cff39",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "69a24791d10511316e3dc312f7959dcbd803f660"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-ef4e5e0b25997f0c1469c91452b1a26b0c42e2f457c66acc83cdcf13a89cff39",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-osnwqmge/workspaces/faviann-broodling-13-ef4e5e0b25997f0c1469c914/worktree",
+              "branch": "broodling/faviann-broodling-13/ef4e5e0b25997f0c1469c914",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-osnwqmge/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-osnwqmge/workspaces/faviann-broodling-13-ef4e5e0b25997f0c1469c914/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/ef4e5e0b25997f0c1469c914",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-osnwqmge/workspaces/faviann-broodling-13-ef4e5e0b25997f0c1469c914/worktree": {
+              "head": "69a24791d10511316e3dc312f7959dcbd803f660",
+              "branch": "broodling/faviann-broodling-13/ef4e5e0b25997f0c1469c914",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 10,
+        "b1": "cecdeee47864e2c7b1dd53c8bf11fc8adf8bdfbe",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-d323eb4a1211c0e4f85b954e622f0559f3a4850ad9e29806bb7986a8493599ec",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-dio5iola/workspaces/faviann-broodling-13-d323eb4a1211c0e4f85b954e/worktree",
+            "branch": "broodling/faviann-broodling-13/d323eb4a1211c0e4f85b954e",
+            "provisioned": true,
+            "observed_head": "cecdeee47864e2c7b1dd53c8bf11fc8adf8bdfbe",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-d323eb4a1211c0e4f85b954e622f0559f3a4850ad9e29806bb7986a8493599ec",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-dio5iola/workspaces/faviann-broodling-13-d323eb4a1211c0e4f85b954e/worktree",
+            "branch": "broodling/faviann-broodling-13/d323eb4a1211c0e4f85b954e",
+            "provisioned": true,
+            "observed_head": "cecdeee47864e2c7b1dd53c8bf11fc8adf8bdfbe",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-d323eb4a1211c0e4f85b954e622f0559f3a4850ad9e29806bb7986a8493599ec",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-dio5iola/workspaces/faviann-broodling-13-d323eb4a1211c0e4f85b954e/worktree",
+            "branch": "broodling/faviann-broodling-13/d323eb4a1211c0e4f85b954e",
+            "provisioned": true,
+            "observed_head": "cecdeee47864e2c7b1dd53c8bf11fc8adf8bdfbe",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-d323eb4a1211c0e4f85b954e622f0559f3a4850ad9e29806bb7986a8493599ec",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-dio5iola/workspaces/faviann-broodling-13-d323eb4a1211c0e4f85b954e/worktree",
+            "branch": "broodling/faviann-broodling-13/d323eb4a1211c0e4f85b954e",
+            "provisioned": true,
+            "observed_head": "cecdeee47864e2c7b1dd53c8bf11fc8adf8bdfbe",
+            "observed_tracked_files": 3000
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-d323eb4a1211c0e4f85b954e622f0559f3a4850ad9e29806bb7986a8493599ec",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "cecdeee47864e2c7b1dd53c8bf11fc8adf8bdfbe"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-d323eb4a1211c0e4f85b954e622f0559f3a4850ad9e29806bb7986a8493599ec",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "cecdeee47864e2c7b1dd53c8bf11fc8adf8bdfbe"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-d323eb4a1211c0e4f85b954e622f0559f3a4850ad9e29806bb7986a8493599ec",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-dio5iola/workspaces/faviann-broodling-13-d323eb4a1211c0e4f85b954e/worktree",
+              "branch": "broodling/faviann-broodling-13/d323eb4a1211c0e4f85b954e",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-dio5iola/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-dio5iola/workspaces/faviann-broodling-13-d323eb4a1211c0e4f85b954e/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/d323eb4a1211c0e4f85b954e",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-dio5iola/workspaces/faviann-broodling-13-d323eb4a1211c0e4f85b954e/worktree": {
+              "head": "cecdeee47864e2c7b1dd53c8bf11fc8adf8bdfbe",
+              "branch": "broodling/faviann-broodling-13/d323eb4a1211c0e4f85b954e",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      },
+      {
+        "round": 11,
+        "b1": "b7874a94e0b1ea80feeb3d00584565e241529402",
+        "racers": [
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-04bbedcbf9150758f39143e6a6163a1ceaa9b92e097ebbfa861a2f2c3882c7d3",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-fmsbwf3a/workspaces/faviann-broodling-13-04bbedcbf9150758f39143e6/worktree",
+            "branch": "broodling/faviann-broodling-13/04bbedcbf9150758f39143e6",
+            "provisioned": true,
+            "observed_head": "b7874a94e0b1ea80feeb3d00584565e241529402",
+            "observed_tracked_files": 3000
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-04bbedcbf9150758f39143e6a6163a1ceaa9b92e097ebbfa861a2f2c3882c7d3",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-fmsbwf3a/workspaces/faviann-broodling-13-04bbedcbf9150758f39143e6/worktree",
+            "branch": "broodling/faviann-broodling-13/04bbedcbf9150758f39143e6",
+            "provisioned": true,
+            "observed_head": "b7874a94e0b1ea80feeb3d00584565e241529402",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-04bbedcbf9150758f39143e6a6163a1ceaa9b92e097ebbfa861a2f2c3882c7d3",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-fmsbwf3a/workspaces/faviann-broodling-13-04bbedcbf9150758f39143e6/worktree",
+            "branch": "broodling/faviann-broodling-13/04bbedcbf9150758f39143e6",
+            "provisioned": true,
+            "observed_head": "b7874a94e0b1ea80feeb3d00584565e241529402",
+            "observed_tracked_files": 0
+          },
+          {
+            "ok": true,
+            "error": null,
+            "attempt_id": "at-04bbedcbf9150758f39143e6a6163a1ceaa9b92e097ebbfa861a2f2c3882c7d3",
+            "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-fmsbwf3a/workspaces/faviann-broodling-13-04bbedcbf9150758f39143e6/worktree",
+            "branch": "broodling/faviann-broodling-13/04bbedcbf9150758f39143e6",
+            "provisioned": true,
+            "observed_head": "b7874a94e0b1ea80feeb3d00584565e241529402",
+            "observed_tracked_files": 0
+          }
+        ],
+        "durable_state": {
+          "attempts": [
+            {
+              "attempt_id": "at-04bbedcbf9150758f39143e6a6163a1ceaa9b92e097ebbfa861a2f2c3882c7d3",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "b7874a94e0b1ea80feeb3d00584565e241529402"
+            }
+          ],
+          "current_attempts": [
+            {
+              "attempt_id": "at-04bbedcbf9150758f39143e6a6163a1ceaa9b92e097ebbfa861a2f2c3882c7d3",
+              "is_current": 1,
+              "contract_revision_id": "cr-e9b32b258b32f7c39da449a3e433db5501a50a143aa194dc2b4d9bb7b83cc5da",
+              "b1_commit_oid": "b7874a94e0b1ea80feeb3d00584565e241529402"
+            }
+          ],
+          "worktree_assignments": [
+            {
+              "attempt_id": "at-04bbedcbf9150758f39143e6a6163a1ceaa9b92e097ebbfa861a2f2c3882c7d3",
+              "worktree_path": "/home/faviann/.cache/broodling-evidence/b13-race-fmsbwf3a/workspaces/faviann-broodling-13-04bbedcbf9150758f39143e6/worktree",
+              "branch": "broodling/faviann-broodling-13/04bbedcbf9150758f39143e6",
+              "state": "provisioned"
+            }
+          ],
+          "registered_worktrees": [
+            "/home/faviann/.cache/broodling-evidence/b13-race-fmsbwf3a/source",
+            "/home/faviann/.cache/broodling-evidence/b13-race-fmsbwf3a/workspaces/faviann-broodling-13-04bbedcbf9150758f39143e6/worktree"
+          ],
+          "branches": [
+            "broodling/faviann-broodling-13/04bbedcbf9150758f39143e6",
+            "main"
+          ],
+          "materialized": {
+            "/home/faviann/.cache/broodling-evidence/b13-race-fmsbwf3a/workspaces/faviann-broodling-13-04bbedcbf9150758f39143e6/worktree": {
+              "head": "b7874a94e0b1ea80feeb3d00584565e241529402",
+              "branch": "broodling/faviann-broodling-13/04bbedcbf9150758f39143e6",
+              "tracked_files": 3000
+            }
+          }
+        },
+        "violations": [
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True",
+          "inconsistent_result: racer was handed a worktree holding 0 of 3000 files with provisioned=True"
+        ]
+      }
+    ],
+    "sample_passing_round": null
+  }
+}

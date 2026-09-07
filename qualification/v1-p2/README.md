@@ -54,6 +54,11 @@ one-file B1 the window is microseconds and the failure is a rare flake — which
 how it reached the gate as an unexplained one. At 3000 files it is about a
 second, and every round fails.
 
+To reproduce the flake as the gate saw it rather than the amplified failure, run
+the same command against `00db4a2` with `--rounds 300 --racers 2 --files 1`. It
+takes a few minutes and violates a handful of rounds; the retained records are
+`evidence/issue-13-race-reviewed-flake-{1,2}.json`.
+
 ## Product tests
 
 The same facts are asserted in the suite, which needs no arguments:

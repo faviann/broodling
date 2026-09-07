@@ -1,0 +1,80 @@
+{
+  "environment": {
+    "python": "3.13.5",
+    "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+    "git": "git version 2.47.3",
+    "broodling_commit": "38061285bcb3bf35b63b6240d65f606875bfbc4f",
+    "uncommitted_paths": [],
+    "cpu_count": 16,
+    "recorded_at": "2026-09-07T20:02:43+00:00"
+  },
+  "stage_order": {
+    "files_in_b1": 3000,
+    "trials": [
+      {
+        "milestones_ms": {
+          "registered": 10.92,
+          "directory_populated": 11.11,
+          "branch_attached": 12.45,
+          "tree_complete": 1082.2
+        },
+        "registered_before_branch_attached": true,
+        "registered_before_directory_populated": true,
+        "detached_window_ms": 1.54,
+        "incomplete_tree_window_ms": 1069.75
+      },
+      {
+        "milestones_ms": {
+          "registered": 12.56,
+          "directory_populated": 12.56,
+          "branch_attached": 13.75,
+          "tree_complete": 852.96
+        },
+        "registered_before_branch_attached": true,
+        "registered_before_directory_populated": true,
+        "detached_window_ms": 1.19,
+        "incomplete_tree_window_ms": 839.2
+      },
+      {
+        "milestones_ms": {
+          "registered": 29.1,
+          "directory_populated": 29.1,
+          "branch_attached": 30.53,
+          "tree_complete": 946.85
+        },
+        "registered_before_branch_attached": true,
+        "registered_before_directory_populated": true,
+        "detached_window_ms": 1.43,
+        "incomplete_tree_window_ms": 916.32
+      },
+      {
+        "milestones_ms": {
+          "registered": 6.42,
+          "directory_populated": 6.42,
+          "branch_attached": 6.98,
+          "tree_complete": 748.31
+        },
+        "registered_before_branch_attached": true,
+        "registered_before_directory_populated": true,
+        "detached_window_ms": 0.57,
+        "incomplete_tree_window_ms": 741.33
+      },
+      {
+        "milestones_ms": {
+          "registered": 10.13,
+          "directory_populated": 10.13,
+          "branch_attached": 10.75,
+          "tree_complete": 937.04
+        },
+        "registered_before_branch_attached": true,
+        "registered_before_directory_populated": true,
+        "detached_window_ms": 0.62,
+        "incomplete_tree_window_ms": 926.29
+      }
+    ],
+    "every_trial_registers_before_attaching_the_branch": true,
+    "every_trial_registers_before_populating_the_directory": true,
+    "widest_detached_window_ms": 1.54,
+    "widest_incomplete_tree_window_ms": 1069.75
+  }
+}

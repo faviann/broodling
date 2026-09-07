@@ -264,8 +264,10 @@ its result in stages — the registration, then the attached branch, then the
 checked-out tree — and none of the intermediate states is distinguishable, by
 reading, from foreign or half-built state. A reader that lands inside one either
 refuses its own Attempt's worktree or acknowledges one that has not finished
-arriving. On a B1 of any real size the last window is the wide one: measured at
-880–1020 ms against 3.4 ms for the others.
+arriving. On a B1 of any real size the last window is the wide one: over a
+3000-file B1, the branch attaches within 1.6 ms of the registration but the tree
+is not complete for a further 741–1070 ms
+([record](../../qualification/v1-p2/evidence/issue-13-stage-order.json)).
 
 Materializing one Attempt is therefore single-writer on this host. `provision`
 holds `flock` on `.broodling-provisioning.lock` in that Attempt's enclosure for
