@@ -14,6 +14,8 @@ remain evidence, not production dependencies.
 
 from __future__ import annotations
 
+from .reviewer import REVIEW_INSTRUCTIONS
+
 REPAIR_BOUND = 3
 # W4's finite real-provider bound replaces the controlled W3 leaf's 250 ms.
 NODE_TIMEOUT_MS = 300_000
@@ -238,9 +240,7 @@ def _assurance(repaired: bool, continuation: dict) -> dict:
     review = _leaf(
         review_name,
         _same("contract", "evidence"),
-        instructions="Independent read-only review of the stable current candidate and available required "
-        "evidence under the frozen Contract. Return actual findings in findingContent and clean/found "
-        "as the canonical review signal. Findings confer no correction or acceptance authority.",
+        instructions=REVIEW_INSTRUCTIONS,
         signal=("findings", ["clean", "found"], "findings"),
         payload="findingContent",
     )

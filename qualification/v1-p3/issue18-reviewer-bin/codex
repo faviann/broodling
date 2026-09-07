@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""Pre-integration #18 reviewer control: real reviewers, controlled other roles."""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import uuid
+from pathlib import Path
+
+
+def append(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as stream:
+        stream.write(json.dumps(value, sort_keys=True) + "\n")
+
+
+def emit(value):
+    print(json.dumps(value), flush=True)
+
+
+def main():
+    actual = os.environ["BROODLING_18_ACTUAL_CODEX"]
+    if sys.argv[1:] == ["--version"]:
+        os.execv(actual, [actual, "--version"])
+    prompt = sys.stdin.read()
+    node = re.search(r"BROODLING_NODE=([a-z0-9_]+)", prompt).group(1)
+    input_value = json.loads(
+        re.search(
+            r"Input JSON:\n([^\n]+)\nRuntime-owned response contract:", prompt
+        ).group(1)
+    )
+    state = Path(os.environ["BROODLING_18_STATE"])
+    scenario = os.environ["BROODLING_18_SCENARIO"]
+    if node.endswith("review"):
+        if scenario == "contaminated":
+            prompt += (
+                "\nAUTOMATIC_TRANSCRIPT_CONTAMINATION_CONTROL:\n"
+                "FORBIDDEN_WORKER_NARRATIVE_7Q9\nFORBIDDEN_PRIOR_REVIEW_4M2\n"
+                "FORBIDDEN_ADJUDICATION_8K1\nFORBIDDEN_REPAIR_RATIONALE_6P3\n"
+                "FORBIDDEN_AMBIENT_SETTING_2V5\nFORBIDDEN_AMBIENT_SKILL_9N4\n"
+            )
+        completed = subprocess.run(
+            [actual, *sys.argv[1:]],
+            input=prompt,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        append(
+            state / "real-reviewer.jsonl",
+            {
+                "node": node,
+                "input": input_value,
+                "prompt": prompt,
+                "argv": [actual, *sys.argv[1:]],
+                "returnCode": completed.returncode,
+                "stdout": completed.stdout,
+                "stderr": completed.stderr,
+                "home": os.environ["HOME"],
+                "codexHome": os.environ["CODEX_HOME"],
+            },
+        )
+        sys.stdout.write(completed.stdout)
+        sys.stderr.write(completed.stderr)
+        return completed.returncode
+    candidate = Path("candidate.txt")
+    if node == "implement":
+        candidate.write_text("C1_FROM_IMPLEMENT\nSOURCE_VISIBLE_CANARY_A17\n")
+        observed = candidate.read_text()
+        Path("evidence/raw.txt").write_text(
+            "RAW_VISIBLE_CANARY_C39\n"
+            "check=read all UTF-8 bytes of candidate.txt after implementation, require "
+            "C1_FROM_IMPLEMENT and SOURCE_VISIBLE_CANARY_A17, and preserve trailing newline\n"
+            "host=qualified-single-host\nmode=actual\npopulation=all candidate.txt\n"
+            "artifact=current candidate.txt\n"
+            "actual raw observed candidate bytes begin:\n"
+            + observed
+            + "actual raw observed candidate bytes end\n"
+            "assert C1_FROM_IMPLEMENT in content: PASS\n"
+            "assert SOURCE_VISIBLE_CANARY_A17 in content: PASS\n"
+            "assert content ends with newline: PASS\n"
+            "check_exit_code=0\nobserved=PASS\n"
+        )
+        response = None
+    elif node.endswith("evidence_check"):
+        response = {
+            "output": None,
+            "signals": {"availability": "valid"},
+            "diagnostic": {
+                "note": "Controlled availability only; does not qualify trusted evidence production."
+            },
+        }
+    elif node == "adjudicate_authority":
+        response = {
+            "output": {"directiveContent": {"directive": "", "correction": ""}},
+            "signals": {"decision": "none"},
+            "diagnostic": {"note": "FORBIDDEN_ADJUDICATION_8K1"},
+        }
+    elif node.startswith("final_assessment_authority"):
+        response = {
+            "output": None,
+            "signals": {
+                "assessment": "gap" if scenario == "contaminated" else "accepted"
+            },
+            "diagnostic": {
+                "note": "Controlled final route; no semantic reliability or disposition claim."
+            },
+        }
+    else:
+        raise ValueError(node)
+    append(
+        state / "driver.jsonl",
+        {
+            "node": node,
+            "input": input_value,
+            "response": response,
+            "candidate": candidate.read_text(),
+            "argv": sys.argv[1:],
+            "recordedNs": time.time_ns(),
+        },
+    )
+    emit({"type": "thread.started", "thread_id": f"b18-{node}-{uuid.uuid4()}"})
+    emit({"type": "turn.started"})
+    emit(
+        {
+            "type": "item.completed",
+            "item": {"type": "agent_message", "text": "FORBIDDEN_WORKER_NARRATIVE_7Q9"},
+        }
+    )
+    emit(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "agent_message",
+                "text": json.dumps({"response": response}),
+            },
+        }
+    )
+    emit(
+        {
+            "type": "turn.completed",
+            "usage": {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1},
+        }
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

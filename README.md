@@ -54,6 +54,8 @@ The separate [G1-V1 gate review](qualification/v1-p1/issue-11-g1-v1.md) is **COM
 
 Issue #17 adds the [product assurance graph](docs/implementation/v1-p3-assurance-graph.md), with structural candidate generations, sticky typed directives, bounded repair and fail-closed required controls. `SubmissionCoordinator.submit_assurance` constructs the product protocol from the frozen Contract and requires the explicit qualified Codex profile. Contract-derived evidence integration, product reviewer controls and final assurance custody remain the subsequent #18/#19 boundaries. G3-V1 has not been reviewed; abandonment/restart, Work Unit disposition and effects remain unimplemented.
 
+Issue #18 has [partial real-reviewer controls](qualification/v1-p3/issue-18-reviewer-preintegration.md), but remains [blocked on the trusted evidence execution seam](qualification/v1-p3/issue-18-evidence-seam.md). No Contract-derived trusted evidence producer or #18 completion is claimed.
+
 The historical [G1-core review](qualification/p1/issue-7-g1-core.md) remains **BLOCKED** under v0.3. Q2 and the bounded Q3 fixture retain their historical scoped passes; Q1/Q4/Q5/Q6 remain blocked, and [Q7/G1-effects](qualification/p1/issue-6-q7.md) remains independently blocked. v0.5 does not relabel those historical results.
 
 ## Product code
