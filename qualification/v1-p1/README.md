@@ -1,6 +1,6 @@
-# V1-P1 issue #8 qualification
+# V1-P1 qualification
 
-This directory contains the qualification-only fixture for Broodling issue #8. It reuses the
+This directory contains qualification-only fixtures for Broodling issues #8 and #9. They reuse the
 official Python SDK and matching Rust sidecar build described by the historical P1 harness, while
 keeping the new V1 observations separate from `qualification/p1`.
 
@@ -12,7 +12,34 @@ counterexamples. W2/W7 confinement probes use the installed real Codex/OpenAI pr
 fixture creates minimal administrative JSON only to mark an Attempt ineligible before
 cessation/restart; it is not Broodling product code or a selected store design.
 
-## Reproduction
+## Issue #9 / W3 reproduction
+
+Use the same pinned source and wheel described below, then:
+
+```bash
+RUN_ROOT=$(mktemp -d /dev/shm/b9.XXXXXX)
+rmdir "$RUN_ROOT"
+WORKSPACE_ROOT=$(mktemp -d /path/on/non-temporary-filesystem/b9.XXXXXX)
+rmdir "$WORKSPACE_ROOT"
+
+VENV=/path/to/venv
+WHEEL=/path/to/zeroshot_rust-0.1.0.dev0-py3-none-linux_x86_64.whl
+
+"$VENV/bin/python" qualification/v1-p1/issue9_qualify.py \
+  --run-root "$RUN_ROOT" \
+  --workspace-root "$WORKSPACE_ROOT" \
+  --output "$RUN_ROOT/issue-9-run-record.json" \
+  --zeroshot-source /path/to/zeroshot \
+  --wheel "$WHEEL" \
+  --timeout 60
+```
+
+The [W3 report](issue-9-w3.md) and
+[machine record](evidence/issue-9-run-record.json) describe the actual graph, controls, verdict and
+limits. The graph uses structural candidate generations and one graph-local raw-evidence check; it
+contains no candidate seal/hash/manifest or external applicability observer.
+
+## Issue #8 reproduction
 
 Use clean Zeroshot source `d0909615d6ba3c179b58bce15a059f40400ec995` and the official wheel
 whose SHA-256 is `16bc7919f913ccc00853b5a917bc164800c5b44d3b4c4c99f2131d09f9ebeebb`.
@@ -61,6 +88,6 @@ observations, controlled-leaf events, administrative facts, and probe results.
 ```bash
 python3 -m unittest discover -s qualification/v1-p1/tests -v
 python3 -m unittest discover -s qualification/p1/tests -v
-python3 -m py_compile qualification/v1-p1/issue8_qualify.py qualification/v1-p1/bin/codex
+python3 -m py_compile qualification/v1-p1/issue8_qualify.py qualification/v1-p1/issue9_qualify.py qualification/v1-p1/bin/codex qualification/v1-p1/w3-bin/codex
 git diff --check
 ```

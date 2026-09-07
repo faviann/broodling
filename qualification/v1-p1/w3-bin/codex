@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Controlled Codex-protocol leaf for the issue #9 W3 qualification."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import signal
+import sys
+import time
+from pathlib import Path
+
+
+def emit(value: object) -> None:
+    print(json.dumps(value, separators=(",", ":")), flush=True)
+
+
+def next_invocation(state: Path, node: str) -> int:
+    counter = state / f"{node}.count"
+    try:
+        value = int(counter.read_text(encoding="utf-8")) + 1
+    except FileNotFoundError:
+        value = 1
+    counter.write_text(f"{value}\n", encoding="utf-8")
+    return value
+
+
+def parse_scenario(value: str) -> tuple[str, str, str]:
+    parts = value.split(";")
+    base = parts[0]
+    fault = parts[1].split(":", 1) if len(parts) > 1 else ["", ""]
+    return base, fault[0], fault[1]
+
+
+def diagnostic(base: str, node: str) -> dict[str, str]:
+    if base == "forged-diagnostics":
+        return {
+            "contractId": "forged-contract",
+            "sourceId": "forged-source",
+            "evidenceId": "forged-evidence",
+            "predecessorId": "forged-predecessor",
+            "note": "diagnostic-only",
+        }
+    if node.endswith("review"):
+        return {"note": "RAW_REJECTED_FINDING_CANARY"}
+    if node in {"adjudicate_authority", "resolution_authority"}:
+        return {"note": "PRIVATE_AUTHORITY_CANARY"}
+    return {"note": "controlled"}
+
+
+def response_for(node: str, invocation: int, base: str, workspace: Path) -> object:
+    if node == "implement":
+        return {"candidateGeneration": "c1"}
+    if node == "repair":
+        return {"candidateGeneration": f"c{min(invocation + 1, 4)}"}
+    if node == "round_complete":
+        return {"output": None, "signals": {"status": "completed"}, "diagnostic": diagnostic(base, node)}
+    if node.endswith("evidence_check"):
+        availability = "valid" if (workspace / "evidence/raw.txt").exists() else "missing"
+        return {"output": None, "signals": {"availability": availability}, "diagnostic": diagnostic(base, node)}
+    if node.endswith("review"):
+        initial = node == "initial_review"
+        findings = "found" if base in {
+            "repair-resolve", "sticky-exhaust", "sticky-omission", "contradictory-clean",
+            "forged-diagnostics", "repair-input-canary", "missing-after-repair",
+            "final-gap", "final-insufficient-evidence", "repair-claim",
+        } and initial else "clean"
+        return {"output": None, "signals": {"findings": findings}, "diagnostic": diagnostic(base, node)}
+    if node == "adjudicate_authority":
+        decision = "open_d1" if base not in {"clean", "empty-review-control"} else "none"
+        note = "claims-clean-but-signal-opens-d1" if base == "contradictory-clean" else diagnostic(base, node)["note"]
+        return {"output": None, "signals": {"decision": decision}, "diagnostic": {"note": note}}
+    if node == "resolution_authority":
+        resolution = "open_d1" if base in {"sticky-exhaust", "sticky-omission"} else "resolved_d1"
+        return {"output": None, "signals": {"resolution": resolution}, "diagnostic": diagnostic(base, node)}
+    if node.startswith("final_assessment_authority"):
+        assessment = "refused" if base == "refusal" else "gap" if base in {"final-gap", "final-insufficient-evidence"} else "accepted"
+        return {"output": None, "signals": {"assessment": assessment}, "diagnostic": diagnostic(base, node)}
+    raise ValueError(node)
+
+
+def main() -> int:
+    prompt = sys.stdin.read()
+    match = re.search(r"BROODLING_NODE=([a-z0-9_]+)", prompt)
+    if match is None:
+        print("fixture prompt did not identify a node", file=sys.stderr)
+        return 64
+    node = match.group(1)
+    state = Path(os.environ["BROODLING_FIXTURE_STATE"])
+    state.mkdir(parents=True, exist_ok=True)
+    invocation = next_invocation(state, node)
+    base, fault, selected = parse_scenario(os.environ.get("BROODLING_FIXTURE_SCENARIO", "clean"))
+    workspace = Path.cwd()
+    input_match = re.search(r"Input JSON:\n([^\n]+)\nRuntime-owned response contract:", prompt)
+    input_value = json.loads(input_match.group(1)) if input_match else None
+
+    if node == "implement":
+        (workspace / "candidate.txt").write_text("C1_FROM_IMPLEMENT\n", encoding="utf-8")
+    elif node == "repair":
+        (workspace / "candidate.txt").write_text(f"C{invocation + 1}_FROM_REPAIR\n", encoding="utf-8")
+        if base == "missing-after-repair":
+            (workspace / "evidence/raw.txt").unlink(missing_ok=True)
+    if base == "missing-initial" and node == "implement":
+        (workspace / "evidence/raw.txt").unlink(missing_ok=True)
+
+    event = {
+        "node": node,
+        "invocation": invocation,
+        "scenario": base,
+        "input": input_value,
+        "candidate": (workspace / "candidate.txt").read_text(encoding="utf-8"),
+        "rawEvidenceExists": (workspace / "evidence/raw.txt").exists(),
+        "argv": sys.argv[1:],
+        "cwd": str(workspace),
+        "home": os.environ.get("HOME"),
+        "recordedNs": time.time_ns(),
+    }
+    with (state / "driver.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(event, sort_keys=True) + "\n")
+
+    if fault == "crash" and selected == node:
+        return 70
+    if fault == "hang" and selected == node:
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+        signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+        while True:
+            time.sleep(1)
+
+    emit({"type": "thread.started", "thread_id": f"w3-{node}-{invocation}"})
+    emit({"type": "turn.started"})
+    if fault == "malformed" and selected == node:
+        response: object = {"wrong": True}
+    elif fault == "missing" and selected == node:
+        response = {"signals": {}, "diagnostic": None}
+    elif fault == "authority_claim" and selected == node:
+        response = {"output": {"candidateGeneration": "c1", "authority": "accepted"}}
+    elif base == "sticky-omission" and node == "resolution_authority":
+        response = {"output": None, "signals": {}, "diagnostic": diagnostic(base, node)}
+    else:
+        response = response_for(node, invocation, base, workspace)
+    emit({"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps({"response": response}, separators=(",", ":"))}})
+    emit({"type": "turn.completed", "usage": {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}})
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

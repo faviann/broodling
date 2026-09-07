@@ -45,9 +45,10 @@ Under the corrected v0.5 witness scope:
 - **W2 is satisfied on the recorded profile** by the existing host-containment evidence; no standalone W2 rerun remains. The old missing-evidence case moves to W3/W6 evidence sufficiency, model-supplied applicability IDs are non-authoritative, and the delayed-observer requirement is removed.
 - **W5 is satisfied** by the existing issue-#8 evidence.
 - **W7 is satisfied** by the existing issue-#8 evidence.
-- **W3, W4 and W6 remain NOT RUN.**
+- **W3 PASS** is recorded by issue #9's [actual assurance-graph qualification](qualification/v1-p1/issue-9-w3.md) on the compatible profile.
+- **W4 and W6 remain NOT RUN.**
 
-**G1-V1 is not passed.** Existing issues #9, #10 and #11 remain the qualification/gate path; product implementation remains blocked until the gate passes. Exact effects/reconciliation and cross-Attempt reuse/recovery remain deferred capabilities.
+**G1-V1 is not passed.** Existing issues #10 and #11 remain the qualification/gate path; product implementation remains blocked until the gate passes. Exact effects/reconciliation and cross-Attempt reuse/recovery remain deferred capabilities.
 
 The historical [G1-core review](qualification/p1/issue-7-g1-core.md) remains **BLOCKED** under v0.3. Q2 and the bounded Q3 fixture retain their historical scoped passes; Q1/Q4/Q5/Q6 remain blocked, and [Q7/G1-effects](qualification/p1/issue-6-q7.md) remains independently blocked. v0.5 does not relabel those historical results.
 
