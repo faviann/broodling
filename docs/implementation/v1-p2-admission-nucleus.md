@@ -1,15 +1,21 @@
 # V1-P2 — admission and durable semantic nucleus
 
-**Issue:** [#12](https://github.com/faviann/broodling/issues/12)
+**Issues:** [#12](https://github.com/faviann/broodling/issues/12) (admission
+nucleus), [#13](https://github.com/faviann/broodling/issues/13) (Attempt, B1 and
+disposable worktree)
 **Date:** 7 September 2026
 **Governing pair:** [target v0.5](../governing/broodling-target-responsibility-boundary-design-v0.5.md),
 [implementation/dependency plan v0.5](../governing/broodling-implementation-dependency-plan-v0.5.md).
 **Gate dependency:** [G1-V1 PASS](../../qualification/v1-p1/issue-11-g1-v1.md).
 
-This is the first Broodling product implementation. It covers the admission/store
-boundary only: Work Unit identity, source entitlement, immutable Contract
-revisions and the V1 no-effect Closability/admission decision. It does not begin
-issue #13.
+This is the Broodling product implementation of V1-P2. Issue #12 built the
+admission/store boundary: Work Unit identity, source entitlement, immutable
+Contract revisions and the V1 no-effect Closability/admission decision. Issue #13
+added the durable Attempt layer on top of it: one immutable Attempt bound to one
+admitted Contract revision, its original starting state B1, and the one dedicated
+disposable worktree that Attempt exclusively owns.
+
+Sections 1 and 2 are #12; section 3 is #13.
 
 ## 1. Selected product configuration
 
@@ -18,14 +24,16 @@ issue #13.
 | Language/runtime | Python 3.13 (`requires-python = ">=3.13"`); recorded here on CPython **3.13.5**, Linux x86-64 | The G1-V1 profile was qualified through the official Python SDK on Python 3.13.x. P2 needs durable admission logic, not in-process Zeroshot access. |
 | Packaging | one importable package, `broodling/`, plus `pyproject.toml` | The plan defers CLI/service packaging to V1-P5. A domain package is enough to run the store tests. |
 | Persistence | one Broodling-owned SQLite database via the standard library `sqlite3`; recorded here on SQLite **3.46.1** | V1 is single-host. P2 needs transactional uniqueness and immutable administrative records, not a distributed database or an ORM. |
-| Schema | version **1**, definition digest `376f0c21705ef12038b10cff4e66c1200116b145423d489bb0458c749e473c53` | Recorded in `schema_meta` at initialization and re-checked on every open, so a store written by different DDL is refused rather than migrated implicitly. |
+| Schema | version **2**, definition digest `bbd7b68bdc66e6bc626f6f5d556e0efa3c9398476eb78b3f3ad75400ade29779` | Recorded in `schema_meta` at initialization and re-checked on every open, so a store written by different DDL is refused rather than migrated implicitly. |
 | Table mode | SQLite `STRICT` tables (needs SQLite ≥ 3.37) | Makes column typing an enforced durable property instead of a convention. |
 | Durability | `journal_mode=WAL`, `synchronous=FULL`, `foreign_keys=ON` | A committed fact survives process death; an interrupted write leaves nothing. |
 | Store location | outside disposable Attempt worktrees; `BROODLING_STORE`, else `$XDG_STATE_HOME/broodling/broodling.sqlite3` | The record must outlive an abandoned Attempt and its retired worktree. |
+| Worktree root | caller-configured, absolute, durable; `/tmp`, `/dev/shm`, `/var/tmp` and `/run` refused, as is any root inside a repository or another Attempt's enclosure | The qualified profile requires a dedicated non-temporary worktree root. A root a reboot or a tmpfs eviction can clear is not durable Attempt state. |
+| Git | the local `git` binary, invoked with a fixed argument vector and a `GIT_*`-stripped environment (`broodling/git.py`) | Worktree provisioning is host-local administrative setup. Nothing else in the package starts a process, and no module opens a socket or network client. |
 
 ### 1.1 Qualified external runtime boundary
 
-P2 records this boundary and submits nothing to it. No Zeroshot SDK or sidecar is
+V1-P2 records this boundary and submits nothing to it. No Zeroshot SDK or sidecar is
 imported, installed or executed by the product package, and **no P1
 qualification was re-run** for this issue.
 
@@ -50,6 +58,8 @@ work_units                     one repository + one primary issue
   contract_revisions           immutable canonical Contract bytes
     contract_source_attributions
   admission_decisions          one decision per revision, with findings
+  attempts                     one current Attempt: one revision + B1
+    worktree_assignments       the one worktree path/branch it owns
 ```
 
 Durable ids are derived, not allocated: a Work Unit id is a digest of its
@@ -130,13 +140,121 @@ Supported obligation kinds and host assumptions are allowlists, so an unknown
 value fails closed instead of being assumed local.
 
 Admission writes one immutable decision per revision and creates nothing else: no
-Attempt, no worktree, no Zeroshot run. Only a committed `admitted` decision is
-authority, which is what makes an interrupted admission unambiguous — a stored
-revision with no decision is simply not admitted.
+Attempt, no worktree, no Zeroshot run. Admitting the Attempt is a separate later
+step (section 3), and it requires this decision to already be committed. Only a
+committed `admitted` decision is authority, which is what makes an interrupted
+admission unambiguous — a stored revision with no decision is simply not
+admitted.
 
-## 3. Retained implementation evidence
+## 3. Attempt, B1 and the disposable worktree (#13)
 
-`python -m pytest tests` (or `python -m unittest discover -s tests`), 93 tests.
+Admission says a Contract *may* be executed. An Attempt is the execution episode
+itself: one immutable identity, permanently bound to one admitted Contract
+revision, one original starting state, and one worktree it owns exclusively.
+
+### 3.1 B1 — the supported starting-state policy
+
+B1 is **an exact immutable Git commit object id plus the frozen admitted
+instruction/source bytes the Contract already pins**. Nothing else is supported,
+and nothing more is needed: a commit is already immutable, and #12 already stores
+the admitted bytes.
+
+`attempts` records the repository's shared Git directory, the 40-character commit
+id, the digest of the attributed material, and the revision expression the caller
+asked for. Moving live `HEAD`, moving a branch tip and editing the issue text
+afterwards all leave those columns alone — the attempts table takes no updates at
+all.
+
+A starting state the policy cannot carry is refused by name:
+
+| Refusal | Cause |
+|---|---|
+| `UnsupportedStartingState` | uncommitted, staged or untracked material in the source repository, listed path by path |
+| `UnsupportedStartingState` | a revision that does not name a commit, or a directory that is not a Git repository |
+| `UnsupportedWorkspaceRoot` | a relative root, a root under `/tmp`, `/dev/shm`, `/var/tmp` or `/run`, a root inside the source repository, or one inside another Attempt's enclosure |
+| `AttemptAdmissionError` | a Contract revision with no committed `admitted` decision |
+| `AttemptConflict` | a request that would make a second current Attempt for one Work Unit |
+| `WorktreeOwnershipConflict` | a path, branch or enclosure that belongs to different Broodling state |
+
+Dirty starting material is *not* committed on the caller's behalf, and *not*
+reclassified as environment state. Both would be Broodling deciding what the
+admitted material is. This is a narrow policy, not a source-sealing subsystem.
+
+### 3.2 One current Attempt
+
+The Attempt id is derived — `at-` + a digest over the Contract revision, the
+repository, the commit and the material digest — so repeating an identical
+admission resolves the Attempt that already exists rather than minting a rival.
+A request differing in revision or B1 derives a *different* id, and then:
+
+```sql
+CREATE UNIQUE INDEX attempts_one_current_per_work_unit
+    ON attempts (work_unit_id) WHERE is_current = 1;
+```
+
+refuses it. The index, not the Python pre-check, is the enforcement: two
+processes admitting concurrently serialize on the write lock, and the loser
+either observes the winner's identical Attempt or gets `AttemptConflict`. It can
+never open a second current authority. Retiring an Attempt so a replacement can
+become current is V1-P4 abandon/restart and is deliberately absent.
+
+### 3.3 Allocation before provisioning
+
+`AttemptProvisioner.admit` resolves B1, then writes the Attempt *and* its
+worktree claim in one transaction — before any directory exists:
+
+```text
+<workspace root>/<owner>-<repo>-<issue>-<attempt>/     enclosure, marked disposable
+<workspace root>/<owner>-<repo>-<issue>-<attempt>/worktree/   the candidate tree
+branch broodling/<owner>-<repo>-<issue>/<attempt>
+```
+
+Path and branch are derived from the Attempt id, so a retry after a crash
+converges on the directory the interrupted run was creating. `worktree_path` is
+globally unique and `(repository, branch)` is unique, so two Work Units — including
+two on the same repository — cannot own one worktree or one branch. Ownership is
+queryable: `worktree_owner(path)`, `branch_owner(repository, branch)`,
+`current_attempt(work_unit_id)`.
+
+The `.broodling-disposable-worktree` marker sits on the **enclosure**, not inside
+the checkout. It names the owning Attempt, so provisioning can tell its own
+directory from somebody else's, and it keeps the #12 store-location guard honest:
+the Broodling store refuses to open anywhere beneath a marked enclosure. Keeping
+it out of the worktree leaves the candidate tree exactly B1 and nothing else.
+
+### 3.4 Provisioning, and what a crash leaves behind
+
+`AttemptProvisioner.provision` creates one attached worktree on the unique local
+branch at exactly B1. The branch is attached because the qualified sidecar
+profile rejects a detached HEAD; it is disposable runtime scaffolding, never
+pushed and never delivery.
+
+The operation is idempotent and converging, which is the whole crash-safety
+argument:
+
+| Crash window | What survives | What the retry does |
+|---|---|---|
+| Mid-admission transaction | nothing | derives the same Attempt id and admits it |
+| After the Attempt commits, before any host work | one current Attempt, assignment `allocated` | provisions that Attempt at that B1 |
+| After `git worktree add`, before the acknowledgement | the worktree and branch, still `allocated` | adopts them, acknowledges; no second worktree or branch |
+| After the acknowledgement | everything | recognizes the live worktree and returns |
+| Worktree directory deleted | the registration and branch | rematerializes at the recorded B1, not live `HEAD` |
+
+Convergence is never a takeover. A path holding foreign files, a registration on
+another branch, an enclosure marked by another Attempt, or a branch sitting at
+some commit that is not this Attempt's B1 all raise
+`WorktreeOwnershipConflict` rather than being adopted or overwritten. A
+rematerialized worktree is built from B1, so it carries no prior candidate,
+directive, evidence, acceptance or session state; no cross-Attempt reuse path
+exists.
+
+## 4. Retained implementation evidence
+
+`python -m pytest tests` (or `python -m unittest discover -s tests`), 171 tests.
+The Attempt tests drive the real `git` binary against fixture repositories. They
+need a durable workspace root, which by definition cannot be `/tmp`: they use
+`~/.cache/broodling-tests`, overridable with `BROODLING_TEST_WORKSPACE_ROOT`, and
+skip if that location is itself non-durable.
 
 | Obligation | Tests |
 |---|---|
@@ -146,24 +264,33 @@ revision with no decision is simply not admitted.
 | Immutable Contract behaviour; live-source drift; new revision for new meaning | `tests/test_contract_revisions.py` |
 | Valid no-effect admission; effect, obligation, Closability and host-profile rejection; obligation preservation | `tests/test_admission.py` |
 | Crash and reopen; partial transactions leave no half-admitted authority | `tests/test_crash_recovery.py` |
+| Supported and unsupported B1 material; live-HEAD drift; frozen-material digest | `tests/test_starting_state.py` |
+| Attempt/revision binding; one-current enforcement; Attempt immutability; workspace-root policy | `tests/test_attempt_admission.py` |
+| Worktree at exactly B1; idempotent and rematerializing provisioning; same-repository distinct worktrees; ownership conflicts; no delivery effect | `tests/test_worktree_provisioning.py` |
+| Attempt/provisioning crash windows; acknowledgement loss; concurrent identical and conflicting admission | `tests/test_attempt_crash_recovery.py` |
 | Not a RunLedger mirror; harness not promoted into product code | `tests/test_store_boundary.py` |
 
 The crash cases run the write in a child process that calls `os._exit` mid-flight
-— nothing unwinds, so what survives is what SQLite actually committed.
+— nothing unwinds, so what survives is what SQLite and Git actually committed.
+The concurrency cases start two children behind a gate file so they really race.
 
-## 4. Stop boundary
+## 5. Stop boundary
 
-Not implemented here, by design: Attempts, worktree provisioning, B1
-materialization, submission correlation/currentness beyond Work Unit identity,
-Zeroshot run submission, the assurance graph, reviewer/adjudicator/final-assessor
-wiring, candidate seals or provenance, evidence records, effects or GitHub
-mutation, recovery/catch-up, final-result custody, schedulers, session management
+Not implemented here, by design: Zeroshot run submission and run correlation, the
+assurance graph, reviewer/adjudicator/final-assessor wiring, candidate seals or
+provenance, evidence records, stop/abandon/restart and worktree retirement,
+completed-run recovery or catch-up, final-result custody and disposition, effects
+or GitHub mutation, multi-host leases or fencing, schedulers, session management
 and any product API/CLI.
 
-`tests/test_store_boundary.py` asserts this boundary: the table set is fixed,
-no table or column carries later-phase or RunLedger vocabulary, the store exposes
-no Attempt/run/recovery operation, and the package imports only the standard
-library — no Zeroshot client, no qualification harness, no subprocess or socket.
+`tests/test_store_boundary.py` asserts this boundary: the table set is fixed, no
+table or column carries later-phase or RunLedger vocabulary, the store exposes no
+run/recovery/abandon/review operation, only `broodling/git.py` may start a
+process, and no module imports a socket or network client, a Zeroshot client or
+the qualification harness. `tests/test_worktree_provisioning.py` adds the
+behavioural half: after provisioning, a configured remote has no refs, the source
+checkout is untouched, and the only new local ref is the Attempt's disposable
+branch.
 
 The qualification fixtures under `qualification/` remain evidence. None of them
 was promoted into the product package.

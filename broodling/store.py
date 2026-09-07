@@ -1,17 +1,22 @@
 """The Broodling-owned durable store.
 
 One SQLite database, owned by Broodling and living outside disposable Attempt
-worktrees, holds the four durable facts V1-P2 is responsible for:
+worktrees, holds the durable facts V1-P2 is responsible for:
 
 1. stable Work Unit identity for one repository + one primary issue;
 2. explicitly entitled source snapshots, with their exact bytes;
-3. immutable Contract revisions; and
-4. the V1 no-effect Closability/admission decision for each revision.
+3. immutable Contract revisions;
+4. the V1 no-effect Closability/admission decision for each revision; and
+5. the immutable Attempt — one admitted Contract revision, one B1, one
+   exclusively owned worktree path and branch.
 
 Each operation commits its own transaction, so a crash leaves either the whole
 fact or none of it. A Contract revision on its own is not authority: only a
 committed ``admitted`` decision is, which is why a half-written admission can
-never read back as admitted.
+never read back as admitted. The same rule shapes Attempt admission: the Attempt
+and its worktree allocation commit together, before any host-side directory
+exists, so a crash during provisioning leaves exactly one recoverable Attempt
+identity to converge on rather than an orphaned directory nobody owns.
 """
 
 from __future__ import annotations
@@ -31,21 +36,25 @@ from . import closability
 from .contract import Contract, contract_from_mapping
 from .entitlement import PRIMARY_ISSUE, SourceSubmission, evaluate_entitlement
 from .errors import (
+    AttemptAdmissionError,
+    AttemptConflict,
     ContractImmutabilityError,
     SchemaVersionMismatch,
     SourceAttributionError,
     SourceNotEntitled,
-    StoreLocationError,
     UnknownRecord,
     WorkUnitIdentityConflict,
+    WorktreeOwnershipConflict,
 )
 from .identity import WorkReference, digest
 from .profile import assert_supported_runtime, product_configuration
-from .schema import (
-    DISPOSABLE_WORKTREE_MARKER,
-    SCHEMA_SHA256,
-    SCHEMA_SQL,
-    SCHEMA_VERSION,
+from .schema import SCHEMA_SHA256, SCHEMA_SQL, SCHEMA_VERSION
+from .starting_state import StartingState, admitted_material_digest
+from .workspace import (
+    WorktreeAllocation,
+    allocate,
+    assert_durable_workspace_root,
+    assert_outside_disposable_worktree,
 )
 
 DEFAULT_STORE_FILENAME = "broodling.sqlite3"
@@ -67,23 +76,6 @@ def default_store_path(environ: dict[str, str] | None = None) -> Path:
         return Path(explicit).expanduser()
     state_home = env.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
     return Path(state_home).expanduser() / "broodling" / DEFAULT_STORE_FILENAME
-
-
-def assert_outside_disposable_worktree(path: Path) -> None:
-    """Refuse a store path inside a disposable Attempt worktree.
-
-    An Attempt's worktree is retired wholesale when the Attempt is abandoned; the
-    Contract/admission record must outlive that. V1-P2 provisions no worktrees,
-    so this is a boundary check on the caller's chosen path.
-    """
-
-    resolved = path.expanduser().resolve()
-    for directory in (resolved, *resolved.parents):
-        if (directory / DISPOSABLE_WORKTREE_MARKER).exists():
-            raise StoreLocationError(
-                f"{path} is inside disposable Attempt worktree {directory}; the "
-                "Broodling store must outlive any Attempt"
-            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,6 +148,77 @@ class AdmissionDecisionRecord:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class AttemptRecord:
+    """One immutable Attempt: one Contract revision, one B1, one worktree.
+
+    ``b1_repository`` is the repository's shared Git directory, ``b1_commit_oid``
+    the exact immutable commit, and ``b1_material_sha256`` the fingerprint of the
+    frozen admitted instruction/source bytes the Contract pins. Together they are
+    B1; none of them follows a later ``HEAD``, branch tip or issue edit.
+    """
+
+    attempt_id: str
+    work_unit_id: str
+    contract_revision_id: str
+    is_current: bool
+    b1_repository: str
+    b1_commit_oid: str
+    b1_material_sha256: str
+    b1_requested_revision: str
+    admitted_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class WorktreeAssignmentRecord:
+    """Durable, queryable ownership of one worktree path and branch.
+
+    ``state`` is the whole pre-run lifecycle: ``allocated`` means the identity is
+    reserved but the host directory may or may not exist yet; ``provisioned``
+    means a dedicated attached worktree at B1 was created and acknowledged.
+    """
+
+    attempt_id: str
+    work_unit_id: str
+    repository: str
+    worktree_path: str
+    branch: str
+    state: str
+    allocated_at: str
+    provisioned_at: str | None
+
+    ALLOCATED = "allocated"
+    PROVISIONED = "provisioned"
+
+    @property
+    def provisioned(self) -> bool:
+        return self.state == self.PROVISIONED
+
+    @property
+    def path(self) -> Path:
+        return Path(self.worktree_path)
+
+
+def derive_attempt_id(
+    contract_revision_id: str, starting_state: StartingState, material_sha256: str
+) -> str:
+    """The durable Attempt id for one revision admitted at one B1.
+
+    Derived rather than allocated, so a repeated admission of the *same* Contract
+    revision at the *same* B1 resolves the Attempt that already exists instead of
+    minting a rival one. A different revision or a different B1 derives a
+    different id, which the one-current constraint then refuses.
+    """
+
+    return "at-" + digest(
+        "broodling.attempt.v1",
+        contract_revision_id,
+        starting_state.repository,
+        starting_state.commit_oid,
+        material_sha256,
+    )
+
+
 class BroodlingStore:
     """Transactional access to the Broodling-owned durable facts."""
 
@@ -178,6 +241,10 @@ class BroodlingStore:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA journal_mode = WAL")
         connection.execute("PRAGMA synchronous = FULL")
+        # Two processes admitting the same Work Unit must serialize on the
+        # write lock and let the loser observe the winner's committed row, not
+        # fail with "database is locked" and retry into an unclear state.
+        connection.execute("PRAGMA busy_timeout = 10000")
         store = cls(connection, target)
         store._initialize_schema()
         return store
@@ -688,3 +755,260 @@ class BroodlingStore:
 
         row = self._decision_row(revision_id)
         return row is not None and row["outcome"] == closability.ADMITTED
+
+    # ------------------------------------------------------------------- attempts
+
+    def admit_attempt(
+        self,
+        revision_id: str,
+        starting_state: StartingState,
+        *,
+        workspace_root: Path | str,
+    ) -> AttemptRecord:
+        """Admit the current Attempt for an admitted Contract revision.
+
+        Allocates the Attempt identity, pins B1, and reserves a unique worktree
+        path and branch — all in one transaction, before any host-side directory
+        exists. Nothing is provisioned here.
+
+        Repeating the identical request returns the same Attempt, with the
+        allocation it already owns — a later call naming a different workspace
+        root does not move a worktree somebody may already be working in. A
+        request that differs in Contract revision or B1 conflicts rather than
+        creating a second current authority: replacing an Attempt is
+        abandon/restart, which is later V1-P4 work.
+        """
+
+        revision = self.get_contract_revision(revision_id)
+        if not self.is_admitted(revision_id):
+            raise AttemptAdmissionError(
+                f"contract revision {revision_id} has no committed admitted "
+                "decision; an Attempt may only be admitted for an admitted "
+                "Contract revision"
+            )
+        root = assert_durable_workspace_root(Path(workspace_root))
+        work_unit = self.get_work_unit(revision.work_unit_id)
+        material = admitted_material_digest(
+            (item.source_id, item.content_sha256)
+            for item in revision.contract.source_attribution
+        )
+        attempt_id = derive_attempt_id(revision_id, starting_state, material)
+        allocation = allocate(
+            root,
+            owner=work_unit.owner,
+            repository=work_unit.repository,
+            issue_number=work_unit.issue_number,
+            attempt_id=attempt_id,
+        )
+
+        with self._write():
+            if self._attempt_row(attempt_id) is None:
+                self._open_attempt(
+                    attempt_id,
+                    work_unit.work_unit_id,
+                    revision_id,
+                    starting_state,
+                    material,
+                )
+                self._claim_worktree(
+                    attempt_id, work_unit.work_unit_id, starting_state, allocation
+                )
+        return self.get_attempt(attempt_id)
+
+    def _open_attempt(
+        self,
+        attempt_id: str,
+        work_unit_id: str,
+        revision_id: str,
+        starting_state: StartingState,
+        material: str,
+    ) -> None:
+        """Insert the Attempt, or refuse because this Work Unit already has one.
+
+        The partial unique index is the enforcement — it holds against a racing
+        process too. Reading the competitor out when it fires turns the loser's
+        constraint error into a statement of which Attempt already holds the
+        Work Unit.
+        """
+
+        try:
+            self._connection.execute(
+                """
+                INSERT INTO attempts (
+                    attempt_id, work_unit_id, contract_revision_id, is_current,
+                    b1_repository, b1_commit_oid, b1_material_sha256,
+                    b1_requested_revision, admitted_at
+                ) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)
+                """,
+                (
+                    attempt_id,
+                    work_unit_id,
+                    revision_id,
+                    starting_state.repository,
+                    starting_state.commit_oid,
+                    material,
+                    starting_state.requested_revision,
+                    _now(),
+                ),
+            )
+        except sqlite3.IntegrityError as error:
+            raise self._competing_attempt(work_unit_id) from error
+
+    def _competing_attempt(self, work_unit_id: str) -> AttemptConflict:
+        current = self._connection.execute(
+            "SELECT attempt_id, contract_revision_id, b1_commit_oid FROM attempts "
+            "WHERE work_unit_id = ? AND is_current = 1",
+            (work_unit_id,),
+        ).fetchone()
+        if current is None:
+            return AttemptConflict(
+                f"work unit {work_unit_id} cannot admit this Attempt"
+            )
+        return AttemptConflict(
+            f"work unit {work_unit_id} already has current attempt "
+            f"{current['attempt_id']} on contract revision "
+            f"{current['contract_revision_id']} at B1 {current['b1_commit_oid']}; "
+            "a differing admission request cannot create a second current Attempt"
+        )
+
+    def _claim_worktree(
+        self,
+        attempt_id: str,
+        work_unit_id: str,
+        starting_state: StartingState,
+        allocation: WorktreeAllocation,
+    ) -> None:
+        try:
+            self._connection.execute(
+                """
+                INSERT INTO worktree_assignments (
+                    attempt_id, work_unit_id, repository, worktree_path, branch,
+                    state, allocated_at, provisioned_at
+                ) VALUES (?, ?, ?, ?, ?, 'allocated', ?, NULL)
+                """,
+                (
+                    attempt_id,
+                    work_unit_id,
+                    starting_state.repository,
+                    str(allocation.worktree_path),
+                    allocation.branch,
+                    _now(),
+                ),
+            )
+        except sqlite3.IntegrityError as error:
+            owner = self.worktree_owner(allocation.worktree_path)
+            claimed = (
+                f"attempt {owner.attempt_id} of work unit {owner.work_unit_id}"
+                if owner is not None
+                else "another attempt"
+            )
+            raise WorktreeOwnershipConflict(
+                f"worktree {allocation.worktree_path} on branch "
+                f"{allocation.branch} is already owned by {claimed}"
+            ) from error
+
+    def _attempt_row(self, attempt_id: str) -> sqlite3.Row | None:
+        return self._connection.execute(
+            "SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)
+        ).fetchone()
+
+    def get_attempt(self, attempt_id: str) -> AttemptRecord:
+        row = self._attempt_row(attempt_id)
+        if row is None:
+            raise UnknownRecord(f"unknown attempt {attempt_id}")
+        return self._attempt(row)
+
+    def find_attempt(self, attempt_id: str) -> AttemptRecord | None:
+        row = self._attempt_row(attempt_id)
+        return None if row is None else self._attempt(row)
+
+    def current_attempt(self, work_unit_id: str) -> AttemptRecord | None:
+        """The single current Attempt of a Work Unit, if one was admitted."""
+
+        row = self._connection.execute(
+            "SELECT * FROM attempts WHERE work_unit_id = ? AND is_current = 1",
+            (work_unit_id,),
+        ).fetchone()
+        return None if row is None else self._attempt(row)
+
+    @staticmethod
+    def _attempt(row: sqlite3.Row) -> AttemptRecord:
+        return AttemptRecord(
+            attempt_id=row["attempt_id"],
+            work_unit_id=row["work_unit_id"],
+            contract_revision_id=row["contract_revision_id"],
+            is_current=bool(row["is_current"]),
+            b1_repository=row["b1_repository"],
+            b1_commit_oid=row["b1_commit_oid"],
+            b1_material_sha256=row["b1_material_sha256"],
+            b1_requested_revision=row["b1_requested_revision"],
+            admitted_at=row["admitted_at"],
+        )
+
+    # --------------------------------------------------------- worktree ownership
+
+    def _assignment_row(self, attempt_id: str) -> sqlite3.Row | None:
+        return self._connection.execute(
+            "SELECT * FROM worktree_assignments WHERE attempt_id = ?", (attempt_id,)
+        ).fetchone()
+
+    def worktree_assignment(self, attempt_id: str) -> WorktreeAssignmentRecord:
+        row = self._assignment_row(attempt_id)
+        if row is None:
+            raise UnknownRecord(f"attempt {attempt_id} owns no worktree assignment")
+        return self._assignment(row)
+
+    def worktree_owner(
+        self, worktree_path: Path | str
+    ) -> WorktreeAssignmentRecord | None:
+        """Which Attempt owns a worktree path, if any. Ownership is queryable."""
+
+        row = self._connection.execute(
+            "SELECT * FROM worktree_assignments WHERE worktree_path = ?",
+            (str(worktree_path),),
+        ).fetchone()
+        return None if row is None else self._assignment(row)
+
+    def branch_owner(
+        self, repository: Path | str, branch: str
+    ) -> WorktreeAssignmentRecord | None:
+        row = self._connection.execute(
+            "SELECT * FROM worktree_assignments WHERE repository = ? AND branch = ?",
+            (str(repository), branch),
+        ).fetchone()
+        return None if row is None else self._assignment(row)
+
+    def acknowledge_worktree_provisioned(
+        self, attempt_id: str
+    ) -> WorktreeAssignmentRecord:
+        """Record that this Attempt's worktree exists at B1.
+
+        The single ``allocated -> provisioned`` transition, and the only update
+        the assignment table permits. Acknowledging twice is a no-op, so a
+        provisioning call whose acknowledgement was lost can simply be repeated.
+        """
+
+        with self._write():
+            row = self._assignment_row(attempt_id)
+            if row is None:
+                raise UnknownRecord(f"attempt {attempt_id} owns no worktree assignment")
+            if row["state"] == WorktreeAssignmentRecord.ALLOCATED:
+                self._connection.execute(
+                    "UPDATE worktree_assignments SET state = 'provisioned', "
+                    "provisioned_at = ? WHERE attempt_id = ? AND state = 'allocated'",
+                    (_now(), attempt_id),
+                )
+        return self.worktree_assignment(attempt_id)
+
+    @staticmethod
+    def _assignment(row: sqlite3.Row) -> WorktreeAssignmentRecord:
+        return WorktreeAssignmentRecord(
+            attempt_id=row["attempt_id"],
+            work_unit_id=row["work_unit_id"],
+            repository=row["repository"],
+            worktree_path=row["worktree_path"],
+            branch=row["branch"],
+            state=row["state"],
+            allocated_at=row["allocated_at"],
+            provisioned_at=row["provisioned_at"],
+        )

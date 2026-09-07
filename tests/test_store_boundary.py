@@ -1,8 +1,10 @@
 """The store must stay an admission nucleus: not a RunLedger mirror, not the harness.
 
-These tests are the stop boundary of issue #12 expressed as assertions. Adding
-run/occurrence/attempt/worktree/candidate-seal state, a recovery projection, or a
-dependency on the qualification harness fails here first.
+These tests are the stop boundary of issues #12 and #13 expressed as assertions.
+The nucleus now owns Attempt/B1/worktree administration, so those words are
+allowed; adding run/occurrence/candidate-seal state, an assurance or review
+graph, a recovery projection, an effect, or a dependency on the qualification
+harness still fails here first.
 """
 
 from __future__ import annotations
@@ -20,8 +22,6 @@ PACKAGE = Path(__file__).resolve().parents[1] / "broodling"
 #: Vocabulary of later V1 phases and of Zeroshot's own record keeping. None of it
 #: belongs in the V1-P2 schema.
 DEFERRED_VOCABULARY = (
-    "attempt",
-    "worktree",
     "run_",
     "runledger",
     "occurrence",
@@ -41,6 +41,12 @@ DEFERRED_VOCABULARY = (
     "provider",
 )
 
+#: Modules permitted to start a process. Provisioning a worktree means running
+#: `git` locally, which is administrative host setup; nothing else in the package
+#: may spawn anything, and no module at all may open a socket or a network
+#: client.
+PROCESS_CAPABLE_MODULES = {"git.py"}
+
 STDLIB_ONLY = {
     "__future__",
     "collections",
@@ -53,6 +59,7 @@ STDLIB_ONLY = {
     "pathlib",
     "re",
     "sqlite3",
+    "subprocess",
     "sys",
     "typing",
     "uuid",
@@ -80,12 +87,14 @@ class SchemaBoundaryTests(StoreTestCase):
             TABLES,
             (
                 "admission_decisions",
+                "attempts",
                 "contract_revisions",
                 "contract_source_attributions",
                 "entitled_sources",
                 "schema_meta",
                 "work_unit_submissions",
                 "work_units",
+                "worktree_assignments",
             ),
         )
 
@@ -110,7 +119,7 @@ class SchemaBoundaryTests(StoreTestCase):
 
     def test_the_schema_text_declares_no_deferred_machinery(self) -> None:
         lowered = SCHEMA_SQL.lower()
-        for term in ("runledger", "zeroshot", "worktree_root", "candidate_seal"):
+        for term in ("runledger", "zeroshot", "run_id", "candidate_seal", "abandon"):
             with self.subTest(term=term):
                 self.assertNotIn(term, lowered)
 
@@ -143,20 +152,25 @@ class RuntimeBoundaryTests(unittest.TestCase):
         }
         self.assertEqual(loaded, set())
 
-    def test_the_package_opens_no_process_socket_or_network_client(self) -> None:
-        forbidden = {"subprocess", "socket", "http", "urllib", "ssl", "asyncio"}
+    def test_the_package_opens_no_socket_or_network_client(self) -> None:
+        forbidden = {"socket", "http", "urllib", "ssl", "asyncio"}
         for module in product_modules():
             with self.subTest(module=module.name):
                 self.assertEqual(imported_roots(module) & forbidden, set())
 
+    def test_only_the_git_module_may_start_a_process(self) -> None:
+        for module in product_modules():
+            if module.name in PROCESS_CAPABLE_MODULES:
+                continue
+            with self.subTest(module=module.name):
+                self.assertNotIn("subprocess", imported_roots(module))
+
 
 class ApiBoundaryTests(StoreTestCase):
-    def test_the_store_exposes_no_attempt_run_or_recovery_operation(self) -> None:
+    def test_the_store_exposes_no_run_or_recovery_operation(self) -> None:
         surface = [name for name in dir(self.store) if not name.startswith("_")]
         for name in surface:
             for term in (
-                "attempt",
-                "worktree",
                 "run",
                 "submit",
                 "recover",
@@ -165,6 +179,9 @@ class ApiBoundaryTests(StoreTestCase):
                 "occurrence",
                 "seal",
                 "effect",
+                "abandon",
+                "restart",
+                "review",
             ):
                 with self.subTest(name=name, term=term):
                     self.assertNotIn(term, name.lower())

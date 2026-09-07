@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +18,11 @@ from broodling import (
     SourceSubmission,
     WorkReference,
 )
+from broodling.workspace import NON_DURABLE_ROOTS
+
+#: Where worktree tests put their durable workspace roots. The qualified profile
+#: refuses `/tmp`, so these fixtures cannot use the usual temporary directory.
+DURABLE_ROOT_ENV = "BROODLING_TEST_WORKSPACE_ROOT"
 
 REPOSITORY = "https://github.com/faviann/broodling"
 ISSUE = 12
@@ -103,3 +110,94 @@ class StoreTestCase(unittest.TestCase):
     def admissible_contract(self) -> tuple:
         work_unit, source = self.admitted_work_unit()
         return work_unit, source, self.contract(work_unit, source)
+
+
+def durable_test_root(prefix: str = "broodling-p2-workspace-") -> Path:
+    """A temporary directory that the durable-workspace-root policy accepts.
+
+    ``tempfile.mkdtemp`` lands under ``/tmp``, which the qualified V1 profile
+    rejects as a worktree root — the point of the policy. These fixtures
+    therefore allocate under the user's cache directory, or under
+    ``BROODLING_TEST_WORKSPACE_ROOT`` when the host wants somewhere else.
+    """
+
+    configured = os.environ.get(DURABLE_ROOT_ENV)
+    base = (
+        Path(configured) if configured else Path.home() / ".cache" / "broodling-tests"
+    )
+    base = base.expanduser().resolve()
+    for forbidden in NON_DURABLE_ROOTS:
+        if base == Path(forbidden) or Path(forbidden) in base.parents:
+            raise unittest.SkipTest(
+                f"{base} is under {forbidden}, which the durable workspace-root "
+                f"policy refuses; set {DURABLE_ROOT_ENV} to a durable directory"
+            )
+    base.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix=prefix, dir=base))
+
+
+def git(repository: Path, *arguments: str) -> str:
+    """Run a Git command in a fixture repository."""
+
+    completed = subprocess.run(
+        ["git", "-C", str(repository), *arguments],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return completed.stdout.strip()
+
+
+def make_repository(path: Path, *, content: str = "original admitted state\n") -> str:
+    """Create a repository with one commit and return that commit's object id."""
+
+    path.mkdir(parents=True, exist_ok=True)
+    git(path, "init", "--quiet", "-b", "main")
+    git(path, "config", "user.name", "Broodling P2 Fixture")
+    git(path, "config", "user.email", "broodling-p2@example.invalid")
+    git(path, "config", "commit.gpgsign", "false")
+    (path / "README.md").write_text(content, encoding="utf-8")
+    git(path, "add", "README.md")
+    git(path, "commit", "--quiet", "-m", "B1")
+    return git(path, "rev-parse", "HEAD")
+
+
+def move_head(repository: Path, *, content: str = "live head drift\n") -> str:
+    """Advance the repository's live HEAD and return the new commit id."""
+
+    (repository / "README.md").write_text(content, encoding="utf-8")
+    git(repository, "add", "README.md")
+    git(repository, "commit", "--quiet", "-m", "live head drift")
+    return git(repository, "rev-parse", "HEAD")
+
+
+def tracked_files(worktree: Path) -> tuple[str, ...]:
+    listing = git(worktree, "ls-files")
+    return tuple(line for line in listing.splitlines() if line)
+
+
+class AttemptTestCase(StoreTestCase):
+    """A store, one admitted Contract revision, a source repository and a root."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.workspace_root = durable_test_root()
+        self.addCleanup(self._retire_workspaces)
+        self.repository = self.root / "source"
+        self.b1 = make_repository(self.repository)
+        work_unit, source, contract = self.admissible_contract()
+        self.work_unit = work_unit
+        self.revision = self.store.record_contract_revision(contract)
+        self.decision = self.store.admit(self.revision.contract_revision_id)
+
+    def _retire_workspaces(self) -> None:
+        """Remove worktrees before the source repository disappears."""
+
+        for entry in sorted(self.workspace_root.glob("*")):
+            shutil.rmtree(entry, ignore_errors=True)
+        shutil.rmtree(self.workspace_root, ignore_errors=True)
+
+    def provisioner(self, root: Path | None = None):
+        from broodling import AttemptProvisioner
+
+        return AttemptProvisioner(self.store, root or self.workspace_root)

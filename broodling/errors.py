@@ -46,3 +46,27 @@ class StoreLocationError(BroodlingError):
 
 class UnsupportedRuntime(BroodlingError):
     """The host runtime is outside the selected product configuration."""
+
+
+class UnsupportedStartingState(BroodlingError):
+    """The requested starting state is not representable by the V1 B1 policy."""
+
+
+class UnsupportedWorkspaceRoot(BroodlingError):
+    """The configured worktree root is not a durable non-temporary location."""
+
+
+class AttemptAdmissionError(BroodlingError):
+    """An Attempt cannot be admitted for this Contract revision."""
+
+
+class AttemptConflict(BroodlingError):
+    """Admission would create a second current Attempt for one Work Unit."""
+
+
+class WorktreeOwnershipConflict(BroodlingError):
+    """A worktree path or branch is already owned by different Broodling state."""
+
+
+class GitCommandError(BroodlingError):
+    """A local Git command Broodling needs for administrative setup failed."""

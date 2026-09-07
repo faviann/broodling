@@ -9,13 +9,9 @@ import unittest
 from pathlib import Path
 
 from broodling import BroodlingStore, SchemaVersionMismatch, StoreLocationError
-from broodling.schema import (
-    DISPOSABLE_WORKTREE_MARKER,
-    SCHEMA_SHA256,
-    SCHEMA_VERSION,
-    TABLES,
-)
+from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION, TABLES
 from broodling.store import default_store_path
+from broodling.workspace import DISPOSABLE_WORKTREE_MARKER
 from support import StoreTestCase
 
 
@@ -96,7 +92,7 @@ class StoreLocationTests(unittest.TestCase):
     def test_refuses_a_path_inside_a_disposable_worktree(self) -> None:
         root = Path(tempfile.mkdtemp(prefix="broodling-p2-worktree-"))
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        (root / DISPOSABLE_WORKTREE_MARKER).write_text("attempt-a1\n", encoding="utf-8")
+        (root / DISPOSABLE_WORKTREE_MARKER).write_text("at-a1\n", encoding="utf-8")
         nested = root / "nested" / "state"
         nested.mkdir(parents=True)
         with self.assertRaises(StoreLocationError):
