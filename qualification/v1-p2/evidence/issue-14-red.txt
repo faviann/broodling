@@ -1,0 +1,21 @@
+test_acknowledgement_loss_after_worktree_mutation_uses_public_conflict (test_submission.PublicSubmissionTests.test_acknowledgement_loss_after_worktree_mutation_uses_public_conflict) ... ERROR
+
+======================================================================
+ERROR: test_acknowledgement_loss_after_worktree_mutation_uses_public_conflict (test_submission.PublicSubmissionTests.test_acknowledgement_loss_after_worktree_mutation_uses_public_conflict)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/faviann/repos/broodling/tests/test_submission.py", line 253, in test_acknowledgement_loss_after_worktree_mutation_uses_public_conflict
+    result = self.coordinator.reconcile(self.attempt_id)
+  File "/home/faviann/repos/broodling/broodling/submission.py", line 139, in reconcile
+    self._source(attempt, assignment, require_b1=False)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/faviann/repos/broodling/qualification/v1-p2/issue14_regression.py", line 26, in source
+    return original(self, attempt, assignment, require_b1=True)
+  File "/home/faviann/repos/broodling/broodling/submission.py", line 233, in _source
+    raise SubmissionNotReady("first dispatch requires the clean admitted B1")
+broodling.errors.SubmissionNotReady: first dispatch requires the clean admitted B1
+
+----------------------------------------------------------------------
+Ran 1 test in 3.257s
+
+FAILED (errors=1)

@@ -1,0 +1,6 @@
+test_accepted_graph_mutates_after_broodling_process_dies (test_submission_crashes.SubmissionCrashTests.test_accepted_graph_mutates_after_broodling_process_dies) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 3.845s
+
+OK

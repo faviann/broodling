@@ -1,0 +1,6 @@
+test_acknowledgement_loss_after_worktree_mutation_uses_public_conflict (test_submission.PublicSubmissionTests.test_acknowledgement_loss_after_worktree_mutation_uses_public_conflict) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 4.712s
+
+OK

@@ -1,6 +1,7 @@
 # Issue #14 — durable submission correlation, G2-V1 remediation
 
 **Date:** 7 September 2026. **Scope:** implementation/evidence for #14 only.
+**Implementation:** [`40ca55d`](https://github.com/faviann/broodling/commit/40ca55d8fd1db2837206f353908b96e81bac66fe).
 **Base:** `7b334bfedc8bc3bd25a4d61e105670c844310b51`, current `origin/main` including
 #13's provisioning remediation and retained evidence.
 

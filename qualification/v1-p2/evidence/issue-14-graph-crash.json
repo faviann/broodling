@@ -1,0 +1,51 @@
+{
+  "implementationCommit": "40ca55d8fd1db2837206f353908b96e81bac66fe",
+  "lineage": {
+    "administrativeState": "correlated",
+    "attemptId": "at-e3e9f977219a8e534711f201a5a5fa96c5b0088b08a11108eac466db79b22641",
+    "b1": "da0c7d6eaaf87fb4c8b7999d281f3e3456dafb29",
+    "contractRevisionId": "cr-0d9066bcd741f6f18ff93ae482c376a5f774b8f7537c6f01285666abf750f0b3",
+    "headAfterGraphMutation": "fef36bf1d0774f4a1707f9bf5711ace87767c222",
+    "requestSha256": "3d39505bddc56c374846afcfcc948cd0e5c757d4e61e521dc0192e0a3eca374a",
+    "rowCounts": {
+      "attempt_submissions": 1,
+      "attempts": 1,
+      "contract_revisions": 1,
+      "work_units": 1,
+      "worktree_assignments": 1
+    },
+    "runId": "01a07d93-75cd-7f61-a1ed-796b35222a35",
+    "submissionKey": "broodling:v1:at-e3e9f977219a8e534711f201a5a5fa96c5b0088b08a11108eac466db79b22641",
+    "workUnitId": "wu-88920fac767d5d1561fc0ede6f80349fd02caa2a01ad9f1b19ad07e14660587d"
+  },
+  "passed": true,
+  "qualifiedBoundary": {
+    "gateRecord": "qualification/v1-p1/issue-11-g1-v1.md",
+    "gateVerdict": "G1-V1 PASS",
+    "integration": "official Python SDK LocalTarget -> matching Rust sidecar",
+    "sdk": "zeroshot-rust 0.1.0.dev0",
+    "sidecar": "zeroshot-rust 0.1.0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86",
+    "wheelSha256": "16bc7919f913ccc00853b5a917bc164800c5b44d3b4c4c99f2131d09f9ebeebb",
+    "zeroshotRevision": "d0909615d6ba3c179b58bce15a059f40400ec995"
+  },
+  "scenario": "test_submission_crashes.SubmissionCrashTests.test_accepted_graph_mutates_after_broodling_process_dies",
+  "schemaSha256": "663acf981b7b5379bde50f9446d12bee922c81bcbdcc1b4e7f15f6c4e5ea007f",
+  "schemaVersion": 3,
+  "scope": "#14 implementation evidence; no G2 review or V1-P3",
+  "trace": [
+    "persist same key/request and dispatch intent at clean B1",
+    "Client.submit accepts R; child prints public R and os._exit(97) before ID persistence",
+    "parent verifies HEAD still B1 and correlation absent, then releases graph mutation",
+    "accepted graph step commits candidate mutation on the same dedicated branch",
+    "restart replays persisted request; public conflict exposes R",
+    "one immutable Attempt-to-R correlation; key and request unchanged"
+  ],
+  "versions": {
+    "python": "3.13.5",
+    "sdkSourceSha256": "0263b63cb6c6991703f699919ea974ba502da23e3a14ab7d5ab8c5d5ac3b256e",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86",
+    "sqlite": "3.46.1"
+  }
+}
