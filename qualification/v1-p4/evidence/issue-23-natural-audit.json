@@ -1,0 +1,61 @@
+{
+  "evidenceSha256": {
+    "issue-23-natural-1.json": "f10651fcd235815d01cdfac77fb7105d16da157b7f77b7f7587f48f430b6c1a0",
+    "issue-23-natural-1.sqlite3": "139039c89ca690fdde7ff6402e7ea0b550d50a308275c42382b22904682d840f",
+    "issue-23-natural-2.json": "342fe956d88d0c048c66ae46676f72d8a950b9664be8ec91a3901621c4f0057d",
+    "issue-23-natural-2.sqlite3": "b6210f05d30103d432f343d48171e66bf41efa6cd9741bde9519497f86e321ac",
+    "issue-23-natural-preflight.json": "fa03b7f48b016b5d1201baea0256a63ddd8e83159c892f067a0dfcedfc23caf1"
+  },
+  "executedRuns": 2,
+  "furtherRunsStarted": false,
+  "harnessSha256": "a5e6a9282972d654c9016237019323abc81ebeabb5f1332a8f50fc9ca8a5b7a8",
+  "limits": [
+    "Both actual runs completed cleanly; neither supplies substantive directive, real repair, renewed repair evidence, fresh repair review or repaired final assessment.",
+    "No product graph/profile change, forced model failure, substituted reviewer finding or post-admission candidate tampering.",
+    "Current prior 429-test SDK verification remains applicable to unchanged product/test sources; no full regression rerun was needed for this qualification-only addition.",
+    "Issue 24 has not begun."
+  ],
+  "maximumRuns": 2,
+  "productAndRegressionSourcesUnchanged": true,
+  "productBaseline": "ce03c99d07ccd2ea9c1c8e4ac308e22fa0fa8d7f",
+  "runs": [
+    {
+      "attemptId": "at-a7cbce79a254cc2a37667c9f33b39d9167a8996ab7caaebbfc8b2bc6d01d8992",
+      "contractRevisionId": "cr-41ed72fb809d4287a9125a7ea6462e98e3d26fd6da183c6dd425726eeb647bd3",
+      "custodyReadbackAfterCleanup": true,
+      "durableControlStorePlacement": true,
+      "execution": 1,
+      "observedRoles": [
+        "implement",
+        "initial_evidence_check",
+        "initial_review",
+        "adjudicate_authority",
+        "final_assessment_authority_clean"
+      ],
+      "outcome": "SUCCEEDED",
+      "repairWitness": false,
+      "runId": "01a082b0-a546-70b0-ae8f-4583ff954e57",
+      "sourceSha256Verified": true
+    },
+    {
+      "attemptId": "at-366bbda0e6dd1ab5a77e27bf8bfaed17326db1c0143ab9ffad0140f92809cb29",
+      "contractRevisionId": "cr-41ed72fb809d4287a9125a7ea6462e98e3d26fd6da183c6dd425726eeb647bd3",
+      "custodyReadbackAfterCleanup": true,
+      "durableControlStorePlacement": true,
+      "execution": 2,
+      "observedRoles": [
+        "implement",
+        "initial_evidence_check",
+        "initial_review",
+        "adjudicate_authority",
+        "final_assessment_authority_clean"
+      ],
+      "outcome": "SUCCEEDED",
+      "repairWitness": false,
+      "runId": "01a082b4-0521-7ee3-8be0-57fe476025a5",
+      "sourceSha256Verified": true
+    }
+  ],
+  "sameFrozenContractSourceAndB1Files": true,
+  "status": "BLOCKED_NO_NATURAL_REPAIR_OBSERVED"
+}

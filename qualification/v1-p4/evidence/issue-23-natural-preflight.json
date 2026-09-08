@@ -1,0 +1,59 @@
+{
+  "b1SmokeOutput": [
+    {
+      "actual": [
+        {
+          "city": "London",
+          "name": "Ada"
+        },
+        {
+          "city": "New York",
+          "name": "Grace"
+        }
+      ],
+      "case": "ordinary",
+      "expected": [
+        {
+          "city": "London",
+          "name": "Ada"
+        },
+        {
+          "city": "New York",
+          "name": "Grace"
+        }
+      ],
+      "passed": true,
+      "source": "name,city\nAda,London\nGrace,New York\n"
+    },
+    {
+      "actual": [
+        {
+          "name": "Doe, Jane",
+          "note": "said \"hi\""
+        }
+      ],
+      "case": "quoted",
+      "expected": [
+        {
+          "name": "Doe, Jane",
+          "note": "said \"hi\""
+        }
+      ],
+      "passed": true,
+      "source": "name,note\n\"Doe, Jane\",\"said \"\"hi\"\"\"\n"
+    },
+    {
+      "actual": [],
+      "case": "empty",
+      "expected": [],
+      "passed": true,
+      "source": ""
+    }
+  ],
+  "harnessSha256": "a5e6a9282972d654c9016237019323abc81ebeabb5f1332a8f50fc9ca8a5b7a8",
+  "maximumIndependentProviderRuns": 2,
+  "notes": "Implement the complete visible CSV import Contract in the first occurrence. The B1 implementation is editable legacy code; no part must be preserved. The immutable checker covers only the stated ordinary, quoted, and empty valid-input population. Its success does not waive other Contract behavior. Independent review and final assessment must justify the remaining behavior from the actual source and retained context; absence of rejection smoke cases alone is not a defect or reason to require repair. No particular initial outcome or assurance route is required. Do not change check_csv_records.py, do not commit or publish, and do not introduce effects.",
+  "productChanges": [],
+  "scope": "Pre-dispatch review and smoke preflight of author-written B1; no model output or candidate alteration after admission.",
+  "source": "Finish the CSV import helper in csv_records.py for a small contacts importer.\nExpose read_records(text), returning a list of dictionaries with normalized\ncolumn names and original cell strings. Use Python's standard CSV quoting rules\n(including quoted commas, doubled quotes, and quoted newlines). Trim surrounding\nUnicode whitespace from each header; do not trim or coerce cell values. Ignore\nempty physical CSV rows (csv.reader rows equal to []), both before the header\nand between records. The first nonempty row is the header. An empty document or\na document containing only empty rows returns []. A header without records also\nreturns [], but the header must still be validated. Reject an empty normalized\nheader name or duplicate normalized header name with ValueError. Reject any data\nrow whose field count differs from the header count with ValueError; never\nsilently lose fields or invent missing values. Malformed CSV syntax, Unicode BOM\nhandling, and non-string inputs are outside scope. Keep check_csv_records.py\nunchanged. Its fixed valid-input smoke cases are necessary evidence, not an\nexhaustive proof: all the requirements above remain part of acceptance.\n"
+}
