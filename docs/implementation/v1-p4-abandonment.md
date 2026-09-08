@@ -1,14 +1,33 @@
 # V1-P4 abandonment and physical cessation
 
-Issue #21 remains **in progress**. The real-provider temporary-source shared-Git
-counterexample is unresolved; this implementation is not a G4 or no-effect
-compatibility pass. See the [actual-provider record](../../qualification/v1-p4/issue-21-provider-containment.md).
+Issue #21 is **complete** with its [acceptance and requalification record](../../qualification/v1-p4/issue-21-abandonment.md).
+The temporary-source counterexample is excluded before first dispatch by the
+supported source-placement restriction below. Historical qualification records
+and the [original failed probe](../../qualification/v1-p4/issue-21-provider-containment.md)
+remain unchanged. This implementation does not record a G4 verdict.
 
 `BroodlingStore.abandon_attempt()` permanently removes currentness before any
 stop or retirement operation. `AbandonmentCoordinator.stop()` then closes the
 Attempt's physical launch boundary, uses the public SDK to stop its already-known
 run, and checks physical cessation. It never replays submission to discover an
 ambiguous old run. A runtime terminal result is diagnostic only.
+
+## Supported source placement
+
+Before the first dispatch, `QualifiedCodexProfile.validate()` asks Git for the
+actual shared/common directory from the Attempt worktree, resolves it strictly,
+and rejects it when it is inside canonical `/tmp`. Git resolution errors also
+reject. Symlink spellings and separate Git directories cannot evade this check.
+The refusal precedes even the CLI version probe and leaves a prepared submission
+without a run. It does not replay or launch coding work.
+
+This is the specific writable scratch-root fact for the pinned Linux Codex
+profile. The product's exact runtime connections omit `TMPDIR`, and the pinned
+process runner clears inherited environment. No caller-supplied filesystem policy
+or generalized mount/provenance subsystem is introduced. Durable source metadata
+remains admissible; its protection is separately checked with the actual provider.
+The public profile identity records `sharedGitPolicy` so the restriction is part
+of the persisted request binding.
 
 ## Bounded W5 containment adaptation
 
@@ -69,6 +88,12 @@ An allocated enclosure left by interrupted provisioning remains blocked: its
 unacknowledged Git child lifetime is unknown. Missing dispatched run identity,
 inaccessible runtime state, an unqualified old profile or a live namespace also
 remains blocking. None restores Attempt eligibility.
+
+Concurrent public stop requests can lose an acknowledgment when the pinned
+controller publishes its terminal result and exits before all RPC replies drain.
+The error propagates without manufacturing safety proof. An explicit repeated
+administrative stop can observe the same known run and confirm physical cessation;
+no product automatic retry policy is added.
 
 No replacement admission, Work Unit disposition, semantic recovery/catch-up,
 effects, candidate sealing or later-phase machinery is implemented here.

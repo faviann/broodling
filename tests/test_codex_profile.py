@@ -2,12 +2,15 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+from support import durable_test_root, git, make_repository
 
 from broodling.codex_profile import LAUNCHER, QualifiedCodexProfile
 from broodling.errors import UnsupportedRuntime
@@ -18,8 +21,10 @@ class CodexProfileTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.workspace = self.root / "candidate"
-        self.workspace.mkdir()
+        self.durable = durable_test_root("broodling-profile-")
+        self.addCleanup(shutil.rmtree, self.durable, ignore_errors=True)
+        self.workspace = self.durable / "candidate"
+        make_repository(self.workspace)
         self.home = self.root / "profile-home"
         self.home.mkdir()
         self.codex_home = self.root / "isolated-codex-home"
@@ -46,6 +51,53 @@ class CodexProfileTests(unittest.TestCase):
         self.assertEqual(
             [path.name for path in self.codex_home.iterdir()], ["auth.json"]
         )
+
+    def test_canonical_shared_git_under_tmp_is_rejected_before_provider_probe(self):
+        source = self.root / "unsafe-source"
+        make_repository(source)
+        linked = self.durable / "linked"
+        git(source, "worktree", "add", "-b", "unsafe", str(linked))
+        self.executable.write_text(
+            "#!/bin/sh\ntouch " + str(self.root / "invoked") + "\n"
+        )
+        with self.assertRaisesRegex(
+            UnsupportedRuntime, "shared Git directory.*writable /tmp"
+        ):
+            self.profile.validate(linked, path=os.defpath)
+        self.assertFalse((self.root / "invoked").exists())
+
+    def test_symlink_spelling_cannot_hide_unsafe_common_directory(self):
+        source = self.root / "unsafe-source"
+        make_repository(source)
+        alias = self.durable / "source-alias"
+        alias.symlink_to(source, target_is_directory=True)
+        linked = self.durable / "linked"
+        git(alias, "worktree", "add", "-b", "unsafe", str(linked))
+        with self.assertRaisesRegex(
+            UnsupportedRuntime, "shared Git directory.*writable /tmp"
+        ):
+            self.profile.validate(linked, path=os.defpath)
+
+    def test_separate_git_directory_under_tmp_is_rejected(self):
+        separate = self.root / "shared-git"
+        checkout = self.durable / "separate-checkout"
+        checkout.mkdir()
+        git(checkout, "init", "--separate-git-dir", str(separate))
+        with self.assertRaisesRegex(
+            UnsupportedRuntime, "shared Git directory.*writable /tmp"
+        ):
+            self.profile.validate(checkout, path=os.defpath)
+
+    def test_missing_git_resolution_fails_closed(self):
+        missing = self.durable / "not-a-repository"
+        missing.mkdir()
+        with self.assertRaisesRegex(UnsupportedRuntime, "could not be resolved"):
+            self.profile.validate(missing, path=os.defpath)
+
+    def test_ambient_tmpdir_is_not_a_declared_provider_scratch_root(self):
+        with patch.dict(os.environ, {"TMPDIR": str(self.durable)}):
+            self.profile.validate(self.workspace, path=os.defpath)
+        self.assertNotIn("TMPDIR", self.profile.environment(os.defpath))
 
     def test_profile_request_identity_contains_no_authentication_bytes(self):
         identity = self.profile.identity()

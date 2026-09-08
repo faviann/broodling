@@ -1,0 +1,54 @@
+test_caller_process_loss_after_directive_and_after_final_custody (test_abandonment_public.PublicAbandonmentTests.test_caller_process_loss_after_directive_and_after_final_custody) ... ok
+test_concurrent_stop_callers_converge_after_public_stop (test_abandonment_public.PublicAbandonmentTests.test_concurrent_stop_callers_converge_after_public_stop) ... ERROR
+test_controller_death_uses_physical_cessation_before_retirement (test_abandonment_public.PublicAbandonmentTests.test_controller_death_uses_physical_cessation_before_retirement) ... ok
+test_final_runtime_success_and_custody_are_abandoned_without_disposition (test_abandonment_public.PublicAbandonmentTests.test_final_runtime_success_and_custody_are_abandoned_without_disposition) ... ok
+test_process_death_before_stop_and_after_terminal_observation (test_abandonment_public.PublicAbandonmentTests.test_process_death_before_stop_and_after_terminal_observation) ... ok
+test_stop_during_mutation_and_adjudication (test_abandonment_public.PublicAbandonmentTests.test_stop_during_mutation_and_adjudication) ... ok
+
+======================================================================
+ERROR: test_concurrent_stop_callers_converge_after_public_stop (test_abandonment_public.PublicAbandonmentTests.test_concurrent_stop_callers_converge_after_public_stop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/faviann/repos/broodling/tests/test_abandonment_public.py", line 179, in test_concurrent_stop_callers_converge_after_public_stop
+    records = asyncio.run(simultaneous())
+  File "/usr/lib/python3.13/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.13/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.13/asyncio/base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/home/faviann/repos/broodling/tests/test_abandonment_public.py", line 171, in simultaneous
+    return await asyncio.wait_for(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/usr/lib/python3.13/asyncio/tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/home/faviann/repos/broodling/broodling/abandonment.py", line 107, in stop
+    observed = await self.submitter.stop_known(request, submitted.run_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/faviann/repos/broodling/tests/test_abandonment_public.py", line 168, in overlapping
+    return await original(*args)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/faviann/repos/broodling/broodling/zeroshot_sdk.py", line 174, in stop_known
+    result = await run.force_stop()
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/faviann/.cache/broodling-zeroshot-venv/lib/python3.13/site-packages/zeroshot/client.py", line 578, in force_stop
+    status = await self._client._force_stop(self.id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/faviann/.cache/broodling-zeroshot-venv/lib/python3.13/site-packages/zeroshot/client.py", line 461, in _force_stop
+    value = await self._native().json(["force-stop", run_id, *self._route_arguments()])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/faviann/.cache/broodling-zeroshot-venv/lib/python3.13/site-packages/zeroshot/_process.py", line 41, in json
+    raise self._error(stderr, return_code)
+zeroshot.errors.TargetError: Zeroshot Rust observation transport disconnected
+
+----------------------------------------------------------------------
+Ran 6 tests in 203.831s
+
+FAILED (errors=1)

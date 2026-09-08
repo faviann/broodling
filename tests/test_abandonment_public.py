@@ -15,11 +15,13 @@ import time
 import unittest
 from pathlib import Path
 from typing import ClassVar
+from unittest.mock import patch
 
 from final_assurance_support import final_case, observe_released
 
 from broodling import (
     AbandonmentCoordinator,
+    BroodlingStore,
     CessationUnconfirmed,
     FinalAssuranceCoordinator,
     containment,
@@ -144,6 +146,73 @@ class PublicAbandonmentTests(unittest.TestCase):
             self.assertTrue(containment.confirm_ceased(case.path))
             retired = administrator.retire(case.attempt_id)
             self.retain(case, "controller_loss", retired, killedController=pid)
+
+    def test_concurrent_stop_callers_converge_after_public_stop(self):
+        from zeroshot.errors import TargetError
+
+        with final_case("repair", pause_node="repair") as case:
+            asyncio.run(paused(case))
+            with BroodlingStore.open(case.store.path) as other_store:
+                first = AbandonmentCoordinator(case.store, case.adapter)
+                second = AbandonmentCoordinator(other_store, case.adapter)
+                original = case.adapter.stop_known
+
+                async def simultaneous():
+                    ready = asyncio.Event()
+                    entered = 0
+
+                    async def overlapping(*args):
+                        nonlocal entered
+                        entered += 1
+                        if entered == 2:
+                            ready.set()
+                        await asyncio.wait_for(ready.wait(), timeout=10)
+                        return await original(*args)
+
+                    with patch.object(case.adapter, "stop_known", overlapping):
+                        return await asyncio.wait_for(
+                            asyncio.gather(
+                                first.stop(case.attempt_id, "concurrent first"),
+                                second.stop(case.attempt_id, "concurrent second"),
+                                return_exceptions=True,
+                            ),
+                            timeout=45,
+                        )
+
+                observations = asyncio.run(simultaneous())
+                errors = []
+                for observation in observations:
+                    if isinstance(observation, BaseException):
+                        # The pinned controller exits after terminal publication
+                        # without draining all concurrent RPC replies. Preserve
+                        # this known acknowledgment loss; do not treat it as proof.
+                        self.assertIsInstance(observation, TargetError)
+                        self.assertIn("transport disconnected", str(observation))
+                        errors.append(str(observation))
+                self.assertIsNotNone(case.store.abandonment(case.attempt_id))
+                self.assertFalse(case.store.get_attempt(case.attempt_id).is_current)
+                if first.record(case.attempt_id) is None:
+                    with self.assertRaises(CessationUnconfirmed):
+                        first.retire(case.attempt_id)
+                records = [
+                    asyncio.run(owner.stop(case.attempt_id, "explicit repeat"))
+                    for owner in (first, second)
+                ]
+                self.assertEqual(records[0], records[1])
+                for observation in observations:
+                    if not isinstance(observation, BaseException):
+                        self.assertEqual(observation, records[0])
+                retired = first.retire(case.attempt_id)
+                self.assertEqual(second.retire(case.attempt_id), retired)
+                self.assertFalse(case.path.exists())
+                self.retain(
+                    case,
+                    "concurrent_stop",
+                    retired,
+                    overlappingCallers=2,
+                    publicAcknowledgmentErrors=errors,
+                    explicitRepeatsConverged=True,
+                )
 
     def test_caller_process_loss_after_directive_and_after_final_custody(self):
         for action, pause in (("after-directive", "repair"), ("after-final", None)):

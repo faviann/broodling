@@ -1,0 +1,280 @@
+{
+  "productSources": {
+    "broodling/__init__.py": "c74fb9a7c665677a1b4ad582ad3442a100be7d1d83deaf0eb42fd42fb423f564",
+    "broodling/abandonment.py": "ce7ab0fd98f630034b831feac11c92d561b0d6b0aacabf104357cba81f9557e1",
+    "broodling/assurance.py": "37e984ddc01bfb751da859be7a0632af6cb750e9191ec82ef56622967ed0d360",
+    "broodling/assurance_graph.py": "b0b9eb50af8f401e717700c975ae93bd70ba7ac7c7c686160a3e729dbeb05bae",
+    "broodling/closability.py": "eb6c9b0895035d2aeebea4c86b81a95ac305f6a009f68f64a1a6b49b55e54a80",
+    "broodling/codex_profile.py": "f06050fff17cc53458945c858246c1904b9b440cba522ece857d375787f9751b",
+    "broodling/containment.py": "1cd4507567a66df727d8ddd42e8f947030d09df2edcf5358a4e40f2c776cae7e",
+    "broodling/contract.py": "aa53244ae3bdf1fc418311aa1fb73ac36c6a1827759897b935970d40210bf315",
+    "broodling/entitlement.py": "c0bb6c6012a6c6c95626a65418faaca19f7cf43656589d2cfa5c1eaaee05f5a5",
+    "broodling/errors.py": "4adaa9fea7b76e911489d8041424b6367105d155400d60de833d3556f7e6a9aa",
+    "broodling/final_material.py": "b149ba999612981f79a9f19900660e6c38aadf5fa23d88799693ccfdb9578074",
+    "broodling/git.py": "ddb5b9c509449cbde7b2fe44c3bfcc3efcada49e2892db489b912c0323ce87ee",
+    "broodling/identity.py": "dd5ba920ab996d0efb68da2f463f4f622948a43cd8b7d3d5de195e3fc5ed0658",
+    "broodling/mechanical_evidence.py": "c878f7b8eb1e00f115879e78118edc65c323fe4605ffb9743d1b903d4022410c",
+    "broodling/profile.py": "468cf873ef90f19b6670704d24af5d445832f67ae4f30a152df639faa45848e5",
+    "broodling/provisioning.py": "94a29546c90baf1146acb2a707e3baab4c848bdc939bfb452620ff3f24cdf93a",
+    "broodling/reviewer.py": "5b4b2f71ac1cf49e195f71398898df208f85bab8e7c0cdf284dbd535ce4137b9",
+    "broodling/schema.py": "a8406aae45b3e44b6a42e5e4f661fa37abec27a60f3b8305bd247664e44c24a2",
+    "broodling/starting_state.py": "4b5ab61b1642a20a8b8cd1001af32839bea030440d875a404dd0c45b5a602ba3",
+    "broodling/store.py": "c1e5a90b7c5b9202be9f79a99641bd918c5689aeb2d38f22fa72a7002235647e",
+    "broodling/submission.py": "eb945ab817dc6ca63c3d61c55258bf627e55d901673dafca6849f7396c6ada18",
+    "broodling/workspace.py": "5b20a932865a7caee0541788994c0ffd99825a1f52c7e6f9142bca729740b4ee",
+    "broodling/zeroshot_sdk.py": "00d80cb50020b238aacce3533bc589e8d44e435952085e668b4f06702058cfe8"
+  },
+  "providerRecords": {
+    "adjudicator": {
+      "actualCompletedCommandOutputChecked": true,
+      "allRetainedChecksTrue": true,
+      "commandProbeResults": [
+        {
+          "error": "[Errno 30] Read-only file system: 'candidate.txt'",
+          "name": "own",
+          "succeeded": false
+        },
+        {
+          "error": "[Errno 30] Read-only file system: '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-dk12rir9/sibling/sentinel.txt'",
+          "name": "sibling",
+          "succeeded": false
+        },
+        {
+          "argv": [
+            "git",
+            "config",
+            "broodling.probe",
+            "UNAUTHORIZED"
+          ],
+          "returncode": 255,
+          "stderr": "error: could not lock config file /home/faviann/.cache/broodling-tests/broodling-p2-workspace-dk12rir9/qualified-source/.git/config: Read-only file system\n",
+          "stdout": ""
+        },
+        {
+          "argv": [
+            "git",
+            "tag",
+            "issue21-unwanted-effect"
+          ],
+          "returncode": 128,
+          "stderr": "fatal: cannot lock ref 'refs/tags/issue21-unwanted-effect': Unable to create '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-dk12rir9/qualified-source/.git/refs/tags/issue21-unwanted-effect.lock': Read-only file system\n",
+          "stdout": ""
+        },
+        {
+          "argv": [
+            "git",
+            "push",
+            "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-dk12rir9/local-remote.git",
+            "HEAD:refs/heads/unwanted"
+          ],
+          "returncode": 1,
+          "stderr": "error: remote unpack failed: unable to create temporary object directory\nTo /home/faviann/.cache/broodling-tests/broodling-p2-workspace-dk12rir9/local-remote.git\n ! [remote rejected] HEAD -> unwanted (unpacker error)\nerror: failed to push some refs to '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-dk12rir9/local-remote.git'\n",
+          "stdout": ""
+        },
+        {
+          "error": "[Errno 1] Operation not permitted",
+          "name": "network",
+          "succeeded": false
+        },
+        {
+          "name": "github_credentials",
+          "readable": false
+        }
+      ],
+      "currentProductProfileMatches": true,
+      "recordSha256": "32d6d040abf7ae84146aabeed5f030c73cb2d8ae760784dd72e129269823b460"
+    },
+    "final": {
+      "actualCompletedCommandOutputChecked": true,
+      "allRetainedChecksTrue": true,
+      "commandProbeResults": [
+        {
+          "error": "[Errno 30] Read-only file system: 'candidate.txt'",
+          "name": "own",
+          "succeeded": false
+        },
+        {
+          "error": "[Errno 30] Read-only file system: '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-3io33xd9/sibling/sentinel.txt'",
+          "name": "sibling",
+          "succeeded": false
+        },
+        {
+          "argv": [
+            "git",
+            "config",
+            "broodling.probe",
+            "UNAUTHORIZED"
+          ],
+          "returncode": 255,
+          "stderr": "error: could not lock config file /home/faviann/.cache/broodling-tests/broodling-p2-workspace-3io33xd9/qualified-source/.git/config: Read-only file system\n",
+          "stdout": ""
+        },
+        {
+          "argv": [
+            "git",
+            "tag",
+            "issue21-unwanted-effect"
+          ],
+          "returncode": 128,
+          "stderr": "fatal: cannot lock ref 'refs/tags/issue21-unwanted-effect': Unable to create '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-3io33xd9/qualified-source/.git/refs/tags/issue21-unwanted-effect.lock': Read-only file system\n",
+          "stdout": ""
+        },
+        {
+          "argv": [
+            "git",
+            "push",
+            "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-3io33xd9/local-remote.git",
+            "HEAD:refs/heads/unwanted"
+          ],
+          "returncode": 1,
+          "stderr": "error: remote unpack failed: unable to create temporary object directory\nTo /home/faviann/.cache/broodling-tests/broodling-p2-workspace-3io33xd9/local-remote.git\n ! [remote rejected] HEAD -> unwanted (unpacker error)\nerror: failed to push some refs to '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-3io33xd9/local-remote.git'\n",
+          "stdout": ""
+        },
+        {
+          "error": "[Errno 1] Operation not permitted",
+          "name": "network",
+          "succeeded": false
+        },
+        {
+          "name": "github_credentials",
+          "readable": false
+        }
+      ],
+      "currentProductProfileMatches": true,
+      "recordSha256": "54fdb7b2b4aadd3ec31c0ddb9c07315abbd83482966267a9ae940dd4107f3a38"
+    },
+    "loss": {
+      "allRetainedChecksTrue": true,
+      "currentProductProfileMatches": true,
+      "recordSha256": "134ac6740dac1a2401792ade2a8c3cab41de1f7668c5d7c189c1ae6f73fb329e"
+    },
+    "mutation": {
+      "actualCompletedCommandOutputChecked": true,
+      "allRetainedChecksTrue": true,
+      "commandProbeResults": [
+        {
+          "name": "own",
+          "succeeded": true
+        },
+        {
+          "error": "[Errno 30] Read-only file system: '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bygmy8er/sibling/sentinel.txt'",
+          "name": "sibling",
+          "succeeded": false
+        },
+        {
+          "argv": [
+            "git",
+            "config",
+            "broodling.probe",
+            "UNAUTHORIZED"
+          ],
+          "returncode": 255,
+          "stderr": "error: could not lock config file /home/faviann/.cache/broodling-tests/broodling-p2-workspace-bygmy8er/qualified-source/.git/config: Read-only file system\n",
+          "stdout": ""
+        },
+        {
+          "argv": [
+            "git",
+            "tag",
+            "issue21-unwanted-effect"
+          ],
+          "returncode": 128,
+          "stderr": "fatal: cannot lock ref 'refs/tags/issue21-unwanted-effect': Unable to create '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bygmy8er/qualified-source/.git/refs/tags/issue21-unwanted-effect.lock': Read-only file system\n",
+          "stdout": ""
+        },
+        {
+          "argv": [
+            "git",
+            "push",
+            "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bygmy8er/local-remote.git",
+            "HEAD:refs/heads/unwanted"
+          ],
+          "returncode": 1,
+          "stderr": "error: remote unpack failed: unable to create temporary object directory\nTo /home/faviann/.cache/broodling-tests/broodling-p2-workspace-bygmy8er/local-remote.git\n ! [remote rejected] HEAD -> unwanted (unpacker error)\nerror: failed to push some refs to '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bygmy8er/local-remote.git'\n",
+          "stdout": ""
+        },
+        {
+          "error": "[Errno 1] Operation not permitted",
+          "name": "network",
+          "succeeded": false
+        },
+        {
+          "name": "github_credentials",
+          "readable": false
+        }
+      ],
+      "currentProductProfileMatches": true,
+      "recordSha256": "c9fae7cfd0da702a1cc585e17f58d41dc8ec554c6bf94a37dfd29f359e1340cf"
+    },
+    "negative": {
+      "allRetainedChecksTrue": true,
+      "currentProductProfileMatches": false,
+      "recordSha256": "cfb8f9cd2c73aba4e9e4a395fb29dbf60a1666cc1e8d12c1e40e3f3d2b2684e2"
+    },
+    "reviewer": {
+      "actualCompletedCommandOutputChecked": true,
+      "allRetainedChecksTrue": true,
+      "commandProbeResults": [
+        {
+          "error": "[Errno 30] Read-only file system: 'candidate.txt'",
+          "name": "own",
+          "succeeded": false
+        },
+        {
+          "error": "[Errno 30] Read-only file system: '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bqcm4uaf/sibling/sentinel.txt'",
+          "name": "sibling",
+          "succeeded": false
+        },
+        {
+          "argv": [
+            "git",
+            "config",
+            "broodling.probe",
+            "UNAUTHORIZED"
+          ],
+          "returncode": 255,
+          "stderr": "error: could not lock config file /home/faviann/.cache/broodling-tests/broodling-p2-workspace-bqcm4uaf/qualified-source/.git/config: Read-only file system\n",
+          "stdout": ""
+        },
+        {
+          "argv": [
+            "git",
+            "tag",
+            "issue21-unwanted-effect"
+          ],
+          "returncode": 128,
+          "stderr": "fatal: cannot lock ref 'refs/tags/issue21-unwanted-effect': Unable to create '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bqcm4uaf/qualified-source/.git/refs/tags/issue21-unwanted-effect.lock': Read-only file system\n",
+          "stdout": ""
+        },
+        {
+          "argv": [
+            "git",
+            "push",
+            "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bqcm4uaf/local-remote.git",
+            "HEAD:refs/heads/unwanted"
+          ],
+          "returncode": 1,
+          "stderr": "error: remote unpack failed: unable to create temporary object directory\nTo /home/faviann/.cache/broodling-tests/broodling-p2-workspace-bqcm4uaf/local-remote.git\n ! [remote rejected] HEAD -> unwanted (unpacker error)\nerror: failed to push some refs to '/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bqcm4uaf/local-remote.git'\n",
+          "stdout": ""
+        },
+        {
+          "error": "[Errno 1] Operation not permitted",
+          "name": "network",
+          "succeeded": false
+        },
+        {
+          "name": "github_credentials",
+          "readable": false
+        }
+      ],
+      "currentProductProfileMatches": true,
+      "recordSha256": "846fbbab45ef49c9525bf6cb2515e253360b061dbd71f4e15f563ae4d3b553a1"
+    },
+    "unsafe": {
+      "allRetainedChecksTrue": true,
+      "currentProductProfileMatches": true,
+      "recordSha256": "a1213883e5d8d22043e451012635dee52fa5f671d360c61ee6637152aa0bcd48"
+    }
+  },
+  "scope": "Parent independent current-product and retained-check audit. Negative intentionally bypasses product containment. No G4 verdict."
+}

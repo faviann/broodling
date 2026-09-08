@@ -1,0 +1,62 @@
+{
+  "cases": {
+    "adjudicator": {
+      "canonicalCommonGit": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-dk12rir9/qualified-source/.git",
+      "canonicalCommonGitBasis": "Product predispatch validation resolved actual common Git; this fixture uses conventional repository/.git, inspected paths retained in actual probe command output.",
+      "passed": true,
+      "recordSha256": "32d6d040abf7ae84146aabeed5f030c73cb2d8ae760784dd72e129269823b460",
+      "sharedGitPolicy": "canonical-outside-slash-tmp-v1",
+      "sourceRepositoryPath": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-dk12rir9/qualified-source"
+    },
+    "final": {
+      "canonicalCommonGit": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-3io33xd9/qualified-source/.git",
+      "canonicalCommonGitBasis": "Product predispatch validation resolved actual common Git; this fixture uses conventional repository/.git, inspected paths retained in actual probe command output.",
+      "passed": true,
+      "recordSha256": "54fdb7b2b4aadd3ec31c0ddb9c07315abbd83482966267a9ae940dd4107f3a38",
+      "sharedGitPolicy": "canonical-outside-slash-tmp-v1",
+      "sourceRepositoryPath": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-3io33xd9/qualified-source"
+    },
+    "loss": {
+      "canonicalCommonGit": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-srclfnuw/qualified-source/.git",
+      "canonicalCommonGitBasis": "Product predispatch validation resolved actual common Git; this fixture uses conventional repository/.git, inspected paths retained in actual probe command output.",
+      "passed": true,
+      "recordSha256": "134ac6740dac1a2401792ade2a8c3cab41de1f7668c5d7c189c1ae6f73fb329e",
+      "sharedGitPolicy": "canonical-outside-slash-tmp-v1",
+      "sourceRepositoryPath": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-srclfnuw/qualified-source"
+    },
+    "mutation": {
+      "canonicalCommonGit": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bygmy8er/qualified-source/.git",
+      "canonicalCommonGitBasis": "Product predispatch validation resolved actual common Git; this fixture uses conventional repository/.git, inspected paths retained in actual probe command output.",
+      "passed": true,
+      "recordSha256": "c9fae7cfd0da702a1cc585e17f58d41dc8ec554c6bf94a37dfd29f359e1340cf",
+      "sharedGitPolicy": "canonical-outside-slash-tmp-v1",
+      "sourceRepositoryPath": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bygmy8er/qualified-source"
+    },
+    "negative": {
+      "passed": true,
+      "recordSha256": "cfb8f9cd2c73aba4e9e4a395fb29dbf60a1666cc1e8d12c1e40e3f3d2b2684e2"
+    },
+    "reviewer": {
+      "canonicalCommonGit": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bqcm4uaf/qualified-source/.git",
+      "canonicalCommonGitBasis": "Product predispatch validation resolved actual common Git; this fixture uses conventional repository/.git, inspected paths retained in actual probe command output.",
+      "passed": true,
+      "recordSha256": "846fbbab45ef49c9525bf6cb2515e253360b061dbd71f4e15f563ae4d3b553a1",
+      "sharedGitPolicy": "canonical-outside-slash-tmp-v1",
+      "sourceRepositoryPath": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bqcm4uaf/qualified-source"
+    },
+    "unsafe": {
+      "canonicalCommonGit": "/tmp/broodling-p2-164kikzk/explicit-scratch-source/.git",
+      "canonicalCommonGitBasis": "Product predispatch validation resolved actual common Git; this fixture uses conventional repository/.git, inspected paths retained in actual probe command output.",
+      "passed": true,
+      "recordSha256": "a1213883e5d8d22043e451012635dee52fa5f671d360c61ee6637152aa0bcd48",
+      "sharedGitPolicy": "canonical-outside-slash-tmp-v1",
+      "sourceRepositoryPath": "/tmp/broodling-p2-164kikzk/explicit-scratch-source"
+    }
+  },
+  "recordedAt": "2026-09-08T16:43:07.977371+00:00",
+  "scope": "Post-run source audit of the frozen product profile and fixture support; these hashes were not recorded at invocation by the first fresh batch. Parent froze profile before the batch. Invocation-time existing source hashes are unchanged.",
+  "sources": {
+    "broodling/codex_profile.py": "f06050fff17cc53458945c858246c1904b9b440cba522ece857d375787f9751b",
+    "tests/support.py": "6a86c0e58eaf112819ae0ac109e3674c98d7bdd18cc39a2069f369f283e8e8ea"
+  }
+}

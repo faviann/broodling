@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 
@@ -30,6 +31,13 @@ def main():
             )
             + "\n"
         )
+    if config["mode"] == "sibling" and node == "implement":
+        for index in range(1500):
+            with Path("sibling-heartbeat.txt").open("a") as stream:
+                stream.write(str(index) + "\n")
+                stream.flush()
+            time.sleep(0.2)
+        return 79
     if node == config["node"]:
         mode = config["mode"]
         prompt += (

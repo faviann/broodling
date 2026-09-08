@@ -192,10 +192,14 @@ class AttemptTestCase(StoreTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.workspace_root = durable_test_root()
+        source_root = durable_test_root(prefix="broodling-source-")
+        self.addCleanup(shutil.rmtree, source_root, ignore_errors=True)
         self.addCleanup(self._retire_workspaces)
-        self.repository = self.root / "source"
+        # Qualified provider dispatch also requires shared Git metadata outside
+        # its ambient writable /tmp scratch root (discovered during #21).
+        self.repository = source_root / "source"
         self.b1 = make_repository(self.repository)
-        work_unit, source, contract = self.admissible_contract()
+        work_unit, _source, contract = self.admissible_contract()
         self.work_unit = work_unit
         self.revision = self.store.record_contract_revision(contract)
         self.decision = self.store.admit(self.revision.contract_revision_id)

@@ -13,8 +13,9 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import git
 from .containment import CONTAINMENT_PROFILE
-from .errors import UnsupportedRuntime
+from .errors import GitCommandError, UnsupportedRuntime
 
 QUALIFIED_CODEX_VERSION = "codex-cli 0.153.4"
 LAUNCHER = Path(__file__).parent / "codex_bin" / "codex"
@@ -57,6 +58,7 @@ class QualifiedCodexProfile:
         return {
             "profile": "g1-v1-codex-w4",
             "containmentProfile": CONTAINMENT_PROFILE,
+            "sharedGitPolicy": "canonical-outside-slash-tmp-v1",
             "containmentSha256": hashlib.sha256(CONTAINMENT.read_bytes()).hexdigest(),
             "codexVersion": QUALIFIED_CODEX_VERSION,
             "realCodex": str(self.real_codex),
@@ -77,6 +79,21 @@ class QualifiedCodexProfile:
         """
 
         candidate = Path(workspace).resolve()
+        # Current assurance connections never declare TMPDIR. The pinned
+        # process runner clears ambient environment before applying those exact
+        # connections, so /tmp is this Linux profile's only extra writable
+        # scratch root. Do not substitute the broader durable-workspace policy.
+        try:
+            common = git.common_directory(candidate).resolve(strict=True)
+            scratch = Path("/tmp").resolve(strict=True)
+        except (GitCommandError, OSError, RuntimeError) as error:
+            raise UnsupportedRuntime(
+                "qualified shared Git directory could not be resolved"
+            ) from error
+        if common.is_relative_to(scratch):
+            raise UnsupportedRuntime(
+                "qualified shared Git directory must be outside provider writable /tmp"
+            )
         paths = (
             self.real_codex,
             self.profile_home,

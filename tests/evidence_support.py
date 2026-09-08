@@ -156,8 +156,12 @@ def run_case(scenario):
 
             for node in executable_nodes(graph["root"]):
                 if node["name"] == "initial_evidence_check":
-                    node["timeoutMs"] = 1_000
-            deviation = {"node": "initial_evidence_check", "timeoutMs": 1_000}
+                    # The trusted parent digest plus namespace startup can
+                    # exceed one second on this host. Five seconds remains a
+                    # test-only deviation below the 60s child/300s product node;
+                    # the observed-child and no-survivor checks stay mandatory.
+                    node["timeoutMs"] = 5_000
+            deviation = {"node": "initial_evidence_check", "timeoutMs": 5_000}
         with patch("broodling.assurance_graph.assurance_graph", return_value=graph):
             row = coordinator.submit_assurance(provisioned.attempt.attempt_id)
         request = json.loads(row.request_json)
@@ -322,7 +326,7 @@ def acceptance_checks(cases):
             (
                 case["exactProductGraphAndRuntime"]
                 or case["testOnlyGraphDeviation"]
-                == {"node": "initial_evidence_check", "timeoutMs": 1_000}
+                == {"node": "initial_evidence_check", "timeoutMs": 5_000}
             )
             and case["sameReplayedRunAndRequest"]
             for case in cases.values()

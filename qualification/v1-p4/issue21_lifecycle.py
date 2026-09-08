@@ -32,6 +32,7 @@ sources = [
     "tests/final_assurance_support.py",
     "tests/fixtures/final-assurance-bin/codex",
     "tests/abandonment_caller_child.py",
+    "tests/support.py",
 ]
 record = {
     "scope": "controlled product lifecycle mechanics; not actual-provider qualification or #21 completion",
@@ -44,6 +45,10 @@ record = {
     },
     "cases": PublicAbandonmentTests.control_records,
 }
-output = ROOT / "qualification/v1-p4/evidence/issue-21-lifecycle.json"
+output = (
+    Path(sys.argv[1])
+    if len(sys.argv) > 1
+    else ROOT / "qualification/v1-p4/evidence/issue-21-lifecycle.json"
+)
 output.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
 raise SystemExit(0 if record["mechanicsPassed"] else 1)

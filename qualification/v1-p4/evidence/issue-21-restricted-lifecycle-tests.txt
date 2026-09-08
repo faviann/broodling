@@ -1,0 +1,11 @@
+test_caller_process_loss_after_directive_and_after_final_custody (test_abandonment_public.PublicAbandonmentTests.test_caller_process_loss_after_directive_and_after_final_custody) ... ok
+test_concurrent_stop_callers_converge_after_public_stop (test_abandonment_public.PublicAbandonmentTests.test_concurrent_stop_callers_converge_after_public_stop) ... ok
+test_controller_death_uses_physical_cessation_before_retirement (test_abandonment_public.PublicAbandonmentTests.test_controller_death_uses_physical_cessation_before_retirement) ... ok
+test_final_runtime_success_and_custody_are_abandoned_without_disposition (test_abandonment_public.PublicAbandonmentTests.test_final_runtime_success_and_custody_are_abandoned_without_disposition) ... ok
+test_process_death_before_stop_and_after_terminal_observation (test_abandonment_public.PublicAbandonmentTests.test_process_death_before_stop_and_after_terminal_observation) ... ok
+test_stop_during_mutation_and_adjudication (test_abandonment_public.PublicAbandonmentTests.test_stop_during_mutation_and_adjudication) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 212.320s
+
+OK

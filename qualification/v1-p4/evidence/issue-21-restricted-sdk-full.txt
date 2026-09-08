@@ -1,0 +1,27 @@
+....................................................... [ 15%]
+........................................................ [ 31%]
+........................................... [ 43%]
+................................................... [ 57%]
+.......................................... [ 69%]
+........................ [ 76%]
+..................... [ 82%]
+..................................................... [ 97%]
+.........                                                                [100%]
+=================================== FAILURES ===================================
+_ EvidenceGraphTests.test_admitted_evidence_controls (control='native_timeout_terminates_check_descendants_before_terminal') _
+
+self = <test_evidence_graph.EvidenceGraphTests testMethod=test_admitted_evidence_controls>
+
+    def test_admitted_evidence_controls(self):
+        from evidence_support import SCENARIOS, acceptance_checks, run_case
+    
+        cases = {name: run_case(name) for name in SCENARIOS}
+        for name, passed in acceptance_checks(cases).items():
+            with self.subTest(control=name):
+>               self.assertTrue(passed, name)
+E               AssertionError: False is not true : native_timeout_terminates_check_descendants_before_terminal
+
+tests/test_evidence_graph.py:17: AssertionError
+=========================== short test summary info ============================
+SUBFAILED(control='native_timeout_terminates_check_descendants_before_terminal') tests/test_evidence_graph.py::EvidenceGraphTests::test_admitted_evidence_controls
+1 failed, 354 passed, 2246 subtests passed in 1581.52s (0:26:21)

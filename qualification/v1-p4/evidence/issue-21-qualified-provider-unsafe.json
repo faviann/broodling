@@ -1,0 +1,49 @@
+{
+  "actualCli": {
+    "path": "/home/faviann/.local/bin/codex",
+    "version": "codex-cli 0.153.4"
+  },
+  "case": {
+    "canonicalCommonGit": "/tmp/broodling-p2-164kikzk/explicit-scratch-source/.git",
+    "error": "qualified shared Git directory must be outside provider writable /tmp",
+    "nativeRunDirectoryExists": false,
+    "profileIdentity": {
+      "codexVersion": "codex-cli 0.153.4",
+      "containmentProfile": "linux-pidns-parent-death-v1",
+      "containmentSha256": "1cd4507567a66df727d8ddd42e8f947030d09df2edcf5358a4e40f2c776cae7e",
+      "evidenceLeafSha256": "c878f7b8eb1e00f115879e78118edc65c323fe4605ffb9743d1b903d4022410c",
+      "evidenceSandboxSha256": "573236e5328ac2ebb08f59ae3a9805b4f8d12bdef14be8af4450d5463294985f",
+      "isolatedCodexHome": "/dev/shm/b21-provider-6i9xmt59/auth-only-home",
+      "launcherSha256": "5e65d8e0509fbf55adb2c34b4297efc0afd94784f066cba3e08c4c8ed46d0624",
+      "profile": "g1-v1-codex-w4",
+      "profileHome": "/dev/shm/b21-provider-6i9xmt59/empty-home",
+      "realCodex": "/dev/shm/b21-provider-6i9xmt59/dispatcher",
+      "sharedGitPolicy": "canonical-outside-slash-tmp-v1"
+    },
+    "providerInvocations": [],
+    "runId": null,
+    "sourceRepositoryPath": "/tmp/broodling-p2-164kikzk/explicit-scratch-source",
+    "submissionState": "prepared",
+    "unsafeSourceRejection": true
+  },
+  "checks": {
+    "explicit_scratch_metadata": true,
+    "no_native_run": true,
+    "no_provider_invocation": true,
+    "no_run_identity": true,
+    "rejected_before_dispatch": true
+  },
+  "host": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+  "integration": {
+    "sdkSourceSha256": "0263b63cb6c6991703f699919ea974ba502da23e3a14ab7d5ab8c5d5ac3b256e",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86"
+  },
+  "passed": true,
+  "recordedAt": "2026-09-08T16:40:26.463253+00:00",
+  "sources": {
+    "qualification/v1-p4/issue21-provider-bin/codex": "8fd04d679f9030fa1ea5edc2b506a78b44e59a19808e68eb076cb9af3efe33b6",
+    "qualification/v1-p4/issue21-provider-bin/probe.py": "11ca572c144d1c016b12d2e8ab84b2a8821d8d0b294a3abab2d30f9401898326",
+    "qualification/v1-p4/issue21_provider.py": "0410437fbbff22c4060ce2ac13443e0a9e90ab14d5bbeaf7c4642e34cbba3636"
+  }
+}

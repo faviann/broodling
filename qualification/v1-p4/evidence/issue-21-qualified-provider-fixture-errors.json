@@ -1,0 +1,16 @@
+{
+  "scope": "Explained qualification-harness errors; not completed positive witnesses",
+  "failures": [
+    {
+      "stage": "controlled independent sibling Contract preparation",
+      "error": "SubmissionNotReady: criterion 'c1' mechanical evidence requires an explicit declaration",
+      "consequence": "No sibling or actual-loss provider dispatched in this case. Added explicit harmless MechanicalEvidence declaration to sibling criterion."
+    },
+    {
+      "stage": "runtime diagnostic query after actual old-worktree retirement",
+      "error": "TargetError: could not start Zeroshot Rust: FileNotFoundError for retired Attempt worktree cwd",
+      "consequence": "Physical cessation and product retirement returned, then harness attempted Run.wait using deleted cwd. No completed positive witness retained. Moved diagnostic wait before retirement and reran; cleanup avoids a further stop for retired cwd.",
+      "retiredPathComponent": "faviann-broodling-12-1597ab887cad7e5f175686b0"
+    }
+  ]
+}

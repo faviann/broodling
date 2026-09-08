@@ -1,0 +1,97 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0 -- /home/faviann/.cache/broodling-zeroshot-venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/faviann/repos/broodling
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+tests/test_abandonment_public.py::PublicAbandonmentTests::test_concurrent_stop_callers_converge_after_public_stop FAILED [100%]
+
+=================================== FAILURES ===================================
+_ PublicAbandonmentTests.test_concurrent_stop_callers_converge_after_public_stop _
+
+self = <test_abandonment_public.PublicAbandonmentTests testMethod=test_concurrent_stop_callers_converge_after_public_stop>
+
+    def test_concurrent_stop_callers_converge_after_public_stop(self):
+        with final_case("repair", pause_node="repair") as case:
+            asyncio.run(paused(case))
+            with BroodlingStore.open(case.store.path) as other_store:
+                first = AbandonmentCoordinator(case.store, case.adapter)
+                second = AbandonmentCoordinator(other_store, case.adapter)
+                original = case.adapter.stop_known
+    
+                async def simultaneous():
+                    ready = asyncio.Event()
+                    entered = 0
+    
+                    async def overlapping(*args):
+                        nonlocal entered
+                        entered += 1
+                        if entered == 2:
+                            ready.set()
+                        await asyncio.wait_for(ready.wait(), timeout=10)
+                        return await original(*args)
+    
+                    with patch.object(case.adapter, "stop_known", overlapping):
+                        return await asyncio.wait_for(
+                            asyncio.gather(
+                                first.stop(case.attempt_id, "concurrent first"),
+                                second.stop(case.attempt_id, "concurrent second"),
+                            ),
+                            timeout=45,
+                        )
+    
+>               records = asyncio.run(simultaneous())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_abandonment_public.py:179: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_abandonment_public.py:171: in simultaneous
+    return await asyncio.wait_for(
+/usr/lib/python3.13/asyncio/tasks.py:507: in wait_for
+    return await fut
+           ^^^^^^^^^
+broodling/abandonment.py:107: in stop
+    observed = await self.submitter.stop_known(request, submitted.run_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_abandonment_public.py:168: in overlapping
+    return await original(*args)
+           ^^^^^^^^^^^^^^^^^^^^^
+broodling/zeroshot_sdk.py:174: in stop_known
+    result = await run.force_stop()
+             ^^^^^^^^^^^^^^^^^^^^^^
+../../.cache/broodling-zeroshot-venv/lib/python3.13/site-packages/zeroshot/client.py:578: in force_stop
+    status = await self._client._force_stop(self.id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.cache/broodling-zeroshot-venv/lib/python3.13/site-packages/zeroshot/client.py:461: in _force_stop
+    value = await self._native().json(["force-stop", run_id, *self._route_arguments()])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <zeroshot._process.NativeProcess object at 0x74b4cef61470>
+arguments = ['force-stop', '01a081e6-3fe1-7d52-b550-dc98319ce305']
+
+    async def json(self, arguments: Sequence[str]) -> Any:
+        """Run a unary command and decode its single JSON value."""
+        process = await self._spawn(arguments)
+        stdout, stderr = await self._communicate(process)
+        return_code = process.returncode
+        assert return_code is not None
+        if return_code != 0:
+>           raise self._error(stderr, return_code)
+E           zeroshot.errors.TargetError: Zeroshot Rust observation transport disconnected
+
+../../.cache/broodling-zeroshot-venv/lib/python3.13/site-packages/zeroshot/_process.py:41: TargetError
+=========================== short test summary info ============================
+FAILED tests/test_abandonment_public.py::PublicAbandonmentTests::test_concurrent_stop_callers_converge_after_public_stop - zeroshot.errors.TargetError: Zeroshot Rust observation transport disconnected
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+============================== 1 failed in 20.38s ==============================

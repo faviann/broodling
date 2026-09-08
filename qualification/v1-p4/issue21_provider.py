@@ -26,12 +26,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / "tests")]
 from assurance_support import canonical_hash, jsonable
-from support import AttemptTestCase, criterion, git
+from support import AttemptTestCase, criterion, git, work_reference
 
-from broodling import EvidencePopulation
+from broodling import EvidencePopulation, SourceSubmission
 from broodling.assurance_graph import assurance_graph, assurance_runtime
 from broodling.codex_profile import QualifiedCodexProfile
 from broodling.contract import MechanicalEvidence
+from broodling.errors import UnsupportedRuntime
 from broodling.submission import SubmissionCoordinator
 from broodling.zeroshot_sdk import ZeroshotSubmitter, assert_qualified_integration
 
@@ -141,7 +142,83 @@ def negative_control():
                 process.wait()
 
 
+def active_sibling(fixture, repository, root):
+    unit = fixture.store.resolve_work_unit(work_reference(issue=210001))
+    source = fixture.store.entitle_source(
+        unit.work_unit_id,
+        SourceSubmission(
+            kind="primary_issue",
+            locator=unit.issue_locator,
+            content=b"Independent bounded sibling liveness qualification.",
+            media_type="text/plain",
+            retrieved_at="2026-09-08T00:00:00+00:00",
+        ),
+    )
+    contract = fixture.contract(
+        unit,
+        source,
+        criteria=(
+            criterion(
+                mechanical_evidence=MechanicalEvidence(
+                    argv=(
+                        "/usr/bin/python3",
+                        "-c",
+                        'print("controlled sibling evidence")',
+                    ),
+                    materials=("candidate.txt",),
+                )
+            ),
+        ),
+    )
+    revision = fixture.store.record_contract_revision(contract)
+    fixture.store.admit(revision.contract_revision_id)
+    provisioned = fixture.provisioner().admit_and_provision(
+        revision.contract_revision_id, repository
+    )
+    home = root / "sibling-home"
+    home.mkdir()
+    auth = root / "sibling-auth"
+    auth.mkdir(mode=0o700)
+    shutil.copyfile(root / "auth-only-home/auth.json", auth / "auth.json")
+    (auth / "auth.json").chmod(0o600)
+    config = root / "sibling-config.json"
+    config.write_text(
+        json.dumps(
+            {
+                "actual": shutil.which("codex"),
+                "state": str(root / "sibling-events"),
+                "node": "none",
+                "mode": "sibling",
+            }
+        )
+    )
+    executable = root / "sibling-dispatcher"
+    executable.write_text(
+        '#!/usr/bin/env python3\nimport os,sys\nos.environ["BROODLING_21_CONFIG"] = '
+        + repr(str(config))
+        + "\nos.execv("
+        + repr(str(FIXTURES / "codex"))
+        + ", ["
+        + repr(str(FIXTURES / "codex"))
+        + ", *sys.argv[1:]])\n"
+    )
+    executable.chmod(0o755)
+    adapter = ZeroshotSubmitter(
+        root / "s-native", codex_profile=QualifiedCodexProfile(executable, home, auth)
+    )
+    row = SubmissionCoordinator(fixture.store, adapter).submit_assurance(
+        provisioned.attempt.attempt_id
+    )
+    deadline = time.monotonic() + 20
+    while len(heartbeat(provisioned.path / "sibling-heartbeat.txt").splitlines()) < 3:
+        if time.monotonic() > deadline:
+            raise RuntimeError("independent sibling failed to start")
+        time.sleep(0.1)
+    return provisioned, row, adapter
+
+
 def run_case(node, mode, *, durable_source=False):
+    from broodling.abandonment import AbandonmentCoordinator
     from broodling.containment import close_launches, confirm_ceased
 
     fixture = AttemptTestCase()
@@ -153,11 +230,16 @@ def run_case(node, mode, *, durable_source=False):
     row = None
     adapter = None
     workspace = None
+    live_sibling = None
     try:
         if durable_source:
             durable = fixture.workspace_root / "qualified-source"
             shutil.move(fixture.repository, durable)
             fixture.repository = durable
+        if not durable_source:
+            scratch_source = fixture.root / "explicit-scratch-source"
+            shutil.move(fixture.repository, scratch_source)
+            fixture.repository = scratch_source
         repository = fixture.repository
         git(
             repository,
@@ -245,9 +327,33 @@ def run_case(node, mode, *, durable_source=False):
         executable.chmod(0o755)
         profile = QualifiedCodexProfile(executable, home, auth)
         adapter = ZeroshotSubmitter(root / "native", codex_profile=profile)
-        row = SubmissionCoordinator(fixture.store, adapter).submit_assurance(
-            provisioned.attempt.attempt_id
-        )
+        if mode == "writer":
+            live_sibling = active_sibling(fixture, repository, root)
+            before_refs = git(repository, "show-ref")
+        coordinator = SubmissionCoordinator(fixture.store, adapter)
+        try:
+            row = coordinator.submit_assurance(provisioned.attempt.attempt_id)
+        except UnsupportedRuntime as error:
+            if mode != "rejection":
+                raise
+            prepared = coordinator.record(provisioned.attempt.attempt_id)
+            return {
+                "unsafeSourceRejection": True,
+                "sourceRepositoryPath": str(repository),
+                "canonicalCommonGit": str(
+                    Path(git(workspace, "rev-parse", "--git-common-dir")).resolve()
+                ),
+                "error": str(error),
+                "runId": prepared.run_id,
+                "submissionState": prepared.state,
+                "providerInvocations": list(state.iterdir()),
+                "nativeRunDirectoryExists": (root / "native/runs").exists(),
+                "profileIdentity": adapter.target["codexProfile"],
+            }
+        if mode == "rejection":
+            raise RuntimeError(
+                "unsafe source unexpectedly dispatched; qualification must fail"
+            )
         request = json.loads(row.request_json)
 
         async def observe():
@@ -285,6 +391,9 @@ def run_case(node, mode, *, durable_source=False):
                     await asyncio.sleep(0.1)
                 observed = processes(workspace)
                 before = heartbeat(workspace / "heartbeat.txt")
+                sibling_before = heartbeat(
+                    live_sibling[0].path / "sibling-heartbeat.txt"
+                )
                 pid = controller(root / "native", row.run_id)
                 os.kill(pid, signal.SIGKILL)
                 # Observe automatic parent-death behavior BEFORE administrative cessation.
@@ -292,15 +401,61 @@ def run_case(node, mode, *, durable_source=False):
                 after = heartbeat(workspace / "heartbeat.txt")
                 await asyncio.sleep(1)
                 stable = heartbeat(workspace / "heartbeat.txt")
+                sibling_after = heartbeat(
+                    live_sibling[0].path / "sibling-heartbeat.txt"
+                )
                 survivors = processes(workspace)
-                fixture.store.abandon_attempt(
+                common_refs_before_retirement = git(repository, "show-ref")
+                candidate_before_retirement = (workspace / "candidate.txt").read_text()
+                sibling_common = git(
+                    live_sibling[0].path, "rev-parse", "--git-common-dir"
+                ) == git(workspace, "rev-parse", "--git-common-dir")
+                admin = AbandonmentCoordinator(fixture.store, adapter)
+                stopped = await admin.stop(
                     provisioned.attempt.attempt_id, "qualification controller loss"
                 )
-                close_launches(workspace)
                 ceased = confirm_ceased(workspace)
                 result = await run.wait(wait_timeout=30)
+                retired = admin.retire(provisioned.attempt.attempt_id)
+                await asyncio.sleep(0.6)
+                sibling_after_retirement = heartbeat(
+                    live_sibling[0].path / "sibling-heartbeat.txt"
+                )
                 return {
                     "result": jsonable(result),
+                    "activeSibling": {
+                        "runId": live_sibling[1].run_id,
+                        "attemptId": live_sibling[0].attempt.attempt_id,
+                        "workUnitId": live_sibling[0].attempt.work_unit_id,
+                        "beforeOldControllerDeath": sibling_before,
+                        "afterOldControllerDeath": sibling_after,
+                        "continuedWriting": len(sibling_after) > len(sibling_before),
+                        "controlledProvider": True,
+                        "sameRepository": sibling_common,
+                    },
+                    "retirement": {
+                        "stopped": jsonable(stopped),
+                        "retired": jsonable(retired),
+                        "oldWorktreeAbsent": not workspace.exists(),
+                        "candidateBeforeRetirement": candidate_before_retirement,
+                        "commonRefsBeforeRetirement": common_refs_before_retirement,
+                        "onlyOldBranchRemoved": git(repository, "show-ref").splitlines()
+                        == [
+                            line
+                            for line in common_refs_before_retirement.splitlines()
+                            if not line.endswith(
+                                " refs/heads/"
+                                + fixture.store.worktree_assignment(
+                                    provisioned.attempt.attempt_id
+                                ).branch
+                            )
+                        ],
+                    },
+                    "siblingContinuedAfterProductRetirement": len(
+                        sibling_after_retirement
+                    )
+                    > len(sibling_after),
+                    "siblingHeartbeatAfterProductRetirement": sibling_after_retirement,
                     "controllerPid": pid,
                     "observedWriterProcesses": observed,
                     "beforeKill": before,
@@ -318,6 +473,9 @@ def run_case(node, mode, *, durable_source=False):
         return {
             "node": node,
             "mode": mode,
+            "sourceRepositoryPath": str(repository),
+            "canonicalCommonGit": str((repository / ".git").resolve()),
+            "sourceUnderDurableRoot": durable_source,
             "runId": row.run_id,
             "attemptId": provisioned.attempt.attempt_id,
             "observation": observation,
@@ -327,11 +485,18 @@ def run_case(node, mode, *, durable_source=False):
             "profileIdentity": request["target"]["codexProfile"],
             "exactProductGraphAndRuntime": request["graph"] == assurance_graph()
             and request["runtime"] == assurance_runtime(),
-            "candidate": (workspace / "candidate.txt").read_text(),
+            "candidate": (workspace / "candidate.txt").read_text()
+            if workspace.exists()
+            else observation["retirement"]["candidateBeforeRetirement"],
             "sibling": (sibling / "sentinel.txt").read_text(),
             "commonConfigUnchanged": before_common
             == (repository / ".git/config").read_bytes(),
-            "commonRefsUnchanged": before_refs == git(repository, "show-ref"),
+            "commonRefsUnchanged": before_refs
+            == (
+                observation["retirement"]["commonRefsBeforeRetirement"]
+                if mode == "writer"
+                else git(repository, "show-ref")
+            ),
             "remoteRefs": subprocess.run(
                 ["git", "-C", str(remote), "show-ref"],
                 capture_output=True,
@@ -343,7 +508,7 @@ def run_case(node, mode, *, durable_source=False):
     finally:
         if workspace is not None:
             close_launches(workspace)
-            if row is not None:
+            if row is not None and workspace.exists():
                 fixture.store.abandon_attempt(row.attempt_id, "qualification cleanup")
                 try:
                     asyncio.run(
@@ -359,6 +524,19 @@ def run_case(node, mode, *, durable_source=False):
                     "qualification cleanup cannot establish cessation; fixtures retained at "
                     + str(root)
                 )
+        if live_sibling is not None:
+            item, sibling_row, sibling_adapter = live_sibling
+            fixture.store.abandon_attempt(
+                sibling_row.attempt_id, "qualification sibling cleanup"
+            )
+            close_launches(item.path)
+            asyncio.run(
+                sibling_adapter.stop_known(
+                    json.loads(sibling_row.request_json), sibling_row.run_id
+                )
+            )
+            if not confirm_ceased(item.path):
+                raise RuntimeError("sibling cessation unconfirmed")
         listener.close()
         shutil.rmtree(root, ignore_errors=True)
         fixture.tearDown()
@@ -366,6 +544,14 @@ def run_case(node, mode, *, durable_source=False):
 
 
 def checks(case):
+    if case.get("unsafeSourceRejection"):
+        return {
+            "rejected_before_dispatch": case["submissionState"] == "prepared",
+            "no_run_identity": not case["runId"],
+            "no_provider_invocation": not case["providerInvocations"],
+            "no_native_run": not case["nativeRunDirectoryExists"],
+            "explicit_scratch_metadata": case["canonicalCommonGit"].startswith("/tmp/"),
+        }
     if case.get("controlledCounterexample"):
         return {"intentionally_uncontained_writer_detected": case["detectedSurvivor"]}
     output = case["events"].get(case["node"] + ".stdout.jsonl", "")
@@ -408,6 +594,19 @@ def checks(case):
         result["physical_cessation_after_launch_fence"] = case["observation"].get(
             "supportedCessation", False
         )
+        result["old_worktree_retired"] = (
+            case["observation"].get("retirement", {}).get("oldWorktreeAbsent") is True
+        )
+        result["only_old_branch_retired"] = (
+            case["observation"].get("retirement", {}).get("onlyOldBranchRemoved")
+            is True
+        )
+        result["sibling_continues_after_product_retirement"] = (
+            case["observation"].get("siblingContinuedAfterProductRetirement") is True
+        )
+        result["active_sibling_continues"] = (
+            case["observation"].get("activeSibling", {}).get("continuedWriting") is True
+        )
         result["runtime_loss_is_diagnostic_only"] = (
             case["observation"]["result"]["failure"] == "runtime_lost"
         )
@@ -445,11 +644,20 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--case",
-        choices=["loss", "mutation", "reviewer", "adjudicator", "final", "negative"],
+        choices=[
+            "loss",
+            "mutation",
+            "reviewer",
+            "adjudicator",
+            "final",
+            "negative",
+            "unsafe",
+        ],
         required=True,
     )
     args = parser.parse_args()
     mappings = {
+        "unsafe": ("implement", "rejection"),
         "loss": ("implement", "writer"),
         "mutation": ("implement", "mutation"),
         "reviewer": ("initial_review", "readonly"),
@@ -471,7 +679,12 @@ def main():
         "integration": assert_qualified_integration(),
         "sources": {
             str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-            for path in [Path(__file__), *FIXTURES.iterdir()]
+            for path in [
+                Path(__file__),
+                ROOT / "broodling/codex_profile.py",
+                ROOT / "tests/support.py",
+                *FIXTURES.iterdir(),
+            ]
             if path.is_file()
         },
     }

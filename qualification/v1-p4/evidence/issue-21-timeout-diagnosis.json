@@ -1,0 +1,191 @@
+{
+  "case": {
+    "b1": "8a597cc57e747aedae656e00c1a45a7e0238927d",
+    "descendantPidsAfterTerminal": [],
+    "events": [
+      {
+        "argv": [
+          "exec",
+          "--ignore-user-config",
+          "--ignore-rules",
+          "--ephemeral",
+          "--config",
+          "sandbox_workspace_write.network_access=false",
+          "--sandbox",
+          "workspace-write",
+          "--config",
+          "model_provider=\"openai\"",
+          "--config",
+          "approval_policy=\"never\"",
+          "--json",
+          "--model",
+          "gpt-5.6-sol",
+          "--config",
+          "model_reasoning_effort=\"low\"",
+          "--skip-git-repo-check",
+          "--config",
+          "web_search=\"disabled\"",
+          "--output-schema",
+          "/dev/shm/b18e-wl7zt3zb/native/runs/01a08200-38e6-7930-b80e-300443a39ab5/runtime/writer-execution-1/response-schema-01a08200-3d7d-7182-9447-d400f46e480f.json",
+          "-"
+        ],
+        "input": {
+          "contract": "{\"constructedBy\":\"broodling_policy\",\"contractFormat\":1,\"criteria\":[{\"criterionId\":\"c1\",\"evidenceEffectDependencies\":[],\"evidencePopulation\":{\"kind\":\"enumerated\",\"members\":[\"positive\",\"negative\",\"boundary\"],\"surface\":\"\"},\"falsifyingObservation\":\"two canonical submissions of the same repository and issue resolve different Work Unit ids\",\"mechanicalEvidence\":{\"argv\":[\"/usr/bin/python3\",\"check.py\"],\"cwd\":\".\",\"materials\":[\"candidate.json\"]},\"statement\":\"Require positive, negative and boundary PASS results for candidate.json on qualified-single-host in actual mode without unexplained contradictions. An observation claiming another population/host/mode/artifact is insufficient. When needsCorrection is true, correct candidate.json and retain the directive until correctionSatisfied is explicitly true.\",\"validationAction\":\"Descriptive action; never shell $(touch forbidden-action)\",\"validationSeam\":\"Descriptive seam; never a path $(touch forbidden-seam)\"}],\"hostAssumptions\":[\"single_host\",\"one_attempt_one_dedicated_worktree\",\"no_authoritative_effects\"],\"notes\":\"\",\"obligations\":[],\"prerequisites\":[],\"requiredEffects\":[],\"sourceAttribution\":[{\"contentSha256\":\"9403e20c072148979085698c3e6c105fcd6dfca8ff78657273caa46f6f50793f\",\"sourceId\":\"src-58803c4781f2896e1354c87c5eb19a63b9812ac1eb83207ffe1ebf7747a55e89\"}],\"workUnitId\":\"wu-88920fac767d5d1561fc0ede6f80349fd02caa2a01ad9f1b19ad07e14660587d\"}"
+        },
+        "node": "implement",
+        "response": null
+      }
+    ],
+    "exactProductGraphAndRuntime": false,
+    "freeformStringsNotExecuted": true,
+    "frozenContract": {
+      "constructedBy": "broodling_policy",
+      "contractFormat": 1,
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "evidenceEffectDependencies": [],
+          "evidencePopulation": {
+            "kind": "enumerated",
+            "members": [
+              "positive",
+              "negative",
+              "boundary"
+            ],
+            "surface": ""
+          },
+          "falsifyingObservation": "two canonical submissions of the same repository and issue resolve different Work Unit ids",
+          "mechanicalEvidence": {
+            "argv": [
+              "/usr/bin/python3",
+              "check.py"
+            ],
+            "cwd": ".",
+            "materials": [
+              "candidate.json"
+            ]
+          },
+          "statement": "Require positive, negative and boundary PASS results for candidate.json on qualified-single-host in actual mode without unexplained contradictions. An observation claiming another population/host/mode/artifact is insufficient. When needsCorrection is true, correct candidate.json and retain the directive until correctionSatisfied is explicitly true.",
+          "validationAction": "Descriptive action; never shell $(touch forbidden-action)",
+          "validationSeam": "Descriptive seam; never a path $(touch forbidden-seam)"
+        }
+      ],
+      "hostAssumptions": [
+        "single_host",
+        "one_attempt_one_dedicated_worktree",
+        "no_authoritative_effects"
+      ],
+      "notes": "",
+      "obligations": [],
+      "prerequisites": [],
+      "requiredEffects": [],
+      "sourceAttribution": [
+        {
+          "contentSha256": "9403e20c072148979085698c3e6c105fcd6dfca8ff78657273caa46f6f50793f",
+          "sourceId": "src-58803c4781f2896e1354c87c5eb19a63b9812ac1eb83207ffe1ebf7747a55e89"
+        }
+      ],
+      "workUnitId": "wu-88920fac767d5d1561fc0ede6f80349fd02caa2a01ad9f1b19ad07e14660587d"
+    },
+    "graphSha256": "15c380cc5c3d4aa3a85c65febda606461f0df154f4a0feb5a7836c426b39c250",
+    "initialInput": {
+      "comparisonBase": "8a597cc57e747aedae656e00c1a45a7e0238927d",
+      "contract": "{\"constructedBy\":\"broodling_policy\",\"contractFormat\":1,\"criteria\":[{\"criterionId\":\"c1\",\"evidenceEffectDependencies\":[],\"evidencePopulation\":{\"kind\":\"enumerated\",\"members\":[\"positive\",\"negative\",\"boundary\"],\"surface\":\"\"},\"falsifyingObservation\":\"two canonical submissions of the same repository and issue resolve different Work Unit ids\",\"mechanicalEvidence\":{\"argv\":[\"/usr/bin/python3\",\"check.py\"],\"cwd\":\".\",\"materials\":[\"candidate.json\"]},\"statement\":\"Require positive, negative and boundary PASS results for candidate.json on qualified-single-host in actual mode without unexplained contradictions. An observation claiming another population/host/mode/artifact is insufficient. When needsCorrection is true, correct candidate.json and retain the directive until correctionSatisfied is explicitly true.\",\"validationAction\":\"Descriptive action; never shell $(touch forbidden-action)\",\"validationSeam\":\"Descriptive seam; never a path $(touch forbidden-seam)\"}],\"hostAssumptions\":[\"single_host\",\"one_attempt_one_dedicated_worktree\",\"no_authoritative_effects\"],\"notes\":\"\",\"obligations\":[],\"prerequisites\":[],\"requiredEffects\":[],\"sourceAttribution\":[{\"contentSha256\":\"9403e20c072148979085698c3e6c105fcd6dfca8ff78657273caa46f6f50793f\",\"sourceId\":\"src-58803c4781f2896e1354c87c5eb19a63b9812ac1eb83207ffe1ebf7747a55e89\"}],\"workUnitId\":\"wu-88920fac767d5d1561fc0ede6f80349fd02caa2a01ad9f1b19ad07e14660587d\"}",
+      "directiveContent": {
+        "correction": "",
+        "directive": ""
+      },
+      "evidence": "unchecked",
+      "evidenceContent": {
+        "error": "",
+        "observations": []
+      },
+      "finalRationale": [],
+      "findingContent": "",
+      "findings": "unexecuted",
+      "obligation": "none"
+    },
+    "observedDescendantPidsDuringCheck": [],
+    "profileIdentity": {
+      "codexVersion": "codex-cli 0.153.4",
+      "containmentProfile": "linux-pidns-parent-death-v1",
+      "containmentSha256": "1cd4507567a66df727d8ddd42e8f947030d09df2edcf5358a4e40f2c776cae7e",
+      "evidenceLeafSha256": "c878f7b8eb1e00f115879e78118edc65c323fe4605ffb9743d1b903d4022410c",
+      "evidenceSandboxSha256": "573236e5328ac2ebb08f59ae3a9805b4f8d12bdef14be8af4450d5463294985f",
+      "isolatedCodexHome": "/dev/shm/b18e-wl7zt3zb/auth-only-home",
+      "launcherSha256": "5e65d8e0509fbf55adb2c34b4297efc0afd94784f066cba3e08c4c8ed46d0624",
+      "profile": "g1-v1-codex-w4",
+      "profileHome": "/dev/shm/b18e-wl7zt3zb/empty-home",
+      "realCodex": "/dev/shm/b18e-wl7zt3zb/controlled-codex",
+      "sharedGitPolicy": "canonical-outside-slash-tmp-v1"
+    },
+    "result": {
+      "failure": "execution_unusable",
+      "output": null,
+      "run_id": "01a08200-38e6-7930-b80e-300443a39ab5",
+      "succeeded": false
+    },
+    "runId": "01a08200-38e6-7930-b80e-300443a39ab5",
+    "runtimeSha256": "05fd5af801591caf55464b20f7cc86d98abb20a6b38adf9f45671300342abad0",
+    "sameReplayedRunAndRequest": true,
+    "scenario": "timeout-descendant",
+    "status": {
+      "active_executions": [],
+      "cursor": "v2:11",
+      "phase": "finished",
+      "result": {
+        "failure": "execution_unusable",
+        "output": null,
+        "run_id": "01a08200-38e6-7930-b80e-300443a39ab5",
+        "succeeded": false
+      },
+      "run_id": "01a08200-38e6-7930-b80e-300443a39ab5",
+      "size": "small",
+      "source": {
+        "branch": "broodling/faviann-broodling-12/39c4b151d89be3463ca5492d",
+        "repository": "faviann/broodling",
+        "revision": "8a597cc57e747aedae656e00c1a45a7e0238927d"
+      },
+      "title": "Broodling V1 assurance Attempt"
+    },
+    "testOnlyGraphDeviation": {
+      "node": "initial_evidence_check",
+      "timeoutMs": 1000
+    }
+  },
+  "logs": [
+    {
+      "cursor": "v2:3",
+      "execution": "nv2-69a5bb091e9fba782bd247310644d2f8976c9312e27879cf7e6290c5275b33ab",
+      "level": "debug",
+      "message": "Codex turn started",
+      "run_id": "01a08200-38e6-7930-b80e-300443a39ab5",
+      "target": "agent",
+      "timestamp": 1788887450380
+    },
+    {
+      "cursor": "v2:4",
+      "execution": "nv2-69a5bb091e9fba782bd247310644d2f8976c9312e27879cf7e6290c5275b33ab",
+      "level": "info",
+      "message": "{\"response\": null}",
+      "run_id": "01a08200-38e6-7930-b80e-300443a39ab5",
+      "target": "agent",
+      "timestamp": 1788887450380
+    },
+    {
+      "cursor": "v2:5",
+      "execution": "nv2-69a5bb091e9fba782bd247310644d2f8976c9312e27879cf7e6290c5275b33ab",
+      "level": "debug",
+      "message": "Codex turn completed",
+      "run_id": "01a08200-38e6-7930-b80e-300443a39ab5",
+      "target": "agent",
+      "timestamp": 1788887450380
+    }
+  ],
+  "parentDigestTiming": {
+    "bytes": 311856272,
+    "elapsedSeconds": 1.4679243806749582,
+    "sha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86"
+  },
+  "runId": "01a08200-38e6-7930-b80e-300443a39ab5"
+}
