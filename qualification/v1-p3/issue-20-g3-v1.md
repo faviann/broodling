@@ -1,7 +1,9 @@
 # Issue #20 — G3-V1 integrated assurance gate
 
-**Review status: COMPLETE.**  
-**G3-V1 gate verdict: PASS.**  
+**Review status: COMPLETE.**
+
+**G3-V1 gate verdict: PASS.**
+
 **Reviewed product:** `d94eaa6aed176c49aeea0b441c31e44c2136013b` on `origin/main`.
 
 Every current G3 obligation is supported as one compatible V1-P3 product
