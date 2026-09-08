@@ -1,0 +1,159 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0 -- /home/faviann/repos/broodling/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/faviann/repos/broodling
+configfile: pyproject.toml
+collecting ... collected 3 items
+
+tests/test_retry_races.py::RetryRaceTests::test_active_ordinary_provisioning_and_ingress_cannot_bypass_retry_safety FAILED [ 33%]
+tests/test_retry_races.py::RetryRaceTests::test_retry_is_refused_while_stop_has_not_established_cessation PASSED [ 66%]
+tests/test_retry_races.py::RetryRaceTests::test_retry_waits_for_unfinished_owned_retirement PASSED [100%]
+
+=================================== FAILURES ===================================
+_ RetryRaceTests.test_active_ordinary_provisioning_and_ingress_cannot_bypass_retry_safety _
+
+self = <test_retry_races.RetryRaceTests testMethod=test_active_ordinary_provisioning_and_ingress_cannot_bypass_retry_safety>
+
+    def test_active_ordinary_provisioning_and_ingress_cannot_bypass_retry_safety(self):
+        entered, release, retry_entered, stop_entered = (
+            Event(),
+            Event(),
+            Event(),
+            Event(),
+        )
+
+        def provision_old():
+            with BroodlingStore.open(self.store_path) as store:
+                provisioner = AttemptProvisioner(store, self.workspace_root)
+                original = provisioner._materialize
+
+                def held_materialization(*args):
+                    entered.set()
+                    if not release.wait(10):
+                        raise TimeoutError("provisioning barrier not released")
+                    return original(*args)
+
+                provisioner._materialize = held_materialization
+                return provisioner.admit_and_provision(
+                    self.attempt.contract_revision_id, self.repository
+                )
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            provisioned = pool.submit(provision_old)
+            try:
+                self.assertTrue(entered.wait(10))
+                retry = pool.submit(self.allocate_independently, retry_entered)
+                stopped = pool.submit(self.stop_independently, stop_entered)
+                self.assertTrue(retry_entered.wait(10))
+                self.assertTrue(stop_entered.wait(10))
+                self.assertFalse(retry.done())
+                self.assertFalse(stopped.done())
+                self.assertIsNone(self.store.retry("race-retry"))
+            finally:
+                release.set()
+            self.assertEqual(
+                provisioned.result(timeout=10).attempt.attempt_id, self.attempt_id
+            )
+            with self.assertRaises(AttemptAdmissionError):
+                retry.result(timeout=10)
+            stopped.result(timeout=10)
+        self.retire_independently()
+        replacement = self.assert_one_replacement()
+        with ThreadPoolExecutor(max_workers=3) as pool:
+
+            def stale_provision():
+                with BroodlingStore.open(self.store_path) as store:
+                    return AttemptProvisioner(store, self.workspace_root).provision(
+                        self.attempt_id
+                    )
+
+            def old_ingress():
+                with BroodlingStore.open(self.store_path) as store:
+                    return AttemptProvisioner(store, self.workspace_root).admit(
+                        self.attempt.contract_revision_id, self.repository
+                    )
+
+            old_tree = pool.submit(stale_provision)
+            ingress = pool.submit(old_ingress)
+            stop = pool.submit(self.stop_independently)
+            with self.assertRaises(StaleAttempt):
+                old_tree.result(timeout=10)
+            with self.assertRaises(AttemptAdmissionError):
+>               ingress.result(timeout=10)
+
+tests/test_retry_races.py:204:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/usr/lib/python3.13/concurrent/futures/thread.py:59: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_retry_races.py:194: in old_ingress
+    return AttemptProvisioner(store, self.workspace_root).admit(
+broodling/provisioning.py:109: in admit
+    return self.store.admit_attempt(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def admit_attempt(
+        self,
+        revision_id: str,
+        starting_state: StartingState,
+        *,
+        workspace_root: Path | str,
+    ) -> AttemptRecord:
+        """Admit the current Attempt for an admitted Contract revision.
+
+        Allocates the Attempt identity, pins B1, and reserves a unique worktree
+        path and branch — all in one transaction, before any host-side directory
+        exists. Nothing is provisioned here.
+
+        Repeating the identical request returns the same Attempt, with the
+        allocation it already owns — a later call naming a different workspace
+        root does not move a worktree somebody may already be working in. A
+        request that differs in Contract revision or B1 conflicts rather than
+        creating a second current authority. An abandoned Work Unit is blocked:
+        ordinary admission grants no authority for replacement.
+        """
+
+        revision = self.get_contract_revision(revision_id)
+        if not self.is_admitted(revision_id):
+            raise AttemptAdmissionError(
+                f"contract revision {revision_id} has no committed admitted "
+                "decision; an Attempt may only be admitted for an admitted "
+                "Contract revision"
+            )
+        root = assert_durable_workspace_root(Path(workspace_root))
+        work_unit = self.get_work_unit(revision.work_unit_id)
+        material = admitted_material_digest(
+            (item.source_id, item.content_sha256)
+            for item in revision.contract.source_attribution
+        )
+        attempt_id = derive_attempt_id(revision_id, starting_state, material)
+        allocation = allocate(
+            root,
+            owner=work_unit.owner,
+            repository=work_unit.repository,
+            issue_number=work_unit.issue_number,
+            attempt_id=attempt_id,
+        )
+
+        with self._write():
+            abandoned = self._connection.execute(
+                "SELECT b.attempt_id FROM attempt_abandonments AS b "
+                "JOIN attempts AS a USING (attempt_id) WHERE a.work_unit_id = ?",
+                (work_unit.work_unit_id,),
+            ).fetchone()
+            if abandoned is not None:
+>               raise StaleAttempt(
+                    f"Work Unit has abandoned Attempt {abandoned['attempt_id']}; "
+                    "ordinary admission cannot authorize replacement"
+                )
+E               broodling.errors.StaleAttempt: Work Unit has abandoned Attempt at-f2ada99b54fc1e5e7c39d089d99f6ebbb0f29c3a98ac923420e62aa94bf1df2d; ordinary admission cannot authorize replacement
+
+broodling/store.py:895: StaleAttempt
+=========================== short test summary info ============================
+FAILED tests/test_retry_races.py::RetryRaceTests::test_active_ordinary_provisioning_and_ingress_cannot_bypass_retry_safety - broodling.errors.StaleAttempt: Work Unit has abandoned Attempt at-f2ada99b54fc1e5e7c39d089d99f6ebbb0f29c3a98ac923420e62aa94bf1df2d; ordinary admission cannot authorize replacement
+========================= 1 failed, 2 passed in 1.19s ==========================

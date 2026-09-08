@@ -1,0 +1,976 @@
+..............ssssss.................. [  9%]
+.........ssss..................................................................................................................................ss [ 45%]
+ssssssFFF....ssss.......... [ 51%]
+...................ssssss................. [ 62%]
+.............................................. [ 73%]
+................s.............. [ 81%]
+............sssss..s...sssssssssss........... [ 92%]
+................................                                    [100%]
+=================================== FAILURES ===================================
+_ FinalCompletenessTests.test_abandoned_custody_is_readable_but_cannot_be_recaptured _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_abandoned_custody_is_readable_but_cannot_be_recaptured>
+
+    def test_abandoned_custody_is_readable_but_cannot_be_recaptured(self):
+        with patch.object(
+            self.adapter, "observe_current", AsyncMock(return_value=self.observed())
+        ):
+>           historical = asyncio.run(self.capture.capture(self.attempt_id))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_final_assurance_completeness.py:136:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <broodling.assurance.FinalAssuranceCoordinator object at 0x77037bb2a7b0>
+attempt_id = 'at-3e1c3dd36c505f850c0ecd4261778d55d4f1a7b3dad263732ecbda6d10be7f66'
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_abandonment_during_observation_rejects_late_capture _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_abandonment_during_observation_rejects_late_capture>
+
+    def test_abandonment_during_observation_rejects_late_capture(self):
+        from broodling import BroodlingStore
+
+        async def late_result(*args):
+            with BroodlingStore.open(self.store_path) as administrator:
+                administrator.abandon_attempt(self.attempt_id, "caller interrupted")
+            return self.observed()
+
+        with (
+            patch.object(self.adapter, "observe_current", side_effect=late_result),
+            self.assertRaises(StaleAttempt),
+        ):
+>           asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:128:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_complete_multiple_criteria_and_empty_raw_text_are_retained _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_complete_multiple_criteria_and_empty_raw_text_are_retained>
+
+    def test_complete_multiple_criteria_and_empty_raw_text_are_retained(self):
+        with patch.object(
+            self.adapter, "observe_current", AsyncMock(return_value=self.observed())
+        ) as observe:
+>           record = asyncio.run(self.capture.capture(self.attempt_id))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_final_assurance_completeness.py:105:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <broodling.assurance.FinalAssuranceCoordinator object at 0x77037bc12710>
+attempt_id = 'at-299f96d7a88631770ac1b110b50847fe25bf922b55c9acfd3be2fbb2eb55a1b6'
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record (rationale=[]) _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record>
+
+    def test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record(self):
+        variants = [
+            [],
+            [self.output["finalRationale"][0]],
+            [self.output["finalRationale"][0]] * 2,
+            [
+                {"criterionId": "c1", "rationale": "yes"},
+                {"criterionId": "foreign", "rationale": "yes"},
+            ],
+            [
+                {"criterionId": "c1", "rationale": "yes"},
+                {"criterionId": "c2", "rationale": " \n"},
+            ],
+        ]
+        for rationale in variants:
+            output = copy.deepcopy(self.output)
+            output["finalRationale"] = rationale
+            with (
+                self.subTest(rationale=rationale),
+                patch.object(
+                    self.adapter,
+                    "observe_current",
+                    AsyncMock(return_value=self.observed(output)),
+                ),
+                self.assertRaises(SubmissionNotReady),
+            ):
+>               asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:170:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record (rationale=[{'criterionId': 'c1', 'rationale': 'Complete assessment'}]) _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record>
+
+    def test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record(self):
+        variants = [
+            [],
+            [self.output["finalRationale"][0]],
+            [self.output["finalRationale"][0]] * 2,
+            [
+                {"criterionId": "c1", "rationale": "yes"},
+                {"criterionId": "foreign", "rationale": "yes"},
+            ],
+            [
+                {"criterionId": "c1", "rationale": "yes"},
+                {"criterionId": "c2", "rationale": " \n"},
+            ],
+        ]
+        for rationale in variants:
+            output = copy.deepcopy(self.output)
+            output["finalRationale"] = rationale
+            with (
+                self.subTest(rationale=rationale),
+                patch.object(
+                    self.adapter,
+                    "observe_current",
+                    AsyncMock(return_value=self.observed(output)),
+                ),
+                self.assertRaises(SubmissionNotReady),
+            ):
+>               asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:170:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record (rationale=[{'criterionId': 'c1', 'rationale': 'Complete assessment'}, {'criterionId': 'c1', 'rationale': 'Complete assessment'}]) _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record>
+
+    def test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record(self):
+        variants = [
+            [],
+            [self.output["finalRationale"][0]],
+            [self.output["finalRationale"][0]] * 2,
+            [
+                {"criterionId": "c1", "rationale": "yes"},
+                {"criterionId": "foreign", "rationale": "yes"},
+            ],
+            [
+                {"criterionId": "c1", "rationale": "yes"},
+                {"criterionId": "c2", "rationale": " \n"},
+            ],
+        ]
+        for rationale in variants:
+            output = copy.deepcopy(self.output)
+            output["finalRationale"] = rationale
+            with (
+                self.subTest(rationale=rationale),
+                patch.object(
+                    self.adapter,
+                    "observe_current",
+                    AsyncMock(return_value=self.observed(output)),
+                ),
+                self.assertRaises(SubmissionNotReady),
+            ):
+>               asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:170:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record (rationale=[{'criterionId': 'c1', 'rationale': 'yes'}, {'criterionId': 'foreign', 'rationale': 'yes'}]) _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record>
+
+    def test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record(self):
+        variants = [
+            [],
+            [self.output["finalRationale"][0]],
+            [self.output["finalRationale"][0]] * 2,
+            [
+                {"criterionId": "c1", "rationale": "yes"},
+                {"criterionId": "foreign", "rationale": "yes"},
+            ],
+            [
+                {"criterionId": "c1", "rationale": "yes"},
+                {"criterionId": "c2", "rationale": " \n"},
+            ],
+        ]
+        for rationale in variants:
+            output = copy.deepcopy(self.output)
+            output["finalRationale"] = rationale
+            with (
+                self.subTest(rationale=rationale),
+                patch.object(
+                    self.adapter,
+                    "observe_current",
+                    AsyncMock(return_value=self.observed(output)),
+                ),
+                self.assertRaises(SubmissionNotReady),
+            ):
+>               asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:170:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record (rationale=[{'criterionId': 'c1', 'rationale': 'yes'}, {'criterionId': 'c2', 'rationale': ' \n'}]) _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record>
+
+    def test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record(self):
+        variants = [
+            [],
+            [self.output["finalRationale"][0]],
+            [self.output["finalRationale"][0]] * 2,
+            [
+                {"criterionId": "c1", "rationale": "yes"},
+                {"criterionId": "foreign", "rationale": "yes"},
+            ],
+            [
+                {"criterionId": "c1", "rationale": "yes"},
+                {"criterionId": "c2", "rationale": " \n"},
+            ],
+        ]
+        for rationale in variants:
+            output = copy.deepcopy(self.output)
+            output["finalRationale"] = rationale
+            with (
+                self.subTest(rationale=rationale),
+                patch.object(
+                    self.adapter,
+                    "observe_current",
+                    AsyncMock(return_value=self.observed(output)),
+                ),
+                self.assertRaises(SubmissionNotReady),
+            ):
+>               asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:170:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_required_raw_material_context_and_open_obligation_cannot_be_lost (missing='stdout') _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_required_raw_material_context_and_open_obligation_cannot_be_lost>
+
+    def test_required_raw_material_context_and_open_obligation_cannot_be_lost(self):
+        for missing in ("stdout", "host", "materials", "criterion", "open"):
+            output = copy.deepcopy(self.output)
+            observation = output["evidenceContent"]["observations"][0]
+            if missing == "criterion":
+                output["evidenceContent"]["observations"].pop()
+            elif missing == "open":
+                output["obligation"] = "open_d1"
+            elif missing == "materials":
+                observation["materials"][0].pop("content")
+            else:
+                observation.pop(missing)
+            with (
+                self.subTest(missing=missing),
+                patch.object(
+                    self.adapter,
+                    "observe_current",
+                    AsyncMock(return_value=self.observed(output)),
+                ),
+                self.assertRaises(SubmissionNotReady),
+            ):
+>               asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:194:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_required_raw_material_context_and_open_obligation_cannot_be_lost (missing='host') _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_required_raw_material_context_and_open_obligation_cannot_be_lost>
+
+    def test_required_raw_material_context_and_open_obligation_cannot_be_lost(self):
+        for missing in ("stdout", "host", "materials", "criterion", "open"):
+            output = copy.deepcopy(self.output)
+            observation = output["evidenceContent"]["observations"][0]
+            if missing == "criterion":
+                output["evidenceContent"]["observations"].pop()
+            elif missing == "open":
+                output["obligation"] = "open_d1"
+            elif missing == "materials":
+                observation["materials"][0].pop("content")
+            else:
+                observation.pop(missing)
+            with (
+                self.subTest(missing=missing),
+                patch.object(
+                    self.adapter,
+                    "observe_current",
+                    AsyncMock(return_value=self.observed(output)),
+                ),
+                self.assertRaises(SubmissionNotReady),
+            ):
+>               asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:194:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_required_raw_material_context_and_open_obligation_cannot_be_lost (missing='materials') _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_required_raw_material_context_and_open_obligation_cannot_be_lost>
+
+    def test_required_raw_material_context_and_open_obligation_cannot_be_lost(self):
+        for missing in ("stdout", "host", "materials", "criterion", "open"):
+            output = copy.deepcopy(self.output)
+            observation = output["evidenceContent"]["observations"][0]
+            if missing == "criterion":
+                output["evidenceContent"]["observations"].pop()
+            elif missing == "open":
+                output["obligation"] = "open_d1"
+            elif missing == "materials":
+                observation["materials"][0].pop("content")
+            else:
+                observation.pop(missing)
+            with (
+                self.subTest(missing=missing),
+                patch.object(
+                    self.adapter,
+                    "observe_current",
+                    AsyncMock(return_value=self.observed(output)),
+                ),
+                self.assertRaises(SubmissionNotReady),
+            ):
+>               asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:194:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_required_raw_material_context_and_open_obligation_cannot_be_lost (missing='criterion') _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_required_raw_material_context_and_open_obligation_cannot_be_lost>
+
+    def test_required_raw_material_context_and_open_obligation_cannot_be_lost(self):
+        for missing in ("stdout", "host", "materials", "criterion", "open"):
+            output = copy.deepcopy(self.output)
+            observation = output["evidenceContent"]["observations"][0]
+            if missing == "criterion":
+                output["evidenceContent"]["observations"].pop()
+            elif missing == "open":
+                output["obligation"] = "open_d1"
+            elif missing == "materials":
+                observation["materials"][0].pop("content")
+            else:
+                observation.pop(missing)
+            with (
+                self.subTest(missing=missing),
+                patch.object(
+                    self.adapter,
+                    "observe_current",
+                    AsyncMock(return_value=self.observed(output)),
+                ),
+                self.assertRaises(SubmissionNotReady),
+            ):
+>               asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:194:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+_ FinalCompletenessTests.test_required_raw_material_context_and_open_obligation_cannot_be_lost (missing='open') _
+
+self = <test_final_assurance_completeness.FinalCompletenessTests testMethod=test_required_raw_material_context_and_open_obligation_cannot_be_lost>
+
+    def test_required_raw_material_context_and_open_obligation_cannot_be_lost(self):
+        for missing in ("stdout", "host", "materials", "criterion", "open"):
+            output = copy.deepcopy(self.output)
+            observation = output["evidenceContent"]["observations"][0]
+            if missing == "criterion":
+                output["evidenceContent"]["observations"].pop()
+            elif missing == "open":
+                output["obligation"] = "open_d1"
+            elif missing == "materials":
+                observation["materials"][0].pop("content")
+            else:
+                observation.pop(missing)
+            with (
+                self.subTest(missing=missing),
+                patch.object(
+                    self.adapter,
+                    "observe_current",
+                    AsyncMock(return_value=self.observed(output)),
+                ),
+                self.assertRaises(SubmissionNotReady),
+            ):
+>               asyncio.run(self.capture.capture(self.attempt_id))
+
+tests/test_final_assurance_completeness.py:194:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+broodling/assurance.py:89: in capture
+    _, _, submitted, _, request = self._bound(attempt_id)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def _bound(self, attempt_id):
+        attempt, assignment = self.submission._current(attempt_id)
+        submitted = self.submission.record(attempt_id)
+        if submitted is None or submitted.state != "correlated":
+            raise SubmissionNotReady("final custody requires an already-correlated run")
+        self.submission._target(submitted)
+        self.submission._source(attempt, assignment, require_b1=False)
+        self.submission._origin(submitted, assignment)
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        request = json.loads(submitted.request_json)
+        required = {
+            "submissionKey": f"broodling:v1:{attempt_id}",
+            "title": "Broodling V1 assurance Attempt",
+            "graph": assurance_graph(),
+            "runtime": assurance_runtime(),
+            "initialInput": initial_state(
+                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+            ),
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+        }
+        if any(request.get(key) != value for key, value in required.items()):
+>           raise SubmissionConflict(
+                "correlated request is not the admitted assurance protocol"
+            )
+E           broodling.errors.SubmissionConflict: correlated request is not the admitted assurance protocol
+
+broodling/assurance.py:74: SubmissionConflict
+=========================== short test summary info ============================
+FAILED tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_abandoned_custody_is_readable_but_cannot_be_recaptured
+FAILED tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_abandonment_during_observation_rejects_late_capture
+FAILED tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_complete_multiple_criteria_and_empty_raw_text_are_retained
+SUBFAILED(rationale=[]) tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record
+SUBFAILED(rationale=[{'criterionId': 'c1', 'rationale': 'Complete assessment'}]) tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record
+SUBFAILED(rationale=[{'criterionId': 'c1', 'rationale': 'Complete assessment'}, {'criterionId': 'c1', 'rationale': 'Complete assessment'}]) tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record
+SUBFAILED(rationale=[{'criterionId': 'c1', 'rationale': 'yes'}, {'criterionId': 'foreign', 'rationale': 'yes'}]) tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record
+SUBFAILED(rationale=[{'criterionId': 'c1', 'rationale': 'yes'}, {'criterionId': 'c2', 'rationale': ' \n'}]) tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record
+SUBFAILED(missing='stdout') tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_required_raw_material_context_and_open_obligation_cannot_be_lost
+SUBFAILED(missing='host') tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_required_raw_material_context_and_open_obligation_cannot_be_lost
+SUBFAILED(missing='materials') tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_required_raw_material_context_and_open_obligation_cannot_be_lost
+SUBFAILED(missing='criterion') tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_required_raw_material_context_and_open_obligation_cannot_be_lost
+SUBFAILED(missing='open') tests/test_final_assurance_completeness.py::FinalCompletenessTests::test_required_raw_material_context_and_open_obligation_cannot_be_lost
+13 failed, 357 passed, 46 skipped, 2357 subtests passed in 59.39s

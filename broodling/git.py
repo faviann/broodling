@@ -73,6 +73,24 @@ def _try(repository: Path | str, *arguments: str) -> str | None:
         return None
 
 
+def run_bytes(repository: Path | str, *arguments: str, stdin: bytes = b"") -> bytes:
+    """Run a binary, NUL-delimited Git query without filename decoding."""
+    completed = subprocess.run(
+        [GIT, "-C", str(repository), *arguments],
+        input=stdin,
+        capture_output=True,
+        env=_environment(),
+        check=False,
+    )
+    if completed.returncode:
+        raise GitCommandError(
+            f"git {' '.join(arguments)} failed in {repository} "
+            f"({completed.returncode}): "
+            f"{completed.stderr.decode('utf-8', errors='replace').strip()}"
+        )
+    return completed.stdout
+
+
 def read_object(repository: Path, object_id: str, object_type: str) -> bytes:
     """Read exact pinned SHA-1 object bytes, without replacement or text filters.
 
@@ -231,6 +249,7 @@ def add_worktree(
     *,
     reuse_branch: bool = False,
     force: bool = False,
+    inherited_fds: tuple[int, ...] = (),
 ) -> None:
     """Attach a worktree at ``path`` on ``branch``, starting at ``commit``.
 
@@ -241,14 +260,22 @@ def add_worktree(
     the caller has already established that the existing state is this Attempt's.
     """
 
-    arguments = ["worktree", "add"]
+    # Materialize the immutable object itself, without local replacement refs
+    # or hooks introducing different candidate content or detached host writers.
+    arguments = [
+        "--no-replace-objects",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "worktree",
+        "add",
+    ]
     if force:
         arguments.append("--force")
     if reuse_branch:
         arguments += [str(path), branch]
     else:
         arguments += ["-b", branch, str(path), commit]
-    run(repository, *arguments)
+    run(repository, *arguments, inherited_fds=inherited_fds)
 
 
 def head_commit(worktree: Path) -> str:

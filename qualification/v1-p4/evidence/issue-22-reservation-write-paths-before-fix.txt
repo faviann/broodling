@@ -1,0 +1,180 @@
+...........                                            [100%]
+=================================== FAILURES ===================================
+_ RetryProfileTests.test_actual_environment_cannot_redirect_ordinary_provider_into_reserved_homes (variable='BROODLING_PROFILE_HOME') _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_actual_environment_cannot_redirect_ordinary_provider_into_reserved_homes>
+
+    def test_actual_environment_cannot_redirect_ordinary_provider_into_reserved_homes(
+        self,
+    ):
+        from broodling.submission import SubmissionCoordinator
+
+        self.retry_coordinator().allocate(self.attempt_id, "retry")
+        reserved = self.new_adapter.codex_profile
+        for issue, (variable, destination) in enumerate(
+            (
+                ("BROODLING_PROFILE_HOME", reserved.profile_home),
+                ("BROODLING_ISOLATED_CODEX_HOME", reserved.isolated_codex_home),
+            ),
+            start=260,
+        ):
+            sibling = self.sibling_attempt(issue)
+            adapter = self.fresh_adapter(f"environment-{issue}")
+            adapter.target["environment"][variable] = str(destination)
+            coordinator = SubmissionCoordinator(self.store, adapter)
+            with self.subTest(variable=variable):
+>               with self.assertRaises(UnsupportedRuntime):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: UnsupportedRuntime not raised
+
+tests/test_retry_profile.py:237: AssertionError
+_ RetryProfileTests.test_actual_environment_cannot_redirect_ordinary_provider_into_reserved_homes (variable='BROODLING_ISOLATED_CODEX_HOME') _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_actual_environment_cannot_redirect_ordinary_provider_into_reserved_homes>
+
+    def test_actual_environment_cannot_redirect_ordinary_provider_into_reserved_homes(
+        self,
+    ):
+        from broodling.submission import SubmissionCoordinator
+
+        self.retry_coordinator().allocate(self.attempt_id, "retry")
+        reserved = self.new_adapter.codex_profile
+        for issue, (variable, destination) in enumerate(
+            (
+                ("BROODLING_PROFILE_HOME", reserved.profile_home),
+                ("BROODLING_ISOLATED_CODEX_HOME", reserved.isolated_codex_home),
+            ),
+            start=260,
+        ):
+            sibling = self.sibling_attempt(issue)
+            adapter = self.fresh_adapter(f"environment-{issue}")
+            adapter.target["environment"][variable] = str(destination)
+            coordinator = SubmissionCoordinator(self.store, adapter)
+            with self.subTest(variable=variable):
+>               with self.assertRaises(UnsupportedRuntime):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: UnsupportedRuntime not raised
+
+tests/test_retry_profile.py:237: AssertionError
+_ RetryProfileTests.test_ordinary_runtime_state_cannot_write_inside_reserved_homes (home=PosixPath('/tmp/broodling-p2-mohl6fav/new-home')) _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_ordinary_runtime_state_cannot_write_inside_reserved_homes>
+
+    def test_ordinary_runtime_state_cannot_write_inside_reserved_homes(self):
+        from broodling.submission import SubmissionCoordinator
+
+        self.retry_coordinator().allocate(self.attempt_id, "retry")
+        reserved = self.new_adapter.codex_profile
+        for issue, home in enumerate(
+            (reserved.profile_home, reserved.isolated_codex_home), start=270
+        ):
+            sibling = self.sibling_attempt(issue)
+            adapter = self.fresh_adapter(f"runtime-state-{issue}")
+            adapter.target["stateDir"] = str(home / "ordinary-runtime")
+            coordinator = SubmissionCoordinator(self.store, adapter)
+            with self.subTest(home=home):
+>               with self.assertRaises(UnsupportedRuntime):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: UnsupportedRuntime not raised
+
+tests/test_retry_profile.py:254: AssertionError
+_ RetryProfileTests.test_ordinary_runtime_state_cannot_write_inside_reserved_homes (home=PosixPath('/tmp/broodling-p2-mohl6fav/new-auth')) _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_ordinary_runtime_state_cannot_write_inside_reserved_homes>
+
+    def test_ordinary_runtime_state_cannot_write_inside_reserved_homes(self):
+        from broodling.submission import SubmissionCoordinator
+
+        self.retry_coordinator().allocate(self.attempt_id, "retry")
+        reserved = self.new_adapter.codex_profile
+        for issue, home in enumerate(
+            (reserved.profile_home, reserved.isolated_codex_home), start=270
+        ):
+            sibling = self.sibling_attempt(issue)
+            adapter = self.fresh_adapter(f"runtime-state-{issue}")
+            adapter.target["stateDir"] = str(home / "ordinary-runtime")
+            coordinator = SubmissionCoordinator(self.store, adapter)
+            with self.subTest(home=home):
+>               with self.assertRaises(UnsupportedRuntime):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: UnsupportedRuntime not raised
+
+tests/test_retry_profile.py:254: AssertionError
+_ RetryProfileTests.test_ordinary_workspace_allocation_cannot_write_into_reserved_homes (root=PosixPath('/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bvfuqdwk/reserved-home')) _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_ordinary_workspace_allocation_cannot_write_into_reserved_homes>
+
+    def test_ordinary_workspace_allocation_cannot_write_into_reserved_homes(self):
+        from broodling import AttemptProvisioner
+
+        # Use supported durable placement, so the reservation must discriminate
+        # the conflict rather than the unrelated temporary-root prohibition.
+        home = self.workspace_root / "reserved-home"
+        auth = self.workspace_root / "reserved-auth"
+        home.mkdir()
+        auth.mkdir()
+        (auth / "auth.json").write_text("{}")
+        adapter = self.adapter_for(home, auth)
+        self.retry_coordinator(adapter).allocate(self.attempt_id, "retry")
+        for issue, root in enumerate((home, auth), start=280):
+            unit = self.store.resolve_work_unit(work_reference(issue=issue))
+            source = self.store.entitle_source(
+                unit.work_unit_id,
+                SourceSubmission(
+                    kind="primary_issue",
+                    locator=unit.issue_locator,
+                    content=b"Independent ordinary allocation",
+                ),
+            )
+            revision = self.store.record_contract_revision(self.contract(unit, source))
+            self.store.admit(revision.contract_revision_id)
+            before = tuple(root.iterdir())
+            with self.subTest(root=root):
+>               with self.assertRaises(UnsupportedRuntime):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: UnsupportedRuntime not raised
+
+tests/test_retry_profile.py:285: AssertionError
+_ RetryProfileTests.test_ordinary_workspace_allocation_cannot_write_into_reserved_homes (root=PosixPath('/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bvfuqdwk/reserved-auth')) _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_ordinary_workspace_allocation_cannot_write_into_reserved_homes>
+
+    def test_ordinary_workspace_allocation_cannot_write_into_reserved_homes(self):
+        from broodling import AttemptProvisioner
+
+        # Use supported durable placement, so the reservation must discriminate
+        # the conflict rather than the unrelated temporary-root prohibition.
+        home = self.workspace_root / "reserved-home"
+        auth = self.workspace_root / "reserved-auth"
+        home.mkdir()
+        auth.mkdir()
+        (auth / "auth.json").write_text("{}")
+        adapter = self.adapter_for(home, auth)
+        self.retry_coordinator(adapter).allocate(self.attempt_id, "retry")
+        for issue, root in enumerate((home, auth), start=280):
+            unit = self.store.resolve_work_unit(work_reference(issue=issue))
+            source = self.store.entitle_source(
+                unit.work_unit_id,
+                SourceSubmission(
+                    kind="primary_issue",
+                    locator=unit.issue_locator,
+                    content=b"Independent ordinary allocation",
+                ),
+            )
+            revision = self.store.record_contract_revision(self.contract(unit, source))
+            self.store.admit(revision.contract_revision_id)
+            before = tuple(root.iterdir())
+            with self.subTest(root=root):
+>               with self.assertRaises(UnsupportedRuntime):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: UnsupportedRuntime not raised
+
+tests/test_retry_profile.py:285: AssertionError
+=========================== short test summary info ============================
+SUBFAILED(variable='BROODLING_PROFILE_HOME') tests/test_retry_profile.py::RetryProfileTests::test_actual_environment_cannot_redirect_ordinary_provider_into_reserved_homes
+SUBFAILED(variable='BROODLING_ISOLATED_CODEX_HOME') tests/test_retry_profile.py::RetryProfileTests::test_actual_environment_cannot_redirect_ordinary_provider_into_reserved_homes
+SUBFAILED(home=PosixPath('/tmp/broodling-p2-mohl6fav/new-home')) tests/test_retry_profile.py::RetryProfileTests::test_ordinary_runtime_state_cannot_write_inside_reserved_homes
+SUBFAILED(home=PosixPath('/tmp/broodling-p2-mohl6fav/new-auth')) tests/test_retry_profile.py::RetryProfileTests::test_ordinary_runtime_state_cannot_write_inside_reserved_homes
+SUBFAILED(root=PosixPath('/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bvfuqdwk/reserved-home')) tests/test_retry_profile.py::RetryProfileTests::test_ordinary_workspace_allocation_cannot_write_into_reserved_homes
+SUBFAILED(root=PosixPath('/home/faviann/.cache/broodling-tests/broodling-p2-workspace-bvfuqdwk/reserved-auth')) tests/test_retry_profile.py::RetryProfileTests::test_ordinary_workspace_allocation_cannot_write_into_reserved_homes
+6 failed, 11 passed, 12 subtests passed in 3.63s

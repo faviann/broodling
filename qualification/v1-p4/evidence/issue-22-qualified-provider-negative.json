@@ -1,0 +1,56 @@
+{
+  "actualCli": {
+    "path": "/home/faviann/.local/bin/codex",
+    "version": "codex-cli 0.153.4"
+  },
+  "case": {
+    "after": "negative-977ef1f0fbe547a9ab3b497cb6ddffd7:0\nnegative-977ef1f0fbe547a9ab3b497cb6ddffd7:1\nnegative-977ef1f0fbe547a9ab3b497cb6ddffd7:2\nnegative-977ef1f0fbe547a9ab3b497cb6ddffd7:3\nnegative-977ef1f0fbe547a9ab3b497cb6ddffd7:4\nnegative-977ef1f0fbe547a9ab3b497cb6ddffd7:5\nnegative-977ef1f0fbe547a9ab3b497cb6ddffd7:6\n",
+    "before": "negative-977ef1f0fbe547a9ab3b497cb6ddffd7:0\nnegative-977ef1f0fbe547a9ab3b497cb6ddffd7:1\nnegative-977ef1f0fbe547a9ab3b497cb6ddffd7:2\n",
+    "controlledCounterexample": true,
+    "detectedSurvivor": true,
+    "observedProcesses": [
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "probe.py",
+          "writer",
+          ""
+        ],
+        "pid": 4057744,
+        "pidNamespace": "pid:[4026534923]",
+        "starttime": "714472466",
+        "state": "S"
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "probe.py",
+          "writer",
+          ""
+        ],
+        "pid": 4057748,
+        "pidNamespace": "pid:[4026534923]",
+        "starttime": "714472475",
+        "state": "S"
+      }
+    ]
+  },
+  "checks": {
+    "intentionally_uncontained_writer_detected": true
+  },
+  "host": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+  "integration": {
+    "sdkSourceSha256": "0263b63cb6c6991703f699919ea974ba502da23e3a14ab7d5ab8c5d5ac3b256e",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86"
+  },
+  "passed": true,
+  "recordedAt": "2026-09-08T18:45:01.457683+00:00",
+  "sources": {
+    "broodling/codex_profile.py": "c837b3f24861365a2c66b8915c929aded29458471d8d55f9797742d4c5705b0a",
+    "qualification/v1-p4/issue21-provider-bin/codex": "8fd04d679f9030fa1ea5edc2b506a78b44e59a19808e68eb076cb9af3efe33b6",
+    "qualification/v1-p4/issue21-provider-bin/probe.py": "11ca572c144d1c016b12d2e8ab84b2a8821d8d0b294a3abab2d30f9401898326",
+    "qualification/v1-p4/issue21_provider.py": "35f91ebf5c4acd5ae30a640b8169272ff2549506689fef73377ed3b32e5cf784",
+    "tests/support.py": "6a86c0e58eaf112819ae0ac109e3674c98d7bdd18cc39a2069f369f283e8e8ea"
+  }
+}

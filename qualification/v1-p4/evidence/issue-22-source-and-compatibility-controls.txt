@@ -1,0 +1,33 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0 -- /home/faviann/.cache/broodling-zeroshot-venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/faviann/repos/broodling
+configfile: pyproject.toml
+collecting ... collected 21 items
+
+tests/test_checkout_profile.py::CheckoutProfileTests::test_admission_refuses_before_status_can_execute_a_clean_filter PASSED [  4%]
+tests/test_checkout_profile.py::CheckoutProfileTests::test_ambient_builtin_conversions_are_refused
+tests/test_checkout_profile.py::CheckoutProfileTests::test_ambient_builtin_conversions_are_refused PASSED [  9%]
+tests/test_checkout_profile.py::CheckoutProfileTests::test_bare_source_attributes_are_checked PASSED [ 14%]
+tests/test_checkout_profile.py::CheckoutProfileTests::test_builtin_conversion_configuration_is_refused
+tests/test_checkout_profile.py::CheckoutProfileTests::test_builtin_conversion_configuration_is_refused PASSED [ 19%]
+tests/test_checkout_profile.py::CheckoutProfileTests::test_global_attributes_and_included_filter_configuration_are_checked PASSED [ 23%]
+tests/test_checkout_profile.py::CheckoutProfileTests::test_inactive_branch_conditional_configuration_is_refused_before_checkout PASSED [ 28%]
+tests/test_checkout_profile.py::CheckoutProfileTests::test_pinned_nested_attributes_are_checked_after_live_head_removes_them PASSED [ 33%]
+tests/test_checkout_profile.py::CheckoutProfileTests::test_plain_commit_and_common_directory_are_supported_without_index_change PASSED [ 38%]
+tests/test_checkout_profile.py::RetryCheckoutRestrictionTests::test_smudge_clean_canary_refuses_before_checkout_and_dispatch PASSED [ 42%]
+tests/test_checkout_profile.py::SubmissionCheckoutRestrictionTests::test_conversion_added_after_preparation_refuses_before_first_dispatch PASSED [ 47%]
+tests/test_checkout_profile.py::SubmissionCheckoutRestrictionTests::test_conversion_added_after_provision_refuses_before_preparation PASSED [ 52%]
+tests/test_frozen_instructions.py::FrozenInstructionsTests::test_binary_source_is_explicit_base64_with_exact_roundtrip PASSED [ 57%]
+tests/test_frozen_instructions.py::FrozenInstructionsTests::test_exact_snapshot_survives_newer_issue_snapshot_and_restart PASSED [ 61%]
+tests/test_frozen_instructions.py::FrozenInstructionsTests::test_only_implementer_receives_frozen_instructions_and_no_worker_writes_them PASSED [ 66%]
+tests/test_stop_protocol_compatibility.py::StopProtocolCompatibilityTests::test_changed_runtime_blocks_published_graph_stop PASSED [ 71%]
+tests/test_stop_protocol_compatibility.py::StopProtocolCompatibilityTests::test_modified_published_graph_cannot_call_stop_or_retire PASSED [ 76%]
+tests/test_stop_protocol_compatibility.py::StopProtocolCompatibilityTests::test_old_graph_cannot_be_observed_or_reprepared_as_current_assurance PASSED [ 80%]
+tests/test_stop_protocol_compatibility.py::StopProtocolCompatibilityTests::test_published_graph_still_requires_current_runtime_and_physical_cessation PASSED [ 85%]
+tests/test_stop_protocol_compatibility.py::StopProtocolCompatibilityTests::test_published_graph_stop_retirement_preserves_request_and_no_semantics PASSED [ 90%]
+tests/test_stop_protocol_compatibility.py::RetryProtocolCompatibilityTests::test_replacement_rejects_legacy_graph_and_legacy_initial_state
+tests/test_stop_protocol_compatibility.py::RetryProtocolCompatibilityTests::test_replacement_rejects_legacy_graph_and_legacy_initial_state PASSED [ 95%]
+tests/test_stop_protocol_compatibility.py::PublicStopProtocolCompatibilityTests::test_published_graph_controller_loss_can_stop_and_retire_under_current_launcher PASSED [100%]
+
+=================== 21 passed, 12 subtests passed in 12.56s ====================

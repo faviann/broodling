@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0 -- /home/faviann/.cache/broodling-zeroshot-venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/faviann/repos/broodling
+configfile: pyproject.toml
+collecting ... collected 3 items
+
+tests/test_retry_races.py::RetryRaceTests::test_active_ordinary_provisioning_and_ingress_cannot_bypass_retry_safety PASSED [ 33%]
+tests/test_retry_races.py::RetryRaceTests::test_retry_is_refused_while_stop_has_not_established_cessation PASSED [ 66%]
+tests/test_retry_races.py::RetryRaceTests::test_retry_waits_for_unfinished_owned_retirement PASSED [100%]
+
+============================== 3 passed in 1.06s ===============================

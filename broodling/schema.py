@@ -21,7 +21,8 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
+V6_SCHEMA_SHA256 = "f0177a07384d8546a9d8f7971015e1b0d2a399215557882b9b2f10c2fe6fd195"
 V5_SCHEMA_SHA256 = "8dfd3296120e6d859a77a4cb1141c3cca73dbe09836372791d36cafa91c8d1d5"
 V4_SCHEMA_SHA256 = "f0971db85da6eb32727725b2163f96167576b8bf29a55fcc3d75c263b8961697"
 V3_SCHEMA_SHA256 = "663acf981b7b5379bde50f9446d12bee922c81bcbdcc1b4e7f15f6c4e5ea007f"
@@ -33,6 +34,7 @@ TABLES: tuple[str, ...] = (
     "admission_decisions",
     "attempt_abandonments",
     "attempt_retirements",
+    "attempt_retries",
     "attempt_submissions",
     "attempts",
     "contract_revisions",
@@ -445,7 +447,76 @@ BEGIN
 END;
 """
 
-SCHEMA_SQL += SUBMISSION_SQL + ASSURANCE_SQL + ABANDONMENT_SQL + RETIREMENT_SQL
+RETRY_SQL = """
+CREATE TABLE attempt_retries (
+    retry_id TEXT PRIMARY KEY CHECK (length(trim(retry_id)) > 0),
+    predecessor_attempt_id TEXT NOT NULL UNIQUE REFERENCES attempt_retirements (attempt_id),
+    attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts (attempt_id) DEFERRABLE INITIALLY DEFERRED,
+    workspace_root TEXT NOT NULL,
+    target_json TEXT NOT NULL,
+    requested_at TEXT NOT NULL
+) STRICT;
+
+CREATE TRIGGER attempt_retries_safe BEFORE INSERT ON attempt_retries
+WHEN NOT EXISTS (
+    SELECT 1 FROM attempt_retirements AS r
+    JOIN attempt_abandonments AS b USING (attempt_id)
+    JOIN attempts AS a USING (attempt_id)
+    WHERE r.attempt_id = NEW.predecessor_attempt_id
+      AND r.retired_at IS NOT NULL AND a.is_current = 0
+      AND NOT EXISTS (
+          SELECT 1 FROM attempts WHERE work_unit_id = a.work_unit_id AND is_current = 1
+      )
+) OR EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id)
+BEGIN
+    SELECT RAISE(ABORT, 'retry requires an abandoned ceased retired predecessor and no current Attempt');
+END;
+
+CREATE TRIGGER attempt_retries_no_replace BEFORE INSERT ON attempt_retries
+WHEN EXISTS (
+    SELECT 1 FROM attempt_retries WHERE retry_id = NEW.retry_id
+      OR predecessor_attempt_id = NEW.predecessor_attempt_id OR attempt_id = NEW.attempt_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'retry identity and lineage cannot be replaced');
+END;
+
+CREATE TRIGGER attempt_retries_no_update BEFORE UPDATE ON attempt_retries
+BEGIN
+    SELECT RAISE(ABORT, 'retry identity and lineage are immutable');
+END;
+
+CREATE TRIGGER attempt_retries_no_delete BEFORE DELETE ON attempt_retries
+BEGIN
+    SELECT RAISE(ABORT, 'retry identity and lineage are durable');
+END;
+
+DROP TRIGGER attempts_no_abandonment_bypass;
+CREATE TRIGGER attempts_no_abandonment_bypass BEFORE INSERT ON attempts
+WHEN (EXISTS (
+    SELECT 1 FROM attempts AS a JOIN attempt_abandonments AS b USING (attempt_id)
+    WHERE a.work_unit_id = NEW.work_unit_id
+) OR EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id))
+AND NOT EXISTS (
+    SELECT 1 FROM attempt_retries AS r
+    JOIN attempts AS p ON p.attempt_id = r.predecessor_attempt_id
+    JOIN attempt_retirements AS t ON t.attempt_id = p.attempt_id
+    WHERE r.attempt_id = NEW.attempt_id AND t.retired_at IS NOT NULL
+      AND p.work_unit_id = NEW.work_unit_id
+      AND p.contract_revision_id = NEW.contract_revision_id
+      AND p.b1_repository = NEW.b1_repository
+      AND p.b1_commit_oid = NEW.b1_commit_oid
+      AND p.b1_material_sha256 = NEW.b1_material_sha256
+      AND p.b1_requested_revision = NEW.b1_requested_revision
+)
+BEGIN
+    SELECT RAISE(ABORT, 'an abandoned Work Unit requires explicit safe replacement authority');
+END;
+"""
+
+SCHEMA_SQL += (
+    SUBMISSION_SQL + ASSURANCE_SQL + ABANDONMENT_SQL + RETIREMENT_SQL + RETRY_SQL
+)
 
 #: Digest of the exact DDL this build initializes. Recorded in ``schema_meta`` so
 #: a store written by a different DDL text is detected on reopen.

@@ -62,7 +62,9 @@ class FinalAssuranceCoordinator:
             "graph": assurance_graph(),
             "runtime": assurance_runtime(),
             "initialInput": initial_state(
-                revision.canonical_bytes.decode(), attempt.b1_commit_oid
+                revision.canonical_bytes.decode(),
+                attempt.b1_commit_oid,
+                self.store.frozen_instructions(attempt_id),
             ),
             "workspace": assignment.worktree_path,
             "repository": attempt.b1_repository,

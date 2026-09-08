@@ -50,6 +50,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import git, workspace
+from .checkout_profile import assert_supported_checkout
 from .errors import (
     GitCommandError,
     UnsupportedWorkspaceRoot,
@@ -160,17 +161,18 @@ class AttemptProvisioner:
         # Serialize abandonment with host mutation, including the external
         # Git call and acknowledgment. A killed caller rolls back the fact;
         # the existing owned leftovers still converge on a subsequent call.
-        with _sole_provisioner(enclosure), self.store._write():
+        with _sole_provisioner(enclosure) as lock_fd, self.store._write():
             attempt = self.store.require_current_attempt(attempt_id)
             assignment = self.store.worktree_assignment(attempt_id)
-            return self._materialize(attempt, assignment)
+            return self._materialize(attempt, assignment, lock_fd)
 
     def _materialize(
-        self, attempt: AttemptRecord, assignment: WorktreeAssignmentRecord
+        self, attempt: AttemptRecord, assignment: WorktreeAssignmentRecord, lock_fd: int
     ) -> ProvisionedWorktree:
         """Bring the host in line with the reservation. Runs single-writer."""
 
         repository = Path(attempt.b1_repository)
+        assert_supported_checkout(repository, attempt.b1_commit_oid)
         path = assignment.path
         entry = git.find_worktree(repository, path)
 
@@ -184,7 +186,13 @@ class AttemptProvisioner:
             registered_elsewhere = False
 
         try:
-            self._create(repository, attempt, assignment, force=registered_elsewhere)
+            self._create(
+                repository,
+                attempt,
+                assignment,
+                force=registered_elsewhere,
+                lock_fd=lock_fd,
+            )
         except GitCommandError:
             # An interrupted run may have left exactly the worktree this one was
             # about to create — a half-registered path Git now refuses to add
@@ -253,6 +261,7 @@ class AttemptProvisioner:
         assignment: WorktreeAssignmentRecord,
         *,
         force: bool,
+        lock_fd: int,
     ) -> None:
         """Create the worktree, adopting a branch a prior run already made."""
 
@@ -270,6 +279,7 @@ class AttemptProvisioner:
             attempt.b1_commit_oid,
             reuse_branch=existing is not None,
             force=force,
+            inherited_fds=(lock_fd,),
         )
         self._assert_materialized_at_b1(attempt, assignment)
 
@@ -303,9 +313,9 @@ def _sole_provisioner(enclosure: Path) -> Iterator[int]:
     Scoped to the enclosure because that is exactly one Attempt's scaffolding:
     two Attempts never share one, so two Work Units never queue on each other.
 
-    The lock lives only as long as the file descriptor. A process that is killed
-    mid-provisioning releases it without unwinding, which is what lets the crash
-    windows recover by simply repeating the operation.
+    The lock lives as long as its descriptors. Git creation inherits it, so a
+    killed caller cannot let another provisioner race its surviving Git child.
+    Once both exit, repeating the operation converges on the owned leftovers.
     """
 
     handle = os.open(

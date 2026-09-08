@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import git
+from .checkout_profile import assert_supported_checkout
 from .errors import UnsupportedStartingState
 from .identity import digest
 
@@ -57,17 +58,18 @@ def resolve_starting_state(
             "is an immutable commit in a local Git repository"
         )
 
-    if not git.is_bare(path):
-        entries = git.uncommitted_entries(path)
-        if entries:
-            raise UnsupportedStartingState(_uncommitted_refusal(path, entries))
-
     commit = git.resolve_commit(path, revision)
     if commit is None:
         raise UnsupportedStartingState(
             f"{revision!r} does not name a commit in {repository_path}; B1 must be "
             "an exact immutable commit object"
         )
+
+    assert_supported_checkout(path, commit)
+    if not git.is_bare(path):
+        entries = git.uncommitted_entries(path)
+        if entries:
+            raise UnsupportedStartingState(_uncommitted_refusal(path, entries))
 
     return StartingState(
         repository=str(git.common_directory(path)),

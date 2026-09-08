@@ -101,6 +101,7 @@ class SchemaBoundaryTests(StoreTestCase):
                 "admission_decisions",
                 "attempt_abandonments",
                 "attempt_retirements",
+                "attempt_retries",
                 "attempt_submissions",
                 "attempts",
                 "contract_revisions",
@@ -137,7 +138,7 @@ class SchemaBoundaryTests(StoreTestCase):
 
     def test_the_schema_text_declares_no_deferred_machinery(self) -> None:
         lowered = SCHEMA_SQL.lower()
-        for term in ("runledger", "candidate_seal", "disposition", "retry"):
+        for term in ("runledger", "candidate_seal", "disposition", "retry_policy"):
             with self.subTest(term=term):
                 self.assertNotIn(term, lowered)
 
@@ -157,6 +158,8 @@ class RuntimeBoundaryTests(unittest.TestCase):
                     allowed.update({"ctypes", "select", "signal", "tempfile"})
                 if module.name == "final_material.py":
                     allowed.update({"base64", "stat"})
+                if module.name == "store.py":
+                    allowed.add("base64")
                 roots = imported_roots(module) - {"broodling"}
                 self.assertLessEqual(roots, allowed, f"{module.name} grew a dependency")
 

@@ -1,0 +1,11 @@
+test_actual_mutation_after_acceptance_ack_loss_reconciles_same_replacement (test_replacement_public.PublicReplacementTests.test_actual_mutation_after_acceptance_ack_loss_reconciles_same_replacement) ... ok
+test_concurrent_identical_retry_submits_one_actual_run (test_replacement_public.PublicReplacementTests.test_concurrent_identical_retry_submits_one_actual_run) ... ok
+test_delayed_actual_a1_final_observation_cannot_capture_after_a2_is_current (test_replacement_public.PublicReplacementTests.test_delayed_actual_a1_final_observation_cannot_capture_after_a2_is_current) ... ok
+test_historical_custody_and_late_old_calls_do_not_touch_current_replacement (test_replacement_public.PublicReplacementTests.test_historical_custody_and_late_old_calls_do_not_touch_current_replacement) ... ok
+test_original_b1_contract_and_provider_inputs_exclude_abandoned_state (test_replacement_public.PublicReplacementTests.test_original_b1_contract_and_provider_inputs_exclude_abandoned_state) ... ok
+test_process_death_windows_converge_on_allocated_replacement (test_replacement_public.PublicReplacementTests.test_process_death_windows_converge_on_allocated_replacement) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 406.660s
+
+OK

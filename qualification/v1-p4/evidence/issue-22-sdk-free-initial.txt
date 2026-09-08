@@ -1,0 +1,364 @@
+..............ssssss.................. [ 10%]
+.........ssss.................................................. [ 26%]
+.......................................................................ssssssss.......ssss...................... [ 56%]
+....sssss...................F.........................................................................sssss..s...sssssssssss...........................................                             [100%]
+=================================== FAILURES ===================================
+_ RetryAdmissionTests.test_retry_root_cannot_be_inside_another_registered_checkout _
+
+self = <test_retry_admission.RetryAdmissionTests testMethod=test_retry_root_cannot_be_inside_another_registered_checkout>
+
+>   ???
+
+tests/test_retry_admission.py:302:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests/test_retry_admission.py:57: in retry
+    return self.store.admit_retry(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def admit_retry(
+        self,
+        predecessor_attempt_id: str,
+        retry_id: str,
+        *,
+        workspace_root: Path | str,
+        target: dict[str, Any],
+    ) -> AttemptRecord:
+        """Commit explicit retry identity and allocation before any host changes.
+
+        Only immutable Contract/B1 bindings initialize the replacement. Repeated
+        requests return the same historical replacement even after abandonment;
+        provisioning and submission independently require currentness.
+        """
+        if not isinstance(retry_id, str) or not retry_id.strip():
+            raise ValueError("retry requires a nonempty explicit retry identity")
+        if not isinstance(target, dict):
+            raise TypeError("retry target must be a mapping")
+        target_json = json.dumps(target, sort_keys=True, allow_nan=False)
+        root = assert_durable_workspace_root(Path(workspace_root))
+        with self._write() as connection:
+            existing = self.retry(retry_id)
+            if existing is not None:
+                if (
+                    existing.predecessor_attempt_id != predecessor_attempt_id
+                    or existing.workspace_root != str(root)
+                    or existing.target_json != target_json
+                ):
+                    raise AttemptConflict(
+                        "retry identity already binds different parameters"
+                    )
+                return self.get_attempt(existing.attempt_id)
+            predecessor = self.get_attempt(predecessor_attempt_id)
+            retirement = connection.execute(
+                "SELECT retired_at FROM attempt_retirements WHERE attempt_id = ?",
+                (predecessor_attempt_id,),
+            ).fetchone()
+            if (
+                self.abandonment(predecessor_attempt_id) is None
+                or retirement is None
+                or retirement["retired_at"] is None
+            ):
+                raise AttemptAdmissionError(
+                    "retry requires durable abandonment, safe cessation and retirement"
+                )
+            if (
+                connection.execute(
+                    "SELECT 1 FROM attempt_retries WHERE predecessor_attempt_id = ?",
+                    (predecessor_attempt_id,),
+                ).fetchone()
+                is not None
+            ):
+                raise AttemptConflict("predecessor already has an explicit replacement")
+            if self.current_attempt(predecessor.work_unit_id) is not None:
+                raise self._competing_attempt(predecessor.work_unit_id)
+            self._validate_retry_material(predecessor)
+            repository = Path(predecessor.b1_repository)
+            source_paths = [
+                repository,
+                *(item.path for item in git.list_worktrees(repository)),
+            ]
+            if any(root.is_relative_to(path) for path in source_paths):
+>               raise AttemptAdmissionError(
+                    "retry workspace root must be outside the source repository"
+                )
+E               broodling.errors.AttemptAdmissionError: retry workspace root must be outside the source repository
+
+broodling/store.py:985: AttemptAdmissionError
+_ RetryAdmissionTests.test_retry_root_cannot_be_inside_original_repository_or_common_git (root=PosixPath('/home/faviann/.cache/broodling-tests/broodling-source-6o7ac_x6/source')) _
+
+self = <test_retry_admission.RetryAdmissionTests testMethod=test_retry_root_cannot_be_inside_original_repository_or_common_git>
+
+    def test_retry_root_cannot_be_inside_original_repository_or_common_git(self):
+        self.retire()
+        for root in (
+            self.repository,
+            self.repository / "nested-retry-workspaces",
+            Path(self.attempt.b1_repository) / "nested-retry-workspaces",
+        ):
+            with self.subTest(root=root), self.assertRaises(AttemptAdmissionError):
+                self.retry(workspace_root=root)
+            self.assertIsNone(self.store.retry("request-1"))
+>           self.assertEqual(self.attempt_count(), 1)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_retry_admission.py:287:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests/test_retry_admission.py:57: in retry
+    return self.store.admit_retry(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def admit_retry(
+        self,
+        predecessor_attempt_id: str,
+        retry_id: str,
+        *,
+        workspace_root: Path | str,
+        target: dict[str, Any],
+    ) -> AttemptRecord:
+        """Commit explicit retry identity and allocation before any host changes.
+
+        Only immutable Contract/B1 bindings initialize the replacement. Repeated
+        requests return the same historical replacement even after abandonment;
+        provisioning and submission independently require currentness.
+        """
+        if not isinstance(retry_id, str) or not retry_id.strip():
+            raise ValueError("retry requires a nonempty explicit retry identity")
+        if not isinstance(target, dict):
+            raise TypeError("retry target must be a mapping")
+        target_json = json.dumps(target, sort_keys=True, allow_nan=False)
+        root = assert_durable_workspace_root(Path(workspace_root))
+        with self._write() as connection:
+            existing = self.retry(retry_id)
+            if existing is not None:
+                if (
+                    existing.predecessor_attempt_id != predecessor_attempt_id
+                    or existing.workspace_root != str(root)
+                    or existing.target_json != target_json
+                ):
+                    raise AttemptConflict(
+                        "retry identity already binds different parameters"
+                    )
+                return self.get_attempt(existing.attempt_id)
+            predecessor = self.get_attempt(predecessor_attempt_id)
+            retirement = connection.execute(
+                "SELECT retired_at FROM attempt_retirements WHERE attempt_id = ?",
+                (predecessor_attempt_id,),
+            ).fetchone()
+            if (
+                self.abandonment(predecessor_attempt_id) is None
+                or retirement is None
+                or retirement["retired_at"] is None
+            ):
+                raise AttemptAdmissionError(
+                    "retry requires durable abandonment, safe cessation and retirement"
+                )
+            if (
+                connection.execute(
+                    "SELECT 1 FROM attempt_retries WHERE predecessor_attempt_id = ?",
+                    (predecessor_attempt_id,),
+                ).fetchone()
+                is not None
+            ):
+                raise AttemptConflict("predecessor already has an explicit replacement")
+            if self.current_attempt(predecessor.work_unit_id) is not None:
+                raise self._competing_attempt(predecessor.work_unit_id)
+            self._validate_retry_material(predecessor)
+            repository = Path(predecessor.b1_repository)
+            source_paths = [
+                repository,
+                *(item.path for item in git.list_worktrees(repository)),
+            ]
+            if any(root.is_relative_to(path) for path in source_paths):
+>               raise AttemptAdmissionError(
+                    "retry workspace root must be outside the source repository"
+                )
+E               broodling.errors.AttemptAdmissionError: retry workspace root must be outside the source repository
+
+broodling/store.py:985: AttemptAdmissionError
+_ RetryAdmissionTests.test_retry_root_cannot_be_inside_original_repository_or_common_git (root=PosixPath('/home/faviann/.cache/broodling-tests/broodling-source-6o7ac_x6/source/nested-retry-workspaces')) _
+
+self = <test_retry_admission.RetryAdmissionTests testMethod=test_retry_root_cannot_be_inside_original_repository_or_common_git>
+
+    def test_retry_root_cannot_be_inside_original_repository_or_common_git(self):
+        self.retire()
+        for root in (
+            self.repository,
+            self.repository / "nested-retry-workspaces",
+            Path(self.attempt.b1_repository) / "nested-retry-workspaces",
+        ):
+            with self.subTest(root=root), self.assertRaises(AttemptAdmissionError):
+                self.retry(workspace_root=root)
+            self.assertIsNone(self.store.retry("request-1"))
+>           self.assertEqual(self.attempt_count(), 1)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_retry_admission.py:287:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests/test_retry_admission.py:57: in retry
+    return self.store.admit_retry(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def admit_retry(
+        self,
+        predecessor_attempt_id: str,
+        retry_id: str,
+        *,
+        workspace_root: Path | str,
+        target: dict[str, Any],
+    ) -> AttemptRecord:
+        """Commit explicit retry identity and allocation before any host changes.
+
+        Only immutable Contract/B1 bindings initialize the replacement. Repeated
+        requests return the same historical replacement even after abandonment;
+        provisioning and submission independently require currentness.
+        """
+        if not isinstance(retry_id, str) or not retry_id.strip():
+            raise ValueError("retry requires a nonempty explicit retry identity")
+        if not isinstance(target, dict):
+            raise TypeError("retry target must be a mapping")
+        target_json = json.dumps(target, sort_keys=True, allow_nan=False)
+        root = assert_durable_workspace_root(Path(workspace_root))
+        with self._write() as connection:
+            existing = self.retry(retry_id)
+            if existing is not None:
+                if (
+                    existing.predecessor_attempt_id != predecessor_attempt_id
+                    or existing.workspace_root != str(root)
+                    or existing.target_json != target_json
+                ):
+                    raise AttemptConflict(
+                        "retry identity already binds different parameters"
+                    )
+                return self.get_attempt(existing.attempt_id)
+            predecessor = self.get_attempt(predecessor_attempt_id)
+            retirement = connection.execute(
+                "SELECT retired_at FROM attempt_retirements WHERE attempt_id = ?",
+                (predecessor_attempt_id,),
+            ).fetchone()
+            if (
+                self.abandonment(predecessor_attempt_id) is None
+                or retirement is None
+                or retirement["retired_at"] is None
+            ):
+                raise AttemptAdmissionError(
+                    "retry requires durable abandonment, safe cessation and retirement"
+                )
+            if (
+                connection.execute(
+                    "SELECT 1 FROM attempt_retries WHERE predecessor_attempt_id = ?",
+                    (predecessor_attempt_id,),
+                ).fetchone()
+                is not None
+            ):
+                raise AttemptConflict("predecessor already has an explicit replacement")
+            if self.current_attempt(predecessor.work_unit_id) is not None:
+                raise self._competing_attempt(predecessor.work_unit_id)
+            self._validate_retry_material(predecessor)
+            repository = Path(predecessor.b1_repository)
+            source_paths = [
+                repository,
+                *(item.path for item in git.list_worktrees(repository)),
+            ]
+            if any(root.is_relative_to(path) for path in source_paths):
+>               raise AttemptAdmissionError(
+                    "retry workspace root must be outside the source repository"
+                )
+E               broodling.errors.AttemptAdmissionError: retry workspace root must be outside the source repository
+
+broodling/store.py:985: AttemptAdmissionError
+_ RetryAdmissionTests.test_retry_root_cannot_be_inside_original_repository_or_common_git (root=PosixPath('/home/faviann/.cache/broodling-tests/broodling-source-6o7ac_x6/source/.git/nested-retry-workspaces')) _
+
+self = <test_retry_admission.RetryAdmissionTests testMethod=test_retry_root_cannot_be_inside_original_repository_or_common_git>
+
+    def test_retry_root_cannot_be_inside_original_repository_or_common_git(self):
+        self.retire()
+        for root in (
+            self.repository,
+            self.repository / "nested-retry-workspaces",
+            Path(self.attempt.b1_repository) / "nested-retry-workspaces",
+        ):
+            with self.subTest(root=root), self.assertRaises(AttemptAdmissionError):
+                self.retry(workspace_root=root)
+            self.assertIsNone(self.store.retry("request-1"))
+>           self.assertEqual(self.attempt_count(), 1)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_retry_admission.py:287:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests/test_retry_admission.py:57: in retry
+    return self.store.admit_retry(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def admit_retry(
+        self,
+        predecessor_attempt_id: str,
+        retry_id: str,
+        *,
+        workspace_root: Path | str,
+        target: dict[str, Any],
+    ) -> AttemptRecord:
+        """Commit explicit retry identity and allocation before any host changes.
+
+        Only immutable Contract/B1 bindings initialize the replacement. Repeated
+        requests return the same historical replacement even after abandonment;
+        provisioning and submission independently require currentness.
+        """
+        if not isinstance(retry_id, str) or not retry_id.strip():
+            raise ValueError("retry requires a nonempty explicit retry identity")
+        if not isinstance(target, dict):
+            raise TypeError("retry target must be a mapping")
+        target_json = json.dumps(target, sort_keys=True, allow_nan=False)
+        root = assert_durable_workspace_root(Path(workspace_root))
+        with self._write() as connection:
+            existing = self.retry(retry_id)
+            if existing is not None:
+                if (
+                    existing.predecessor_attempt_id != predecessor_attempt_id
+                    or existing.workspace_root != str(root)
+                    or existing.target_json != target_json
+                ):
+                    raise AttemptConflict(
+                        "retry identity already binds different parameters"
+                    )
+                return self.get_attempt(existing.attempt_id)
+            predecessor = self.get_attempt(predecessor_attempt_id)
+            retirement = connection.execute(
+                "SELECT retired_at FROM attempt_retirements WHERE attempt_id = ?",
+                (predecessor_attempt_id,),
+            ).fetchone()
+            if (
+                self.abandonment(predecessor_attempt_id) is None
+                or retirement is None
+                or retirement["retired_at"] is None
+            ):
+                raise AttemptAdmissionError(
+                    "retry requires durable abandonment, safe cessation and retirement"
+                )
+            if (
+                connection.execute(
+                    "SELECT 1 FROM attempt_retries WHERE predecessor_attempt_id = ?",
+                    (predecessor_attempt_id,),
+                ).fetchone()
+                is not None
+            ):
+                raise AttemptConflict("predecessor already has an explicit replacement")
+            if self.current_attempt(predecessor.work_unit_id) is not None:
+                raise self._competing_attempt(predecessor.work_unit_id)
+            self._validate_retry_material(predecessor)
+            repository = Path(predecessor.b1_repository)
+            source_paths = [
+                repository,
+                *(item.path for item in git.list_worktrees(repository)),
+            ]
+            if any(root.is_relative_to(path) for path in source_paths):
+>               raise AttemptAdmissionError(
+                    "retry workspace root must be outside the source repository"
+                )
+E               broodling.errors.AttemptAdmissionError: retry workspace root must be outside the source repository
+
+broodling/store.py:985: AttemptAdmissionError
+=========================== short test summary info ============================
+FAILED tests/test_retry_admission.py::RetryAdmissionTests::test_retry_root_cannot_be_inside_another_registered_checkout
+SUBFAILED(root=PosixPath('/home/faviann/.cache/broodling-tests/broodling-source-6o7ac_x6/source')) tests/test_retry_admission.py::RetryAdmissionTests::test_retry_root_cannot_be_inside_original_repository_or_common_git
+SUBFAILED(root=PosixPath('/home/faviann/.cache/broodling-tests/broodling-source-6o7ac_x6/source/nested-retry-workspaces')) tests/test_retry_admission.py::RetryAdmissionTests::test_retry_root_cannot_be_inside_original_repository_or_common_git
+SUBFAILED(root=PosixPath('/home/faviann/.cache/broodling-tests/broodling-source-6o7ac_x6/source/.git/nested-retry-workspaces')) tests/test_retry_admission.py::RetryAdmissionTests::test_retry_root_cannot_be_inside_original_repository_or_common_git
+4 failed, 335 passed, 44 skipped, 2325 subtests passed in 48.95s

@@ -1,0 +1,79 @@
+{
+  "acceptanceAuditSatisfied": true,
+  "baselineCommit": "cb9b9a6e3c80bbe6c5c84a225d8d06601d737138",
+  "issue": 22,
+  "notClaimed": [
+    "Work Unit disposition",
+    "normal V1 success",
+    "G4 PASS",
+    "V1-P5"
+  ],
+  "priorGoverningAndQualificationFilesUnchanged": true,
+  "publicationSequence": [
+    "commit",
+    "push",
+    "verify origin/main reachability and source hashes",
+    "post accurate completion comment",
+    "close issue"
+  ],
+  "reviews": {
+    "mandatoryProductFixesRemaining": 0,
+    "unsupportedAcceptanceClaimsRemaining": 0
+  },
+  "sourceSha256": {
+    "broodling/__init__.py": "c87a524fb496f36910ed014f9a07e84a4f506ede8e0c26fd39209539c00145fa",
+    "broodling/abandonment.py": "6e65f01f63135194feb8741451e5243ecf88cec409f1ca515b11d6f8d960baf6",
+    "broodling/assurance.py": "23fefa58f7590ee5ccd9f4ef127cd9f4b6b3074c37cd6e7801049f2b0e80b303",
+    "broodling/assurance_graph.py": "189da2ccf84a338c742a3500b212ec0428177fe60bb560673940a8603e79fbc1",
+    "broodling/checkout_profile.py": "f543b0162945adda94bf47013286f451359f76b5dd2977b62dfce69034408031",
+    "broodling/closability.py": "eb6c9b0895035d2aeebea4c86b81a95ac305f6a009f68f64a1a6b49b55e54a80",
+    "broodling/codex_profile.py": "c837b3f24861365a2c66b8915c929aded29458471d8d55f9797742d4c5705b0a",
+    "broodling/containment.py": "1cd4507567a66df727d8ddd42e8f947030d09df2edcf5358a4e40f2c776cae7e",
+    "broodling/contract.py": "aa53244ae3bdf1fc418311aa1fb73ac36c6a1827759897b935970d40210bf315",
+    "broodling/entitlement.py": "c0bb6c6012a6c6c95626a65418faaca19f7cf43656589d2cfa5c1eaaee05f5a5",
+    "broodling/errors.py": "4adaa9fea7b76e911489d8041424b6367105d155400d60de833d3556f7e6a9aa",
+    "broodling/final_material.py": "b149ba999612981f79a9f19900660e6c38aadf5fa23d88799693ccfdb9578074",
+    "broodling/git.py": "9709abcbe074d4f6a33ddb1624a8ee607e888df3e78b82304cd21c9e5e8e3f98",
+    "broodling/identity.py": "dd5ba920ab996d0efb68da2f463f4f622948a43cd8b7d3d5de195e3fc5ed0658",
+    "broodling/mechanical_evidence.py": "c878f7b8eb1e00f115879e78118edc65c323fe4605ffb9743d1b903d4022410c",
+    "broodling/profile.py": "468cf873ef90f19b6670704d24af5d445832f67ae4f30a152df639faa45848e5",
+    "broodling/provisioning.py": "8c16dcc6632c087b51212891a2504466b06aaa7d8f4e1946133feb70cee9f569",
+    "broodling/replacement.py": "03c9255c88260c3c1f5c83d0b175ff93bde308129e5b7393cfd249d253414221",
+    "broodling/reviewer.py": "5b4b2f71ac1cf49e195f71398898df208f85bab8e7c0cdf284dbd535ce4137b9",
+    "broodling/schema.py": "b6b7181a54c5b741a26170c3d981ace5e453a94753a0018df7bb377491546df6",
+    "broodling/starting_state.py": "a0bb8c9f3823b5b7d644a02d6f691b037c18a68952a190ff2889fa257faf20cd",
+    "broodling/store.py": "76ee528b5c0614ba3e82fe6d378f30bb536c3aa2208d8d315c02193b68266df1",
+    "broodling/submission.py": "17a917f08dbea4276459889dccf2f80a1c399106b3319ade9d9815732e82e01e",
+    "broodling/workspace.py": "5b20a932865a7caee0541788994c0ffd99825a1f52c7e6f9142bca729740b4ee",
+    "broodling/zeroshot_sdk.py": "00d80cb50020b238aacce3533bc589e8d44e435952085e668b4f06702058cfe8"
+  },
+  "verification": {
+    "actualProviderSourceOnly": true,
+    "addedExplicitRaces": {
+      "passed": 3,
+      "sdk": "same pinned integration"
+    },
+    "allSevenQualifiedProfileCases": true,
+    "entireCorrectedLifecycle": {
+      "passed": 6,
+      "recordedCases": 10,
+      "sourceHashesMatch": true
+    },
+    "fullSdkCollectedBeforeFixtureCorrection": {
+      "failed": 1,
+      "failure": "test_original_b1_contract_and_provider_inputs_exclude_abandoned_state pre-fix null-input assertion; no product failure",
+      "passed": 407,
+      "subtestsPassed": 2459
+    },
+    "sdkFree": {
+      "passed": 365,
+      "skipped": 46,
+      "subtestsPassed": 2367
+    },
+    "singleEntirelyGreenFullSdkInvocationClaimed": false,
+    "sourceAndLegacyCompatibility": {
+      "passed": 21,
+      "subtestsPassed": 12
+    }
+  }
+}

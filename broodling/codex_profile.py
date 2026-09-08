@@ -29,6 +29,106 @@ PROFILE_ENVIRONMENT_NAMES = (
 )
 
 
+def _declared_context_paths(target: dict) -> list[Path]:
+    profile = target.get("codexProfile", {})
+    environment = target.get("environment", {})
+    paths = [
+        Path(value)
+        for value in (
+            target.get("stateDir"),
+            profile.get("profileHome"),
+            profile.get("isolatedCodexHome"),
+            environment.get("BROODLING_PROFILE_HOME"),
+            environment.get("BROODLING_ISOLATED_CODEX_HOME"),
+        )
+        if value is not None
+    ]
+    if any(not path.is_absolute() for path in paths):
+        raise UnsupportedRuntime("declared runtime/profile paths must be absolute")
+    return paths
+
+
+def assert_retry_homes_available(
+    target: dict, reservations: list[dict], write_paths: tuple[Path, ...] = ()
+) -> None:
+    """Exclude reserved homes from declared provider/runtime/provisioning writes."""
+    paths = [
+        path.resolve() for path in [*_declared_context_paths(target), *write_paths]
+    ]
+    for reservation in reservations:
+        for name in ("profileHome", "isolatedCodexHome"):
+            reserved = Path(reservation["codexProfile"][name])
+            for path in paths:
+                if path.is_relative_to(reserved) or reserved.is_relative_to(path):
+                    raise UnsupportedRuntime(
+                        "declared write path overlaps an Attempt's retry home reservation"
+                    )
+
+
+def assert_fresh_retry_profile(
+    target: dict, historical_targets: list[dict], protected_paths: list[Path]
+) -> None:
+    """Validate fresh host-provisioned homes against retained Attempt bindings.
+
+    The store calls this while reserving a retry and before its first dispatch.
+    Shared executables and SDK state directories remain supported; provider
+    automatic-context homes must be disjoint from all old homes and history.
+    Nothing is created, copied, cleaned or recovered here.
+    """
+    try:
+        identity = target["codexProfile"]
+        profile = QualifiedCodexProfile(
+            identity["realCodex"],
+            identity["profileHome"],
+            identity["isolatedCodexHome"],
+        )
+        environment = target["environment"]
+        search_path = environment["PATH"].partition(os.pathsep)[2]
+        if (
+            profile.identity() != identity
+            or profile.environment(search_path) != environment
+        ):
+            raise UnsupportedRuntime("retry requires the current qualified profile")
+        homes = [Path(identity[name]) for name in ("profileHome", "isolatedCodexHome")]
+        for home in homes:
+            if (
+                not home.is_absolute()
+                or home.resolve(strict=True) != home
+                or not home.is_dir()
+            ):
+                raise UnsupportedRuntime(
+                    "retry profile homes must remain canonical directories"
+                )
+        state_dir = Path(target["stateDir"])
+        if not state_dir.is_absolute() or state_dir.resolve() != state_dir:
+            raise UnsupportedRuntime("retry runtime directory must remain canonical")
+        excluded = [Path(path) for path in protected_paths]
+        excluded.append(state_dir)
+        for old in historical_targets:
+            for path in _declared_context_paths(old):
+                excluded.extend((path, path.resolve()))
+        for index, home in enumerate(homes):
+            for previous in [*excluded, *homes[:index]]:
+                if home.is_relative_to(previous) or previous.is_relative_to(home):
+                    raise UnsupportedRuntime(
+                        "retry profile homes overlap retained Attempt context"
+                    )
+        if any(profile.profile_home.iterdir()):
+            raise UnsupportedRuntime("retry HOME must be fresh and empty")
+        auth = profile.isolated_codex_home / "auth.json"
+        if (
+            {item.name for item in profile.isolated_codex_home.iterdir()}
+            != {"auth.json"}
+            or not auth.is_file()
+            or auth.is_symlink()
+        ):
+            raise UnsupportedRuntime("retry CODEX_HOME must be fresh and auth-only")
+    except (KeyError, TypeError, AttributeError, OSError, RuntimeError) as error:
+        raise UnsupportedRuntime(
+            "retry qualified profile could not be validated"
+        ) from error
+
+
 @dataclass(frozen=True, slots=True)
 class QualifiedCodexProfile:
     real_codex: Path

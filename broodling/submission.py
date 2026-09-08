@@ -78,6 +78,30 @@ class SubmissionCoordinator:
         assert_no_effect_runtime(runtime)
         with self._write() as connection:
             attempt, assignment = self._current(attempt_id)
+            self.store._check_retry_home_reservations(attempt_id, self.submitter.target)
+            if self.store.retry_for_attempt(attempt_id) is not None:
+                from .assurance_graph import (
+                    assurance_graph,
+                    assurance_runtime,
+                    initial_state,
+                )
+
+                revision = self.store.get_contract_revision(
+                    attempt.contract_revision_id
+                )
+                if (
+                    graph != assurance_graph()
+                    or runtime != assurance_runtime()
+                    or initial_input
+                    != initial_state(
+                        revision.canonical_bytes.decode("utf-8"),
+                        attempt.b1_commit_oid,
+                        self.store.frozen_instructions(attempt_id),
+                    )
+                ):
+                    raise SubmissionConflict(
+                        "replacement requires fresh product Contract/B1 inputs"
+                    )
             request = canonical_request(
                 {
                     "submissionKey": f"broodling:v1:{attempt_id}",
@@ -135,7 +159,9 @@ class SubmissionCoordinator:
             graph=assurance_graph(),
             runtime=assurance_runtime(),
             initial_input=initial_state(
-                revision.canonical_bytes.decode("utf-8"), attempt.b1_commit_oid
+                revision.canonical_bytes.decode("utf-8"),
+                attempt.b1_commit_oid,
+                self.store.frozen_instructions(attempt_id),
             ),
             title="Broodling V1 assurance Attempt",
         )
@@ -153,6 +179,7 @@ class SubmissionCoordinator:
             record = self._required(attempt_id)
             self._target(record)
             if record.state == "prepared":
+                self.store._validate_retry_profile(attempt_id, self.submitter.target)
                 self._source(attempt, assignment, require_b1=True)
                 self._origin(record, assignment)
                 self.submitter.validate_first_dispatch(assignment.path)
@@ -234,7 +261,7 @@ class SubmissionCoordinator:
         self.store.get_contract_revision(attempt.contract_revision_id)
         if not self.store.is_admitted(attempt.contract_revision_id):
             raise SubmissionNotReady("Attempt Contract is not admitted")
-        material = self.store.contract_source_material(attempt.contract_revision_id)
+        material = self.store._validated_source_material(attempt)
         if (
             admitted_material_digest((s.source_id, s.content_sha256) for s in material)
             != attempt.b1_material_sha256
@@ -261,6 +288,13 @@ class SubmissionCoordinator:
             raise WorktreeOwnershipConflict("Attempt worktree/source ownership changed")
         if git.current_branch(path) != assignment.branch:
             raise WorktreeOwnershipConflict("Attempt source branch changed")
+        if require_b1:
+            from .checkout_profile import assert_supported_checkout
+
+            assert_supported_checkout(
+                Path(attempt.b1_repository), attempt.b1_commit_oid
+            )
+            assert_supported_checkout(path, attempt.b1_commit_oid)
         head_changed = git.head_commit(path) != attempt.b1_commit_oid
         if require_b1 and (head_changed or git.uncommitted_entries(path)):
             raise SubmissionNotReady("first dispatch requires the clean admitted B1")

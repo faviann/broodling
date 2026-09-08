@@ -1,0 +1,82 @@
+....................................................... [ 13%]
+.................................................................................................................................. [ 45%]
+..................................................F.......................................... [ 68%]
+................................................................................... [ 88%]
+...............................................              [100%]
+=================================== FAILURES ===================================
+_ PublicReplacementTests.test_original_b1_contract_and_provider_inputs_exclude_abandoned_state _
+
+self = <test_replacement_public.PublicReplacementTests testMethod=test_original_b1_contract_and_provider_inputs_exclude_abandoned_state>
+
+    def test_original_b1_contract_and_provider_inputs_exclude_abandoned_state(self):
+        with abandoned_case("repair", pause_node="repair") as case:
+            asyncio.run(paused(case))
+            old_inputs = json.dumps(case.events())
+            self.assertIn("A1_DIRECTIVE_ONLY_22", old_inputs)
+            self.assertIn("A1_FINDING_ONLY_22", old_inputs)
+            self.assertIn("A1_CANDIDATE_GENERATION_ONLY_22", old_inputs)
+            canaries = [
+                "A1_CANDIDATE_ONLY_22",
+                "A1_EVIDENCE_ONLY_22",
+                "A1_SESSION_ONLY_22",
+            ]
+            (case.path / "candidate.json").write_text(canaries[0])
+            (case.path / "abandoned-evidence.txt").write_text(canaries[1])
+            old_profile = case.adapter.codex_profile
+            (old_profile.isolated_codex_home / "history.jsonl").write_text(canaries[2])
+            asyncio.run(retire(case))
+            move_head(case.fixture.repository, content="LIVE_HEAD_NOT_B1_22\n")
+            fresh = replacement(case)
+            prepared = fresh.coordinator.prepare(case.attempt_id, "fresh-control")
+            path = case.store.worktree_assignment(prepared.attempt_id).path
+            self.assertEqual(git(path, "rev-parse", "HEAD"), case.attempt.b1_commit_oid)
+            self.assertEqual(
+                (path / "candidate.json").read_text(), '{"generationMaterial":"B1"}\n'
+            )
+            request = json.loads(prepared.request_json)
+            self.assertEqual(
+                request["initialInput"]["contract"],
+                case.revision.canonical_bytes.decode(),
+            )
+            self.assertEqual(request["initialInput"]["evidence"], "unchecked")
+            self.assertEqual(request["initialInput"]["findings"], "unexecuted")
+            self.assertEqual(request["initialInput"]["obligation"], "none")
+            self.assertEqual(request["initialInput"]["finalRationale"], [])
+            self.assertEqual(
+                request["initialInput"]["directiveContent"],
+                {"directive": "", "correction": ""},
+            )
+            self.assertNotIn(
+                "Correct candidate.json", json.dumps(request["initialInput"])
+            )
+            row = fresh.coordinator.retry(case.attempt_id, "fresh-control")
+            asyncio.run(wait_replacement(case, fresh, row))
+            observed = inputs(fresh)
+            self.assertEqual(
+                observed[0]["candidateBefore"], '{"generationMaterial":"B1"}\n'
+            )
+            self.assertIn(
+                case.revision.contract.criteria[0].statement, observed[0]["prompt"]
+            )
+            self.assertNotIn(
+                FROZEN_SOURCE_CANARY, case.revision.canonical_bytes.decode()
+            )
+            self.assertNotIn(
+                FROZEN_SOURCE_CANARY, git(path, "show", "HEAD:candidate.json")
+            )
+            frozen = request["initialInput"]["admittedInstructions"]
+            self.assertEqual(len(frozen), 1)
+            self.assertEqual(frozen[0]["encoding"], "utf-8")
+            self.assertEqual(frozen[0]["content"].encode(), FROZEN_SOURCE_BYTES)
+            self.assertEqual(
+                provider_input(observed[0])["admittedInstructions"], frozen
+            )
+            for event in observed:
+                if event["node"] != "implement":
+>                   value = provider_input(event)
+E                   TypeError: argument of type 'NoneType' is not iterable
+
+tests/test_replacement_public.py:131: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_replacement_public.py::PublicReplacementTests::test_original_b1_contract_and_provider_inputs_exclude_abandoned_state
+1 failed, 407 passed, 2459 subtests passed in 2241.13s (0:37:21)

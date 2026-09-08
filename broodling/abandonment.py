@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import containment, git, workspace
-from .assurance_graph import assurance_graph, assurance_runtime
+from .assurance_graph import assurance_runtime, supports_contained_stop
 from .errors import BroodlingError, WorktreeOwnershipConflict
 from .provisioning import _sole_provisioner
 from .store import BroodlingStore, _now
@@ -98,7 +98,7 @@ class AbandonmentCoordinator:
                     .get("codexProfile", {})
                     .get("containmentProfile")
                     != containment.CONTAINMENT_PROFILE
-                    or request["graph"] != assurance_graph()
+                    or not supports_contained_stop(request["graph"])
                     or request["runtime"] != assurance_runtime()
                 ):
                     raise CessationUnconfirmed(

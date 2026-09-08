@@ -15,8 +15,9 @@ It durably correlates an Attempt to its one Zeroshot run and authors the V1
 assurance graph. Execution state, typed validation and routing remain in
 Zeroshot. Minimal final assurance custody retains declared source material and
 normal current-run assessment. Administrative abandonment and owned retirement
-require physical cessation. Replacement, Work Unit disposition and effects are
-outside this implementation boundary.
+require physical cessation. Explicit replacement allocates a fresh Attempt
+from the original admitted B1. Work Unit disposition and effects are outside
+this implementation boundary.
 """
 
 from __future__ import annotations
@@ -66,10 +67,12 @@ from .errors import (
 )
 from .identity import WorkReference
 from .provisioning import AttemptProvisioner, ProvisionedWorktree
+from .replacement import RetryCoordinator
 from .starting_state import StartingState, resolve_starting_state
 from .store import (
     AdmissionDecisionRecord,
     AttemptRecord,
+    AttemptRetryRecord,
     BroodlingStore,
     ContractRevisionRecord,
     EntitledSourceRecord,
@@ -98,6 +101,7 @@ __all__ = [
     "AttemptProvisioner",
     "AttemptRecord",
     "AttemptRetirement",
+    "AttemptRetryRecord",
     "AttemptSubmission",
     "BroodlingError",
     "BroodlingStore",
@@ -121,6 +125,7 @@ __all__ = [
     "ProvisionedWorktree",
     "QualifiedCodexProfile",
     "RequiredEffect",
+    "RetryCoordinator",
     "SchemaVersionMismatch",
     "SourceAttribution",
     "SourceAttributionError",

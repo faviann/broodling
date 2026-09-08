@@ -22,6 +22,8 @@ identity to converge on rather than an orphaned directory nobody owns.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import sqlite3
@@ -33,7 +35,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from . import closability
+from . import closability, git
 from .contract import Contract, contract_from_mapping
 from .entitlement import PRIMARY_ISSUE, SourceSubmission, evaluate_entitlement
 from .errors import (
@@ -54,6 +56,7 @@ from .schema import (
     ABANDONMENT_SQL,
     ASSURANCE_SQL,
     RETIREMENT_SQL,
+    RETRY_SQL,
     SCHEMA_SHA256,
     SCHEMA_SQL,
     SCHEMA_VERSION,
@@ -62,6 +65,7 @@ from .schema import (
     V3_SCHEMA_SHA256,
     V4_SCHEMA_SHA256,
     V5_SCHEMA_SHA256,
+    V6_SCHEMA_SHA256,
 )
 from .starting_state import StartingState, admitted_material_digest
 from .workspace import (
@@ -194,6 +198,22 @@ class AttemptAbandonmentRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class AttemptRetryRecord:
+    """Explicit administrative identity, with no inherited semantic authority."""
+
+    retry_id: str
+    predecessor_attempt_id: str
+    attempt_id: str
+    workspace_root: str
+    target_json: str
+    requested_at: str
+
+    @property
+    def target(self) -> dict[str, Any]:
+        return json.loads(self.target_json)
+
+
+@dataclass(frozen=True, slots=True)
 class WorktreeAssignmentRecord:
     """Durable, queryable ownership of one worktree path and branch.
 
@@ -315,11 +335,19 @@ class BroodlingStore:
         migrations = {
             "2": (
                 V2_SCHEMA_SHA256,
-                SUBMISSION_SQL + ASSURANCE_SQL + ABANDONMENT_SQL + RETIREMENT_SQL,
+                SUBMISSION_SQL
+                + ASSURANCE_SQL
+                + ABANDONMENT_SQL
+                + RETIREMENT_SQL
+                + RETRY_SQL,
             ),
-            "3": (V3_SCHEMA_SHA256, ASSURANCE_SQL + ABANDONMENT_SQL + RETIREMENT_SQL),
-            "4": (V4_SCHEMA_SHA256, ABANDONMENT_SQL + RETIREMENT_SQL),
-            "5": (V5_SCHEMA_SHA256, RETIREMENT_SQL),
+            "3": (
+                V3_SCHEMA_SHA256,
+                ASSURANCE_SQL + ABANDONMENT_SQL + RETIREMENT_SQL + RETRY_SQL,
+            ),
+            "4": (V4_SCHEMA_SHA256, ABANDONMENT_SQL + RETIREMENT_SQL + RETRY_SQL),
+            "5": (V5_SCHEMA_SHA256, RETIREMENT_SQL + RETRY_SQL),
+            "6": (V6_SCHEMA_SHA256, RETRY_SQL),
         }
         if meta.get("schema_version") in migrations:
             # Acquire before rereading: concurrent openers must migrate once.
@@ -881,6 +909,233 @@ class BroodlingStore:
                 )
         return self.get_attempt(attempt_id)
 
+    def retry(self, retry_id: str) -> AttemptRetryRecord | None:
+        row = self._connection.execute(
+            "SELECT * FROM attempt_retries WHERE retry_id = ?", (retry_id,)
+        ).fetchone()
+        return None if row is None else AttemptRetryRecord(**dict(row))
+
+    def retry_for_attempt(self, attempt_id: str) -> AttemptRetryRecord | None:
+        row = self._connection.execute(
+            "SELECT * FROM attempt_retries WHERE attempt_id = ?", (attempt_id,)
+        ).fetchone()
+        return None if row is None else AttemptRetryRecord(**dict(row))
+
+    def admit_retry(
+        self,
+        predecessor_attempt_id: str,
+        retry_id: str,
+        *,
+        workspace_root: Path | str,
+        target: dict[str, Any],
+    ) -> AttemptRecord:
+        """Commit explicit retry identity and allocation before any host changes.
+
+        Only immutable Contract/B1 bindings initialize the replacement. Repeated
+        requests return the same historical replacement even after abandonment;
+        provisioning and submission independently require currentness.
+        """
+        if not isinstance(retry_id, str) or not retry_id.strip():
+            raise ValueError("retry requires a nonempty explicit retry identity")
+        if not isinstance(target, dict):
+            raise TypeError("retry target must be a mapping")
+        target_json = json.dumps(target, sort_keys=True, allow_nan=False)
+        root = assert_durable_workspace_root(Path(workspace_root))
+        with self._write() as connection:
+            existing = self.retry(retry_id)
+            if existing is not None:
+                if (
+                    existing.predecessor_attempt_id != predecessor_attempt_id
+                    or existing.workspace_root != str(root)
+                    or existing.target_json != target_json
+                ):
+                    raise AttemptConflict(
+                        "retry identity already binds different parameters"
+                    )
+                return self.get_attempt(existing.attempt_id)
+            predecessor = self.get_attempt(predecessor_attempt_id)
+            retirement = connection.execute(
+                "SELECT retired_at FROM attempt_retirements WHERE attempt_id = ?",
+                (predecessor_attempt_id,),
+            ).fetchone()
+            if (
+                self.abandonment(predecessor_attempt_id) is None
+                or retirement is None
+                or retirement["retired_at"] is None
+            ):
+                raise AttemptAdmissionError(
+                    "retry requires durable abandonment, safe cessation and retirement"
+                )
+            if (
+                connection.execute(
+                    "SELECT 1 FROM attempt_retries WHERE predecessor_attempt_id = ?",
+                    (predecessor_attempt_id,),
+                ).fetchone()
+                is not None
+            ):
+                raise AttemptConflict("predecessor already has an explicit replacement")
+            if self.current_attempt(predecessor.work_unit_id) is not None:
+                raise self._competing_attempt(predecessor.work_unit_id)
+            self._validate_retry_material(predecessor)
+            repository = Path(predecessor.b1_repository)
+            source_paths = [
+                repository,
+                *(item.path for item in git.list_worktrees(repository)),
+            ]
+            if any(root.is_relative_to(path) for path in source_paths):
+                raise AttemptAdmissionError(
+                    "retry workspace root must be outside the source repository"
+                )
+            self._check_retry_profile(target)
+            state = StartingState(
+                predecessor.b1_repository,
+                predecessor.b1_commit_oid,
+                predecessor.b1_requested_revision,
+            )
+            attempt_id = "at-" + digest(
+                "broodling.attempt.retry.v1", predecessor_attempt_id, retry_id
+            )
+            unit = self.get_work_unit(predecessor.work_unit_id)
+            allocation = allocate(
+                root,
+                owner=unit.owner,
+                repository=unit.repository,
+                issue_number=unit.issue_number,
+                attempt_id=attempt_id,
+            )
+            connection.execute(
+                "INSERT INTO attempt_retries (retry_id, predecessor_attempt_id, "
+                "attempt_id, workspace_root, target_json, requested_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    retry_id,
+                    predecessor_attempt_id,
+                    attempt_id,
+                    str(root),
+                    target_json,
+                    _now(),
+                ),
+            )
+            self._open_attempt(
+                attempt_id,
+                predecessor.work_unit_id,
+                predecessor.contract_revision_id,
+                state,
+                predecessor.b1_material_sha256,
+            )
+            self._claim_worktree(
+                attempt_id, predecessor.work_unit_id, state, allocation
+            )
+            return self.get_attempt(attempt_id)
+
+    def _check_retry_profile(
+        self, target: dict[str, Any], *, exclude_attempt_id: str | None = None
+    ) -> None:
+        from .codex_profile import assert_fresh_retry_profile
+
+        historical_targets = [
+            json.loads(row["request_json"])["target"]
+            for row in self._connection.execute("SELECT * FROM attempt_submissions")
+            if row["attempt_id"] != exclude_attempt_id
+        ]
+        historical_targets.extend(
+            json.loads(row["target_json"])
+            for row in self._connection.execute("SELECT * FROM attempt_retries")
+            if row["attempt_id"] != exclude_attempt_id
+        )
+        protected_paths = [self.path]
+        for row in self._connection.execute("SELECT * FROM worktree_assignments"):
+            protected_paths.extend(
+                (Path(row["worktree_path"]).parent, Path(row["repository"]))
+            )
+        assert_fresh_retry_profile(target, historical_targets, protected_paths)
+
+    def _check_retry_home_reservations(
+        self,
+        attempt_id: str | None,
+        target: dict[str, Any],
+        *,
+        write_paths: tuple[Path, ...] = (),
+    ) -> None:
+        from .codex_profile import assert_retry_homes_available
+
+        reservations = [
+            json.loads(row["target_json"])
+            for row in self._connection.execute(
+                "SELECT target_json FROM attempt_retries WHERE attempt_id IS NOT ?",
+                (attempt_id,),
+            )
+        ]
+        assert_retry_homes_available(target, reservations, write_paths)
+
+    def _validate_retry_profile(self, attempt_id: str, target: dict[str, Any]) -> None:
+        """Recheck the reserved target before first dispatch in caller's transaction."""
+        self._check_retry_home_reservations(attempt_id, target)
+        retry = self.retry_for_attempt(attempt_id)
+        if retry is None:
+            return
+        if retry.target != target:
+            raise AttemptConflict(
+                "replacement target differs from its durable retry request"
+            )
+        self._check_retry_profile(target, exclude_attempt_id=attempt_id)
+
+    def _validate_retry_material(self, predecessor: AttemptRecord) -> None:
+        # The binary object reader ignores replacement refs and accepts only an
+        # exact object ID. Missing originals fail; live HEAD never participates.
+        git.read_object(
+            Path(predecessor.b1_repository), predecessor.b1_commit_oid, "commit"
+        )
+        self._validated_source_material(predecessor)
+
+    def _validated_source_material(
+        self, predecessor: AttemptRecord
+    ) -> tuple[EntitledSourceRecord, ...]:
+        revision = self.get_contract_revision(predecessor.contract_revision_id)
+        pinned = {
+            item.source_id: item.content_sha256
+            for item in revision.contract.source_attribution
+        }
+        material = self.contract_source_material(predecessor.contract_revision_id)
+        actual = {item.source_id: item.content_sha256 for item in material}
+        if (
+            actual != pinned
+            or admitted_material_digest(pinned.items())
+            != predecessor.b1_material_sha256
+            or any(
+                hashlib.sha256(item.content).hexdigest() != item.content_sha256
+                for item in material
+            )
+        ):
+            raise SourceAttributionError(
+                "original admitted B1 source material is missing or changed"
+            )
+        return material
+
+    def frozen_instructions(self, attempt_id: str) -> list[dict[str, str]]:
+        """Encode only this Attempt's original entitled snapshots for the implementer."""
+        material = self._validated_source_material(self.get_attempt(attempt_id))
+        instructions = []
+        for source in material:
+            try:
+                content = source.content.decode("utf-8")
+                encoding = "utf-8"
+            except UnicodeDecodeError:
+                content = base64.b64encode(source.content).decode("ascii")
+                encoding = "base64"
+            instructions.append(
+                {
+                    "sourceId": source.source_id,
+                    "kind": source.kind,
+                    "locator": source.locator,
+                    "mediaType": source.media_type,
+                    "contentSha256": source.content_sha256,
+                    "encoding": encoding,
+                    "content": content,
+                }
+            )
+        return instructions
+
     def require_current_attempt(self, attempt_id: str) -> AttemptRecord:
         """Check authority; callers serialize any dependent writes with _write."""
         attempt = self.get_attempt(attempt_id)
@@ -979,6 +1234,9 @@ class BroodlingStore:
         starting_state: StartingState,
         allocation: WorktreeAllocation,
     ) -> None:
+        self._check_retry_home_reservations(
+            None, {}, write_paths=(allocation.enclosure,)
+        )
         try:
             self._connection.execute(
                 """

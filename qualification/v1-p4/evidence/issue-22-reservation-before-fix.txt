@@ -1,0 +1,236 @@
+........                                                     [100%]
+=================================== FAILURES ===================================
+_ RetryProfileTests.test_ordinary_first_dispatch_rechecks_reserved_retry_homes (overlap='exact') _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_ordinary_first_dispatch_rechecks_reserved_retry_homes>
+
+    def test_ordinary_first_dispatch_rechecks_reserved_retry_homes(self):
+        import json
+
+        from broodling import git
+        from broodling.assurance_graph import (
+            assurance_graph,
+            assurance_runtime,
+            initial_state,
+        )
+        from broodling.submission import SubmissionCoordinator
+        from broodling.zeroshot_sdk import canonical_request
+
+        self.retry_coordinator().allocate(self.attempt_id, "retry")
+        for issue, (name, adapter) in enumerate(self.overlapping_adapters(), start=240):
+            sibling = self.sibling_attempt(issue)
+            assignment = self.store.worktree_assignment(sibling.attempt_id)
+            revision = self.store.get_contract_revision(sibling.contract_revision_id)
+            key = f"broodling:v1:{sibling.attempt_id}"
+            # A historical prepared row admitted through the pre-fix ordinary
+            # preparation bypass. No invalid target or alternate graph is used.
+            request = canonical_request(
+                {
+                    "submissionKey": key,
+                    "title": "Broodling V1 assurance Attempt",
+                    "graph": assurance_graph(),
+                    "runtime": assurance_runtime(),
+                    "initialInput": initial_state(
+                        revision.canonical_bytes.decode(), sibling.b1_commit_oid
+                    ),
+                    "workspace": assignment.worktree_path,
+                    "repository": sibling.b1_repository,
+                    "branch": assignment.branch,
+                    "startingCommit": sibling.b1_commit_oid,
+                    "materialSha256": sibling.b1_material_sha256,
+                    "originUrl": git.origin_url(assignment.path),
+                    "target": adapter.target,
+                }
+            )
+            self.assertEqual(json.loads(request)["target"], adapter.target)
+            with self.store._write() as connection:
+                connection.execute(
+                    "INSERT INTO attempt_submissions (attempt_id, submission_key, request_json, state) "
+                    "VALUES (?, ?, ?, 'prepared')",
+                    (sibling.attempt_id, key, request),
+                )
+            coordinator = SubmissionCoordinator(self.store, adapter)
+            with (
+                self.subTest(overlap=name),
+                patch.object(adapter, "submit", return_value="forbidden-run") as submit,
+            ):
+>               with self.assertRaises(UnsupportedRuntime):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: UnsupportedRuntime not raised
+
+tests/test_retry_profile.py:200: AssertionError
+_ RetryProfileTests.test_ordinary_first_dispatch_rechecks_reserved_retry_homes (overlap='nested') _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_ordinary_first_dispatch_rechecks_reserved_retry_homes>
+
+    def test_ordinary_first_dispatch_rechecks_reserved_retry_homes(self):
+        import json
+
+        from broodling import git
+        from broodling.assurance_graph import (
+            assurance_graph,
+            assurance_runtime,
+            initial_state,
+        )
+        from broodling.submission import SubmissionCoordinator
+        from broodling.zeroshot_sdk import canonical_request
+
+        self.retry_coordinator().allocate(self.attempt_id, "retry")
+        for issue, (name, adapter) in enumerate(self.overlapping_adapters(), start=240):
+            sibling = self.sibling_attempt(issue)
+            assignment = self.store.worktree_assignment(sibling.attempt_id)
+            revision = self.store.get_contract_revision(sibling.contract_revision_id)
+            key = f"broodling:v1:{sibling.attempt_id}"
+            # A historical prepared row admitted through the pre-fix ordinary
+            # preparation bypass. No invalid target or alternate graph is used.
+            request = canonical_request(
+                {
+                    "submissionKey": key,
+                    "title": "Broodling V1 assurance Attempt",
+                    "graph": assurance_graph(),
+                    "runtime": assurance_runtime(),
+                    "initialInput": initial_state(
+                        revision.canonical_bytes.decode(), sibling.b1_commit_oid
+                    ),
+                    "workspace": assignment.worktree_path,
+                    "repository": sibling.b1_repository,
+                    "branch": assignment.branch,
+                    "startingCommit": sibling.b1_commit_oid,
+                    "materialSha256": sibling.b1_material_sha256,
+                    "originUrl": git.origin_url(assignment.path),
+                    "target": adapter.target,
+                }
+            )
+            self.assertEqual(json.loads(request)["target"], adapter.target)
+            with self.store._write() as connection:
+                connection.execute(
+                    "INSERT INTO attempt_submissions (attempt_id, submission_key, request_json, state) "
+                    "VALUES (?, ?, ?, 'prepared')",
+                    (sibling.attempt_id, key, request),
+                )
+            coordinator = SubmissionCoordinator(self.store, adapter)
+            with (
+                self.subTest(overlap=name),
+                patch.object(adapter, "submit", return_value="forbidden-run") as submit,
+            ):
+                with self.assertRaises(UnsupportedRuntime):
+>                   coordinator.reconcile(sibling.attempt_id)
+
+tests/test_retry_profile.py:201:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def reconcile(self, attempt_id: str) -> AttemptSubmission:
+        # Commit dispatch intent separately, before ever calling the SDK. A
+        # merely prepared request still requires B1, even after a restart.
+        with self._write() as connection:
+            attempt, assignment = self._current(attempt_id)
+            record = self._required(attempt_id)
+            self._target(record)
+            if record.state == "prepared":
+                self.store._validate_retry_profile(attempt_id, self.submitter.target)
+                self._source(attempt, assignment, require_b1=True)
+                self._origin(record, assignment)
+                self.submitter.validate_first_dispatch(assignment.path)
+                connection.execute(
+                    "UPDATE attempt_submissions SET state = 'dispatched' WHERE attempt_id = ?",
+                    (attempt_id,),
+                )
+        conflict = None
+        with self._write() as connection:
+            attempt, assignment = self._current(attempt_id)
+            record = self._required(attempt_id)
+            self._target(record)
+            if record.state == "correlated":
+                return record
+            if record.state == "blocked":
+                raise SubmissionConflict(record.error_detail)
+            self._source(attempt, assignment, require_b1=False)
+            self._origin(record, assignment)
+            try:
+                run_id = self.submitter.submit(json.loads(record.request_json))
+            except SubmissionConflict as error:
+                # A conflict alone is not acceptance of a changed request.
+                # Recheck ownership after the call, since the accepted run can
+                # advance HEAD while the sidecar resolves the replay source.
+                drifted = self._source(attempt, assignment, require_b1=False)
+                self._origin(record, assignment)
+                if drifted and error.existing_run_id.strip():
+                    run_id = error.existing_run_id
+                else:
+                    conflict = error
+                    connection.execute(
+                        "UPDATE attempt_submissions SET state = 'blocked', error_detail = ? "
+                        "WHERE attempt_id = ?",
+                        (str(error), attempt_id),
+                    )
+            if conflict is None:
+                if not isinstance(run_id, str) or not run_id.strip():
+                    raise SubmissionConflict(
+                        "submission returned no public run identity"
+                    )
+>               connection.execute(
+                    "UPDATE attempt_submissions SET state = 'correlated', zeroshot_run_id = ? "
+                    "WHERE attempt_id = ? AND state = 'dispatched'",
+                    (run_id, attempt_id),
+                )
+E               sqlite3.IntegrityError: UNIQUE constraint failed: attempt_submissions.zeroshot_run_id
+
+broodling/submission.py:218: IntegrityError
+_ RetryProfileTests.test_ordinary_prepare_cannot_claim_reserved_retry_homes (overlap='exact') _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_ordinary_prepare_cannot_claim_reserved_retry_homes>
+
+    def test_ordinary_prepare_cannot_claim_reserved_retry_homes(self):
+        from broodling.submission import SubmissionCoordinator
+
+        self.retry_coordinator().allocate(self.attempt_id, "retry")
+        for issue, (name, adapter) in enumerate(self.overlapping_adapters(), start=230):
+            sibling = self.sibling_attempt(issue)
+            coordinator = SubmissionCoordinator(self.store, adapter)
+            with self.subTest(overlap=name):
+>               with self.assertRaises(UnsupportedRuntime):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: UnsupportedRuntime not raised
+
+tests/test_retry_profile.py:146: AssertionError
+_ RetryProfileTests.test_ordinary_prepare_cannot_claim_reserved_retry_homes (overlap='nested') _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_ordinary_prepare_cannot_claim_reserved_retry_homes>
+
+    def test_ordinary_prepare_cannot_claim_reserved_retry_homes(self):
+        from broodling.submission import SubmissionCoordinator
+
+        self.retry_coordinator().allocate(self.attempt_id, "retry")
+        for issue, (name, adapter) in enumerate(self.overlapping_adapters(), start=230):
+            sibling = self.sibling_attempt(issue)
+            coordinator = SubmissionCoordinator(self.store, adapter)
+            with self.subTest(overlap=name):
+>               with self.assertRaises(UnsupportedRuntime):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: UnsupportedRuntime not raised
+
+tests/test_retry_profile.py:146: AssertionError
+_ RetryProfileTests.test_ordinary_prepare_cannot_claim_reserved_retry_homes (overlap='swapped') _
+
+self = <test_retry_profile.RetryProfileTests testMethod=test_ordinary_prepare_cannot_claim_reserved_retry_homes>
+
+    def test_ordinary_prepare_cannot_claim_reserved_retry_homes(self):
+        from broodling.submission import SubmissionCoordinator
+
+        self.retry_coordinator().allocate(self.attempt_id, "retry")
+        for issue, (name, adapter) in enumerate(self.overlapping_adapters(), start=230):
+            sibling = self.sibling_attempt(issue)
+            coordinator = SubmissionCoordinator(self.store, adapter)
+            with self.subTest(overlap=name):
+>               with self.assertRaises(UnsupportedRuntime):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: UnsupportedRuntime not raised
+
+tests/test_retry_profile.py:146: AssertionError
+=========================== short test summary info ============================
+SUBFAILED(overlap='exact') tests/test_retry_profile.py::RetryProfileTests::test_ordinary_first_dispatch_rechecks_reserved_retry_homes
+SUBFAILED(overlap='nested') tests/test_retry_profile.py::RetryProfileTests::test_ordinary_first_dispatch_rechecks_reserved_retry_homes
+SUBFAILED(overlap='exact') tests/test_retry_profile.py::RetryProfileTests::test_ordinary_prepare_cannot_claim_reserved_retry_homes
+SUBFAILED(overlap='nested') tests/test_retry_profile.py::RetryProfileTests::test_ordinary_prepare_cannot_claim_reserved_retry_homes
+SUBFAILED(overlap='swapped') tests/test_retry_profile.py::RetryProfileTests::test_ordinary_prepare_cannot_claim_reserved_retry_homes
+5 failed, 8 passed, 7 subtests passed in 3.37s
