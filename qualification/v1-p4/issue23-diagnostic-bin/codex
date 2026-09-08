@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""Diagnostic-only no-op implementer; all other nodes use unchanged real Codex."""
+
+import json
+import re
+import subprocess
+import sys
+
+ACTUAL = "/home/faviann/.local/bin/codex"
+
+
+def main():
+    if sys.argv[1:] == ["--version"]:
+        return subprocess.call([ACTUAL, "--version"])
+    prompt = sys.stdin.read()
+    match = re.search(r"BROODLING_NODE=([a-z0-9_]+)", prompt)
+    if match is None:
+        raise RuntimeError("missing product node identity")
+    if match[1] != "implement":
+        return subprocess.run(
+            [ACTUAL, *sys.argv[1:]], input=prompt, text=True, check=False
+        ).returncode
+    # Controlled successful null response; intentionally leaves predeclared B1 intact.
+    # No reviewer finding, directive, repair or semantic authority is substituted.
+    for event in (
+        {"type": "thread.started", "thread_id": "diagnostic-controlled-implement"},
+        {"type": "turn.started"},
+        {
+            "type": "item.completed",
+            "item": {"type": "agent_message", "text": json.dumps({"response": None})},
+        },
+        {
+            "type": "turn.completed",
+            "usage": {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1},
+        },
+    ):
+        print(json.dumps(event), flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

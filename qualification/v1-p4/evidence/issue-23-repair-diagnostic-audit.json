@@ -1,0 +1,236 @@
+{
+  "after": [
+    {
+      "case": "duplicate-with-data",
+      "error": "duplicate header name",
+      "input": "name, name\nAda,Grace\n",
+      "passed": true
+    },
+    {
+      "case": "duplicate-header-only",
+      "error": "duplicate header name",
+      "input": "name, name\n",
+      "passed": true
+    },
+    {
+      "case": "unicode-normalized-duplicate",
+      "error": "duplicate header name",
+      "input": "\u2003name,name\u2003\n",
+      "passed": true
+    },
+    {
+      "case": "empty-header-only",
+      "error": "empty header name",
+      "input": "name, \n",
+      "passed": true
+    },
+    {
+      "case": "short-row",
+      "error": "row width does not match header",
+      "input": "name,city\nAda\n",
+      "passed": true
+    },
+    {
+      "case": "long-row",
+      "error": "row width does not match header",
+      "input": "name,city\nAda,Paris,extra\n",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "case": "empty-document",
+      "input": "",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "case": "blank-document",
+      "input": "\n\n",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "case": "header-only",
+      "input": "name,city\n",
+      "passed": true
+    },
+    {
+      "actual": [
+        {
+          "city": " Paris ",
+          "name": " Ada "
+        }
+      ],
+      "case": "blank-rows-and-preservation",
+      "input": "\n name ,city\n\n Ada , Paris \n\n",
+      "passed": true
+    },
+    {
+      "actual": [
+        {
+          "name": "Ada",
+          "note": "first\nsecond"
+        }
+      ],
+      "case": "quoted-newline",
+      "input": "name,note\nAda,\"first\nsecond\"\n",
+      "passed": true
+    },
+    {
+      "actual": [
+        {
+          "name": ""
+        }
+      ],
+      "case": "empty-cell-is-not-blank-row",
+      "input": "name\n\"\"\n",
+      "passed": true
+    }
+  ],
+  "before": [
+    {
+      "actual": [
+        {
+          "name": "Grace"
+        }
+      ],
+      "case": "duplicate-with-data",
+      "input": "name, name\nAda,Grace\n",
+      "passed": false
+    },
+    {
+      "actual": [],
+      "case": "duplicate-header-only",
+      "input": "name, name\n",
+      "passed": false
+    },
+    {
+      "actual": [],
+      "case": "unicode-normalized-duplicate",
+      "input": "\u2003name,name\u2003\n",
+      "passed": false
+    },
+    {
+      "case": "empty-header-only",
+      "error": "empty header name",
+      "input": "name, \n",
+      "passed": true
+    },
+    {
+      "case": "short-row",
+      "error": "row width does not match header",
+      "input": "name,city\nAda\n",
+      "passed": true
+    },
+    {
+      "case": "long-row",
+      "error": "row width does not match header",
+      "input": "name,city\nAda,Paris,extra\n",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "case": "empty-document",
+      "input": "",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "case": "blank-document",
+      "input": "\n\n",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "case": "header-only",
+      "input": "name,city\n",
+      "passed": true
+    },
+    {
+      "actual": [
+        {
+          "city": " Paris ",
+          "name": " Ada "
+        }
+      ],
+      "case": "blank-rows-and-preservation",
+      "input": "\n name ,city\n\n Ada , Paris \n\n",
+      "passed": true
+    },
+    {
+      "actual": [
+        {
+          "name": "Ada",
+          "note": "first\nsecond"
+        }
+      ],
+      "case": "quoted-newline",
+      "input": "name,note\nAda,\"first\nsecond\"\n",
+      "passed": true
+    },
+    {
+      "actual": [
+        {
+          "name": ""
+        }
+      ],
+      "case": "empty-cell-is-not-blank-row",
+      "input": "name\n\"\"\n",
+      "passed": true
+    }
+  ],
+  "checkerUnchanged": true,
+  "cleanupReadbackVerified": true,
+  "diagnosticChainCompleted": true,
+  "evidenceSha256": {
+    "qualification/v1-p4/evidence/issue-23-repair-diagnostic.json": "8ea6e77be66d481c876f08688f99eee36577da63eba82acc5073f2d7a0632750",
+    "qualification/v1-p4/evidence/issue-23-repair-diagnostic.sqlite3": "7f852bec2f80a4cb73a11e43c6e9ebbb20919a0e1241e0a791db5264c11c4c17",
+    "qualification/v1-p4/issue23-diagnostic-bin/codex": "cd73ec2ca6775a75a6a753c19e0094b41398f2d631fbfe527a78beae155e45be",
+    "qualification/v1-p4/issue23_diagnostic_audit.py": "7b4025d8bdbffed08c1cc78a2aa042529373fbe12f1dc52e985df85ad2425fe0",
+    "qualification/v1-p4/issue23_repair_diagnostic.py": "be66405e6e1ff8a2f948b578e9278e63297ebaec6c2b406985beb4f52d710f99"
+  },
+  "initialAndRenewedSmokeCasesPassed": true,
+  "integratedRealRepairWitness": false,
+  "limits": [
+    "Known B1 defect and substituted no-op implementer; not an all-real configuration.",
+    "One positive diagnostic chain cannot establish general semantic reliability or all negative resolution behavior.",
+    "Inherited allRequiredActualProductRolesObserved checks role names, not provider provenance; it does not establish its name literally.",
+    "Two repair response messages share one structural execution; there was one repair occurrence.",
+    "No #23 completion or G4 PASS; #24 remains blocked."
+  ],
+  "runId": "01a082c0-c2c3-7d53-9629-c3c991a8f707",
+  "scope": "Read-only retained-source diagnostic checks; no provider or authority calls.",
+  "sourceHashesVerified": true,
+  "uniqueExecutions": {
+    "adjudicate_authority": [
+      "nv2-5851d65fa5f221e9d9b79cd9908fb83ed488fcb1ebb25c0fbc73638521484090"
+    ],
+    "final_assessment_authority_repaired": [
+      "nv2-27648682d687524a6afd0a1d76789bda6a5f7d9d32ece7323a7c9549f42cedc5"
+    ],
+    "implement": [
+      "nv2-2c9122f3545a27bdf83971ff50ee676cc40846edf45ba1cd83a904b05a1f2b78"
+    ],
+    "initial_evidence_check": [
+      "nv2-4b64a7bdb5842f834d71a8e7ee7a48991912025ee7676bb75c9fd0b3d4ac6ba0"
+    ],
+    "initial_review": [
+      "nv2-1cf861f72f8fc878d2b73532661900599f2d37a1187d5183caeca29364d69ebf"
+    ],
+    "repair": [
+      "nv2-e7546cda3e37d9625260d233b3d484a71dc11493950c5042ba42b58c3c4f5ac1"
+    ],
+    "repair_evidence_check": [
+      "nv2-fa9bc0f5bd61eca6e97b8484123398d99dad87096767dee6fb2eb761102db68f"
+    ],
+    "repair_review": [
+      "nv2-2d0219cebbccea20fe927b510e2a07f90c1497d11e6309c85863b989f806b968"
+    ],
+    "resolution_authority": [
+      "nv2-a5da85de8974aeb36f6da9c2361951ea32c671c29eed6cf831736449754b08e4"
+    ],
+    "round_complete": [
+      "nv2-cee903074005f12e9ba4d9e35dd93aa29cb61e749df52cb2a7f04691666a88e9"
+    ]
+  }
+}
