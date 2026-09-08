@@ -25,7 +25,7 @@ Explicitly **out of scope**:
 The current governing pair is:
 
 - [Target responsibility and boundary design v0.5](docs/governing/broodling-target-responsibility-boundary-design-v0.5.md).
-- [Implementation and dependency plan v0.5](docs/governing/broodling-implementation-dependency-plan-v0.5.md).
+- [Implementation and dependency plan v0.5](docs/governing/broodling-implementation-dependency-plan-v0.5.md), with its prospective [G4 evidence addendum](docs/governing/v0.5-g4-evidence-addendum.md).
 
 The preserved v0.4 pair and [G0-v0.4 review](docs/governing/g0-v0.4-review.md) remain provenance; v0.5 supersedes v0.4 as the governing target/plan without modifying the earlier documents or qualification evidence.
 

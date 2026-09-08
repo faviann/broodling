@@ -1,0 +1,114 @@
+{
+  "actualDownstreamDiagnosticRun": "01a082c0-c2c3-7d53-9629-c3c991a8f707",
+  "actualProviderExecutable": "/home/faviann/.local/lib/node_modules/@openai/codex/bin/codex.js",
+  "allRealRuns": [
+    "01a082b0-a546-70b0-ae8f-4583ff954e57",
+    "01a082b4-0521-7ee3-8be0-57fe476025a5"
+  ],
+  "auditConclusions": [
+    "Target unchanged; single-run initial-defect conjunction is evidence strategy.",
+    "Actual downstream repair contains genuine independently checked correction and complete same-run fresh assurance/resolution/disposition.",
+    "Only unchanged qualified product configuration is advertised; test shim is not itself a newly qualified executable.",
+    "Prior profile requalification remains applicable; no material product/provider/runtime/containment setting changed.",
+    "All non-witness issue23 acceptance obligations independently supported.",
+    "No gate verdict here; #24 must independently review after #23 closure."
+  ],
+  "baseline": "f4d3a7d8843d0f4669c08157f6b8607323be77df",
+  "compatible": true,
+  "controlledScenarios": [
+    "after-commit",
+    "after-custody",
+    "after-output",
+    "before-commit",
+    "clean",
+    "cleanup-durable-justification",
+    "during-custody",
+    "forged-identifiers",
+    "late-a1-custody",
+    "late-a1-observation",
+    "rejected-clean-False",
+    "rejected-missing-rationale-True",
+    "rejected-semantic-gap-True",
+    "repair",
+    "standalone-custody-no-salvage",
+    "stop-wins-after-custody",
+    "success-wins-stop",
+    "two-process-duplicate",
+    "waiting-duplicate-owner-died"
+  ],
+  "custodyFormat": "broodling.final-assurance/v1",
+  "declaredDifferences": [
+    "Distinct Attempt/run/B1 commit and disposable home/worktree/store identities; no semantic carryover.",
+    "Clean fixtures admit ordinary DictReader B1 and actual implementer; diagnostic admits near-complete B1 with one duplicate-header defect and controlled no-op implementer.",
+    "Diagnostic shim transparently delegates every downstream argv/prompt/cwd/environment to the same actual CLI; exact product graph/runtime/launcher/containment unchanged.",
+    "Deterministic fixtures use disclosed controlled model responses for discriminating semantics and fault timing; these do not establish actual semantic judgments."
+  ],
+  "diagnosticExecutable": "/home/faviann/repos/broodling/qualification/v1-p4/issue23-diagnostic-bin/codex",
+  "evidenceSha256": {
+    "qualification/v1-p4/evidence/issue-22-parent-profile-audit.json": "27ca1d0bb6cd3ec0263e56ae5f043bbb583a6239b6404c45358f7bb6ae212c61",
+    "qualification/v1-p4/evidence/issue-23-controls.json": "cd8231bf99c26e499cdac2ed844f42fb0fbb674965da443b1d003f3f483c0123",
+    "qualification/v1-p4/evidence/issue-23-natural-1.json": "f10651fcd235815d01cdfac77fb7105d16da157b7f77b7f7587f48f430b6c1a0",
+    "qualification/v1-p4/evidence/issue-23-natural-1.sqlite3": "139039c89ca690fdde7ff6402e7ea0b550d50a308275c42382b22904682d840f",
+    "qualification/v1-p4/evidence/issue-23-natural-2.json": "342fe956d88d0c048c66ae46676f72d8a950b9664be8ec91a3901621c4f0057d",
+    "qualification/v1-p4/evidence/issue-23-natural-2.sqlite3": "b6210f05d30103d432f343d48171e66bf41efa6cd9741bde9519497f86e321ac",
+    "qualification/v1-p4/evidence/issue-23-natural-audit.json": "7142a7f0a3e4b588c25dc367d3a0e035b2352ccfbf65a5096c63d68a05869ac3",
+    "qualification/v1-p4/evidence/issue-23-repair-diagnostic-audit.json": "abd06b11aef09322c9eb9c4ec44e446b123793cf6d5f91f95724a139b57aec16",
+    "qualification/v1-p4/evidence/issue-23-repair-diagnostic.json": "8ea6e77be66d481c876f08688f99eee36577da63eba82acc5073f2d7a0632750",
+    "qualification/v1-p4/evidence/issue-23-repair-diagnostic.sqlite3": "7f852bec2f80a4cb73a11e43c6e9ebbb20919a0e1241e0a791db5264c11c4c17",
+    "qualification/v1-p4/evidence/issue-23-verification.json": "f6cbc04581ca13599c6363ed4b7fb0b2498823e47887bfc1a6ecc5d9c79e3d55"
+  },
+  "graphSha256": "a0d7abd7d03fb2a9c2099f1dc5f42315d9e5f76b48fe0bb35429bad305e41d26",
+  "historicalWitnessPredicates": {
+    "diagnostic": false,
+    "diagnosticIntegratedRealRepairWitness": false,
+    "natural1": false,
+    "natural2": false
+  },
+  "integration": {
+    "sdkSourceSha256": "0263b63cb6c6991703f699919ea974ba502da23e3a14ab7d5ab8c5d5ac3b256e",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86"
+  },
+  "runtime": {
+    "python": "3.13.5",
+    "sqlite": "3.46.1"
+  },
+  "runtimeSha256": "05fd5af801591caf55464b20f7cc86d98abb20a6b38adf9f45671300342abad0",
+  "sameFrozenContractAcrossRealLegs": "cr-41ed72fb809d4287a9125a7ea6462e98e3d26fd6da183c6dd425726eeb647bd3",
+  "schemaSha256": "0f1935c42baada28b56ad626bbd5c416118d98c9911fcf5949c58aa26127abf6",
+  "schemaVersion": 8,
+  "scope": "Prospective human evidence-composition audit under v0.5 G4 addendum; no runtime authority composition or historical verdict change.",
+  "sharedProfile": {
+    "codexVersion": "codex-cli 0.153.4",
+    "containmentProfile": "linux-pidns-parent-death-v1",
+    "containmentSha256": "1cd4507567a66df727d8ddd42e8f947030d09df2edcf5358a4e40f2c776cae7e",
+    "evidenceLeafSha256": "c878f7b8eb1e00f115879e78118edc65c323fe4605ffb9743d1b903d4022410c",
+    "evidenceSandboxSha256": "573236e5328ac2ebb08f59ae3a9805b4f8d12bdef14be8af4450d5463294985f",
+    "launcherSha256": "5e65d8e0509fbf55adb2c34b4297efc0afd94784f066cba3e08c4c8ed46d0624",
+    "profile": "g1-v1-codex-w4",
+    "sharedGitPolicy": "canonical-outside-slash-tmp-v1"
+  },
+  "sourceHashesVerified": {
+    "dedicatedControls": 94,
+    "diagnostic": 32,
+    "priorProductAndTests": 87
+  },
+  "tests": {
+    "allCurrentTestsCoveredOnSdk": 429,
+    "dedicatedSdkControls": {
+      "passed": 10,
+      "retainedCases": 19,
+      "seconds": 519.383
+    },
+    "sdkFree": {
+      "passed": 373,
+      "skipped": 56,
+      "subtestsPassed": 2429
+    },
+    "sdkRegressionExcludingDedicatedControls": {
+      "passed": 419,
+      "seconds": 2125.24,
+      "subtestsPassed": 2521
+    }
+  }
+}
