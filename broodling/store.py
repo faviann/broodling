@@ -7,8 +7,9 @@ worktrees, holds the durable facts V1-P2 is responsible for:
 2. explicitly entitled source snapshots, with their exact bytes;
 3. immutable Contract revisions;
 4. the V1 no-effect Closability/admission decision for each revision; and
-5. the immutable Attempt — one admitted Contract revision, one B1, one
-   exclusively owned worktree path and branch.
+5. the immutable Attempt bindings — one admitted Contract revision, one B1, one
+   exclusively owned worktree path and branch; and
+6. irreversible abandonment, removing current authority without claiming cessation.
 
 Each operation commits its own transaction, so a crash leaves either the whole
 fact or none of it. A Contract revision on its own is not authority: only a
@@ -42,6 +43,7 @@ from .errors import (
     SchemaVersionMismatch,
     SourceAttributionError,
     SourceNotEntitled,
+    StaleAttempt,
     UnknownRecord,
     WorktreeOwnershipConflict,
     WorkUnitIdentityConflict,
@@ -49,6 +51,7 @@ from .errors import (
 from .identity import WorkReference, digest
 from .profile import assert_supported_runtime, product_configuration
 from .schema import (
+    ABANDONMENT_SQL,
     ASSURANCE_SQL,
     SCHEMA_SHA256,
     SCHEMA_SQL,
@@ -56,6 +59,7 @@ from .schema import (
     SUBMISSION_SQL,
     V2_SCHEMA_SHA256,
     V3_SCHEMA_SHA256,
+    V4_SCHEMA_SHA256,
 )
 from .starting_state import StartingState, admitted_material_digest
 from .workspace import (
@@ -158,12 +162,13 @@ class AdmissionDecisionRecord:
 
 @dataclass(frozen=True, slots=True)
 class AttemptRecord:
-    """One immutable Attempt: one Contract revision, one B1, one worktree.
+    """Immutable Attempt bindings: one Contract revision, one B1, one worktree.
 
     ``b1_repository`` is the repository's shared Git directory, ``b1_commit_oid``
     the exact immutable commit, and ``b1_material_sha256`` the fingerprint of the
     frozen admitted instruction/source bytes the Contract pins. Together they are
-    B1; none of them follows a later ``HEAD``, branch tip or issue edit.
+    B1; none of them follows a later ``HEAD``, branch tip or issue edit. Only
+    ``is_current`` can change, irreversibly on abandonment.
     """
 
     attempt_id: str
@@ -175,6 +180,15 @@ class AttemptRecord:
     b1_material_sha256: str
     b1_requested_revision: str
     admitted_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class AttemptAbandonmentRecord:
+    """Permanent ineligibility, with no assertion about runtime cessation."""
+
+    attempt_id: str
+    reason: str
+    abandoned_at: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -297,8 +311,9 @@ class BroodlingStore:
             return
         meta = self.schema_meta()
         migrations = {
-            "2": (V2_SCHEMA_SHA256, SUBMISSION_SQL + ASSURANCE_SQL),
-            "3": (V3_SCHEMA_SHA256, ASSURANCE_SQL),
+            "2": (V2_SCHEMA_SHA256, SUBMISSION_SQL + ASSURANCE_SQL + ABANDONMENT_SQL),
+            "3": (V3_SCHEMA_SHA256, ASSURANCE_SQL + ABANDONMENT_SQL),
+            "4": (V4_SCHEMA_SHA256, ABANDONMENT_SQL),
         }
         if meta.get("schema_version") in migrations:
             # Acquire before rereading: concurrent openers must migrate once.
@@ -810,8 +825,8 @@ class BroodlingStore:
         allocation it already owns — a later call naming a different workspace
         root does not move a worktree somebody may already be working in. A
         request that differs in Contract revision or B1 conflicts rather than
-        creating a second current authority: replacing an Attempt is
-        abandon/restart, which is later V1-P4 work.
+        creating a second current authority. An abandoned Work Unit is blocked:
+        ordinary admission grants no authority for replacement.
         """
 
         revision = self.get_contract_revision(revision_id)
@@ -837,6 +852,16 @@ class BroodlingStore:
         )
 
         with self._write():
+            abandoned = self._connection.execute(
+                "SELECT b.attempt_id FROM attempt_abandonments AS b "
+                "JOIN attempts AS a USING (attempt_id) WHERE a.work_unit_id = ?",
+                (work_unit.work_unit_id,),
+            ).fetchone()
+            if abandoned is not None:
+                raise StaleAttempt(
+                    f"Work Unit has abandoned Attempt {abandoned['attempt_id']}; "
+                    "ordinary admission cannot authorize replacement"
+                )
             if self._attempt_row(attempt_id) is None:
                 self._open_attempt(
                     attempt_id,
@@ -849,6 +874,41 @@ class BroodlingStore:
                     attempt_id, work_unit.work_unit_id, starting_state, allocation
                 )
         return self.get_attempt(attempt_id)
+
+    def require_current_attempt(self, attempt_id: str) -> AttemptRecord:
+        """Check authority; callers serialize any dependent writes with _write."""
+        attempt = self.get_attempt(attempt_id)
+        if not attempt.is_current or self.abandonment(attempt_id) is not None:
+            raise StaleAttempt(f"{attempt_id} is not the durable current Attempt")
+        return attempt
+
+    def abandonment(self, attempt_id: str) -> AttemptAbandonmentRecord | None:
+        """Read historical administration without asserting runtime safety."""
+        self.get_attempt(attempt_id)
+        row = self._connection.execute(
+            "SELECT * FROM attempt_abandonments WHERE attempt_id = ?", (attempt_id,)
+        ).fetchone()
+        return None if row is None else AttemptAbandonmentRecord(**dict(row))
+
+    def abandon_attempt(self, attempt_id: str, reason: str) -> AttemptAbandonmentRecord:
+        """Commit irreversible ineligibility before any runtime stop operation.
+
+        The first reason remains diagnostic truth when callers repeat a request.
+        This fact says nothing about cessation and grants no replacement authority.
+        """
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("abandonment requires a nonempty reason")
+        with self._write() as connection:
+            previous = self.abandonment(attempt_id)
+            if previous is not None:
+                return previous
+            self.require_current_attempt(attempt_id)
+            connection.execute(
+                "INSERT INTO attempt_abandonments (attempt_id, reason, abandoned_at) "
+                "VALUES (?, ?, ?)",
+                (attempt_id, reason, _now()),
+            )
+            return self.abandonment(attempt_id)
 
     def _open_attempt(
         self,
@@ -1024,15 +1084,22 @@ class BroodlingStore:
         """
 
         with self._write():
-            row = self._assignment_row(attempt_id)
-            if row is None:
-                raise UnknownRecord(f"attempt {attempt_id} owns no worktree assignment")
-            if row["state"] == WorktreeAssignmentRecord.ALLOCATED:
-                self._connection.execute(
-                    "UPDATE worktree_assignments SET state = 'provisioned', "
-                    "provisioned_at = ? WHERE attempt_id = ? AND state = 'allocated'",
-                    (_now(), attempt_id),
-                )
+            return self._acknowledge_worktree_provisioned(attempt_id)
+
+    def _acknowledge_worktree_provisioned(
+        self, attempt_id: str
+    ) -> WorktreeAssignmentRecord:
+        """Acknowledge inside the caller's currentness transaction."""
+        self.require_current_attempt(attempt_id)
+        row = self._assignment_row(attempt_id)
+        if row is None:
+            raise UnknownRecord(f"attempt {attempt_id} owns no worktree assignment")
+        if row["state"] == WorktreeAssignmentRecord.ALLOCATED:
+            self._connection.execute(
+                "UPDATE worktree_assignments SET state = 'provisioned', "
+                "provisioned_at = ? WHERE attempt_id = ? AND state = 'allocated'",
+                (_now(), attempt_id),
+            )
         return self.worktree_assignment(attempt_id)
 
     @staticmethod

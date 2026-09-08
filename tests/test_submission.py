@@ -2,6 +2,8 @@
 
 import json
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from unittest.mock import patch
 
 from submission_support import REQUEST, RealSubmissionCase, SubmissionCase
@@ -18,6 +20,85 @@ from broodling.zeroshot_sdk import ZeroshotSubmitter
 
 
 class SubmissionControls(SubmissionCase):
+    def test_abandonment_serializes_with_external_submission_acknowledgment(self):
+        from broodling import BroodlingStore
+
+        entered, release, abandoning = Event(), Event(), Event()
+
+        def accept(request):
+            entered.set()
+            if not release.wait(5):
+                raise RuntimeError("test did not release the SDK acknowledgment")
+            return "original-run"
+
+        def submit():
+            with BroodlingStore.open(self.store_path) as store:
+                return SubmissionCoordinator(store, self.adapter).submit(
+                    self.attempt_id, **REQUEST
+                )
+
+        def abandon():
+            with BroodlingStore.open(self.store_path) as store:
+                abandoning.set()
+                return store.abandon_attempt(self.attempt_id, "stop during dispatch")
+
+        with (
+            patch.object(self.adapter, "submit", side_effect=accept) as native,
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            submitted = pool.submit(submit)
+            try:
+                self.assertTrue(entered.wait(5))
+                abandoned = pool.submit(abandon)
+                self.assertTrue(abandoning.wait(5))
+                self.assertFalse(abandoned.done())
+                self.assertIsNone(self.store.abandonment(self.attempt_id))
+            finally:
+                release.set()
+            self.assertEqual(submitted.result(5).run_id, "original-run")
+            abandoned.result(5)
+            native.assert_called_once()
+        self.assertFalse(self.store.get_attempt(self.attempt_id).is_current)
+        with patch.object(self.adapter, "submit") as native:
+            with self.assertRaises(StaleAttempt):
+                self.coordinator.reconcile(self.attempt_id)
+            native.assert_not_called()
+        self.assertEqual(
+            self.coordinator.record(self.attempt_id).run_id, "original-run"
+        )
+
+    def test_abandonment_fences_prepared_and_ambiguous_dispatch_without_sdk_replay(
+        self,
+    ):
+        self.prepare()
+        self.store.abandon_attempt(self.attempt_id, "explicit stop")
+        with patch.object(self.adapter, "submit") as native:
+            for operation in (
+                self.prepare,
+                self.submit,
+                lambda: self.coordinator.reconcile(self.attempt_id),
+            ):
+                with self.subTest(operation=operation), self.assertRaises(StaleAttempt):
+                    operation()
+            native.assert_not_called()
+        self.assertEqual(self.coordinator.record(self.attempt_id).state, "prepared")
+
+    def test_lost_ack_abandonment_cannot_launch_work_to_discover_old_run(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        original = self.coordinator.record(self.attempt_id)
+        self.assertEqual(original.state, "dispatched")
+        self.store.abandon_attempt(self.attempt_id, "ambiguous dispatch")
+        self.restart()
+        with patch.object(self.adapter, "submit") as native:
+            with self.assertRaises(StaleAttempt):
+                self.coordinator.reconcile(self.attempt_id)
+            native.assert_not_called()
+        self.assertEqual(self.coordinator.record(self.attempt_id), original)
+
     def test_prepared_identity_commits_before_dispatch(self):
         def accept(request):
             from broodling import BroodlingStore

@@ -1,6 +1,6 @@
 """The store must stay an admission nucleus: not a RunLedger mirror, not the harness.
 
-The schema retains P2 facts plus one immutable final P3 custody row; the graph
+The schema retains P2 facts, immutable P3 custody and P4 abandonment; the graph
 is a public runtime definition. No runtime history, candidate-seal state, recovery projection,
 effects or dependency on the qualification harness belongs in the store.
 """
@@ -94,6 +94,7 @@ class SchemaBoundaryTests(StoreTestCase):
             TABLES,
             (
                 "admission_decisions",
+                "attempt_abandonments",
                 "attempt_submissions",
                 "attempts",
                 "contract_revisions",
@@ -130,7 +131,7 @@ class SchemaBoundaryTests(StoreTestCase):
 
     def test_the_schema_text_declares_no_deferred_machinery(self) -> None:
         lowered = SCHEMA_SQL.lower()
-        for term in ("runledger", "candidate_seal", "abandon"):
+        for term in ("runledger", "candidate_seal", "disposition", "retry"):
             with self.subTest(term=term):
                 self.assertNotIn(term, lowered)
 
@@ -218,7 +219,6 @@ class ApiBoundaryTests(StoreTestCase):
                 "occurrence",
                 "seal",
                 "effect",
-                "abandon",
                 "restart",
                 "review",
             ):
@@ -264,7 +264,6 @@ class SubmissionBoundaryTests(StoreTestCase):
             "wait",
             "logs",
             "list_runs",
-            "force_stop",
             "connect",
         }
         calls = {

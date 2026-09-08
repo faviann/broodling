@@ -6,7 +6,8 @@ Attempt/B1/worktree-ownership records that admission allocates. It is
 deliberately *not* a Zeroshot RunLedger mirror — there is no table for runs, node
 occurrences, provider sessions, candidate seals, effect intents/receipts or
 completed-occurrence projections. One final_assurance row retains only completed
-P3 custody for an Attempt; it does not decide Work Unit disposition.
+P3 custody for an Attempt; it does not decide Work Unit disposition. One immutable
+abandonment row removes current authority, without asserting runtime cessation.
 
 Immutability is enforced in the database, not only in Python: append-only tables
 carry ``BEFORE UPDATE``/``BEFORE DELETE`` triggers, so a direct SQL amendment of
@@ -20,7 +21,8 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
+V4_SCHEMA_SHA256 = "f0971db85da6eb32727725b2163f96167576b8bf29a55fcc3d75c263b8961697"
 V3_SCHEMA_SHA256 = "663acf981b7b5379bde50f9446d12bee922c81bcbdcc1b4e7f15f6c4e5ea007f"
 V2_SCHEMA_SHA256 = "bbd7b68bdc66e6bc626f6f5d556e0efa3c9398476eb78b3f3ad75400ade29779"
 
@@ -28,6 +30,7 @@ V2_SCHEMA_SHA256 = "bbd7b68bdc66e6bc626f6f5d556e0efa3c9398476eb78b3f3ad75400ade2
 #: mirror cannot be added without the boundary test failing.
 TABLES: tuple[str, ...] = (
     "admission_decisions",
+    "attempt_abandonments",
     "attempt_submissions",
     "attempts",
     "contract_revisions",
@@ -332,7 +335,85 @@ BEGIN
 END;
 """
 
-SCHEMA_SQL += SUBMISSION_SQL + ASSURANCE_SQL
+ABANDONMENT_SQL = """
+CREATE TABLE attempt_abandonments (
+    attempt_id TEXT PRIMARY KEY REFERENCES attempts (attempt_id),
+    reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+    abandoned_at TEXT NOT NULL
+) STRICT;
+
+CREATE TRIGGER attempt_abandonments_current BEFORE INSERT ON attempt_abandonments
+WHEN NOT EXISTS (
+    SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1
+)
+BEGIN
+    SELECT RAISE(ABORT, 'only a current Attempt can first be abandoned');
+END;
+
+CREATE TRIGGER attempt_abandonments_no_replace BEFORE INSERT ON attempt_abandonments
+WHEN EXISTS (SELECT 1 FROM attempt_abandonments WHERE attempt_id = NEW.attempt_id)
+BEGIN
+    SELECT RAISE(ABORT, 'abandonment is irreversible');
+END;
+
+CREATE TRIGGER attempt_abandonments_no_update BEFORE UPDATE ON attempt_abandonments
+BEGIN
+    SELECT RAISE(ABORT, 'abandonment is immutable');
+END;
+
+CREATE TRIGGER attempt_abandonments_no_delete BEFORE DELETE ON attempt_abandonments
+BEGIN
+    SELECT RAISE(ABORT, 'abandonment is durable');
+END;
+
+DROP TRIGGER attempts_no_update;
+CREATE TRIGGER attempts_no_update BEFORE UPDATE ON attempts
+WHEN OLD.attempt_id <> NEW.attempt_id
+  OR OLD.work_unit_id <> NEW.work_unit_id
+  OR OLD.contract_revision_id <> NEW.contract_revision_id
+  OR OLD.b1_repository <> NEW.b1_repository
+  OR OLD.b1_commit_oid <> NEW.b1_commit_oid
+  OR OLD.b1_material_sha256 <> NEW.b1_material_sha256
+  OR OLD.b1_requested_revision <> NEW.b1_requested_revision
+  OR OLD.admitted_at <> NEW.admitted_at
+  OR NOT (OLD.is_current = 1 AND NEW.is_current = 0)
+  OR NOT EXISTS (
+      SELECT 1 FROM attempt_abandonments WHERE attempt_id = OLD.attempt_id
+  )
+BEGIN
+    SELECT RAISE(ABORT, 'Attempt bindings are immutable; only abandonment removes currentness');
+END;
+
+CREATE TRIGGER attempt_abandonments_remove_current AFTER INSERT ON attempt_abandonments
+BEGIN
+    UPDATE attempts SET is_current = 0 WHERE attempt_id = NEW.attempt_id;
+END;
+
+CREATE TRIGGER attempts_no_abandonment_bypass BEFORE INSERT ON attempts
+WHEN EXISTS (
+    SELECT 1 FROM attempts AS a JOIN attempt_abandonments AS b USING (attempt_id)
+    WHERE a.work_unit_id = NEW.work_unit_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'an abandoned Work Unit requires explicit safe replacement authority');
+END;
+
+CREATE TRIGGER attempts_no_replace BEFORE INSERT ON attempts
+WHEN EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id)
+BEGIN
+    SELECT RAISE(ABORT, 'Attempt identity and bindings cannot be replaced');
+END;
+
+CREATE TRIGGER worktree_assignments_require_current BEFORE UPDATE ON worktree_assignments
+WHEN NOT EXISTS (
+    SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1
+)
+BEGIN
+    SELECT RAISE(ABORT, 'only a current Attempt may acknowledge provisioning');
+END;
+"""
+
+SCHEMA_SQL += SUBMISSION_SQL + ASSURANCE_SQL + ABANDONMENT_SQL
 
 #: Digest of the exact DDL this build initializes. Recorded in ``schema_meta`` so
 #: a store written by a different DDL text is detected on reopen.

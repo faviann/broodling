@@ -1,21 +1,15 @@
 """Upgrade the exact published #13 schema without changing its durable facts."""
 
+from schema_support import restore_published_schema
 from submission_support import SubmissionCase
 
 from broodling import BroodlingStore, SchemaVersionMismatch
-from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION, V2_SCHEMA_SHA256
+from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION
 
 
 class SubmissionMigrationTests(SubmissionCase):
     def make_v2(self):
-        # Reverse only the new empty schema in this fixture; retain real admitted
-        # #12/#13 data and every ownership/currentness trigger.
-        self.store.connection.execute("DROP TABLE final_assurance")
-        self.store.connection.execute("DROP TABLE attempt_submissions")
-        self.store.connection.executemany(
-            "UPDATE schema_meta SET value = ? WHERE key = ?",
-            [("2", "schema_version"), (V2_SCHEMA_SHA256, "schema_sha256")],
-        )
+        restore_published_schema(self.store, 2)
 
     def test_upgrade_preserves_attempt_contract_and_provisioned_worktree(self):
         self.make_v2()

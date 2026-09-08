@@ -15,7 +15,12 @@ from broodling import (
     QualifiedCodexProfile,
 )
 from broodling.assurance_graph import initial_state
-from broodling.errors import AttemptConflict, SubmissionConflict, SubmissionNotReady
+from broodling.errors import (
+    AttemptConflict,
+    StaleAttempt,
+    SubmissionConflict,
+    SubmissionNotReady,
+)
 from broodling.zeroshot_sdk import CurrentRunObservation, ZeroshotSubmitter
 
 
@@ -107,6 +112,34 @@ class FinalCompletenessTests(SubmissionCase):
             self.adapter, "observe_current", side_effect=AssertionError("no recovery")
         ):
             self.assertEqual(asyncio.run(self.capture.capture(self.attempt_id)), record)
+
+    def test_abandonment_during_observation_rejects_late_capture(self):
+        from broodling import BroodlingStore
+
+        async def late_result(*args):
+            with BroodlingStore.open(self.store_path) as administrator:
+                administrator.abandon_attempt(self.attempt_id, "caller interrupted")
+            return self.observed()
+
+        with (
+            patch.object(self.adapter, "observe_current", side_effect=late_result),
+            self.assertRaises(StaleAttempt),
+        ):
+            asyncio.run(self.capture.capture(self.attempt_id))
+        self.assertIsNone(self.capture.record(self.attempt_id))
+        self.assertIsNone(self.store.current_attempt(self.attempt.work_unit_id))
+
+    def test_abandoned_custody_is_readable_but_cannot_be_recaptured(self):
+        with patch.object(
+            self.adapter, "observe_current", AsyncMock(return_value=self.observed())
+        ):
+            historical = asyncio.run(self.capture.capture(self.attempt_id))
+        self.store.abandon_attempt(self.attempt_id, "finalization interrupted")
+        with patch.object(self.adapter, "observe_current") as observe:
+            with self.assertRaises(StaleAttempt):
+                asyncio.run(self.capture.capture(self.attempt_id))
+            observe.assert_not_called()
+        self.assertEqual(self.capture.record(self.attempt_id), historical)
 
     def test_missing_duplicate_or_foreign_criterion_rationale_leaves_no_record(self):
         variants = [

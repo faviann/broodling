@@ -139,9 +139,10 @@ class AttemptProvisioner:
         """Materialize this Attempt's worktree at B1. Idempotent and converging.
 
         Repeat it as often as you like, from as many processes as you like: an
-        already-materialized worktree is recognized and left alone, an
+        already-materialized current worktree is recognized and left alone, an
         interrupted one is finished, and a worktree that has gone missing is
-        rebuilt from the recorded B1 — never from live ``HEAD``.
+        rebuilt from the recorded B1 — never from live ``HEAD``. Abandoned
+        Attempts are refused before candidate materialization or acknowledgment.
 
         Concurrent callers converge rather than compete. They queue on this
         Attempt's enclosure, so each one reads host state that some other
@@ -149,12 +150,19 @@ class AttemptProvisioner:
         worktree at the same B1 on the same branch.
         """
 
-        attempt = self.store.get_attempt(attempt_id)
-        assignment = self.store.worktree_assignment(attempt_id)
-        enclosure = assignment.path.parent
-
-        self._claim_enclosure(enclosure, attempt_id)
-        with _sole_provisioner(enclosure):
+        # Claim scaffolding only while current. Release SQLite before waiting
+        # for the host lock: every host operation orders enclosure -> SQLite.
+        with self.store._write():
+            self.store.require_current_attempt(attempt_id)
+            assignment = self.store.worktree_assignment(attempt_id)
+            enclosure = assignment.path.parent
+            self._claim_enclosure(enclosure, attempt_id)
+        # Serialize abandonment with host mutation, including the external
+        # Git call and acknowledgment. A killed caller rolls back the fact;
+        # the existing owned leftovers still converge on a subsequent call.
+        with _sole_provisioner(enclosure), self.store._write():
+            attempt = self.store.require_current_attempt(attempt_id)
+            assignment = self.store.worktree_assignment(attempt_id)
             return self._materialize(attempt, assignment)
 
     def _materialize(
@@ -284,7 +292,7 @@ class AttemptProvisioner:
     def _acknowledge(self, attempt: AttemptRecord) -> ProvisionedWorktree:
         return ProvisionedWorktree(
             attempt=attempt,
-            assignment=self.store.acknowledge_worktree_provisioned(attempt.attempt_id),
+            assignment=self.store._acknowledge_worktree_provisioned(attempt.attempt_id),
         )
 
 

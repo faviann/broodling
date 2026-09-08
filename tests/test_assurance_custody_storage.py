@@ -4,10 +4,11 @@ import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
+from schema_support import restore_published_schema
 from submission_support import SubmissionCase
 
 from broodling import BroodlingStore, SchemaVersionMismatch
-from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION, V3_SCHEMA_SHA256
+from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION
 
 
 class AssuranceStorageTests(SubmissionCase):
@@ -54,11 +55,7 @@ class AssuranceStorageTests(SubmissionCase):
         )
 
     def make_v3(self):
-        self.store.connection.execute("DROP TABLE final_assurance")
-        self.store.connection.executemany(
-            "UPDATE schema_meta SET value = ? WHERE key = ?",
-            [("3", "schema_version"), (V3_SCHEMA_SHA256, "schema_sha256")],
-        )
+        restore_published_schema(self.store, 3)
 
     def test_exact_v3_migration_preserves_existing_request_and_correlation(self):
         self.correlate()

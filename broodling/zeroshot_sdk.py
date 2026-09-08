@@ -32,6 +32,19 @@ class CurrentRunObservation:
     output: object
 
 
+@dataclass(frozen=True, slots=True)
+class TerminalRunObservation:
+    """Runtime diagnostics only; neither writer cessation nor product success.
+
+    In particular, ``runtime_lost`` can coexist with surviving provider children
+    on the pinned local profile. No semantic output is recovered by stopping.
+    """
+
+    run_id: str
+    runtime_succeeded: bool
+    failure: str | None
+
+
 def canonical_request(value: dict) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
@@ -132,6 +145,46 @@ class ZeroshotSubmitter:
         self._profile_identity()
         assert_qualified_integration()
         return asyncio.run(self._submit(request))
+
+    async def stop_known(self, request: dict, run_id: str) -> TerminalRunObservation:
+        """Stop one already-correlated run after durable abandonment.
+
+        The caller owns the persisted request/run binding and must make the
+        Attempt ineligible before entering this boundary. This operation cannot
+        discover a missing run ID, dispatch work, or authorize retirement. SDK
+        errors, including inaccessible runtime state, propagate without a fact.
+        Repeating the call observes Zeroshot's existing terminal result.
+        """
+        if request["target"] != self.target:
+            raise UnsupportedRuntime("stop target differs from persisted target")
+        self._profile_identity()
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise UnsupportedRuntime("stop requires an already-correlated run ID")
+        assert_qualified_integration()
+
+        from zeroshot import Client, LocalTarget
+
+        async with Client(
+            target=LocalTarget(
+                request["workspace"], state_dir=request["target"]["stateDir"]
+            ),
+            environment=request["target"]["environment"],
+        ) as client:
+            run = client.get_run(run_id)
+            result = await run.force_stop()
+            status = await run.status()
+        if (
+            result.run_id != run_id
+            or status.run_id != run_id
+            or status.phase != "finished"
+            or status.active_executions
+            or status.result is None
+            or status.result.run_id != run_id
+            or status.result.succeeded != result.succeeded
+            or status.result.failure != result.failure
+        ):
+            raise UnsupportedRuntime("stop lacks a consistent terminal observation")
+        return TerminalRunObservation(run_id, result.succeeded, result.failure)
 
     async def observe_current(
         self, request: dict, run_id: str

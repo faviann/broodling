@@ -223,7 +223,7 @@ class SubmissionCoordinator:
             raise SubmissionConflict("repository source configuration changed")
 
     def _current(self, attempt_id: str):
-        attempt = self.store.get_attempt(attempt_id)
+        attempt = self.store.require_current_attempt(attempt_id)
         current = self.store.current_attempt(attempt.work_unit_id)
         if (
             not attempt.is_current

@@ -73,7 +73,7 @@ class GitCommandError(BroodlingError):
 
 
 class StaleAttempt(BroodlingError):
-    """Only the durable current Attempt may submit or reconcile."""
+    """Only the durable current Attempt may acquire or exercise authority."""
 
 
 class SubmissionNotReady(BroodlingError):
