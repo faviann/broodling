@@ -1,0 +1,2931 @@
+{
+  "afterGraphSha256": "6619b045f12637e82f0127033c71851eb92718df530e99e99cb16ad0accbb034",
+  "beforeGraphSha256": "028d79381aab0cc98950e3eccd2d30a67f25e3e6f836917f5d76310bc9dc2604",
+  "changes": [
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/initialInput/fields/finalRationale"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/children/0/input/fields/finalRationale"
+    },
+    {
+      "after": [
+        {
+          "target": [
+            "contract"
+          ],
+          "value": {
+            "path": [
+              "contract"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "comparisonBase"
+          ],
+          "value": {
+            "path": [
+              "comparisonBase"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidenceContent"
+          ],
+          "value": {
+            "path": [
+              "evidenceContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "finalRationale"
+          ],
+          "value": {
+            "path": [
+              "finalRationale"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidence"
+          ],
+          "value": {
+            "path": [
+              "evidence"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findings"
+          ],
+          "value": {
+            "path": [
+              "findings"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "obligation"
+          ],
+          "value": {
+            "path": [
+              "obligation"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findingContent"
+          ],
+          "value": {
+            "path": [
+              "findingContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "directiveContent"
+          ],
+          "value": {
+            "path": [
+              "directiveContent"
+            ],
+            "source": "state"
+          }
+        }
+      ],
+      "before": [
+        {
+          "target": [
+            "contract"
+          ],
+          "value": {
+            "path": [
+              "contract"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "comparisonBase"
+          ],
+          "value": {
+            "path": [
+              "comparisonBase"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidenceContent"
+          ],
+          "value": {
+            "path": [
+              "evidenceContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidence"
+          ],
+          "value": {
+            "path": [
+              "evidence"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findings"
+          ],
+          "value": {
+            "path": [
+              "findings"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "obligation"
+          ],
+          "value": {
+            "path": [
+              "obligation"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findingContent"
+          ],
+          "value": {
+            "path": [
+              "findingContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "directiveContent"
+          ],
+          "value": {
+            "path": [
+              "directiveContent"
+            ],
+            "source": "state"
+          }
+        }
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/children/0/inputBindings"
+    },
+    {
+      "after": "BROODLING_NODE=final_assessment_authority_clean. Read-only designated final semantic authority. Assess the complete frozen Contract against the stable current candidate, available required evidence and applicable directives. Clean review alone is insufficient. Signal gap for insufficient evidence or unresolved correction, refused for an authority question, and accepted only for criterion-level semantic satisfaction. Return finalRationale with substantive rationale for every frozen Contract criterion. Criterion labels identify the assessed requirement; they cannot change the frozen Contract. Diagnostic role/occurrence/candidate claims confer no authority.",
+      "before": "BROODLING_NODE=final_assessment_authority_clean. Read-only designated final semantic authority. Assess the complete frozen Contract against the stable current candidate, available required evidence and applicable directives. Clean review alone is insufficient. Signal gap for insufficient evidence or unresolved correction, refused for an authority question, and accepted only for criterion-level semantic satisfaction.",
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/children/0/instructions"
+    },
+    {
+      "after": {
+        "finalRationale": {
+          "required": true,
+          "type": {
+            "items": {
+              "fields": {
+                "criterionId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "rationale": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                }
+              },
+              "kind": "record"
+            },
+            "kind": "array"
+          }
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/children/0/output/fields"
+    },
+    {
+      "after": "record",
+      "before": "null",
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/children/0/output/kind"
+    },
+    {
+      "after": [
+        {
+          "target": [
+            "finalRationale"
+          ],
+          "value": {
+            "channel": "out",
+            "node": "final_assessment_authority_clean",
+            "path": [
+              "finalRationale"
+            ]
+          }
+        }
+      ],
+      "before": [],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/children/0/writeBindings"
+    },
+    {
+      "after": [
+        {
+          "target": [
+            "contract"
+          ],
+          "value": {
+            "path": [
+              "contract"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "comparisonBase"
+          ],
+          "value": {
+            "path": [
+              "comparisonBase"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidenceContent"
+          ],
+          "value": {
+            "path": [
+              "evidenceContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "finalRationale"
+          ],
+          "value": {
+            "path": [
+              "finalRationale"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidence"
+          ],
+          "value": {
+            "path": [
+              "evidence"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findings"
+          ],
+          "value": {
+            "path": [
+              "findings"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "obligation"
+          ],
+          "value": {
+            "path": [
+              "obligation"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findingContent"
+          ],
+          "value": {
+            "path": [
+              "findingContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "directiveContent"
+          ],
+          "value": {
+            "path": [
+              "directiveContent"
+            ],
+            "source": "state"
+          }
+        }
+      ],
+      "before": [
+        {
+          "target": [
+            "contract"
+          ],
+          "value": {
+            "path": [
+              "contract"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "comparisonBase"
+          ],
+          "value": {
+            "path": [
+              "comparisonBase"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidenceContent"
+          ],
+          "value": {
+            "path": [
+              "evidenceContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidence"
+          ],
+          "value": {
+            "path": [
+              "evidence"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findings"
+          ],
+          "value": {
+            "path": [
+              "findings"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "obligation"
+          ],
+          "value": {
+            "path": [
+              "obligation"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findingContent"
+          ],
+          "value": {
+            "path": [
+              "findingContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "directiveContent"
+          ],
+          "value": {
+            "path": [
+              "directiveContent"
+            ],
+            "source": "state"
+          }
+        }
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/children/1/otherwise/bindings"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/children/1/otherwise/output/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/branches/1/node/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/children/1/otherwise/children/1/otherwise/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/children/1/otherwise/children/1/otherwise/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/children/1/otherwise/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/children/1/otherwise/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/children/1/otherwise/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/children/1/otherwise/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/otherwise/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/body/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/state/fields/finalRationale"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/input/fields/finalRationale"
+    },
+    {
+      "after": [
+        {
+          "target": [
+            "contract"
+          ],
+          "value": {
+            "path": [
+              "contract"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "comparisonBase"
+          ],
+          "value": {
+            "path": [
+              "comparisonBase"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidenceContent"
+          ],
+          "value": {
+            "path": [
+              "evidenceContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "finalRationale"
+          ],
+          "value": {
+            "path": [
+              "finalRationale"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidence"
+          ],
+          "value": {
+            "path": [
+              "evidence"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findings"
+          ],
+          "value": {
+            "path": [
+              "findings"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "obligation"
+          ],
+          "value": {
+            "path": [
+              "obligation"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findingContent"
+          ],
+          "value": {
+            "path": [
+              "findingContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "directiveContent"
+          ],
+          "value": {
+            "path": [
+              "directiveContent"
+            ],
+            "source": "state"
+          }
+        }
+      ],
+      "before": [
+        {
+          "target": [
+            "contract"
+          ],
+          "value": {
+            "path": [
+              "contract"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "comparisonBase"
+          ],
+          "value": {
+            "path": [
+              "comparisonBase"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidenceContent"
+          ],
+          "value": {
+            "path": [
+              "evidenceContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidence"
+          ],
+          "value": {
+            "path": [
+              "evidence"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findings"
+          ],
+          "value": {
+            "path": [
+              "findings"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "obligation"
+          ],
+          "value": {
+            "path": [
+              "obligation"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findingContent"
+          ],
+          "value": {
+            "path": [
+              "findingContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "directiveContent"
+          ],
+          "value": {
+            "path": [
+              "directiveContent"
+            ],
+            "source": "state"
+          }
+        }
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/inputBindings"
+    },
+    {
+      "after": "BROODLING_NODE=final_assessment_authority_repaired. Read-only designated final semantic authority. Assess the complete frozen Contract against the stable current candidate, available required evidence and applicable directives. Clean review alone is insufficient. Signal gap for insufficient evidence or unresolved correction, refused for an authority question, and accepted only for criterion-level semantic satisfaction. Return finalRationale with substantive rationale for every frozen Contract criterion. Criterion labels identify the assessed requirement; they cannot change the frozen Contract. Diagnostic role/occurrence/candidate claims confer no authority.",
+      "before": "BROODLING_NODE=final_assessment_authority_repaired. Read-only designated final semantic authority. Assess the complete frozen Contract against the stable current candidate, available required evidence and applicable directives. Clean review alone is insufficient. Signal gap for insufficient evidence or unresolved correction, refused for an authority question, and accepted only for criterion-level semantic satisfaction.",
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/instructions"
+    },
+    {
+      "after": {
+        "finalRationale": {
+          "required": true,
+          "type": {
+            "items": {
+              "fields": {
+                "criterionId": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                },
+                "rationale": {
+                  "required": true,
+                  "type": {
+                    "kind": "string"
+                  }
+                }
+              },
+              "kind": "record"
+            },
+            "kind": "array"
+          }
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/output/fields"
+    },
+    {
+      "after": "record",
+      "before": "null",
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/output/kind"
+    },
+    {
+      "after": [
+        {
+          "target": [
+            "finalRationale"
+          ],
+          "value": {
+            "channel": "out",
+            "node": "final_assessment_authority_repaired",
+            "path": [
+              "finalRationale"
+            ]
+          }
+        }
+      ],
+      "before": [],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/0/writeBindings"
+    },
+    {
+      "after": [
+        {
+          "target": [
+            "contract"
+          ],
+          "value": {
+            "path": [
+              "contract"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "comparisonBase"
+          ],
+          "value": {
+            "path": [
+              "comparisonBase"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidenceContent"
+          ],
+          "value": {
+            "path": [
+              "evidenceContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "finalRationale"
+          ],
+          "value": {
+            "path": [
+              "finalRationale"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidence"
+          ],
+          "value": {
+            "path": [
+              "evidence"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findings"
+          ],
+          "value": {
+            "path": [
+              "findings"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "obligation"
+          ],
+          "value": {
+            "path": [
+              "obligation"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findingContent"
+          ],
+          "value": {
+            "path": [
+              "findingContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "directiveContent"
+          ],
+          "value": {
+            "path": [
+              "directiveContent"
+            ],
+            "source": "state"
+          }
+        }
+      ],
+      "before": [
+        {
+          "target": [
+            "contract"
+          ],
+          "value": {
+            "path": [
+              "contract"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "comparisonBase"
+          ],
+          "value": {
+            "path": [
+              "comparisonBase"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidenceContent"
+          ],
+          "value": {
+            "path": [
+              "evidenceContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "evidence"
+          ],
+          "value": {
+            "path": [
+              "evidence"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findings"
+          ],
+          "value": {
+            "path": [
+              "findings"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "obligation"
+          ],
+          "value": {
+            "path": [
+              "obligation"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "findingContent"
+          ],
+          "value": {
+            "path": [
+              "findingContent"
+            ],
+            "source": "state"
+          }
+        },
+        {
+          "target": [
+            "directiveContent"
+          ],
+          "value": {
+            "path": [
+              "directiveContent"
+            ],
+            "source": "state"
+          }
+        }
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/bindings"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/output/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/otherwise/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/otherwise/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/otherwise/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/otherwise/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/otherwise/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/otherwise/state/fields/finalRationale"
+    },
+    {
+      "after": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "finalRationale"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "before": [
+        [
+          "contract"
+        ],
+        [
+          "comparisonBase"
+        ],
+        [
+          "evidenceContent"
+        ],
+        [
+          "evidence"
+        ],
+        [
+          "findings"
+        ],
+        [
+          "obligation"
+        ],
+        [
+          "findingContent"
+        ],
+        [
+          "directiveContent"
+        ]
+      ],
+      "path": "/root/children/1/promotedStatePaths"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/children/1/state/fields/finalRationale"
+    },
+    {
+      "after": {
+        "required": true,
+        "type": {
+          "items": {
+            "fields": {
+              "criterionId": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              "rationale": {
+                "required": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            },
+            "kind": "record"
+          },
+          "kind": "array"
+        }
+      },
+      "before": null,
+      "path": "/root/state/fields/finalRationale"
+    }
+  ],
+  "fromCommit": "b29701f1d19152d403e900939cd654339fe8198d",
+  "runtimeUnchanged": true,
+  "schema": "broodling.v1-p3.issue19-graph-deviation/v1"
+}

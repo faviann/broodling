@@ -56,7 +56,7 @@ Issue #17 adds the [product assurance graph](docs/implementation/v1-p3-assurance
 
 Issue #18 adds [explicit immutable mechanical-evidence declarations and the deterministic read-only evidence leaf](docs/implementation/v1-p3-evidence-review.md). Its [integration record](qualification/v1-p3/issue-18-evidence-review.md) retains actual SDK evidence, containment and real reviewer controls. The earlier blocked and pre-integration records remain historical evidence.
 
-Issue #19 has a [current-run observation and rationale foundation](qualification/v1-p3/issue-19-material-selection.md), but final candidate-material selection and complete custody are blocked on an explicit Contract selection decision. #19 remains incomplete and #20 has not begun.
+Issue #19 adds [current final-assessment capture and minimal durable custody](docs/implementation/v1-p3-final-assurance.md). Explicit final/B1 material selection is frozen in a new admitted Contract revision and exercised through a fresh Attempt; older revisions and Attempt bindings remain unchanged. Its [completion evidence](qualification/v1-p3/issue-19-final-assurance.md) covers exact bytes/absence, required observations/rationale and refusal of incomplete or lost custody. The earlier selection blocker remains historical. G3-V1 has not been reviewed; #20 is the next boundary.
 
 The historical [G1-core review](qualification/p1/issue-7-g1-core.md) remains **BLOCKED** under v0.3. Q2 and the bounded Q3 fixture retain their historical scoped passes; Q1/Q4/Q5/Q6 remain blocked, and [Q7/G1-effects](qualification/p1/issue-6-q7.md) remains independently blocked. v0.5 does not relabel those historical results.
 

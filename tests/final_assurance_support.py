@@ -27,7 +27,7 @@ LEAF = Path(__file__).parent / "fixtures/final-assurance-bin/codex"
 
 
 @contextmanager
-def final_case(scenario="clean", *, contract_transform=None):
+def final_case(scenario="clean", *, contract_transform=None, final_materials=False):
     fixture = AttemptTestCase()
     fixture.setUp()
     run_root = Path(tempfile.mkdtemp(prefix="b19-", dir="/dev/shm"))
@@ -41,6 +41,11 @@ def final_case(scenario="clean", *, contract_transform=None):
             "https://github.com/faviann/broodling.git",
         )
         (repository / "candidate.json").write_text('{"generationMaterial":"B1"}\n')
+        if final_materials:
+            (repository / "removed.bin").write_bytes(b"B1 deleted\x00\xff\n")
+            (repository / "unchanged.txt").write_bytes(
+                b"unchanged governing source\r\n"
+            )
         raw = raw_material("valid")
         raw["needsCorrection"] = scenario in {
             "repair",
@@ -72,6 +77,21 @@ def final_case(scenario="clean", *, contract_transform=None):
             ),
         )
         contract = dataclasses.replace(fixture.revision.contract, criteria=(required,))
+        if final_materials:
+            from broodling import FinalAssuranceMaterial
+
+            contract = dataclasses.replace(
+                contract,
+                final_assurance_materials=tuple(
+                    FinalAssuranceMaterial(path, True, True)
+                    for path in (
+                        "candidate.json",
+                        "source.bin",
+                        "removed.bin",
+                        "unchanged.txt",
+                    )
+                ),
+            )
         if contract_transform is not None:
             contract = contract_transform(contract)
         revision = fixture.store.record_contract_revision(contract)
@@ -86,6 +106,7 @@ def final_case(scenario="clean", *, contract_transform=None):
             "#!/usr/bin/env python3\nimport os,sys\n"
             f"os.environ['BROODLING_FINAL_TEST_STATE'] = {str(state)!r}\n"
             f"os.environ['BROODLING_FINAL_TEST_SCENARIO'] = {scenario!r}\n"
+            f"os.environ['BROODLING_FINAL_TEST_MATERIALS'] = {str(final_materials)!r}\n"
             f"os.execv({str(LEAF)!r}, [{str(LEAF)!r}, *sys.argv[1:]])\n"
         )
         executable.chmod(0o755)

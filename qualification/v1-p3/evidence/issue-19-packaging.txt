@@ -1,0 +1,104 @@
+Building wheel...
+running egg_info
+creating broodling.egg-info
+writing broodling.egg-info/PKG-INFO
+writing dependency_links to broodling.egg-info/dependency_links.txt
+writing top-level names to broodling.egg-info/top_level.txt
+writing manifest file 'broodling.egg-info/SOURCES.txt'
+reading manifest file 'broodling.egg-info/SOURCES.txt'
+writing manifest file 'broodling.egg-info/SOURCES.txt'
+running bdist_wheel
+running build
+running build_py
+creating build/lib/broodling
+copying broodling/errors.py -> build/lib/broodling
+copying broodling/store.py -> build/lib/broodling
+copying broodling/schema.py -> build/lib/broodling
+copying broodling/entitlement.py -> build/lib/broodling
+copying broodling/codex_profile.py -> build/lib/broodling
+copying broodling/zeroshot_sdk.py -> build/lib/broodling
+copying broodling/profile.py -> build/lib/broodling
+copying broodling/final_material.py -> build/lib/broodling
+copying broodling/assurance.py -> build/lib/broodling
+copying broodling/assurance_graph.py -> build/lib/broodling
+copying broodling/reviewer.py -> build/lib/broodling
+copying broodling/workspace.py -> build/lib/broodling
+copying broodling/__init__.py -> build/lib/broodling
+copying broodling/contract.py -> build/lib/broodling
+copying broodling/identity.py -> build/lib/broodling
+copying broodling/closability.py -> build/lib/broodling
+copying broodling/git.py -> build/lib/broodling
+copying broodling/submission.py -> build/lib/broodling
+copying broodling/mechanical_evidence.py -> build/lib/broodling
+copying broodling/provisioning.py -> build/lib/broodling
+copying broodling/starting_state.py -> build/lib/broodling
+creating build/lib/broodling/codex_bin
+copying broodling/codex_bin/codex -> build/lib/broodling/codex_bin
+installing to build/bdist.linux-x86_64/wheel
+running install
+running install_lib
+creating build/bdist.linux-x86_64/wheel
+creating build/bdist.linux-x86_64/wheel/broodling
+copying build/lib/broodling/errors.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/store.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/schema.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/entitlement.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/codex_profile.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/zeroshot_sdk.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/profile.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/final_material.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/assurance.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/assurance_graph.py -> build/bdist.linux-x86_64/wheel/./broodling
+creating build/bdist.linux-x86_64/wheel/broodling/codex_bin
+copying build/lib/broodling/codex_bin/codex -> build/bdist.linux-x86_64/wheel/./broodling/codex_bin
+copying build/lib/broodling/reviewer.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/workspace.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/__init__.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/contract.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/identity.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/closability.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/git.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/submission.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/mechanical_evidence.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/provisioning.py -> build/bdist.linux-x86_64/wheel/./broodling
+copying build/lib/broodling/starting_state.py -> build/bdist.linux-x86_64/wheel/./broodling
+running install_egg_info
+running egg_info
+writing broodling.egg-info/PKG-INFO
+writing dependency_links to broodling.egg-info/dependency_links.txt
+writing top-level names to broodling.egg-info/top_level.txt
+reading manifest file 'broodling.egg-info/SOURCES.txt'
+writing manifest file 'broodling.egg-info/SOURCES.txt'
+Copying broodling.egg-info to build/bdist.linux-x86_64/wheel/./broodling-0.1.0-py3.13.egg-info
+running install_scripts
+creating build/bdist.linux-x86_64/wheel/broodling-0.1.0.dist-info/WHEEL
+creating '/tmp/broodling-issue19-wheel/.tmp-m_424t2a/broodling-0.1.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
+adding 'broodling/__init__.py'
+adding 'broodling/assurance.py'
+adding 'broodling/assurance_graph.py'
+adding 'broodling/closability.py'
+adding 'broodling/codex_profile.py'
+adding 'broodling/contract.py'
+adding 'broodling/entitlement.py'
+adding 'broodling/errors.py'
+adding 'broodling/final_material.py'
+adding 'broodling/git.py'
+adding 'broodling/identity.py'
+adding 'broodling/mechanical_evidence.py'
+adding 'broodling/profile.py'
+adding 'broodling/provisioning.py'
+adding 'broodling/reviewer.py'
+adding 'broodling/schema.py'
+adding 'broodling/starting_state.py'
+adding 'broodling/store.py'
+adding 'broodling/submission.py'
+adding 'broodling/workspace.py'
+adding 'broodling/zeroshot_sdk.py'
+adding 'broodling/codex_bin/codex'
+adding 'broodling-0.1.0.dist-info/METADATA'
+adding 'broodling-0.1.0.dist-info/WHEEL'
+adding 'broodling-0.1.0.dist-info/top_level.txt'
+adding 'broodling-0.1.0.dist-info/RECORD'
+removing build/bdist.linux-x86_64/wheel
+Successfully built /tmp/broodling-issue19-wheel/broodling-0.1.0-py3-none-any.whl
+Wheel custody modules and launcher match source bytes; executable launcher mode preserved; no tests/qualification packaged.

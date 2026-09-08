@@ -146,6 +146,8 @@ class RuntimeBoundaryTests(unittest.TestCase):
                     allowed.add("fcntl")
                 if module.name == "mechanical_evidence.py":
                     allowed.update({"platform", "tempfile"})
+                if module.name == "final_material.py":
+                    allowed.update({"base64", "stat"})
                 roots = imported_roots(module) - {"broodling"}
                 self.assertLessEqual(roots, allowed, f"{module.name} grew a dependency")
 

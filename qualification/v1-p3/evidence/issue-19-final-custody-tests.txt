@@ -1,0 +1,13 @@
+test_clean_repaired_and_forged_current_custody (test_final_assurance_capture.FinalAssuranceCaptureTests.test_clean_repaired_and_forged_current_custody) ... ok
+test_declared_revision_is_new_and_old_contract_is_unchanged (test_final_assurance_capture.FinalAssuranceCaptureTests.test_declared_revision_is_new_and_old_contract_is_unchanged) ... ok
+test_empty_rationale_native_success_cannot_complete_custody (test_final_assurance_capture.FinalAssuranceCaptureTests.test_empty_rationale_native_success_cannot_complete_custody) ... ok
+test_immutable_record_survives_test_only_disposable_cleanup (test_final_assurance_capture.FinalAssuranceCaptureTests.test_immutable_record_survives_test_only_disposable_cleanup) ... ok
+test_loss_or_cancellation_before_commit_leaves_no_late_recovery (test_final_assurance_capture.FinalAssuranceCaptureTests.test_loss_or_cancellation_before_commit_leaves_no_late_recovery) ... ok
+test_material_loss_and_unreadable_nonregular_material_refuse_custody (test_final_assurance_capture.FinalAssuranceCaptureTests.test_material_loss_and_unreadable_nonregular_material_refuse_custody) ... ok
+test_old_undeclared_attempt_is_refused_without_amending_its_contract (test_final_assurance_capture.FinalAssuranceCaptureTests.test_old_undeclared_attempt_is_refused_without_amending_its_contract) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 168.678s
+
+OK
+{"verdict": "PASS", "cases": ["cancellation", "clean", "cleanup-reread", "empty-rationale", "forged-identifiers", "missing-initial", "missing-renewed", "new-declared-revision-fresh-attempt", "nonregular-material", "observer-loss", "old-undeclared-attempt-refused", "repair", "unreadable-material"]}

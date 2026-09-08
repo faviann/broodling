@@ -89,6 +89,28 @@ class MechanicalEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class FinalAssuranceMaterial:
+    """Exact repository-relative material selected for durable final custody.
+
+    Each selected state retains file bytes, symlink target bytes, or explicit
+    absence. This selects custody only; it establishes no in-run applicability
+    or semantic sufficiency. Unsupported shapes remain representable so custody
+    can refuse them without changing historical Contract meaning.
+    """
+
+    path: str
+    final_candidate: bool = True
+    comparison_base: bool = False
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "path": self.path,
+            "finalCandidate": self.final_candidate,
+            "comparisonBase": self.comparison_base,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class Criterion:
     """One Contract criterion and its V1 Closability fields."""
 
@@ -182,9 +204,10 @@ class Contract:
     host_assumptions: tuple[str, ...] = ()
     constructed_by: str = "broodling_policy"
     notes: str = ""
+    final_assurance_materials: tuple[FinalAssuranceMaterial, ...] | None = None
 
     def to_mapping(self) -> dict[str, Any]:
-        return {
+        result = {
             "contractFormat": CONTRACT_FORMAT,
             "workUnitId": self.work_unit_id,
             "constructedBy": self.constructed_by,
@@ -198,6 +221,12 @@ class Contract:
             "hostAssumptions": list(self.host_assumptions),
             "notes": self.notes,
         }
+        # New selection is new revision meaning, never an amendment of old bytes.
+        if self.final_assurance_materials is not None:
+            result["finalAssuranceMaterials"] = [
+                item.to_mapping() for item in self.final_assurance_materials
+            ]
+        return result
 
     def canonical_bytes(self) -> bytes:
         """Deterministic serialization; the durable meaning of the revision."""
@@ -279,7 +308,59 @@ def contract_from_mapping(mapping: dict[str, Any]) -> Contract:
         ),
         host_assumptions=tuple(mapping["hostAssumptions"]),
         notes=mapping["notes"],
+        final_assurance_materials=(
+            _final_materials_from_mapping(mapping["finalAssuranceMaterials"])
+            if "finalAssuranceMaterials" in mapping
+            else None
+        ),
     )
+
+
+def _final_materials_from_mapping(value: Any) -> tuple[FinalAssuranceMaterial, ...]:
+    if not isinstance(value, list):
+        raise ValueError("finalAssuranceMaterials must be an array")  # noqa: TRY004
+    result = []
+    for item in value:
+        if not isinstance(item, dict) or set(item) != {
+            "path",
+            "finalCandidate",
+            "comparisonBase",
+        }:
+            raise ValueError(
+                "final assurance material requires exactly path, finalCandidate "
+                "and comparisonBase"
+            )
+        result.append(
+            FinalAssuranceMaterial(
+                item["path"], item["finalCandidate"], item["comparisonBase"]
+            )
+        )
+    return tuple(result)
+
+
+def validate_final_assurance_materials(contract: Contract) -> None:
+    """Require an explicit finite custody selection without inferring paths."""
+    declarations = contract.final_assurance_materials
+    if not isinstance(declarations, tuple) or not declarations:
+        raise ValueError("final assurance materials require an explicit declaration")
+    seen: set[str] = set()
+    for item in declarations:
+        if not isinstance(item, FinalAssuranceMaterial):
+            raise ValueError("unsupported final assurance material declaration")  # noqa: TRY004
+        if not _relative_path(item.path) or ".git" in PurePosixPath(item.path).parts:
+            raise ValueError(
+                "final assurance material must be a normalized repository-relative "
+                "path outside .git"
+            )
+        if item.path in seen:
+            raise ValueError("duplicate final assurance material path")
+        seen.add(item.path)
+        if (
+            type(item.final_candidate) is not bool
+            or type(item.comparison_base) is not bool
+            or not (item.final_candidate or item.comparison_base)
+        ):
+            raise ValueError("final assurance material requires a selected state")
 
 
 def _mechanical_from_mapping(mapping: Any) -> MechanicalEvidence:

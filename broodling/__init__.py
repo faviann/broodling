@@ -13,12 +13,14 @@ This package implements the durable facts for one Work Unit:
 
 It durably correlates an Attempt to its one Zeroshot run and authors the V1
 assurance graph. Execution state, typed validation and routing remain in
-Zeroshot. Abandon/restart, final result custody, Work Unit disposition and
-effects are outside this implementation boundary.
+Zeroshot. Minimal final assurance custody retains declared source material and
+normal current-run assessment. Abandon/restart, Work Unit disposition and effects
+are outside this implementation boundary.
 """
 
 from __future__ import annotations
 
+from .assurance import FinalAssuranceCoordinator, FinalAssuranceRecord
 from .closability import (
     ADMITTED,
     REJECTED,
@@ -31,6 +33,7 @@ from .contract import (
     Contract,
     Criterion,
     EvidencePopulation,
+    FinalAssuranceMaterial,
     MechanicalEvidence,
     Obligation,
     Prerequisite,
@@ -102,6 +105,9 @@ __all__ = [
     "Criterion",
     "EntitledSourceRecord",
     "EvidencePopulation",
+    "FinalAssuranceCoordinator",
+    "FinalAssuranceMaterial",
+    "FinalAssuranceRecord",
     "GitCommandError",
     "InvalidWorkReference",
     "MechanicalEvidence",

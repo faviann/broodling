@@ -58,6 +58,14 @@ def main():
         raw = json.loads(Path("desired.json").read_text())
         raw["generationMaterial"] = "C1_FROM_IMPLEMENT"
         candidate.write_text(json.dumps(raw) + "\n")
+        if os.environ.get("BROODLING_FINAL_TEST_MATERIALS") == "True":
+            Path("source.bin").write_bytes(b"final source\x00\xff\xfe\n")
+            Path("removed.bin").unlink()
+            if scenario == "nonregular-material":
+                Path("source.bin").unlink()
+                os.mkfifo("source.bin")
+            elif scenario == "unreadable-material":
+                Path("source.bin").chmod(0)
         if scenario == "missing-initial":
             candidate.unlink()
         response = None

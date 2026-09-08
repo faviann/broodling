@@ -70,6 +70,39 @@ def _try(repository: Path | str, *arguments: str) -> str | None:
         return None
 
 
+def read_object(repository: Path, object_id: str, object_type: str) -> bytes:
+    """Read exact pinned SHA-1 object bytes, without replacement or text filters.
+
+    This narrow binary reader cannot resolve live refs, revision expressions,
+    paths or pathspecs. The admitted V1 starting-state identity is a full SHA-1.
+    """
+    if len(object_id) != 40 or not _is_hex(object_id):
+        raise ValueError("a full pinned Git object id is required")
+    if object_type not in {"commit", "tree", "blob"}:
+        raise ValueError("unsupported custody Git object type")
+    completed = subprocess.run(
+        [
+            GIT,
+            "--no-replace-objects",
+            "-C",
+            str(repository),
+            "cat-file",
+            object_type,
+            object_id,
+        ],
+        capture_output=True,
+        env=_environment(),
+        check=False,
+    )
+    if completed.returncode:
+        raise GitCommandError(
+            f"git cat-file {object_type} {object_id} failed in {repository} "
+            f"({completed.returncode}): "
+            f"{completed.stderr.decode('utf-8', errors='replace').strip()}"
+        )
+    return completed.stdout
+
+
 def is_repository(path: Path) -> bool:
     return _try(path, "rev-parse", "--git-dir") is not None
 
