@@ -1,0 +1,15 @@
+test_clean_repair_and_forged_ids_retain_strict_disposition (test_disposition_public.PublicDispositionTests.test_clean_repair_and_forged_ids_retain_strict_disposition) ... ok
+test_disposition_is_immutable_and_late_stop_cannot_remove_completion (test_disposition_public.PublicDispositionTests.test_disposition_is_immutable_and_late_stop_cannot_remove_completion) ... ok
+test_full_justification_survives_runtime_and_worktree_cleanup (test_disposition_public.PublicDispositionTests.test_full_justification_survives_runtime_and_worktree_cleanup) ... ok
+test_late_a1_capture_and_finalization_cannot_compete_with_a2_disposition (test_disposition_public.PublicDispositionTests.test_late_a1_capture_and_finalization_cannot_compete_with_a2_disposition) ... ok
+test_missing_material_and_semantic_gap_cannot_complete (test_disposition_public.PublicDispositionTests.test_missing_material_and_semantic_gap_cannot_complete) ... ok
+test_sigkill_at_five_finalization_windows_never_salvages_custody (test_disposition_public.PublicDispositionTests.test_sigkill_at_five_finalization_windows_never_salvages_custody) ... ok
+test_standalone_p3_custody_does_not_authorize_later_finalization (test_disposition_public.PublicDispositionTests.test_standalone_p3_custody_does_not_authorize_later_finalization) ... ok
+test_stop_wins_between_custody_and_disposition (test_disposition_public.PublicDispositionTests.test_stop_wins_between_custody_and_disposition) ... ok
+test_two_process_duplicates_observe_once_and_return_identical_commit (test_disposition_public.PublicDispositionTests.test_two_process_duplicates_observe_once_and_return_identical_commit) ... ok
+test_waiting_duplicate_abandons_when_live_custody_owner_dies (test_disposition_public.PublicDispositionTests.test_waiting_duplicate_abandons_when_live_custody_owner_dies) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 586.192s
+
+OK

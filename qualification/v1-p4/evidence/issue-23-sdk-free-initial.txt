@@ -1,0 +1,169 @@
+..............ssssss.................. [  9%]
+.........ssss.................................................................................................. [ 35%]
+.................ssssssss............ [ 44%]
+.....ssssssss.......ssss.............................ssssss..................................................... [ 71%]
+.............................s.F........................sssss..s...ss [ 87%]
+sssssssss...........................................         [100%]
+=================================== FAILURES ===================================
+_ SchemaBoundaryTests.test_no_table_or_column_mirrors_run_or_later_phase_state (name='work_unit_dispositions', term='disposition') _
+
+self = <test_store_boundary.SchemaBoundaryTests testMethod=test_no_table_or_column_mirrors_run_or_later_phase_state>
+
+        )
+
+    def test_no_table_or_column_mirrors_run_or_later_phase_state(self) -> None:
+        rows = self.store.connection.execute(
+            "SELECT name FROM sqlite_schema WHERE type = 'table' "
+            "AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+        names: list[str] = []
+        for row in rows:
+            names.append(row["name"])
+            names.extend(
+                column["name"]
+                for column in self.store.connection.execute(
+                    f"PRAGMA table_info({row['name']})"
+                ).fetchall()
+            )
+        for name in names:
+            if name == "zeroshot_run_id":
+                continue  # The sole runtime fact: immutable Attempt correlation.
+>           for term in DEFERRED_VOCABULARY:
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: 'disposition' unexpectedly found in 'work_unit_dispositions'
+
+tests/test_store_boundary.py:137: AssertionError
+_____ SchemaBoundaryTests.test_the_schema_holds_only_the_admission_nucleus _____
+
+self = <test_store_boundary.SchemaBoundaryTests testMethod=test_the_schema_holds_only_the_admission_nucleus>
+
+    def test_the_schema_holds_only_the_admission_nucleus(self) -> None:
+>       self.assertEqual(
+            TABLES,
+            (
+                "admission_decisions",
+                "attempt_abandonments",
+                "attempt_finalizations",
+                "attempt_retirements",
+                "attempt_retries",
+                "attempt_submissions",
+                "attempts",
+                "contract_revisions",
+                "contract_source_attributions",
+                "entitled_sources",
+                "final_assurance",
+                "schema_meta",
+                "work_unit_dispositions",
+                "work_unit_submissions",
+                "work_units",
+                "worktree_assignments",
+            ),
+        )
+E       AssertionError: Tuples differ: ('adm[47 chars]empt_finalizations', 'attempt_retirements', 'a[243 chars]nts') != ('adm[47 chars]empt_retirements', 'attempt_retries', 'attempt[192 chars]nts')
+E
+E       First differing element 2:
+E       'attempt_finalizations'
+E       'attempt_retirements'
+E
+E       First tuple contains 2 additional elements.
+E       First extra element 14:
+E       'work_units'
+E
+E         ('admission_decisions',
+E          'attempt_abandonments',
+E       -  'attempt_finalizations',
+E          'attempt_retirements',
+E          'attempt_retries',
+E          'attempt_submissions',
+E          'attempts',
+E          'contract_revisions',
+E          'contract_source_attributions',
+E          'entitled_sources',
+E          'final_assurance',
+E          'schema_meta',
+E       -  'work_unit_dispositions',
+E          'work_unit_submissions',
+E          'work_units',
+E          'worktree_assignments')
+
+tests/test_store_boundary.py:98: AssertionError
+_ SchemaBoundaryTests.test_the_schema_text_declares_no_deferred_machinery (term='disposition') _
+
+self = <test_store_boundary.SchemaBoundaryTests testMethod=test_the_schema_text_declares_no_deferred_machinery>
+
+                    self.assertNotIn(term, name.lower())
+
+    def test_the_schema_text_declares_no_deferred_machinery(self) -> None:
+        lowered = SCHEMA_SQL.lower()
+>       for term in ("runledger", "candidate_seal", "disposition", "retry_policy"):
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: 'disposition' unexpectedly found in "\ncreate table schema_meta (\n    key   text primary key,\n    value text not null\n) strict;\n\ncreate table work_units (\n    work_unit_id        text primary key,\n    reference_key       text not null unique,\n    host                text not null,\n    owner               text not null,\n    repository          text not null,\n    issue_number        integer not null,\n    issue_locator       text not null,\n    repository_identity text,\n    issue_identity      text,\n    first_seen_at       text not null,\n    unique (host, owner, repository, issue_number),\n    check (issue_number > 0)\n) strict;\n\ncreate table work_unit_submissions (\n    submission_id         text primary key,\n    work_unit_id          text not null references work_units (work_unit_id),\n    submitted_repository  text not null,\n    submitted_issue       text not null,\n    received_at           text not null\n) strict;\n\ncreate index work_unit_submissions_by_unit\n    on work_unit_submissions (work_unit_id);\n\ncreate table entitled_sources (\n    source_id         text primary key,\n    work_unit_id      text not null references work_units (work_unit_id),\n    kind              text not null,\n    locator           text not null,\n    content           blob not null,\n    content_sha256    text not null,\n    media_type        text not null,\n    entitled_by       text not null,\n    entitlement_basis text not null,\n    retrieved_at      text not null,\n    recorded_at       text not null,\n    unique (work_unit_id, kind, locator, content_sha256),\n    check (entitled_by in ('caller', 'broodling_policy'))\n) strict;\n\ncreate index entitled_sources_by_unit on entitled_sources (work_unit_id);\n\ncreate table contract_revisions (\n    contract_revision_id   text primary key,\n    work_unit_id           text not null references work_units (work_unit_id),\n    revision_number        integer not null,\n    contract_sha256        text not null,\n    canonical_bytes        blob not null,\n    constructed_by         text not null,\n    supersedes_revision_id text references contract_revisions (contract_revision_id),\n    recorded_at            text not null,\n    unique (work_unit_id, revision_number),\n    unique (work_unit_id, contract_sha256),\n    check (revision_number > 0)\n) strict;\n\ncreate table contract_source_attributions (\n    contract_revision_id text not null\n        references contract_revisions (contract_revision_id),\n    source_id            text not null references entitled_sources (source_id),\n    content_sha256       text not null,\n    primary key (contract_revision_id, source_id)\n) strict;\n\ncreate table admission_decisions (\n    decision_id          text primary key,\n    contract_revision_id text not null unique\n        references contract_revisions (contract_revision_id),\n    work_unit_id         text not null references work_units (work_unit_id),\n    outcome              text not null,\n    findings_json        text not null,\n    configuration_json   text not null,\n    decided_at           text not null,\n    check (outcome in ('admitted', 'rejected'))\n) strict;\n\ncreate index admission_decisions_by_unit on admission_decisions (work_unit_id);\n\ncreate table attempts (\n    attempt_id            text primary key,\n    work_unit_id          text not null references work_units (work_unit_id),\n    contract_revision_id  text not null\n        references contract_revisions (contract_revision_id),\n    is_current            integer not null,\n    b1_repository         text not null,\n    b1_commit_oid         text not null,\n    b1_material_sha256    text not null,\n    b1_requested_revision text not null,\n    admitted_at           text not null,\n    check (is_current in (0, 1)),\n    check (length(b1_commit_oid) = 40),\n    check (length(b1_material_sha256) = 64)\n) strict;\n\ncreate unique index attempts_one_current_per_work_unit\n    on attempts (work_unit_id) where is_current = 1;\n\ncreate index attempts_by_contract_revision\n    on attempts (contract_revision_id);\n\ncreate table worktree_assignments (\n    attempt_id     text primary key references attempts (attempt_id),\n    work_unit_id   text not null references work_units (work_unit_id),\n    repository     text not null,\n    worktree_path  text not null unique,\n    branch         text not null,\n    state          text not null,\n    allocated_at   text not null,\n    provisioned_at text,\n    unique (repository, branch),\n    check (state in ('allocated', 'provisioned')),\n    check ((state = 'allocated') = (provisioned_at is null))\n) strict;\n\ncreate index worktree_assignments_by_unit\n    on worktree_assignments (work_unit_id);\n\ncreate trigger work_units_no_delete before delete on work_units\nbegin\n    select raise(abort, 'work_units is append-only');\nend;\n\ncreate trigger work_units_identity_is_stable before update on work_units\nwhen old.work_unit_id <> new.work_unit_id\n     or old.reference_key <> new.reference_key\n     or old.host <> new.host\n     or old.owner <> new.owner\n     or old.repository <> new.repository\n     or old.issue_number <> new.issue_number\n     or old.issue_locator <> new.issue_locator\n     or old.first_seen_at <> new.first_seen_at\n     or (old.repository_identity is not null\n         and (new.repository_identity is null\n              or new.repository_identity <> old.repository_identity))\n     or (old.issue_identity is not null\n         and (new.issue_identity is null\n              or new.issue_identity <> old.issue_identity))\nbegin\n    select raise(abort,\n        'work unit identity is stable; only an unset upstream identity may be pinned');\nend;\n\ncreate trigger entitled_sources_no_update before update on entitled_sources\nbegin\n    select raise(abort, 'entitled source snapshots are immutable');\nend;\n\ncreate trigger entitled_sources_no_delete before delete on entitled_sources\nbegin\n    select raise(abort, 'entitled source snapshots are immutable');\nend;\n\ncreate trigger contract_revisions_no_update before update on contract_revisions\nbegin\n    select raise(abort,\n        'a contract revision is immutable; new meaning requires a new revision');\nend;\n\ncreate trigger contract_revisions_no_delete before delete on contract_revisions\nbegin\n    select raise(abort,\n        'a contract revision is immutable; new meaning requires a new revision');\nend;\n\ncreate trigger contract_source_attributions_no_update\nbefore update on contract_source_attributions\nbegin\n    select raise(abort, 'contract source attribution is immutable');\nend;\n\ncreate trigger contract_source_attributions_no_delete\nbefore delete on contract_source_attributions\nbegin\n    select raise(abort, 'contract source attribution is immutable');\nend;\n\ncreate trigger admission_decisions_no_update before update on admission_decisions\nbegin\n    select raise(abort, 'an admission decision is immutable');\nend;\n\ncreate trigger admission_decisions_no_delete before delete on admission_decisions\nbegin\n    select raise(abort, 'an admission decision is immutable');\nend;\n\ncreate trigger attempts_no_update before update on attempts\nbegin\n    select raise(abort,\n        'an attempt is immutable and cannot be rebound to another contract revision');\nend;\n\ncreate trigger attempts_no_delete before delete on attempts\nbegin\n    select raise(abort, 'an attempt is immutable');\nend;\n\ncreate trigger worktree_assignments_ownership_is_stable\nbefore update on worktree_assignments\nwhen old.attempt_id <> new.attempt_id\n     or old.work_unit_id <> new.work_unit_id\n     or old.repository <> new.repository\n     or old.worktree_path <> new.worktree_path\n     or old.branch <> new.branch\n     or old.allocated_at <> new.allocated_at\n     or old.state <> 'allocated'\n     or new.state <> 'provisioned'\nbegin\n    select raise(abort,\n        'worktree ownership is stable; only allocated -> provisioned may be recorded');\nend;\n\ncreate trigger worktree_assignments_no_delete before delete on worktree_assignments\nbegin\n    select raise(abort, 'worktree ownership is durable');\nend;\n\ncreate table attempt_submissions (\n    attempt_id text primary key references attempts (attempt_id),\n    submission_key text not null unique,\n    request_json text not null,\n    state text not null check (state in ('prepared', 'dispatched', 'correlated', 'blocked')),\n    zeroshot_run_id text unique,\n    error_detail text,\n    check ((state = 'correlated') = (zeroshot_run_id is not null)),\n    check (zeroshot_run_id is null or length(trim(zeroshot_run_id)) > 0),\n    check ((state = 'blocked') = (error_detail is not null))\n) strict;\n\ncreate trigger attempt_submissions_stable before update on attempt_submissions\nwhen old.attempt_id <> new.attempt_id\n  or old.submission_key <> new.submission_key\n  or old.request_json <> new.request_json\n  or not ((old.state = 'prepared' and new.state = 'dispatched')\n       or (old.state = 'dispatched' and new.state in ('correlated', 'blocked')))\nbegin\n    select raise(abort, 'submission identity and correlation are immutable');\nend;\n\ncreate trigger attempt_submissions_no_delete before delete on attempt_submissions\nbegin\n    select raise(abort, 'submission identity is durable');\nend;\n\ncreate table final_assurance (\n    attempt_id text primary key references attempts (attempt_id),\n    zeroshot_run_id text not null unique,\n    record_json text not null\n) strict;\n\ncreate trigger final_assurance_correlated_current before insert on final_assurance\nwhen not exists (\n    select 1 from attempt_submissions as s join attempts as a using (attempt_id)\n    where s.attempt_id = new.attempt_id and s.state = 'correlated'\n      and s.zeroshot_run_id = new.zeroshot_run_id and a.is_current = 1\n)\nbegin\n    select raise(abort, 'final assurance requires the current correlated attempt');\nend;\n\ncreate trigger final_assurance_no_replace before insert on final_assurance\nwhen exists (\n    select 1 from final_assurance\n    where attempt_id = new.attempt_id or zeroshot_run_id = new.zeroshot_run_id\n)\nbegin\n    select raise(abort, 'final assurance custody cannot be replaced');\nend;\n\ncreate trigger final_assurance_no_update before update on final_assurance\nbegin\n    select raise(abort, 'final assurance custody is immutable');\nend;\n\ncreate trigger final_assurance_no_delete before delete on final_assurance\nbegin\n    select raise(abort, 'final assurance custody is durable');\nend;\n\ncreate table attempt_abandonments (\n    attempt_id text primary key references attempts (attempt_id),\n    reason text not null check (length(trim(reason)) > 0),\n    abandoned_at text not null\n) strict;\n\ncreate trigger attempt_abandonments_current before insert on attempt_abandonments\nwhen not exists (\n    select 1 from attempts where attempt_id = new.attempt_id and is_current = 1\n)\nbegin\n    select raise(abort, 'only a current attempt can first be abandoned');\nend;\n\ncreate trigger attempt_abandonments_no_replace before insert on attempt_abandonments\nwhen exists (select 1 from attempt_abandonments where attempt_id = new.attempt_id)\nbegin\n    select raise(abort, 'abandonment is irreversible');\nend;\n\ncreate trigger attempt_abandonments_no_update before update on attempt_abandonments\nbegin\n    select raise(abort, 'abandonment is immutable');\nend;\n\ncreate trigger attempt_abandonments_no_delete before delete on attempt_abandonments\nbegin\n    select raise(abort, 'abandonment is durable');\nend;\n\ndrop trigger attempts_no_update;\ncreate trigger attempts_no_update before update on attempts\nwhen old.attempt_id <> new.attempt_id\n  or old.work_unit_id <> new.work_unit_id\n  or old.contract_revision_id <> new.contract_revision_id\n  or old.b1_repository <> new.b1_repository\n  or old.b1_commit_oid <> new.b1_commit_oid\n  or old.b1_material_sha256 <> new.b1_material_sha256\n  or old.b1_requested_revision <> new.b1_requested_revision\n  or old.admitted_at <> new.admitted_at\n  or not (old.is_current = 1 and new.is_current = 0)\n  or not exists (\n      select 1 from attempt_abandonments where attempt_id = old.attempt_id\n  )\nbegin\n    select raise(abort, 'attempt bindings are immutable; only abandonment removes currentness');\nend;\n\ncreate trigger attempt_abandonments_remove_current after insert on attempt_abandonments\nbegin\n    update attempts set is_current = 0 where attempt_id = new.attempt_id;\nend;\n\ncreate trigger attempts_no_abandonment_bypass before insert on attempts\nwhen exists (\n    select 1 from attempts as a join attempt_abandonments as b using (attempt_id)\n    where a.work_unit_id = new.work_unit_id\n)\nbegin\n    select raise(abort, 'an abandoned work unit requires explicit safe replacement authority');\nend;\n\ncreate trigger attempts_no_replace before insert on attempts\nwhen exists (select 1 from attempts where attempt_id = new.attempt_id)\nbegin\n    select raise(abort, 'attempt identity and bindings cannot be replaced');\nend;\n\ncreate trigger worktree_assignments_require_current before update on worktree_assignments\nwhen not exists (\n    select 1 from attempts where attempt_id = new.attempt_id and is_current = 1\n)\nbegin\n    select raise(abort, 'only a current attempt may acknowledge provisioning');\nend;\n\ncreate table attempt_retirements (\n    attempt_id text primary key references attempt_abandonments (attempt_id),\n    ceased_at text not null,\n    proof_json text not null,\n    retired_at text\n) strict;\n\ncreate trigger attempt_retirements_no_replace before insert on attempt_retirements\nwhen exists (select 1 from attempt_retirements where attempt_id = new.attempt_id)\nbegin\n    select raise(abort, 'cessation proof cannot be replaced');\nend;\n\ncreate trigger attempt_retirements_stable before update on attempt_retirements\nwhen old.attempt_id <> new.attempt_id\n  or old.ceased_at <> new.ceased_at\n  or old.proof_json <> new.proof_json\n  or old.retired_at is not null\n  or new.retired_at is null\nbegin\n    select raise(abort, 'only retirement acknowledgment may follow cessation');\nend;\n\ncreate trigger attempt_retirements_no_delete before delete on attempt_retirements\nbegin\n    select raise(abort, 'cessation and retirement facts are durable');\nend;\n\ncreate table attempt_retries (\n    retry_id text primary key check (length(trim(retry_id)) > 0),\n    predecessor_attempt_id text not null unique references attempt_retirements (attempt_id),\n    attempt_id text not null unique references attempts (attempt_id) deferrable initially deferred,\n    workspace_root text not null,\n    target_json text not null,\n    requested_at text not null\n) strict;\n\ncreate trigger attempt_retries_safe before insert on attempt_retries\nwhen not exists (\n    select 1 from attempt_retirements as r\n    join attempt_abandonments as b using (attempt_id)\n    join attempts as a using (attempt_id)\n    where r.attempt_id = new.predecessor_attempt_id\n      and r.retired_at is not null and a.is_current = 0\n      and not exists (\n          select 1 from attempts where work_unit_id = a.work_unit_id and is_current = 1\n      )\n) or exists (select 1 from attempts where attempt_id = new.attempt_id)\nbegin\n    select raise(abort, 'retry requires an abandoned ceased retired predecessor and no current attempt');\nend;\n\ncreate trigger attempt_retries_no_replace before insert on attempt_retries\nwhen exists (\n    select 1 from attempt_retries where retry_id = new.retry_id\n      or predecessor_attempt_id = new.predecessor_attempt_id or attempt_id = new.attempt_id\n)\nbegin\n    select raise(abort, 'retry identity and lineage cannot be replaced');\nend;\n\ncreate trigger attempt_retries_no_update before update on attempt_retries\nbegin\n    select raise(abort, 'retry identity and lineage are immutable');\nend;\n\ncreate trigger attempt_retries_no_delete before delete on attempt_retries\nbegin\n    select raise(abort, 'retry identity and lineage are durable');\nend;\n\ndrop trigger attempts_no_abandonment_bypass;\ncreate trigger attempts_no_abandonment_bypass before insert on attempts\nwhen (exists (\n    select 1 from attempts as a join attempt_abandonments as b using (attempt_id)\n    where a.work_unit_id = new.work_unit_id\n) or exists (select 1 from attempt_retries where attempt_id = new.attempt_id))\nand not exists (\n    select 1 from attempt_retries as r\n    join attempts as p on p.attempt_id = r.predecessor_attempt_id\n    join attempt_retirements as t on t.attempt_id = p.attempt_id\n    where r.attempt_id = new.attempt_id and t.retired_at is not null\n      and p.work_unit_id = new.work_unit_id\n      and p.contract_revision_id = new.contract_revision_id\n      and p.b1_repository = new.b1_repository\n      and p.b1_commit_oid = new.b1_commit_oid\n      and p.b1_material_sha256 = new.b1_material_sha256\n      and p.b1_requested_revision = new.b1_requested_revision\n)\nbegin\n    select raise(abort, 'an abandoned work unit requires explicit safe replacement authority');\nend;\n\ncreate table attempt_finalizations (\n    attempt_id text primary key references attempts (attempt_id),\n    started_at text not null\n) strict;\n\ncreate trigger attempt_finalizations_current before insert on attempt_finalizations\nwhen not exists (\n    select 1 from attempts as a\n    join attempt_submissions as s using (attempt_id)\n    join admission_decisions as d using (contract_revision_id)\n    where a.attempt_id = new.attempt_id and a.is_current = 1\n      and s.state = 'correlated' and d.outcome = 'admitted'\n      and not exists (select 1 from final_assurance where attempt_id = a.attempt_id)\n      and d.work_unit_id = a.work_unit_id\n      and not exists (select 1 from attempt_abandonments where attempt_id = a.attempt_id)\n      and not exists (select 1 from work_unit_dispositions where work_unit_id = a.work_unit_id)\n)\nbegin\n    select raise(abort, 'finalization requires current admitted correlated authority');\nend;\n\ncreate table work_unit_dispositions (\n    work_unit_id text primary key references work_units (work_unit_id),\n    contract_revision_id text not null references contract_revisions (contract_revision_id),\n    attempt_id text not null unique references final_assurance (attempt_id),\n    outcome text not null check (outcome = 'succeeded'),\n    completed_at text not null\n) strict;\n\ncreate trigger work_unit_dispositions_bound before insert on work_unit_dispositions\nwhen not exists (\n    select 1 from attempts as a\n    join contract_revisions as c using (contract_revision_id)\n    join admission_decisions as d using (contract_revision_id)\n    join attempt_submissions as s using (attempt_id)\n    join final_assurance as f using (attempt_id)\n    join attempt_finalizations as z using (attempt_id)\n    where a.attempt_id = new.attempt_id and a.is_current = 1\n      and a.work_unit_id = new.work_unit_id\n      and a.contract_revision_id = new.contract_revision_id\n      and c.work_unit_id = a.work_unit_id and d.work_unit_id = a.work_unit_id\n      and d.outcome = 'admitted' and s.state = 'correlated'\n      and f.zeroshot_run_id = s.zeroshot_run_id\n      and json_extract(cast(c.canonical_bytes as text), '$.requiredeffects') = '[]'\n      and json_extract(f.record_json, '$.attemptid') = a.attempt_id\n      and json_extract(f.record_json, '$.contractrevisionid') = a.contract_revision_id\n      and json_extract(f.record_json, '$.runid') = s.zeroshot_run_id\n      and not exists (select 1 from attempt_abandonments where attempt_id = a.attempt_id)\n)\nbegin\n    select raise(abort, 'disposition requires same admitted no-effect contract and current complete custody');\nend;\n\ncreate trigger attempt_abandonments_no_completed before insert on attempt_abandonments\nwhen exists (select 1 from work_unit_dispositions where attempt_id = new.attempt_id)\nbegin\n    select raise(abort, 'completed disposition cannot be abandoned');\nend;\n\ncreate trigger attempts_no_completed_work_unit before insert on attempts\nwhen exists (select 1 from work_unit_dispositions where work_unit_id = new.work_unit_id)\nbegin\n    select raise(abort, 'completed work unit cannot acquire new attempt authority');\nend;\n\ndrop trigger attempts_no_update;\ncreate trigger attempts_no_update before update on attempts\nwhen old.attempt_id <> new.attempt_id\n  or old.work_unit_id <> new.work_unit_id\n  or old.contract_revision_id <> new.contract_revision_id\n  or old.b1_repository <> new.b1_repository\n  or old.b1_commit_oid <> new.b1_commit_oid\n  or old.b1_material_sha256 <> new.b1_material_sha256\n  or old.b1_requested_revision <> new.b1_requested_revision\n  or old.admitted_at <> new.admitted_at\n  or not (old.is_current = 1 and new.is_current = 0)\n  or not (exists (select 1 from attempt_abandonments where attempt_id = old.attempt_id)\n          or exists (select 1 from work_unit_dispositions where attempt_id = old.attempt_id))\nbegin\n    select raise(abort, 'attempt bindings are immutable; only abandonment or disposition removes currentness');\nend;\n\ncreate trigger work_unit_dispositions_remove_current after insert on work_unit_dispositions\nbegin\n    update attempts set is_current = 0 where attempt_id = new.attempt_id;\nend;\n\ncreate trigger attempt_finalizations_no_replace before insert on attempt_finalizations\nwhen exists (select 1 from attempt_finalizations where attempt_id = new.attempt_id)\nbegin\n    select raise(abort, 'attempt_finalizations cannot be replaced');\nend;\ncreate trigger attempt_finalizations_no_update before update on attempt_finalizations\nbegin\n    select raise(abort, 'attempt_finalizations is immutable');\nend;\ncreate trigger attempt_finalizations_no_delete before delete on attempt_finalizations\nbegin\n    select raise(abort, 'attempt_finalizations is durable');\nend;\n\ncreate trigger work_unit_dispositions_no_replace before insert on work_unit_dispositions\nwhen exists (select 1 from work_unit_dispositions where work_unit_id = new.work_unit_id or attempt_id = new.attempt_id)\nbegin\n    select raise(abort, 'work_unit_dispositions cannot be replaced');\nend;\ncreate trigger work_unit_dispositions_no_update before update on work_unit_dispositions\nbegin\n    select raise(abort, 'work_unit_dispositions is immutable');\nend;\ncreate trigger work_unit_dispositions_no_delete before delete on work_unit_dispositions\nbegin\n    select raise(abort, 'work_unit_dispositions is durable');\nend;\n"
+
+tests/test_store_boundary.py:143: AssertionError
+_ RuntimeBoundaryTests.test_only_provisioning_may_take_a_host_lock (module='disposition.py') _
+
+self = <test_store_boundary.RuntimeBoundaryTests testMethod=test_only_provisioning_may_take_a_host_lock>
+
+                self.assertLessEqual(roots, allowed, f"{module.name} grew a dependency")
+
+    def test_only_provisioning_may_take_a_host_lock(self) -> None:
+        """A file lock is host-local mutual exclusion, not durable authority.
+
+        The store's constraints decide who owns what; only the module that has
+        to keep two live processes out of one half-built worktree may lock.
+        """
+
+        for module in product_modules():
+            if module.name in LOCK_CAPABLE_MODULES:
+>               continue
+E               AssertionError: 'fcntl' unexpectedly found in {'fcntl', 'asyncio', 'os', '__future__', 'json', 'contextlib', 'dataclasses', 'hashlib'}
+
+tests/test_store_boundary.py:177: AssertionError
+_ RuntimeBoundaryTests.test_the_package_opens_no_socket_or_network_client (module='disposition.py') _
+
+self = <test_store_boundary.RuntimeBoundaryTests testMethod=test_the_package_opens_no_socket_or_network_client>
+
+        )
+
+    def test_the_package_opens_no_socket_or_network_client(self) -> None:
+        forbidden = {"socket", "http", "urllib", "ssl", "asyncio"}
+        for module in product_modules():
+>           with self.subTest(module=module.name):
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: Items in the first set but not the second:
+E           'asyncio'
+
+tests/test_store_boundary.py:208: AssertionError
+_ RuntimeBoundaryTests.test_the_product_package_imports_only_the_standard_library (module='disposition.py') _
+
+self = <test_store_boundary.RuntimeBoundaryTests testMethod=test_the_product_package_imports_only_the_standard_library>
+
+
+    class RuntimeBoundaryTests(unittest.TestCase):
+        def test_the_product_package_imports_only_the_standard_library(self) -> None:
+            for module in product_modules():
+                with self.subTest(module=module.name):
+                    allowed = set(STDLIB_ONLY)
+                    if module.name == "zeroshot_sdk.py":
+                        allowed.update({"asyncio", "importlib", "zeroshot"})
+                    if module.name in LOCK_CAPABLE_MODULES:
+                        allowed.add("fcntl")
+                    if module.name == "mechanical_evidence.py":
+                        allowed.update({"platform", "tempfile"})
+                    if module.name == "containment.py":
+                        allowed.update({"ctypes", "select", "signal", "tempfile"})
+                    if module.name == "final_material.py":
+                        allowed.update({"base64", "stat"})
+                    if module.name == "store.py":
+>                       allowed.add("base64")
+E                       AssertionError: {'fcntl', 'asyncio', 'os', '__future__', 'json', 'contextlib', 'dataclasses', 'hashlib'} not less than or equal to {'os', '__future__', 'json', 'contextlib', 'sqlite3', 'typing', 're', 'subprocess', 'dataclasses', 'sys', 'datetime', 'uuid', 'pathlib', 'hashlib', 'collections'} : disposition.py grew a dependency
+
+tests/test_store_boundary.py:164: AssertionError
+=========================== short test summary info ============================
+SUBFAILED(name='work_unit_dispositions', term='disposition') tests/test_store_boundary.py::SchemaBoundaryTests::test_no_table_or_column_mirrors_run_or_later_phase_state
+FAILED tests/test_store_boundary.py::SchemaBoundaryTests::test_the_schema_holds_only_the_admission_nucleus
+SUBFAILED(term='disposition') tests/test_store_boundary.py::SchemaBoundaryTests::test_the_schema_text_declares_no_deferred_machinery
+SUBFAILED(module='disposition.py') tests/test_store_boundary.py::RuntimeBoundaryTests::test_only_provisioning_may_take_a_host_lock
+SUBFAILED(module='disposition.py') tests/test_store_boundary.py::RuntimeBoundaryTests::test_the_package_opens_no_socket_or_network_client
+SUBFAILED(module='disposition.py') tests/test_store_boundary.py::RuntimeBoundaryTests::test_the_product_package_imports_only_the_standard_library
+6 failed, 364 passed, 54 skipped, 2520 subtests passed in 65.24s (0:01:05)

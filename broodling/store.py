@@ -55,6 +55,7 @@ from .profile import assert_supported_runtime, product_configuration
 from .schema import (
     ABANDONMENT_SQL,
     ASSURANCE_SQL,
+    DISPOSITION_SQL,
     RETIREMENT_SQL,
     RETRY_SQL,
     SCHEMA_SHA256,
@@ -66,6 +67,7 @@ from .schema import (
     V4_SCHEMA_SHA256,
     V5_SCHEMA_SHA256,
     V6_SCHEMA_SHA256,
+    V7_SCHEMA_SHA256,
 )
 from .starting_state import StartingState, admitted_material_digest
 from .workspace import (
@@ -349,6 +351,11 @@ class BroodlingStore:
             "5": (V5_SCHEMA_SHA256, RETIREMENT_SQL + RETRY_SQL),
             "6": (V6_SCHEMA_SHA256, RETRY_SQL),
         }
+        migrations = {
+            version: (digest, sql + DISPOSITION_SQL)
+            for version, (digest, sql) in migrations.items()
+        }
+        migrations["7"] = (V7_SCHEMA_SHA256, DISPOSITION_SQL)
         if meta.get("schema_version") in migrations:
             # Acquire before rereading: concurrent openers must migrate once.
             with self._write() as connection:
@@ -886,6 +893,16 @@ class BroodlingStore:
         )
 
         with self._write():
+            if (
+                self._connection.execute(
+                    "SELECT 1 FROM work_unit_dispositions WHERE work_unit_id = ?",
+                    (work_unit.work_unit_id,),
+                ).fetchone()
+                is not None
+            ):
+                raise StaleAttempt(
+                    "completed Work Unit cannot acquire current authority"
+                )
             abandoned = self._connection.execute(
                 "SELECT b.attempt_id FROM attempt_abandonments AS b "
                 "JOIN attempts AS a USING (attempt_id) WHERE a.work_unit_id = ?",

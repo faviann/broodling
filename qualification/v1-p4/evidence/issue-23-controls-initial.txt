@@ -1,0 +1,18 @@
+Extracted observations from tool-session output; this is not a full raw log.
+
+Command: /home/faviann/.cache/broodling-zeroshot-venv/bin/python -m pytest tests/test_disposition_public.py -x -q
+Tool session: 84722
+Summary: 5 failed, 5 passed, 11 subtests passed in 225.19s (0:03:45)
+Failures: after-output, during-custody, after-custody, before-commit, after-commit subprocess controls.
+Each child failed before running its control with SchemaVersionMismatch because the product schema changed after the parent test interpreter imported its schema definition.
+Example retained exception text:
+broodling.errors.SchemaVersionMismatch: store at /tmp/broodling-p2-5o90de0z/state/broodling.sqlite3 was initialized from a different schema definition ('d1f1ba1c653d5fc65f4276be882a1ca07666398b964d622a8e35c6c74a8d7371')
+Expected child return code: -9 (SIGKILL). Observed child return code: 1.
+This pre-freeze run cannot qualify the crash boundaries. Fresh execution against the final frozen schema is required.
+
+Separate initial A1/A2 focused test, tool session 59888:
+Summary: 2 failed, 1 passed, 2 warnings in 74.71s (0:01:14)
+Both observation/custody boundary subcases reached replacement submission, then failed with RuntimeError: asyncio.run() cannot be called from a running event loop.
+Cause: test fixture invoked synchronous RetryCoordinator.retry inside its async delay hook.
+Test correction: submit replacement with asyncio.to_thread and an independently opened store/RetryCoordinator; no product workaround or product change.
+Fresh focused execution log: /dev/shm/issue23-focused-final.txt

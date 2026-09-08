@@ -1,0 +1,27 @@
+{
+  "checks": {
+    "adjudicatedSubstantiveDirective": false,
+    "allRequiredActualProductRolesObserved": false,
+    "checkerUnchanged": false,
+    "currentFinalAssessment": false,
+    "directiveRetainedThroughResolution": false,
+    "explicitEligibleResolution": false,
+    "explicitNoEffects": true,
+    "freshIndependentReview": false,
+    "independentInitialFinding": false,
+    "initialBoundaryActuallyFails": false,
+    "justificationReadableAfterFixtureCleanup": true,
+    "lastRepairIsRetainedGeneration": false,
+    "normalDurableSuccess": true,
+    "oneBoundedRepairPath": false,
+    "realSourceCorrection": false,
+    "renewedRequiredEvidencePasses": false,
+    "sameRenewedEvidenceRetained": false
+  },
+  "harnessSha256": "f7f0c178135cfa609af94dfea1b80d500924447c51fede931858089131cc8a3f",
+  "historicalRecordUnchanged": true,
+  "repairWitnessPassed": false,
+  "scope": "Read-only parent audit of unchanged repeat observations. Corrected harness predicate requires an actual repair occurrence and material on both sides; absent renewed material cannot count as a source correction. No new provider execution.",
+  "sourceRecord": "qualification/v1-p4/evidence/issue-23-real-provider-repeat.json",
+  "sourceRecordSha256": "7a2222e013ace9e10f66fe5cd700b7a2dee8fecb0fc799794ba9459edc205111"
+}

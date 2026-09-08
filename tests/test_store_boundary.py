@@ -34,7 +34,6 @@ DEFERRED_VOCABULARY = (
     "receipt",
     "watermark",
     "acceptance",
-    "disposition",
     "adjudication",
     "review",
     "provider",
@@ -57,7 +56,7 @@ PROCESS_CAPABLE_MODULES = {
 #: worktree is single-writer on this host, which is what `fcntl` buys; it is
 #: mutual exclusion between live processes, never durable authority, so nothing
 #: that records a durable fact may reach for it.
-LOCK_CAPABLE_MODULES = {"provisioning.py", "containment.py"}
+LOCK_CAPABLE_MODULES = {"provisioning.py", "containment.py", "disposition.py"}
 
 STDLIB_ONLY = {
     "__future__",
@@ -100,6 +99,7 @@ class SchemaBoundaryTests(StoreTestCase):
             (
                 "admission_decisions",
                 "attempt_abandonments",
+                "attempt_finalizations",
                 "attempt_retirements",
                 "attempt_retries",
                 "attempt_submissions",
@@ -109,6 +109,7 @@ class SchemaBoundaryTests(StoreTestCase):
                 "entitled_sources",
                 "final_assurance",
                 "schema_meta",
+                "work_unit_dispositions",
                 "work_unit_submissions",
                 "work_units",
                 "worktree_assignments",
@@ -138,7 +139,7 @@ class SchemaBoundaryTests(StoreTestCase):
 
     def test_the_schema_text_declares_no_deferred_machinery(self) -> None:
         lowered = SCHEMA_SQL.lower()
-        for term in ("runledger", "candidate_seal", "disposition", "retry_policy"):
+        for term in ("runledger", "candidate_seal", "retry_policy"):
             with self.subTest(term=term):
                 self.assertNotIn(term, lowered)
 
@@ -150,6 +151,8 @@ class RuntimeBoundaryTests(unittest.TestCase):
                 allowed = set(STDLIB_ONLY)
                 if module.name == "zeroshot_sdk.py":
                     allowed.update({"asyncio", "importlib", "zeroshot"})
+                if module.name == "disposition.py":
+                    allowed.add("asyncio")
                 if module.name in LOCK_CAPABLE_MODULES:
                     allowed.add("fcntl")
                 if module.name == "mechanical_evidence.py":
@@ -204,7 +207,11 @@ class RuntimeBoundaryTests(unittest.TestCase):
         forbidden = {"socket", "http", "urllib", "ssl", "asyncio"}
         for module in product_modules():
             with self.subTest(module=module.name):
-                allowed = {"asyncio"} if module.name == "zeroshot_sdk.py" else set()
+                allowed = (
+                    {"asyncio"}
+                    if module.name in {"zeroshot_sdk.py", "disposition.py"}
+                    else set()
+                )
                 self.assertEqual(imported_roots(module) & forbidden, allowed)
 
     def test_only_git_profile_and_admitted_evidence_leaf_may_start_a_process(

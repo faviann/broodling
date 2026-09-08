@@ -1,0 +1,154 @@
+{
+  "cessation": {
+    "launchesClosed": true,
+    "physicalCessationConfirmed": true,
+    "scope": "Fixture-only cleanup after normal committed disposition; no stop or semantic recovery."
+  },
+  "checks": {
+    "allFixtureRootsRemoved": true,
+    "sameCustodyWithoutRuntimeOrWorktree": true,
+    "sameDispositionWithoutRuntimeOrWorktree": true
+  },
+  "deletedFixtureRoots": [
+    "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-3dclsa0j",
+    "/home/faviann/.cache/broodling-tests/broodling-source-_keup4xx",
+    "/tmp/broodling-p2-7gf917d7",
+    "/dev/shm/issue23-provider-y_07rv_o"
+  ],
+  "dispositionBeforeCleanup": {
+    "attempt_id": "at-95bbfdb94ea442fbbc843db07a665610e4663ba3e53ca1dcba6785e5d9cdac7f",
+    "completed_at": "2026-09-08T19:28:52.783981+00:00",
+    "contract_revision_id": "cr-3f0cef9c15b3a259a204651bc2c33d3836fea7e4e96fe327e19d9c4f8a1a7eeb",
+    "outcome": "SUCCEEDED",
+    "work_unit_id": "wu-155aedcbf2fc03a39da9e0ac61e44839d1e436ad27b6318cce6349f00e1442ea"
+  },
+  "finalFiles": {
+    "README.md": "Finite quota migration fixture. The frozen Contract governs.\n",
+    "check_quota.py": "import json\nimport sys\nfrom quota import can_consume, legacy_allows\n\ncases = [('below', 4, 5, True), ('equal', 5, 5, False), ('above', 6, 5, False)]\nobservations = []\nfor name, used, limit, expected in cases:\n    actual = can_consume(used, limit)\n    legacy = legacy_allows(used, limit)\n    observations.append(dict(case=name, used=used, limit=limit, expected=expected,\n                             actual=actual, legacy=legacy,\n                             passed=actual is expected and legacy is expected))\nprint(json.dumps(observations, sort_keys=True))\nsys.exit(0 if all(item['passed'] for item in observations) else 1)\n",
+    "quota.py": "def legacy_allows(used, limit):\n    return used < limit\n\n\ndef can_consume(used, limit):\n    return legacy_allows(used, limit)\n"
+  },
+  "finalOriginalArtifactsSha256": {
+    "/home/faviann/repos/broodling/qualification/v1-p4/evidence/issue-23-real-provider.json": "d337dfe94ec5727ae5e1baf87999318e42b940f3be1f62878140e8fc60a6c091",
+    "/home/faviann/repos/broodling/qualification/v1-p4/evidence/issue-23-real-provider.sqlite3": "e27947a4bcb8d8c9bc024f16f3aefef3b05105fdc69c64064f25d57d5a318aa6"
+  },
+  "finishedAt": "2026-09-08T19:31:57.135499+00:00",
+  "originalArtifactsSha256": {
+    "/home/faviann/repos/broodling/qualification/v1-p4/evidence/issue-23-real-provider.json": "d337dfe94ec5727ae5e1baf87999318e42b940f3be1f62878140e8fc60a6c091",
+    "/home/faviann/repos/broodling/qualification/v1-p4/evidence/issue-23-real-provider.sqlite3": "e27947a4bcb8d8c9bc024f16f3aefef3b05105fdc69c64064f25d57d5a318aa6"
+  },
+  "originalArtifactsUnchanged": true,
+  "passed": true,
+  "rereadCustody": {
+    "assuranceContext": {
+      "comparisonBase": "858edb81743f8e28b46354589652ebe577dba70c",
+      "directiveContent": {
+        "correction": "",
+        "directive": ""
+      },
+      "findingContent": "No findings. Final quota.py defines legacy_allows as used < limit and can_consume as a delegating wrapper, so both return the required bool for nonnegative integer inputs. The complete below/equal/above population produced True/False/False for both functions with exit code 0. check_quota.py is byte-for-byte identical to comparison base 858edb81743f8e28b46354589652ebe577dba70c, and the independently rerun checker produced the same passing three-case output without contradictions. README.md is unchanged from the comparison base. The recorded host, read-only/no-network mode, command, cwd, materials, and population are present and consistent with the Contract.",
+      "findings": "clean",
+      "obligation": "none"
+    },
+    "attemptId": "at-95bbfdb94ea442fbbc843db07a665610e4663ba3e53ca1dcba6785e5d9cdac7f",
+    "candidateGeneration": {
+      "mutationExecution": "nv2-e90abff49b909e85354ca895da12c2ad38bdd9bb5b63ea6f0c6616091ae99e5d",
+      "mutationNode": "implement"
+    },
+    "contractRevisionId": "cr-3f0cef9c15b3a259a204651bc2c33d3836fea7e4e96fe327e19d9c4f8a1a7eeb",
+    "evidenceContent": {
+      "error": "",
+      "observations": [
+        {
+          "argv": [
+            "/usr/bin/python3",
+            "-B",
+            "check_quota.py"
+          ],
+          "criterionId": "quota-boundary",
+          "cwd": ".",
+          "exitCode": 0,
+          "host": "{\"machine\": \"x86_64\", \"node\": \"workstation\", \"processor\": \"\", \"release\": \"6.17.13-2-pve\", \"system\": \"Linux\", \"version\": \"#1 SMP PREEMPT_DYNAMIC PMX 6.17.13-2 (2026-03-13T08:06Z)\"}",
+          "materials": [
+            {
+              "content": "def legacy_allows(used, limit):\n    return used < limit\n\n\ndef can_consume(used, limit):\n    return legacy_allows(used, limit)\n",
+              "path": "quota.py"
+            },
+            {
+              "content": "import json\nimport sys\nfrom quota import can_consume, legacy_allows\n\ncases = [('below', 4, 5, True), ('equal', 5, 5, False), ('above', 6, 5, False)]\nobservations = []\nfor name, used, limit, expected in cases:\n    actual = can_consume(used, limit)\n    legacy = legacy_allows(used, limit)\n    observations.append(dict(case=name, used=used, limit=limit, expected=expected,\n                             actual=actual, legacy=legacy,\n                             passed=actual is expected and legacy is expected))\nprint(json.dumps(observations, sort_keys=True))\nsys.exit(0 if all(item['passed'] for item in observations) else 1)\n",
+              "path": "check_quota.py"
+            }
+          ],
+          "mode": "read-only/no-network",
+          "population": "{\"kind\":\"enumerated\",\"members\":[\"below\",\"equal\",\"above\"],\"surface\":\"\"}",
+          "stderr": "",
+          "stdout": "[{\"actual\": true, \"case\": \"below\", \"expected\": true, \"legacy\": true, \"limit\": 5, \"passed\": true, \"used\": 4}, {\"actual\": false, \"case\": \"equal\", \"expected\": false, \"legacy\": false, \"limit\": 5, \"passed\": true, \"used\": 5}, {\"actual\": false, \"case\": \"above\", \"expected\": false, \"legacy\": false, \"limit\": 5, \"passed\": true, \"used\": 6}]\n"
+        }
+      ]
+    },
+    "finalOccurrence": {
+      "execution": "nv2-9c1186e6177f8cf7cbb09998816f3889a432804f2013fd05e48735e8b56dd7d6",
+      "node": "final_assessment_authority_clean"
+    },
+    "finalRationale": [
+      {
+        "criterionId": "quota-boundary",
+        "rationale": "Satisfied. The evidenced final quota.py defines legacy_allows(used, limit) as used < limit and defines can_consume(used, limit) as a delegating wrapper returning legacy_allows(used, limit), so both expose the required Boolean predicate. The frozen enumerated population was exercised completely: (4,5) returned True, (5,5) returned False, and (6,5) returned False for both functions. The prescribed command /usr/bin/python3 -B check_quota.py exited 0, and its recorded output shows every case passed without contradiction. The evidence further establishes that check_quota.py remained byte-for-byte equal to the comparison base, satisfying the checker-integrity requirement."
+      }
+    ],
+    "format": "broodling.final-assurance/v1",
+    "runId": "01a0827c-fcd3-7db0-8deb-593344fb9e97",
+    "selectedMaterial": [
+      {
+        "contentBase64": "ZGVmIGxlZ2FjeV9hbGxvd3ModXNlZCwgbGltaXQpOgogICAgcmV0dXJuIHVzZWQgPCBsaW1pdAoKCmRlZiBjYW5fY29uc3VtZSh1c2VkLCBsaW1pdCk6CiAgICByZXR1cm4gbGVnYWN5X2FsbG93cyh1c2VkLCBsaW1pdCkK",
+        "kind": "file",
+        "mode": "100644",
+        "path": "quota.py",
+        "state": "final_candidate"
+      },
+      {
+        "contentBase64": "ZGVmIGxlZ2FjeV9hbGxvd3ModXNlZCwgbGltaXQpOgogICAgcmV0dXJuIHVzZWQgPD0gbGltaXQK",
+        "kind": "file",
+        "mode": "100644",
+        "path": "quota.py",
+        "state": "comparison_base"
+      },
+      {
+        "contentBase64": "aW1wb3J0IGpzb24KaW1wb3J0IHN5cwpmcm9tIHF1b3RhIGltcG9ydCBjYW5fY29uc3VtZSwgbGVnYWN5X2FsbG93cwoKY2FzZXMgPSBbKCdiZWxvdycsIDQsIDUsIFRydWUpLCAoJ2VxdWFsJywgNSwgNSwgRmFsc2UpLCAoJ2Fib3ZlJywgNiwgNSwgRmFsc2UpXQpvYnNlcnZhdGlvbnMgPSBbXQpmb3IgbmFtZSwgdXNlZCwgbGltaXQsIGV4cGVjdGVkIGluIGNhc2VzOgogICAgYWN0dWFsID0gY2FuX2NvbnN1bWUodXNlZCwgbGltaXQpCiAgICBsZWdhY3kgPSBsZWdhY3lfYWxsb3dzKHVzZWQsIGxpbWl0KQogICAgb2JzZXJ2YXRpb25zLmFwcGVuZChkaWN0KGNhc2U9bmFtZSwgdXNlZD11c2VkLCBsaW1pdD1saW1pdCwgZXhwZWN0ZWQ9ZXhwZWN0ZWQsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgYWN0dWFsPWFjdHVhbCwgbGVnYWN5PWxlZ2FjeSwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICBwYXNzZWQ9YWN0dWFsIGlzIGV4cGVjdGVkIGFuZCBsZWdhY3kgaXMgZXhwZWN0ZWQpKQpwcmludChqc29uLmR1bXBzKG9ic2VydmF0aW9ucywgc29ydF9rZXlzPVRydWUpKQpzeXMuZXhpdCgwIGlmIGFsbChpdGVtWydwYXNzZWQnXSBmb3IgaXRlbSBpbiBvYnNlcnZhdGlvbnMpIGVsc2UgMSkK",
+        "kind": "file",
+        "mode": "100644",
+        "path": "check_quota.py",
+        "state": "final_candidate"
+      },
+      {
+        "contentBase64": "aW1wb3J0IGpzb24KaW1wb3J0IHN5cwpmcm9tIHF1b3RhIGltcG9ydCBjYW5fY29uc3VtZSwgbGVnYWN5X2FsbG93cwoKY2FzZXMgPSBbKCdiZWxvdycsIDQsIDUsIFRydWUpLCAoJ2VxdWFsJywgNSwgNSwgRmFsc2UpLCAoJ2Fib3ZlJywgNiwgNSwgRmFsc2UpXQpvYnNlcnZhdGlvbnMgPSBbXQpmb3IgbmFtZSwgdXNlZCwgbGltaXQsIGV4cGVjdGVkIGluIGNhc2VzOgogICAgYWN0dWFsID0gY2FuX2NvbnN1bWUodXNlZCwgbGltaXQpCiAgICBsZWdhY3kgPSBsZWdhY3lfYWxsb3dzKHVzZWQsIGxpbWl0KQogICAgb2JzZXJ2YXRpb25zLmFwcGVuZChkaWN0KGNhc2U9bmFtZSwgdXNlZD11c2VkLCBsaW1pdD1saW1pdCwgZXhwZWN0ZWQ9ZXhwZWN0ZWQsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgYWN0dWFsPWFjdHVhbCwgbGVnYWN5PWxlZ2FjeSwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICBwYXNzZWQ9YWN0dWFsIGlzIGV4cGVjdGVkIGFuZCBsZWdhY3kgaXMgZXhwZWN0ZWQpKQpwcmludChqc29uLmR1bXBzKG9ic2VydmF0aW9ucywgc29ydF9rZXlzPVRydWUpKQpzeXMuZXhpdCgwIGlmIGFsbChpdGVtWydwYXNzZWQnXSBmb3IgaXRlbSBpbiBvYnNlcnZhdGlvbnMpIGVsc2UgMSkK",
+        "kind": "file",
+        "mode": "100644",
+        "path": "check_quota.py",
+        "state": "comparison_base"
+      },
+      {
+        "contentBase64": "RmluaXRlIHF1b3RhIG1pZ3JhdGlvbiBmaXh0dXJlLiBUaGUgZnJvemVuIENvbnRyYWN0IGdvdmVybnMuCg==",
+        "kind": "file",
+        "mode": "100644",
+        "path": "README.md",
+        "state": "final_candidate"
+      },
+      {
+        "contentBase64": "RmluaXRlIHF1b3RhIG1pZ3JhdGlvbiBmaXh0dXJlLiBUaGUgZnJvemVuIENvbnRyYWN0IGdvdmVybnMuCg==",
+        "kind": "file",
+        "mode": "100644",
+        "path": "README.md",
+        "state": "comparison_base"
+      }
+    ]
+  },
+  "rereadDisposition": {
+    "attempt_id": "at-95bbfdb94ea442fbbc843db07a665610e4663ba3e53ca1dcba6785e5d9cdac7f",
+    "completed_at": "2026-09-08T19:28:52.783981+00:00",
+    "contract_revision_id": "cr-3f0cef9c15b3a259a204651bc2c33d3836fea7e4e96fe327e19d9c4f8a1a7eeb",
+    "outcome": "SUCCEEDED",
+    "work_unit_id": "wu-155aedcbf2fc03a39da9e0ac61e44839d1e436ad27b6318cce6349f00e1442ea"
+  },
+  "scope": "Separate fixture-only cleanup of completed clean-only first actual run. Does not change original qualification verdict or create repair evidence.",
+  "startedAt": "2026-09-08T19:31:57.102898+00:00"
+}

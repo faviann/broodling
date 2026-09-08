@@ -1,0 +1,12 @@
+{
+  "checks": {
+    "storeInitialized": true,
+    "storeOutsideAmbientTmp": true,
+    "storeOutsideAttemptWorkspace": true
+  },
+  "harnessSha256": "325c1ff582246bc8c9c00d8486fe8c054c209d40809120df6548e8f85d1d7575",
+  "providerDispatches": 0,
+  "scope": "Fixture-only durable control-store placement preflight; no provider launched and no real repair evidence.",
+  "storePath": "/home/faviann/.cache/broodling-tests/issue23-control-preflight-1b29_g7w/broodling-p2-0o_db4rx/state/broodling.sqlite3",
+  "workspaceRoot": "/home/faviann/.cache/broodling-tests/broodling-p2-workspace-rq9tgf4b"
+}

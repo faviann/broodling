@@ -83,10 +83,21 @@ class FinalAssuranceCoordinator:
         return attempt, assignment, submitted, revision, request
 
     async def capture(self, attempt_id: str) -> FinalAssuranceRecord:
+        return await self._capture(attempt_id, fresh=False)
+
+    async def _capture_fresh(self, attempt_id: str) -> FinalAssuranceRecord:
+        """One uninterrupted disposition owner may acquire only new custody."""
+        return await self._capture(attempt_id, fresh=True)
+
+    async def _capture(self, attempt_id: str, *, fresh: bool) -> FinalAssuranceRecord:
         with self.store._write():
             self.submission._current(attempt_id)
             existing = self.record(attempt_id)
             if existing is not None:
+                if fresh:
+                    raise SubmissionConflict(
+                        "prior P3 custody cannot authorize finalization"
+                    )
                 return existing
             _, _, submitted, _, request = self._bound(attempt_id)
         # No cursor, partial custody or observation state is persisted. A lost
@@ -96,6 +107,10 @@ class FinalAssuranceCoordinator:
             self.submission._current(attempt_id)
             existing = self.record(attempt_id)
             if existing is not None:
+                if fresh:
+                    raise SubmissionConflict(
+                        "prior P3 custody cannot authorize finalization"
+                    )
                 return existing
             attempt, assignment, current, revision, current_request = self._bound(
                 attempt_id

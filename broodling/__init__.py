@@ -16,8 +16,8 @@ assurance graph. Execution state, typed validation and routing remain in
 Zeroshot. Minimal final assurance custody retains declared source material and
 normal current-run assessment. Administrative abandonment and owned retirement
 require physical cessation. Explicit replacement allocates a fresh Attempt
-from the original admitted B1. Work Unit disposition and effects are outside
-this implementation boundary.
+from the original admitted B1. Normal finalization durably records justified
+no-effect Work Unit success; interrupted finalization abandons the Attempt.
 """
 
 from __future__ import annotations
@@ -43,12 +43,14 @@ from .contract import (
     RequiredEffect,
     SourceAttribution,
 )
+from .disposition import WorkUnitDisposition, WorkUnitDispositionCoordinator
 from .entitlement import SourceEntitlement, SourceSubmission
 from .errors import (
     AttemptAdmissionError,
     AttemptConflict,
     BroodlingError,
     ContractImmutabilityError,
+    FinalizationInterrupted,
     GitCommandError,
     InvalidWorkReference,
     SchemaVersionMismatch,
@@ -117,6 +119,7 @@ __all__ = [
     "FinalAssuranceCoordinator",
     "FinalAssuranceMaterial",
     "FinalAssuranceRecord",
+    "FinalizationInterrupted",
     "GitCommandError",
     "InvalidWorkReference",
     "MechanicalEvidence",
@@ -143,6 +146,8 @@ __all__ = [
     "UnsupportedStartingState",
     "UnsupportedWorkspaceRoot",
     "WorkReference",
+    "WorkUnitDisposition",
+    "WorkUnitDispositionCoordinator",
     "WorkUnitIdentityConflict",
     "WorkUnitRecord",
     "WorktreeAllocation",

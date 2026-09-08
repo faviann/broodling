@@ -6,6 +6,7 @@ import sqlite3
 from broodling.schema import (
     ABANDONMENT_SQL,
     ASSURANCE_SQL,
+    DISPOSITION_SQL,
     RETIREMENT_SQL,
     RETRY_SQL,
     SCHEMA_SQL,
@@ -15,11 +16,13 @@ from broodling.schema import (
     V4_SCHEMA_SHA256,
     V5_SCHEMA_SHA256,
     V6_SCHEMA_SHA256,
+    V7_SCHEMA_SHA256,
 )
 
 
 def published_schema(version):
-    v6 = SCHEMA_SQL.removesuffix(RETRY_SQL)
+    v7 = SCHEMA_SQL.removesuffix(DISPOSITION_SQL)
+    v6 = v7.removesuffix(RETRY_SQL)
     v5 = v6.removesuffix(RETIREMENT_SQL)
     v4 = v5.removesuffix(ABANDONMENT_SQL)
     v3 = v4.removesuffix(ASSURANCE_SQL)
@@ -30,6 +33,7 @@ def published_schema(version):
         4: (v4, V4_SCHEMA_SHA256),
         5: (v5, V5_SCHEMA_SHA256),
         6: (v6, V6_SCHEMA_SHA256),
+        7: (v7, V7_SCHEMA_SHA256),
     }[version]
     # A product edit to any old DDL must not silently change the fixture.
     assert hashlib.sha256(definition.encode()).hexdigest() == expected
