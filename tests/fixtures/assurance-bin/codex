@@ -113,7 +113,14 @@ def main():
             else "accepted"
         )
         response = {
-            "output": None,
+            "output": {
+                "finalRationale": [
+                    {
+                        "criterionId": "c1",
+                        "rationale": "Controlled final assessment of current candidate and bound evidence.",
+                    }
+                ]
+            },
             "signals": {"assessment": assessment},
             "diagnostic": diag,
         }

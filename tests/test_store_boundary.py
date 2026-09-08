@@ -1,7 +1,7 @@
 """The store must stay an admission nucleus: not a RunLedger mirror, not the harness.
 
-The admission schema stays within P2 while the P3 graph is a public runtime
-definition. No runtime history, candidate-seal state, recovery projection,
+The schema retains P2 facts plus one immutable final P3 custody row; the graph
+is a public runtime definition. No runtime history, candidate-seal state, recovery projection,
 effects or dependency on the qualification harness belongs in the store.
 """
 
@@ -99,6 +99,7 @@ class SchemaBoundaryTests(StoreTestCase):
                 "contract_revisions",
                 "contract_source_attributions",
                 "entitled_sources",
+                "final_assurance",
                 "schema_meta",
                 "work_unit_submissions",
                 "work_units",
@@ -192,7 +193,9 @@ class RuntimeBoundaryTests(unittest.TestCase):
                 allowed = {"asyncio"} if module.name == "zeroshot_sdk.py" else set()
                 self.assertEqual(imported_roots(module) & forbidden, allowed)
 
-    def test_only_git_profile_and_admitted_evidence_leaf_may_start_a_process(self) -> None:
+    def test_only_git_profile_and_admitted_evidence_leaf_may_start_a_process(
+        self,
+    ) -> None:
         for module in product_modules():
             if module.name in PROCESS_CAPABLE_MODULES:
                 continue
@@ -250,16 +253,15 @@ class SubmissionBoundaryTests(StoreTestCase):
             ],
         )
 
-    def test_sdk_adapter_has_no_observation_or_private_storage_surface(self):
+    def test_sdk_adapter_has_only_current_public_observation_and_no_private_storage(
+        self,
+    ):
         tree = ast.parse((PACKAGE / "zeroshot_sdk.py").read_text())
         forbidden = {
-            "status",
             "history",
-            "watch",
             "wait",
             "logs",
             "list_runs",
-            "get_run",
             "force_stop",
             "connect",
         }
@@ -269,4 +271,18 @@ class SubmissionBoundaryTests(StoreTestCase):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
         }
         self.assertFalse(calls & forbidden)
+        watches = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "watch"
+        ]
+        self.assertTrue(watches)
+        self.assertTrue(
+            all(
+                any(keyword.arg == "after" for keyword in node.keywords)
+                for node in watches
+            )
+        )
         self.assertNotIn("sqlite3", imported_roots(PACKAGE / "zeroshot_sdk.py"))

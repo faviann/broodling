@@ -56,11 +56,13 @@ Issue #17 adds the [product assurance graph](docs/implementation/v1-p3-assurance
 
 Issue #18 adds [explicit immutable mechanical-evidence declarations and the deterministic read-only evidence leaf](docs/implementation/v1-p3-evidence-review.md). Its [integration record](qualification/v1-p3/issue-18-evidence-review.md) retains actual SDK evidence, containment and real reviewer controls. The earlier blocked and pre-integration records remain historical evidence.
 
+Issue #19 has a [current-run observation and rationale foundation](qualification/v1-p3/issue-19-material-selection.md), but final candidate-material selection and complete custody are blocked on an explicit Contract selection decision. #19 remains incomplete and #20 has not begun.
+
 The historical [G1-core review](qualification/p1/issue-7-g1-core.md) remains **BLOCKED** under v0.3. Q2 and the bounded Q3 fixture retain their historical scoped passes; Q1/Q4/Q5/Q6 remain blocked, and [Q7/G1-effects](qualification/p1/issue-6-q7.md) remains independently blocked. v0.5 does not relabel those historical results.
 
 ## Product code
 
-The Broodling product package is `broodling/`, a Python 3.13 package whose admission/storage code uses the standard library; run submission additionally requires the exact G1-V1 qualified Zeroshot SDK/sidecar. It owns one SQLite database holding the durable admission and Attempt facts. Provisioning an Attempt worktree runs the local `git` binary — host-local administrative setup, not a delivery effect — and the narrow submission adapter invokes the official SDK/matching sidecar. It imports the SDK lazily, calls only public submit, and does not mirror the Zeroshot RunLedger.
+The Broodling product package is `broodling/`, a Python 3.13 package whose admission/storage code uses the standard library; run submission additionally requires the exact G1-V1 qualified Zeroshot SDK/sidecar. It owns one SQLite database holding the durable admission and Attempt facts. Provisioning an Attempt worktree runs the local `git` binary — host-local administrative setup, not a delivery effect — and the narrow submission adapter invokes the official SDK/matching sidecar. It imports the SDK lazily, uses public submission and forward observation of a current correlated run, and does not mirror the Zeroshot RunLedger.
 
 ```bash
 python -m pytest tests

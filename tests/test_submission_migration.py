@@ -10,6 +10,7 @@ class SubmissionMigrationTests(SubmissionCase):
     def make_v2(self):
         # Reverse only the new empty schema in this fixture; retain real admitted
         # #12/#13 data and every ownership/currentness trigger.
+        self.store.connection.execute("DROP TABLE final_assurance")
         self.store.connection.execute("DROP TABLE attempt_submissions")
         self.store.connection.executemany(
             "UPDATE schema_meta SET value = ? WHERE key = ?",

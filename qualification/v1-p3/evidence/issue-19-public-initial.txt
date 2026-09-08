@@ -1,0 +1,5 @@
+Command: /home/faviann/.cache/broodling-zeroshot-venv/bin/python -m pytest tests/test_final_assurance_public.py -q
+Result: 1 failed, 4 passed, 10 subtests passed in 167.11s (0:02:47)
+Failure: test_clean_repaired_and_forged_claims_keep_designated_current_authority, forged-identifiers subtest, UnsupportedRuntime: normal successful final occurrence was not observed.
+The run used the original provider diagnostic containing undeclared occurrence/generation/run/graph fields. They were corrected to serialized claims inside the declared diagnostic.note field while this suite was running; the forged control had already executed the old version. Clean/repaired/forged controls were rerun after the correction with actual output at /tmp/issue19-public-clean-repair-forged.txt.
+All invalid-authority/evidence/obligation controls, empty-rationale transport, and completed-run refusal passed in this suite.

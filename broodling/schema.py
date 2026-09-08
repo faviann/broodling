@@ -5,8 +5,8 @@ snapshots, immutable Contract revisions, admission decisions, and the immutable
 Attempt/B1/worktree-ownership records that admission allocates. It is
 deliberately *not* a Zeroshot RunLedger mirror — there is no table for runs, node
 occurrences, provider sessions, candidate seals, effect intents/receipts or
-completed-occurrence projections, and adding one is a schema change that the
-schema-shape tests will fail.
+completed-occurrence projections. One final_assurance row retains only completed
+P3 custody for an Attempt; it does not decide Work Unit disposition.
 
 Immutability is enforced in the database, not only in Python: append-only tables
 carry ``BEFORE UPDATE``/``BEFORE DELETE`` triggers, so a direct SQL amendment of
@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
+V3_SCHEMA_SHA256 = "663acf981b7b5379bde50f9446d12bee922c81bcbdcc1b4e7f15f6c4e5ea007f"
 V2_SCHEMA_SHA256 = "bbd7b68bdc66e6bc626f6f5d556e0efa3c9398476eb78b3f3ad75400ade29779"
 
 #: Tables this schema owns. The set is asserted by the tests, so a RunLedger
@@ -32,6 +33,7 @@ TABLES: tuple[str, ...] = (
     "contract_revisions",
     "contract_source_attributions",
     "entitled_sources",
+    "final_assurance",
     "schema_meta",
     "work_unit_submissions",
     "work_units",
@@ -293,7 +295,44 @@ BEGIN
 END;
 """
 
-SCHEMA_SQL += SUBMISSION_SQL
+ASSURANCE_SQL = """
+CREATE TABLE final_assurance (
+    attempt_id TEXT PRIMARY KEY REFERENCES attempts (attempt_id),
+    zeroshot_run_id TEXT NOT NULL UNIQUE,
+    record_json TEXT NOT NULL
+) STRICT;
+
+CREATE TRIGGER final_assurance_correlated_current BEFORE INSERT ON final_assurance
+WHEN NOT EXISTS (
+    SELECT 1 FROM attempt_submissions AS s JOIN attempts AS a USING (attempt_id)
+    WHERE s.attempt_id = NEW.attempt_id AND s.state = 'correlated'
+      AND s.zeroshot_run_id = NEW.zeroshot_run_id AND a.is_current = 1
+)
+BEGIN
+    SELECT RAISE(ABORT, 'final assurance requires the current correlated Attempt');
+END;
+
+CREATE TRIGGER final_assurance_no_replace BEFORE INSERT ON final_assurance
+WHEN EXISTS (
+    SELECT 1 FROM final_assurance
+    WHERE attempt_id = NEW.attempt_id OR zeroshot_run_id = NEW.zeroshot_run_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'final assurance custody cannot be replaced');
+END;
+
+CREATE TRIGGER final_assurance_no_update BEFORE UPDATE ON final_assurance
+BEGIN
+    SELECT RAISE(ABORT, 'final assurance custody is immutable');
+END;
+
+CREATE TRIGGER final_assurance_no_delete BEFORE DELETE ON final_assurance
+BEGIN
+    SELECT RAISE(ABORT, 'final assurance custody is durable');
+END;
+"""
+
+SCHEMA_SQL += SUBMISSION_SQL + ASSURANCE_SQL
 
 #: Digest of the exact DDL this build initializes. Recorded in ``schema_meta`` so
 #: a store written by a different DDL text is detected on reopen.
