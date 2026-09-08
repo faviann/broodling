@@ -1,0 +1,18 @@
+{
+  "captureCasesOnCurrentGraphRuntime": 13,
+  "captureSourceIdentitiesMatch": true,
+  "graphSha256": "6619b045f12637e82f0127033c71851eb92718df530e99e99cb16ad0accbb034",
+  "historicalGoverningG1G2Unchanged": true,
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "reviewedCommit": "d94eaa6aed176c49aeea0b441c31e44c2136013b",
+  "runtimeSha256": "05fd5af801591caf55464b20f7cc86d98abb20a6b38adf9f45671300342abad0",
+  "scope": "Read-only G3 source/evidence identity audit. Hashes identify reviewed software and records, not product candidate applicability.",
+  "sdkBuild": {
+    "sdkSourceSha256": "0263b63cb6c6991703f699919ea974ba502da23e3a14ab7d5ab8c5d5ac3b256e",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86"
+  },
+  "snapshot": "/dev/shm/broodling-g3-d94eaa6",
+  "snapshotFilesMatchingGit": 180,
+  "sqlite": "3.46.1"
+}
