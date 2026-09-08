@@ -38,7 +38,22 @@ class AdmittedAssuranceTests(unittest.TestCase):
                     + ROUND_ORDER
                     + ["final_assessment_authority_repaired"]
                 )
-                self.assertEqual(nodes(case), expected)
+                # Evidence runs in the real product deterministic leaf, so it is
+                # absent from the controlled model provider's event log.
+                self.assertEqual(
+                    nodes(case),
+                    [n for n in expected if not n.endswith("evidence_check")],
+                )
+                for event in case["events"]:
+                    if event["node"].endswith("review"):
+                        observation = event["input"]["evidenceContent"]["observations"][
+                            0
+                        ]
+                        self.assertEqual(observation["stdout"], event["candidate"])
+                        self.assertEqual(
+                            observation["materials"][0]["content"],
+                            "REQUIRED_RAW_EVIDENCE\n",
+                        )
                 for event in case["events"]:
                     self.assertIn("--ignore-user-config", event["argv"])
                     self.assertIn("--ignore-rules", event["argv"])

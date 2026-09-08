@@ -1,0 +1,1 @@
+Built wheel with uv build --wheel. Verified leaf/launcher exact bytes, executable launcher mode, and exclusion of tests/qualification assets.

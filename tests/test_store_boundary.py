@@ -44,7 +44,9 @@ DEFERRED_VOCABULARY = (
 #: `git` locally. The qualified Codex profile checks the installed CLI version
 #: before first dispatch; it does not start graph occurrences. Those belong to
 #: the public SDK and sidecar.
-PROCESS_CAPABLE_MODULES = {"git.py", "codex_profile.py"}
+# #18's explicitly admitted read-only evidence leaf starts only declared local
+# checks inside its sandbox; the existing SDK still owns occurrences/lifecycle.
+PROCESS_CAPABLE_MODULES = {"git.py", "codex_profile.py", "mechanical_evidence.py"}
 
 #: Modules permitted to take a host-local file lock. Materializing one Attempt's
 #: worktree is single-writer on this host, which is what `fcntl` buys; it is
@@ -141,6 +143,8 @@ class RuntimeBoundaryTests(unittest.TestCase):
                     allowed.update({"asyncio", "importlib", "zeroshot"})
                 if module.name in LOCK_CAPABLE_MODULES:
                     allowed.add("fcntl")
+                if module.name == "mechanical_evidence.py":
+                    allowed.update({"platform", "tempfile"})
                 roots = imported_roots(module) - {"broodling"}
                 self.assertLessEqual(roots, allowed, f"{module.name} grew a dependency")
 
@@ -188,7 +192,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
                 allowed = {"asyncio"} if module.name == "zeroshot_sdk.py" else set()
                 self.assertEqual(imported_roots(module) & forbidden, allowed)
 
-    def test_only_git_and_profile_preflight_may_start_a_process(self) -> None:
+    def test_only_git_profile_and_admitted_evidence_leaf_may_start_a_process(self) -> None:
         for module in product_modules():
             if module.name in PROCESS_CAPABLE_MODULES:
                 continue

@@ -370,8 +370,29 @@ def admitted_case(scenario):
         (repository / "evidence/raw.txt").write_text("REQUIRED_RAW_EVIDENCE\n")
         git(repository, "add", ".")
         git(repository, "commit", "-m", "assurance fixture inputs at B1")
+        from dataclasses import replace
+
+        from broodling.contract import MechanicalEvidence
+
+        contract = fixture.revision.contract
+        revision = fixture.store.record_contract_revision(
+            replace(
+                contract,
+                criteria=tuple(
+                    replace(
+                        item,
+                        mechanical_evidence=MechanicalEvidence(
+                            argv=("/usr/bin/cat", "candidate.txt"),
+                            materials=("evidence/raw.txt",),
+                        ),
+                    )
+                    for item in contract.criteria
+                ),
+            )
+        )
+        fixture.store.admit(revision.contract_revision_id)
         provisioned = fixture.provisioner().admit_and_provision(
-            fixture.revision.contract_revision_id, repository
+            revision.contract_revision_id, repository
         )
         run_root = Path(tempfile.mkdtemp(prefix="b17a-", dir="/dev/shm"))
         fixture.addCleanup(shutil.rmtree, run_root, ignore_errors=True)
@@ -424,7 +445,7 @@ def admitted_case(scenario):
             "replayedRunId": replay.run_id,
             "samePersistedRequest": replay.request_json == original_request,
             "workUnitId": fixture.work_unit.work_unit_id,
-            "contractRevisionId": fixture.revision.contract_revision_id,
+            "contractRevisionId": revision.contract_revision_id,
             "attemptId": provisioned.attempt.attempt_id,
             "graphSha256": canonical_hash(request["graph"]),
             "runtimeSha256": canonical_hash(request["runtime"]),

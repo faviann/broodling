@@ -2,7 +2,9 @@
 """Apply the qualified G1-V1/W4 profile to the sidecar's Codex invocation."""
 
 import os
+import runpy
 import sys
+from pathlib import Path
 
 
 def main() -> int:
@@ -14,6 +16,11 @@ def main() -> int:
     if any(not os.environ.get(name) for name in required):
         print("Broodling qualified Codex profile paths are required", file=sys.stderr)
         return 78
+    # This fixed flag is bound only to the two evidence occurrences by the
+    # admitted runtime's declared connection. Prompt text never selects a role.
+    if os.environ.get("BROODLING_EVIDENCE_LEAF"):
+        leaf = Path(__file__).resolve().parents[1] / "mechanical_evidence.py"
+        return runpy.run_path(str(leaf))["main"](sys.argv[1:])
     arguments = sys.argv[1:]
     filtered = []
     index = 0
@@ -21,7 +28,9 @@ def main() -> int:
         if (
             arguments[index] in {"--config", "-c"}
             and index + 1 < len(arguments)
-            and arguments[index + 1].startswith("sandbox_workspace_write.network_access=")
+            and arguments[index + 1].startswith(
+                "sandbox_workspace_write.network_access="
+            )
         ):
             index += 2
             continue

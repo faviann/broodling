@@ -121,15 +121,22 @@ class SubmissionCoordinator:
         identity and rejects a different protocol already frozen for the Attempt.
         """
         from .assurance_graph import assurance_graph, assurance_runtime, initial_state
+        from .contract import validate_mechanical_evidence
 
         self.submitter.require_assurance_profile()
         attempt = self.store.get_attempt(attempt_id)
         revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        try:
+            validate_mechanical_evidence(revision.contract)
+        except ValueError as error:
+            raise SubmissionNotReady(str(error)) from error
         return self.prepare(
             attempt_id,
             graph=assurance_graph(),
             runtime=assurance_runtime(),
-            initial_input=initial_state(revision.canonical_bytes.decode("utf-8")),
+            initial_input=initial_state(
+                revision.canonical_bytes.decode("utf-8"), attempt.b1_commit_oid
+            ),
             title="Broodling V1 assurance Attempt",
         )
 

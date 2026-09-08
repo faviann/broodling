@@ -1,18 +1,33 @@
 """The product protocol enters the existing durable P2 submission boundary."""
 
 import json
+from dataclasses import replace
 from unittest.mock import patch
 
 from submission_support import REQUEST, SubmissionCase
 from support import move_head
 
 from broodling.codex_profile import QualifiedCodexProfile
+from broodling.contract import MechanicalEvidence
 from broodling.errors import StaleAttempt, SubmissionConflict, SubmissionNotReady
 from broodling.submission import SubmissionCoordinator
 from broodling.zeroshot_sdk import ZeroshotSubmitter
 
 
 class AssuranceSubmissionTests(SubmissionCase):
+    def contract(self, work_unit, source, **overrides):
+        contract = super().contract(work_unit, source, **overrides)
+        return replace(
+            contract,
+            criteria=tuple(
+                replace(
+                    item,
+                    mechanical_evidence=MechanicalEvidence(argv=("/usr/bin/true",)),
+                )
+                for item in contract.criteria
+            ),
+        )
+
     def setUp(self):
         super().setUp()
         executable = self.root / "controlled-codex"
@@ -50,6 +65,13 @@ class AssuranceSubmissionTests(SubmissionCase):
         revision = self.store.get_contract_revision(self.attempt.contract_revision_id)
         self.assertEqual(
             request["initialInput"]["contract"], revision.canonical_bytes.decode()
+        )
+        self.assertEqual(
+            request["initialInput"]["comparisonBase"], self.attempt.b1_commit_oid
+        )
+        self.assertEqual(
+            request["initialInput"]["evidenceContent"],
+            {"observations": [], "error": ""},
         )
         self.assertEqual(request["initialInput"]["evidence"], "unchecked")
         self.assertEqual(request["initialInput"]["findings"], "unexecuted")

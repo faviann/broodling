@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import Any
 
 from .identity import digest
@@ -59,6 +60,35 @@ class EvidencePopulation:
 
 
 @dataclass(frozen=True, slots=True)
+class MechanicalEvidence:
+    """One explicitly admitted local check and its required raw material.
+
+    ``argv`` is executed literally, without shell-string interpretation. Its
+    executable is an absolute path. ``cwd`` and each required material are
+    normalized worktree-relative paths; material paths are relative to the
+    worktree root, independently of ``cwd``. Standard output, standard error
+    and the exit status are always mechanical observations. Required material
+    consists of the exact bytes of existing files, not paths inferred from a
+    criterion's free-form population or validation descriptions.
+
+    This declaration confers no semantic sufficiency or acceptance judgment.
+    Unsupported declarations remain representable, but P3 preparation refuses
+    them before any check runs.
+    """
+
+    argv: tuple[str, ...]
+    cwd: str = "."
+    materials: tuple[str, ...] = ()
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "argv": list(self.argv),
+            "cwd": self.cwd,
+            "materials": list(self.materials),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class Criterion:
     """One Contract criterion and its V1 Closability fields."""
 
@@ -69,9 +99,10 @@ class Criterion:
     validation_action: str = ""
     falsifying_observation: str = ""
     evidence_effect_dependencies: tuple[str, ...] = ()
+    mechanical_evidence: MechanicalEvidence | None = None
 
     def to_mapping(self) -> dict[str, Any]:
-        return {
+        result = {
             "criterionId": self.criterion_id,
             "statement": self.statement,
             "evidencePopulation": self.evidence_population.to_mapping(),
@@ -80,6 +111,10 @@ class Criterion:
             "falsifyingObservation": self.falsifying_observation,
             "evidenceEffectDependencies": list(self.evidence_effect_dependencies),
         }
+        # Absence preserves the exact bytes and meaning of historical revisions.
+        if self.mechanical_evidence is not None:
+            result["mechanicalEvidence"] = self.mechanical_evidence.to_mapping()
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,6 +253,11 @@ def contract_from_mapping(mapping: dict[str, Any]) -> Contract:
                 validation_action=item["validationAction"],
                 falsifying_observation=item["falsifyingObservation"],
                 evidence_effect_dependencies=tuple(item["evidenceEffectDependencies"]),
+                mechanical_evidence=(
+                    _mechanical_from_mapping(item["mechanicalEvidence"])
+                    if "mechanicalEvidence" in item
+                    else None
+                ),
             )
             for item in mapping["criteria"]
         ),
@@ -240,3 +280,68 @@ def contract_from_mapping(mapping: dict[str, Any]) -> Contract:
         host_assumptions=tuple(mapping["hostAssumptions"]),
         notes=mapping["notes"],
     )
+
+
+def _mechanical_from_mapping(mapping: Any) -> MechanicalEvidence:
+    """Refuse malformed structured meaning instead of dropping unknown fields."""
+
+    if not isinstance(mapping, dict) or set(mapping) != {"argv", "cwd", "materials"}:
+        raise ValueError("mechanicalEvidence requires exactly argv, cwd and materials")
+    if not isinstance(mapping["argv"], list) or not isinstance(
+        mapping["materials"], list
+    ):
+        # Invalid serialized Contract values use one fail-closed error surface.
+        raise ValueError("mechanicalEvidence argv and materials must be arrays")  # noqa: TRY004
+    return MechanicalEvidence(
+        tuple(mapping["argv"]), mapping["cwd"], tuple(mapping["materials"])
+    )
+
+
+def _relative_path(value: Any, *, directory: bool = False) -> bool:
+    if not isinstance(value, str) or not value or "\x00" in value:
+        return False
+    path = PurePosixPath(value)
+    return (
+        not path.is_absolute()
+        and ".." not in path.parts
+        and str(path) == value
+        and (directory or value != ".")
+    )
+
+
+def validate_mechanical_evidence(contract: Contract) -> None:
+    """Require explicit supported evidence inputs for P3, without changing P2.
+
+    No validation action, seam or population string supplies execution semantics.
+    Filesystem containment and availability are checked by the evidence leaf at
+    the current graph occurrence; this check only validates the frozen shape.
+    """
+
+    if not contract.criteria:
+        raise ValueError("runnable assurance requires at least one criterion")
+    for criterion in contract.criteria:
+        prefix = f"criterion {criterion.criterion_id!r} mechanical evidence"
+        declaration = criterion.mechanical_evidence
+        if not isinstance(declaration, MechanicalEvidence):
+            raise ValueError(f"{prefix} requires an explicit declaration")  # noqa: TRY004
+        if (
+            not isinstance(declaration.argv, tuple)
+            or not declaration.argv
+            or any(
+                not isinstance(arg, str) or "\x00" in arg for arg in declaration.argv
+            )
+            or not PurePosixPath(declaration.argv[0]).is_absolute()
+        ):
+            raise ValueError(
+                f"{prefix} requires literal argv with an absolute executable"
+            )
+        if not _relative_path(declaration.cwd, directory=True):
+            raise ValueError(
+                f"{prefix} cwd must be a normalized worktree-relative path"
+            )
+        if not isinstance(declaration.materials, tuple) or any(
+            not _relative_path(path) for path in declaration.materials
+        ):
+            raise ValueError(
+                f"{prefix} materials must be normalized worktree-relative files"
+            )

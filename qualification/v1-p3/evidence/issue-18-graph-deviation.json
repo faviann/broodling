@@ -1,0 +1,17 @@
+{
+  "baselineCommit": "bfc7f2e3888c14d31af59e3dc79f21bee57b05d4",
+  "baselineGraphSha256": "480e7d5be7a9e43dc3448cf7edb8ffb41c271fb6f36cc9c45bca5eafc9a2749b",
+  "productGraphSha256": "028d79381aab0cc98950e3eccd2d30a67f25e3e6f836917f5d76310bc9dc2604",
+  "productRuntimeSha256": "05fd5af801591caf55464b20f7cc86d98abb20a6b38adf9f45671300342abad0",
+  "sameTopologyGuardsRolesBoundsTimeouts": true,
+  "newFrozenInputs": [
+    "comparisonBase: Attempt B1 commit"
+  ],
+  "newEvidencePayload": "typed evidenceContent observations and error; written only by initial/repair evidence nodes",
+  "newBindings": [
+    "comparisonBase to review/adjudication/resolution/final",
+    "evidenceContent to review/adjudication/resolution/final"
+  ],
+  "repairBindingsUnchanged": true,
+  "runtimeChange": "fixed BROODLING_EVIDENCE_LEAF declared connection only for two existing evidence agent occurrences"
+}

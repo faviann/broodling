@@ -17,6 +17,8 @@ from .errors import UnsupportedRuntime
 
 QUALIFIED_CODEX_VERSION = "codex-cli 0.153.4"
 LAUNCHER = Path(__file__).parent / "codex_bin" / "codex"
+EVIDENCE_LEAF = Path(__file__).parent / "mechanical_evidence.py"
+BWRAP = Path("/usr/bin/bwrap")
 PROFILE_ENVIRONMENT_NAMES = (
     "BROODLING_REAL_CODEX",
     "BROODLING_PROFILE_HOME",
@@ -44,6 +46,7 @@ class QualifiedCodexProfile:
             "BROODLING_REAL_CODEX": str(self.real_codex),
             "BROODLING_PROFILE_HOME": str(self.profile_home),
             "BROODLING_ISOLATED_CODEX_HOME": str(self.isolated_codex_home),
+            "BROODLING_EVIDENCE_LEAF": "deterministic-v1",
         }
 
     def identity(self) -> dict[str, str]:
@@ -56,6 +59,10 @@ class QualifiedCodexProfile:
             "profileHome": str(self.profile_home),
             "isolatedCodexHome": str(self.isolated_codex_home),
             "launcherSha256": hashlib.sha256(LAUNCHER.read_bytes()).hexdigest(),
+            "evidenceLeafSha256": hashlib.sha256(
+                EVIDENCE_LEAF.read_bytes()
+            ).hexdigest(),
+            "evidenceSandboxSha256": hashlib.sha256(BWRAP.read_bytes()).hexdigest(),
         }
 
     def validate(self, workspace: Path | str, *, path: str) -> None:
@@ -66,7 +73,14 @@ class QualifiedCodexProfile:
         """
 
         candidate = Path(workspace).resolve()
-        paths = (self.real_codex, self.profile_home, self.isolated_codex_home)
+        paths = (
+            self.real_codex,
+            self.profile_home,
+            self.isolated_codex_home,
+            LAUNCHER.resolve(),
+            EVIDENCE_LEAF.resolve(),
+            BWRAP.resolve(),
+        )
         if any(path.is_relative_to(candidate) for path in paths):
             raise UnsupportedRuntime(
                 "qualified provider paths must be outside the candidate"
@@ -90,6 +104,9 @@ class QualifiedCodexProfile:
             )
         if (
             not LAUNCHER.is_file()
+            or not EVIDENCE_LEAF.is_file()
+            or not BWRAP.is_file()
+            or not os.access(BWRAP, os.X_OK)
             or not os.access(LAUNCHER, os.X_OK)
             or not self.real_codex.is_file()
             or not os.access(self.real_codex, os.X_OK)

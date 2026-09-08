@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from broodling.codex_profile import LAUNCHER, QualifiedCodexProfile
 from broodling.errors import UnsupportedRuntime
@@ -57,6 +58,7 @@ class CodexProfileTests(unittest.TestCase):
                 "BROODLING_REAL_CODEX",
                 "BROODLING_PROFILE_HOME",
                 "BROODLING_ISOLATED_CODEX_HOME",
+                "BROODLING_EVIDENCE_LEAF",
             },
         )
         self.assertEqual(environment["PATH"].split(os.pathsep)[0], str(LAUNCHER.parent))
@@ -91,6 +93,15 @@ class CodexProfileTests(unittest.TestCase):
         with self.assertRaises(UnsupportedRuntime):
             self.profile.validate(self.workspace, path=os.defpath)
 
+    def test_candidate_cannot_own_trusted_launcher_or_evidence_leaf(self):
+        for name in ("LAUNCHER", "EVIDENCE_LEAF"):
+            with (
+                self.subTest(name=name),
+                patch(f"broodling.codex_profile.{name}", self.workspace / "trusted.py"),
+                self.assertRaises(UnsupportedRuntime),
+            ):
+                self.profile.validate(self.workspace, path=os.defpath)
+
     def test_invalid_profile_is_refused_before_invoking_the_cli(self):
         invoked = self.root / "cli-invoked"
         self.executable.write_text(
@@ -123,6 +134,8 @@ class CodexProfileTests(unittest.TestCase):
                     "-",
                 ]
                 environment = self.profile.environment(os.defpath)
+                # The native runtime supplies this only to evidence nodes.
+                environment.pop("BROODLING_EVIDENCE_LEAF")
                 environment.update(
                     {"HOME": "/ambient-home", "CODEX_HOME": "/ambient-codex"}
                 )

@@ -57,7 +57,7 @@ def main():
         response = None
     elif node.endswith("evidence_check"):
         response = {
-            "output": None,
+            "output": {"evidenceContent": {"observations": [], "error": ""}},
             "signals": {"availability": "valid" if evidence.exists() else "missing"},
             "diagnostic": diag,
         }

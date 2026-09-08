@@ -47,9 +47,36 @@ def _enum(*values: str) -> dict:
     return {"kind": "enum", "values": list(values)}
 
 
+def _evidence_content() -> dict:
+    string = {"kind": "string"}
+    return _record(
+        observations={
+            "kind": "array",
+            "items": _record(
+                criterionId=string,
+                population=string,
+                argv={"kind": "array", "items": string},
+                cwd=string,
+                host=string,
+                mode=string,
+                exitCode={"kind": "integer"},
+                stdout=string,
+                stderr=string,
+                materials={
+                    "kind": "array",
+                    "items": _record(path=string, content=string),
+                },
+            ),
+        },
+        error=string,
+    )
+
+
 def _state() -> dict:
     return _record(
         contract={"kind": "string"},
+        comparisonBase={"kind": "string"},
+        evidenceContent=_evidence_content(),
         evidence=_enum("unchecked", "valid", "missing"),
         findings=_enum("unexecuted", "clean", "found"),
         obligation=_enum("none", "open_d1", "resolved_d1"),
@@ -60,10 +87,12 @@ def _state() -> dict:
     )
 
 
-def initial_state(contract: str) -> dict:
+def initial_state(contract: str, comparison_base: str = "") -> dict:
     """Initial graph inputs at B1/C0; frozen Contract supplied by admission."""
     return {
         "contract": contract,
+        "comparisonBase": comparison_base,
+        "evidenceContent": {"observations": [], "error": ""},
         "evidence": "unchecked",
         "findings": "unexecuted",
         "obligation": "none",
@@ -234,12 +263,15 @@ def _assurance(repaired: bool, continuation: dict) -> dict:
         evidence_name,
         _same("contract"),
         instructions="Read-only required-evidence role. Check required material for the current stable "
-        "candidate under the frozen Contract; missing required raw material must signal missing.",
+        "candidate under the frozen Contract using its explicit mechanicalEvidence declarations. "
+        "Return actual observations and required raw material in evidenceContent. Availability only "
+        "reports production; it does not judge semantic sufficiency. Missing material must signal missing.",
         signal=("availability", ["valid", "missing"], "evidence"),
+        payload="evidenceContent",
     )
     review = _leaf(
         review_name,
-        _same("contract", "evidence"),
+        _same("contract", "comparisonBase", "evidence", "evidenceContent"),
         instructions=REVIEW_INSTRUCTIONS,
         signal=("findings", ["clean", "found"], "findings"),
         payload="findingContent",
@@ -279,7 +311,13 @@ def _assurance(repaired: bool, continuation: dict) -> dict:
 def _authority_inputs() -> dict[str, str]:
     return {
         **_same(
-            "contract", "evidence", "findings", "findingContent", "directiveContent"
+            "contract",
+            "comparisonBase",
+            "evidence",
+            "evidenceContent",
+            "findings",
+            "findingContent",
+            "directiveContent",
         ),
         "outstanding": "obligation",
     }
@@ -429,6 +467,11 @@ def assurance_runtime() -> dict:
                         "BROODLING_PROFILE_HOME",
                         "BROODLING_ISOLATED_CODEX_HOME",
                     ]
+                    + (
+                        ["BROODLING_EVIDENCE_LEAF"]
+                        if name.endswith("evidence_check")
+                        else []
+                    )
                 },
             }
             for name in EXECUTABLE_NODES
