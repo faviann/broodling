@@ -1,0 +1,71 @@
+{
+  "historicalG1G2G3Preserved": true,
+  "identities": {
+    "graphSha256": "a0d7abd7d03fb2a9c2099f1dc5f42315d9e5f76b48fe0bb35429bad305e41d26",
+    "integration": {
+      "sdkSourceSha256": "0263b63cb6c6991703f699919ea974ba502da23e3a14ab7d5ab8c5d5ac3b256e",
+      "sdkVersion": "0.1.0.dev0",
+      "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86"
+    },
+    "runtime": {
+      "python": "3.13.5",
+      "sqlite": "3.46.1"
+    },
+    "runtimeSha256": "05fd5af801591caf55464b20f7cc86d98abb20a6b38adf9f45671300342abad0",
+    "schemaSha256": "0f1935c42baada28b56ad626bbd5c416118d98c9911fcf5949c58aa26127abf6",
+    "schemaVersion": 8
+  },
+  "noProviderOrProductTestExecutionDuringGate": true,
+  "originalGoverningPairPreserved": true,
+  "priorIssueStates": {
+    "11": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED"
+    },
+    "16": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED"
+    },
+    "20": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED"
+    },
+    "21": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED"
+    },
+    "22": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED"
+    },
+    "23": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED"
+    }
+  },
+  "productAndTestsUnchangedSinceImplementation": true,
+  "profileEvidenceHashesVerified": {
+    "adjudicator": "a69385ee9082764fd5f6c865b563ca79f5c2a133716e56d51cbe5c6d4589fc17",
+    "final": "bc67f81b2c19778084df34b989978285eb4e804caff4ee2737100b05c8c39117",
+    "lifecycle": "44b48002d715124c35e8ade8aad82a12ad4827e6ab3931057422ac554ff1e174",
+    "loss": "2fc90d074dee9054dc31a64c63cbd285a045e478dace661aac2f18c9a2212421",
+    "mutation": "ce084a4c070d0ac86e38807209b2049d2304b8261776e1376be1142c4488fa81",
+    "negative": "bcea9c0de15012fced48aa1a7bf74308c9ec76def75f717cff789eef623a40ee",
+    "real-provider": "18f7742061dea4b524892a3aa8186e29452793c4e9ccdb800dac53a6367ff9ea",
+    "reviewer": "71812a3c3cc6bca7ffb3f3bfb61b9aa2490b0da8e6d3c829ee914ae0214eb7ce",
+    "unsafe": "1890b5036670938a2d46c63914e9a0b470c95a48fc817df5b62bad255d0c5444"
+  },
+  "reviewedCommit": "2d7e666ee405365796a97bcf8d4a1b989e51d094",
+  "scope": "Parent read-only G4 publication/preservation audit, separate from fresh skeptical gate verdict.",
+  "unchangedQualifiedProductFiles": [
+    "broodling/abandonment.py",
+    "broodling/assurance_graph.py",
+    "broodling/checkout_profile.py",
+    "broodling/codex_profile.py",
+    "broodling/containment.py",
+    "broodling/replacement.py",
+    "broodling/reviewer.py",
+    "broodling/mechanical_evidence.py",
+    "broodling/zeroshot_sdk.py"
+  ]
+}
