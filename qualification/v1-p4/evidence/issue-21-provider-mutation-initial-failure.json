@@ -1,0 +1,69 @@
+{
+  "case": {
+    "attemptId": "at-c6d713be030afc928616220ee1e7ccd437f17268dedf3a94c029222ea1cc270a",
+    "candidate": "B1\n",
+    "commonConfigUnchanged": true,
+    "commonRefsUnchanged": true,
+    "events": {},
+    "exactProductGraphAndRuntime": true,
+    "graphSha256": "6619b045f12637e82f0127033c71851eb92718df530e99e99cb16ad0accbb034",
+    "mode": "mutation",
+    "node": "implement",
+    "observation": {
+      "result": {
+        "failure": "execution_unusable",
+        "output": null,
+        "run_id": "01a081c5-2021-7540-b075-99d85a2f071f",
+        "succeeded": false
+      },
+      "status": {
+        "active_executions": [],
+        "cursor": "v2:9",
+        "phase": "finished",
+        "result": {
+          "failure": "execution_unusable",
+          "output": null,
+          "run_id": "01a081c5-2021-7540-b075-99d85a2f071f",
+          "succeeded": false
+        },
+        "run_id": "01a081c5-2021-7540-b075-99d85a2f071f",
+        "size": "small",
+        "source": {
+          "branch": "broodling/faviann-broodling-12/c6d713be030afc928616220e",
+          "repository": "faviann/broodling",
+          "revision": "5da88b1e9b8b2c4c230ec1c541841bcc0e1b169b"
+        },
+        "title": "Broodling V1 assurance Attempt"
+      }
+    },
+    "profileIdentity": {
+      "codexVersion": "codex-cli 0.153.4",
+      "containmentProfile": "linux-pidns-parent-death-v1",
+      "containmentSha256": "8f601f298e0b6b3a5b35f89e720841de84c075fffca3cb7ef798f20688432aa5",
+      "evidenceLeafSha256": "c878f7b8eb1e00f115879e78118edc65c323fe4605ffb9743d1b903d4022410c",
+      "evidenceSandboxSha256": "573236e5328ac2ebb08f59ae3a9805b4f8d12bdef14be8af4450d5463294985f",
+      "isolatedCodexHome": "/dev/shm/b21-provider-p1t20wsc/auth-only-home",
+      "launcherSha256": "5e65d8e0509fbf55adb2c34b4297efc0afd94784f066cba3e08c4c8ed46d0624",
+      "profile": "g1-v1-codex-w4",
+      "profileHome": "/dev/shm/b21-provider-p1t20wsc/empty-home",
+      "realCodex": "/dev/shm/b21-provider-p1t20wsc/dispatcher"
+    },
+    "remoteRefs": "",
+    "runId": "01a081c5-2021-7540-b075-99d85a2f071f",
+    "runtimeSha256": "05fd5af801591caf55464b20f7cc86d98abb20a6b38adf9f45671300342abad0",
+    "sibling": "SIBLING_UNCHANGED\n",
+    "testOnlySubstitution": "Selected actual CLI role; other model roles controlled. Actual product evidence leaf and graph unchanged."
+  },
+  "host": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+  "integration": {
+    "sdkSourceSha256": "0263b63cb6c6991703f699919ea974ba502da23e3a14ab7d5ab8c5d5ac3b256e",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86"
+  },
+  "recordedAt": "2026-09-08T16:06:10.722976+00:00",
+  "sources": {
+    "qualification/v1-p4/issue21-provider-bin/codex": "1b1c156d8af956bd4e2fa7eeb93dc661b0fff0aa48d7ac934e58e6ada640ae14",
+    "qualification/v1-p4/issue21-provider-bin/probe.py": "11ca572c144d1c016b12d2e8ab84b2a8821d8d0b294a3abab2d30f9401898326",
+    "qualification/v1-p4/issue21_provider.py": "6ce78d21868e07335ad4ce2e6e6d029ac3a5706b9d92a94f1d661335f15bdd38"
+  }
+}

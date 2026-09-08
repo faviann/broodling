@@ -13,11 +13,13 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .containment import CONTAINMENT_PROFILE
 from .errors import UnsupportedRuntime
 
 QUALIFIED_CODEX_VERSION = "codex-cli 0.153.4"
 LAUNCHER = Path(__file__).parent / "codex_bin" / "codex"
 EVIDENCE_LEAF = Path(__file__).parent / "mechanical_evidence.py"
+CONTAINMENT = Path(__file__).parent / "containment.py"
 BWRAP = Path("/usr/bin/bwrap")
 PROFILE_ENVIRONMENT_NAMES = (
     "BROODLING_REAL_CODEX",
@@ -54,6 +56,8 @@ class QualifiedCodexProfile:
 
         return {
             "profile": "g1-v1-codex-w4",
+            "containmentProfile": CONTAINMENT_PROFILE,
+            "containmentSha256": hashlib.sha256(CONTAINMENT.read_bytes()).hexdigest(),
             "codexVersion": QUALIFIED_CODEX_VERSION,
             "realCodex": str(self.real_codex),
             "profileHome": str(self.profile_home),
@@ -79,6 +83,7 @@ class QualifiedCodexProfile:
             self.isolated_codex_home,
             LAUNCHER.resolve(),
             EVIDENCE_LEAF.resolve(),
+            CONTAINMENT.resolve(),
             BWRAP.resolve(),
         )
         if any(path.is_relative_to(candidate) for path in paths):
@@ -105,6 +110,7 @@ class QualifiedCodexProfile:
         if (
             not LAUNCHER.is_file()
             or not EVIDENCE_LEAF.is_file()
+            or not CONTAINMENT.is_file()
             or not BWRAP.is_file()
             or not os.access(BWRAP, os.X_OK)
             or not os.access(LAUNCHER, os.X_OK)

@@ -1,0 +1,40 @@
+{
+  "scope": "Profile/graph equality only. Temporary-source counterexample remains unresolved.",
+  "checks": {
+    "loss": {
+      "passed": true,
+      "profileMatchesCurrent": true,
+      "graphMatchesCurrent": true,
+      "runtimeMatchesCurrent": true,
+      "checkEvaluation": "Evaluated by final retained harness checks against recorded observations; invocation source hashes retained unchanged."
+    },
+    "mutation-durable-source": {
+      "passed": true,
+      "profileMatchesCurrent": true,
+      "graphMatchesCurrent": true,
+      "runtimeMatchesCurrent": true,
+      "checkEvaluation": null
+    },
+    "reviewer": {
+      "passed": true,
+      "profileMatchesCurrent": true,
+      "graphMatchesCurrent": true,
+      "runtimeMatchesCurrent": true,
+      "checkEvaluation": null
+    },
+    "adjudicator": {
+      "passed": true,
+      "profileMatchesCurrent": true,
+      "graphMatchesCurrent": true,
+      "runtimeMatchesCurrent": true,
+      "checkEvaluation": null
+    },
+    "final": {
+      "passed": true,
+      "profileMatchesCurrent": true,
+      "graphMatchesCurrent": true,
+      "runtimeMatchesCurrent": true,
+      "checkEvaluation": null
+    }
+  }
+}

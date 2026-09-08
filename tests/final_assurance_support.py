@@ -27,7 +27,9 @@ LEAF = Path(__file__).parent / "fixtures/final-assurance-bin/codex"
 
 
 @contextmanager
-def final_case(scenario="clean", *, contract_transform=None, final_materials=False):
+def final_case(
+    scenario="clean", *, contract_transform=None, final_materials=False, pause_node=None
+):
     fixture = AttemptTestCase()
     fixture.setUp()
     run_root = Path(tempfile.mkdtemp(prefix="b19-", dir="/dev/shm"))
@@ -107,6 +109,7 @@ def final_case(scenario="clean", *, contract_transform=None, final_materials=Fal
             f"os.environ['BROODLING_FINAL_TEST_STATE'] = {str(state)!r}\n"
             f"os.environ['BROODLING_FINAL_TEST_SCENARIO'] = {scenario!r}\n"
             f"os.environ['BROODLING_FINAL_TEST_MATERIALS'] = {str(final_materials)!r}\n"
+            f"os.environ['BROODLING_FINAL_TEST_PAUSE'] = {str(pause_node or '')!r}\n"
             f"os.execv({str(LEAF)!r}, [{str(LEAF)!r}, *sys.argv[1:]])\n"
         )
         executable.chmod(0o755)

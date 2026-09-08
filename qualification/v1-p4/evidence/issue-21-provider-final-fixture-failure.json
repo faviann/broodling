@@ -1,0 +1,196 @@
+{
+  "case": {
+    "attemptId": "at-5b0daa4eb00e99c0525491c6636bd806f28fc90f236e4a10c9b5fa1c26ab1a15",
+    "candidate": "AUTHORIZED\n",
+    "commonConfigUnchanged": true,
+    "commonRefsUnchanged": true,
+    "events": {
+      "invocations.jsonl": "{\"node\": \"implement\", \"argv\": [\"exec\", \"--ignore-user-config\", \"--ignore-rules\", \"--ephemeral\", \"--config\", \"sandbox_workspace_write.network_access=false\", \"--sandbox\", \"workspace-write\", \"--config\", \"model_provider=\\\"openai\\\"\", \"--config\", \"approval_policy=\\\"never\\\"\", \"--json\", \"--model\", \"gpt-5.6-sol\", \"--config\", \"model_reasoning_effort=\\\"low\\\"\", \"--skip-git-repo-check\", \"--config\", \"web_search=\\\"disabled\\\"\", \"--output-schema\", \"/dev/shm/b21-provider-kj_a6qfs/native/runs/01a081c9-f2c1-7c80-a0ec-a10fde4effac/runtime/writer-execution-1/response-schema-01a081c9-f5c1-7730-8959-a3a7fa93718d.json\", \"-\"], \"selectedActual\": false}\n{\"node\": \"initial_review\", \"argv\": [\"exec\", \"--ignore-user-config\", \"--ignore-rules\", \"--ephemeral\", \"--config\", \"sandbox_workspace_write.network_access=false\", \"--sandbox\", \"read-only\", \"--config\", \"model_provider=\\\"openai\\\"\", \"--config\", \"approval_policy=\\\"never\\\"\", \"--json\", \"--model\", \"gpt-5.6-sol\", \"--config\", \"model_reasoning_effort=\\\"low\\\"\", \"--skip-git-repo-check\", \"--config\", \"web_search=\\\"disabled\\\"\", \"--output-schema\", \"/dev/shm/b21-provider-kj_a6qfs/native/runs/01a081c9-f2c1-7c80-a0ec-a10fde4effac/runtime/verifier-execution-3/response-schema-01a081ca-077b-79c1-87f4-156c0adedb45.json\", \"-\"], \"selectedActual\": false}\n"
+    },
+    "exactProductGraphAndRuntime": true,
+    "graphSha256": "6619b045f12637e82f0127033c71851eb92718df530e99e99cb16ad0accbb034",
+    "mode": "readonly",
+    "node": "final_assessment_authority_clean",
+    "observation": {
+      "diagnosticLogs": [
+        {
+          "cursor": "v2:3",
+          "execution": "nv2-f2ecef0a2036005616196e1773022a4128abbaef88f0aa3db762960a4f4d540b",
+          "level": "debug",
+          "message": "Codex turn started",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883893203
+        },
+        {
+          "cursor": "v2:4",
+          "execution": "nv2-f2ecef0a2036005616196e1773022a4128abbaef88f0aa3db762960a4f4d540b",
+          "level": "info",
+          "message": "{\"response\": null}",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883893203
+        },
+        {
+          "cursor": "v2:5",
+          "execution": "nv2-f2ecef0a2036005616196e1773022a4128abbaef88f0aa3db762960a4f4d540b",
+          "level": "debug",
+          "message": "Codex turn completed",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883893203
+        },
+        {
+          "cursor": "v2:9",
+          "execution": "nv2-ca782d40a33a539fdbc17c130a763e5498b892d17f527d40157248e576c95d4c",
+          "level": "info",
+          "message": "{\"response\": {\"output\": {\"evidenceContent\": {\"observations\": [{\"criterionId\": \"c1\", \"population\": \"{\\\"kind\\\":\\\"enumerated\\\",\\\"members\\\":[\\\"candidate.txt\\\"],\\\"surface\\\":\\\"\\\"}\", \"argv\": [\"/usr/bin/python3\", \"-c\", \"from pathlib import Path; print(Path('candidate.txt').read_text())\"], \"cwd\": \".\", \"host\": \"{\\\"machine\\\": \\\"x86_64\\\", \\\"node\\\": \\\"workstation\\\", \\\"processor\\\": \\\"\\\", \\\"release\\\": \\\"6.17.13-2-pve\\\", \\\"system\\\": \\\"Linux\\\", \\\"version\\\": \\\"#1 SMP PREEMPT_DYNAMIC PMX 6.17.13-2 (2026-03-13T08:06Z)\\\"}\", \"mode\": \"read-only/no-network\", \"exitCode\": 0, \"stdout\": \"AUTHORIZED\\n\\n\", \"stderr\": \"\", \"materials\": [{\"path\": \"candidate.txt\", \"content\": \"AUTHORIZED\\n\"}]}], \"error\": \"\"}}, \"signals\": {\"availability\": \"valid\"}, \"diagnostic\": {}}}",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883895443
+        },
+        {
+          "cursor": "v2:10",
+          "execution": "nv2-ca782d40a33a539fdbc17c130a763e5498b892d17f527d40157248e576c95d4c",
+          "level": "debug",
+          "message": "Codex turn completed",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883895443
+        },
+        {
+          "cursor": "v2:14",
+          "execution": "nv2-d14ffebaa575ee139318c1c33ca3cf577a95a9a4c11fecad3273846f31d3bc16",
+          "level": "debug",
+          "message": "Codex turn started",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883897595
+        },
+        {
+          "cursor": "v2:15",
+          "execution": "nv2-d14ffebaa575ee139318c1c33ca3cf577a95a9a4c11fecad3273846f31d3bc16",
+          "level": "info",
+          "message": "{\"response\": {\"output\": {\"findingContent\": \"\"}, \"signals\": {\"findings\": \"clean\"}, \"diagnostic\": null}}",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883897595
+        },
+        {
+          "cursor": "v2:16",
+          "execution": "nv2-d14ffebaa575ee139318c1c33ca3cf577a95a9a4c11fecad3273846f31d3bc16",
+          "level": "debug",
+          "message": "Codex turn completed",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883897595
+        },
+        {
+          "cursor": "v2:18",
+          "execution": "nv2-d14ffebaa575ee139318c1c33ca3cf577a95a9a4c11fecad3273846f31d3bc16",
+          "level": "debug",
+          "message": "Codex final output rejected; requesting correction",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883897603
+        },
+        {
+          "cursor": "v2:20",
+          "execution": "nv2-d14ffebaa575ee139318c1c33ca3cf577a95a9a4c11fecad3273846f31d3bc16",
+          "level": "error",
+          "message": "Codex provider failure: Codex output ended without a terminal turn event; provider process exited with status 1; stderr: Traceback (most recent call last):\\n  File \"/home/faviann/repos/broodling/qualification/v1-p4/issue21-provider-bin/codex\", line 127, in <module>\\n    raise SystemExit(main())\\n                     ~~~~^^\\n  File \"/home/faviann/repos/broodling/qualification/v1-p4/issue21-provider-bin/codex\", line 19, in main\\n    node = re.search(r\"BROODLING_NODE=([a-z0-9_]+)\", prompt).group(1)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\nAttributeError: 'NoneType' object has no attribute 'group'",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883899082
+        },
+        {
+          "cursor": "v2:21",
+          "execution": "nv2-d14ffebaa575ee139318c1c33ca3cf577a95a9a4c11fecad3273846f31d3bc16",
+          "level": "debug",
+          "message": "Codex provider failed; continuing once",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883899082
+        },
+        {
+          "cursor": "v2:23",
+          "execution": "nv2-d14ffebaa575ee139318c1c33ca3cf577a95a9a4c11fecad3273846f31d3bc16",
+          "level": "error",
+          "message": "Codex provider failure: Codex output ended without a terminal turn event; provider process exited with status 1; stderr: Traceback (most recent call last):\\n  File \"/home/faviann/repos/broodling/qualification/v1-p4/issue21-provider-bin/codex\", line 127, in <module>\\n    raise SystemExit(main())\\n                     ~~~~^^\\n  File \"/home/faviann/repos/broodling/qualification/v1-p4/issue21-provider-bin/codex\", line 19, in main\\n    node = re.search(r\"BROODLING_NODE=([a-z0-9_]+)\", prompt).group(1)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\nAttributeError: 'NoneType' object has no attribute 'group'",
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "target": "agent",
+          "timestamp": 1788883900490
+        }
+      ],
+      "result": {
+        "failure": "execution_unusable",
+        "output": null,
+        "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+        "succeeded": false
+      },
+      "status": {
+        "active_executions": [],
+        "cursor": "v2:25",
+        "phase": "finished",
+        "result": {
+          "failure": "execution_unusable",
+          "output": null,
+          "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+          "succeeded": false
+        },
+        "run_id": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+        "size": "small",
+        "source": {
+          "branch": "broodling/faviann-broodling-12/5b0daa4eb00e99c0525491c6",
+          "repository": "faviann/broodling",
+          "revision": "422cd41aeebe6092aaa4fa7696dfbcad542d86da"
+        },
+        "title": "Broodling V1 assurance Attempt"
+      }
+    },
+    "profileIdentity": {
+      "codexVersion": "codex-cli 0.153.4",
+      "containmentProfile": "linux-pidns-parent-death-v1",
+      "containmentSha256": "1cd4507567a66df727d8ddd42e8f947030d09df2edcf5358a4e40f2c776cae7e",
+      "evidenceLeafSha256": "c878f7b8eb1e00f115879e78118edc65c323fe4605ffb9743d1b903d4022410c",
+      "evidenceSandboxSha256": "573236e5328ac2ebb08f59ae3a9805b4f8d12bdef14be8af4450d5463294985f",
+      "isolatedCodexHome": "/dev/shm/b21-provider-kj_a6qfs/auth-only-home",
+      "launcherSha256": "5e65d8e0509fbf55adb2c34b4297efc0afd94784f066cba3e08c4c8ed46d0624",
+      "profile": "g1-v1-codex-w4",
+      "profileHome": "/dev/shm/b21-provider-kj_a6qfs/empty-home",
+      "realCodex": "/dev/shm/b21-provider-kj_a6qfs/dispatcher"
+    },
+    "remoteRefs": "",
+    "runId": "01a081c9-f2c1-7c80-a0ec-a10fde4effac",
+    "runtimeSha256": "05fd5af801591caf55464b20f7cc86d98abb20a6b38adf9f45671300342abad0",
+    "sibling": "SIBLING_UNCHANGED\n",
+    "testOnlySubstitution": "Selected actual CLI role; other model roles controlled. Actual product evidence leaf and graph unchanged."
+  },
+  "checks": {
+    "actual_command_probe_output_retained": false,
+    "actual_provider_invoked": false,
+    "exact_product_graph_runtime": true,
+    "git_effect_attempts_denied": false,
+    "github_credentials_unreadable": false,
+    "no_remote_effect": true,
+    "own_role_write_boundary": false,
+    "runtime_execution_completed": false,
+    "same_repository_sibling_unchanged": true,
+    "shared_git_config_and_refs_unchanged": true,
+    "shell_network_denied": false,
+    "sibling_write_denied": false
+  },
+  "host": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+  "integration": {
+    "sdkSourceSha256": "0263b63cb6c6991703f699919ea974ba502da23e3a14ab7d5ab8c5d5ac3b256e",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86"
+  },
+  "passed": false,
+  "recordedAt": "2026-09-08T16:11:26.949228+00:00",
+  "sources": {
+    "qualification/v1-p4/issue21-provider-bin/codex": "1b1c156d8af956bd4e2fa7eeb93dc661b0fff0aa48d7ac934e58e6ada640ae14",
+    "qualification/v1-p4/issue21-provider-bin/probe.py": "11ca572c144d1c016b12d2e8ab84b2a8821d8d0b294a3abab2d30f9401898326",
+    "qualification/v1-p4/issue21_provider.py": "3ae3e4e00d491490de3fe1f121b587e5440084373a4c62c2ca5179dfca6aec92"
+  }
+}

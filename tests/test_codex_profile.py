@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -140,7 +141,12 @@ class CodexProfileTests(unittest.TestCase):
                     {"HOME": "/ambient-home", "CODEX_HOME": "/ambient-codex"}
                 )
                 result = subprocess.run(
-                    [str(LAUNCHER), *original],
+                    [
+                        sys.executable,
+                        str(Path(__file__).with_name("containment_launch_child.py")),
+                        str(LAUNCHER),
+                        *original,
+                    ],
                     input="Unchanged provider prompt\nInput JSON: {}\n",
                     text=True,
                     capture_output=True,

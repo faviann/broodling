@@ -21,7 +21,8 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
+V5_SCHEMA_SHA256 = "8dfd3296120e6d859a77a4cb1141c3cca73dbe09836372791d36cafa91c8d1d5"
 V4_SCHEMA_SHA256 = "f0971db85da6eb32727725b2163f96167576b8bf29a55fcc3d75c263b8961697"
 V3_SCHEMA_SHA256 = "663acf981b7b5379bde50f9446d12bee922c81bcbdcc1b4e7f15f6c4e5ea007f"
 V2_SCHEMA_SHA256 = "bbd7b68bdc66e6bc626f6f5d556e0efa3c9398476eb78b3f3ad75400ade29779"
@@ -31,6 +32,7 @@ V2_SCHEMA_SHA256 = "bbd7b68bdc66e6bc626f6f5d556e0efa3c9398476eb78b3f3ad75400ade2
 TABLES: tuple[str, ...] = (
     "admission_decisions",
     "attempt_abandonments",
+    "attempt_retirements",
     "attempt_submissions",
     "attempts",
     "contract_revisions",
@@ -413,7 +415,37 @@ BEGIN
 END;
 """
 
-SCHEMA_SQL += SUBMISSION_SQL + ASSURANCE_SQL + ABANDONMENT_SQL
+RETIREMENT_SQL = """
+CREATE TABLE attempt_retirements (
+    attempt_id TEXT PRIMARY KEY REFERENCES attempt_abandonments (attempt_id),
+    ceased_at TEXT NOT NULL,
+    proof_json TEXT NOT NULL,
+    retired_at TEXT
+) STRICT;
+
+CREATE TRIGGER attempt_retirements_no_replace BEFORE INSERT ON attempt_retirements
+WHEN EXISTS (SELECT 1 FROM attempt_retirements WHERE attempt_id = NEW.attempt_id)
+BEGIN
+    SELECT RAISE(ABORT, 'cessation proof cannot be replaced');
+END;
+
+CREATE TRIGGER attempt_retirements_stable BEFORE UPDATE ON attempt_retirements
+WHEN OLD.attempt_id <> NEW.attempt_id
+  OR OLD.ceased_at <> NEW.ceased_at
+  OR OLD.proof_json <> NEW.proof_json
+  OR OLD.retired_at IS NOT NULL
+  OR NEW.retired_at IS NULL
+BEGIN
+    SELECT RAISE(ABORT, 'only retirement acknowledgment may follow cessation');
+END;
+
+CREATE TRIGGER attempt_retirements_no_delete BEFORE DELETE ON attempt_retirements
+BEGIN
+    SELECT RAISE(ABORT, 'cessation and retirement facts are durable');
+END;
+"""
+
+SCHEMA_SQL += SUBMISSION_SQL + ASSURANCE_SQL + ABANDONMENT_SQL + RETIREMENT_SQL
 
 #: Digest of the exact DDL this build initializes. Recorded in ``schema_meta`` so
 #: a store written by a different DDL text is detected on reopen.

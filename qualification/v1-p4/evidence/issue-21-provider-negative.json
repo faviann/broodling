@@ -1,0 +1,51 @@
+{
+  "case": {
+    "after": "negative-082b11257b164f50afb381a86434680e:0\nnegative-082b11257b164f50afb381a86434680e:1\nnegative-082b11257b164f50afb381a86434680e:2\nnegative-082b11257b164f50afb381a86434680e:3\nnegative-082b11257b164f50afb381a86434680e:4\nnegative-082b11257b164f50afb381a86434680e:5\nnegative-082b11257b164f50afb381a86434680e:6\n",
+    "before": "negative-082b11257b164f50afb381a86434680e:0\nnegative-082b11257b164f50afb381a86434680e:1\nnegative-082b11257b164f50afb381a86434680e:2\n",
+    "controlledCounterexample": true,
+    "detectedSurvivor": true,
+    "observedProcesses": [
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "probe.py",
+          "writer",
+          ""
+        ],
+        "pid": 2919917,
+        "pidNamespace": "pid:[4026534923]",
+        "starttime": "713515944",
+        "state": "S"
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "probe.py",
+          "writer",
+          ""
+        ],
+        "pid": 2919937,
+        "pidNamespace": "pid:[4026534923]",
+        "starttime": "713515953",
+        "state": "S"
+      }
+    ]
+  },
+  "checkEvaluation": "Evaluated by final retained harness checks against recorded observations; invocation source hashes retained unchanged.",
+  "checks": {
+    "intentionally_uncontained_writer_detected": true
+  },
+  "host": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+  "integration": {
+    "sdkSourceSha256": "0263b63cb6c6991703f699919ea974ba502da23e3a14ab7d5ab8c5d5ac3b256e",
+    "sdkVersion": "0.1.0.dev0",
+    "sidecarSha256": "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86"
+  },
+  "passed": true,
+  "recordedAt": "2026-09-08T16:05:36.526612+00:00",
+  "sources": {
+    "qualification/v1-p4/issue21-provider-bin/codex": "1b1c156d8af956bd4e2fa7eeb93dc661b0fff0aa48d7ac934e58e6ada640ae14",
+    "qualification/v1-p4/issue21-provider-bin/probe.py": "11ca572c144d1c016b12d2e8ab84b2a8821d8d0b294a3abab2d30f9401898326",
+    "qualification/v1-p4/issue21_provider.py": "6ce78d21868e07335ad4ce2e6e6d029ac3a5706b9d92a94f1d661335f15bdd38"
+  }
+}

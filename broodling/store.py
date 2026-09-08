@@ -53,6 +53,7 @@ from .profile import assert_supported_runtime, product_configuration
 from .schema import (
     ABANDONMENT_SQL,
     ASSURANCE_SQL,
+    RETIREMENT_SQL,
     SCHEMA_SHA256,
     SCHEMA_SQL,
     SCHEMA_VERSION,
@@ -60,6 +61,7 @@ from .schema import (
     V2_SCHEMA_SHA256,
     V3_SCHEMA_SHA256,
     V4_SCHEMA_SHA256,
+    V5_SCHEMA_SHA256,
 )
 from .starting_state import StartingState, admitted_material_digest
 from .workspace import (
@@ -311,9 +313,13 @@ class BroodlingStore:
             return
         meta = self.schema_meta()
         migrations = {
-            "2": (V2_SCHEMA_SHA256, SUBMISSION_SQL + ASSURANCE_SQL + ABANDONMENT_SQL),
-            "3": (V3_SCHEMA_SHA256, ASSURANCE_SQL + ABANDONMENT_SQL),
-            "4": (V4_SCHEMA_SHA256, ABANDONMENT_SQL),
+            "2": (
+                V2_SCHEMA_SHA256,
+                SUBMISSION_SQL + ASSURANCE_SQL + ABANDONMENT_SQL + RETIREMENT_SQL,
+            ),
+            "3": (V3_SCHEMA_SHA256, ASSURANCE_SQL + ABANDONMENT_SQL + RETIREMENT_SQL),
+            "4": (V4_SCHEMA_SHA256, ABANDONMENT_SQL + RETIREMENT_SQL),
+            "5": (V5_SCHEMA_SHA256, RETIREMENT_SQL),
         }
         if meta.get("schema_version") in migrations:
             # Acquire before rereading: concurrent openers must migrate once.

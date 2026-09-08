@@ -297,7 +297,7 @@ class AttemptProvisioner:
 
 
 @contextmanager
-def _sole_provisioner(enclosure: Path) -> Iterator[None]:
+def _sole_provisioner(enclosure: Path) -> Iterator[int]:
     """Hold an Attempt's enclosure against every other live provisioner.
 
     Scoped to the enclosure because that is exactly one Attempt's scaffolding:
@@ -315,7 +315,7 @@ def _sole_provisioner(enclosure: Path) -> Iterator[None]:
     )
     try:
         fcntl.flock(handle, fcntl.LOCK_EX)
-        yield
+        yield handle
     finally:
         os.close(handle)
 

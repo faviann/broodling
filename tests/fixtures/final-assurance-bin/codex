@@ -48,6 +48,13 @@ def main():
     state = Path(os.environ["BROODLING_FINAL_TEST_STATE"])
     state.mkdir(parents=True, exist_ok=True)
     scenario = os.environ["BROODLING_FINAL_TEST_SCENARIO"]
+    if node == os.environ.get("BROODLING_FINAL_TEST_PAUSE"):
+        (state / "paused").write_text(node)
+        deadline = time.monotonic() + 90
+        while not (state / "release-pause").exists():
+            if time.monotonic() > deadline:
+                raise RuntimeError("Lifecycle control was never released")
+            time.sleep(0.01)
     candidate = Path("candidate.json")
     if node == "implement":
         deadline = time.monotonic() + 30

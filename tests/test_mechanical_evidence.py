@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -17,7 +18,8 @@ class MechanicalEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="broodling-evidence-")
         self.addCleanup(self.temporary.cleanup)
-        self.workspace = Path(self.temporary.name)
+        self.workspace = Path(self.temporary.name) / "worktree"
+        self.workspace.mkdir()
         (self.workspace / "raw.txt").write_text("actual required raw material\n")
         self.contract = {
             "criteria": [
@@ -46,7 +48,16 @@ class MechanicalEvidenceTests(unittest.TestCase):
             + "\nRuntime-owned response contract:\n{}\n"
         )
         completed = subprocess.run(
-            [str(LAUNCHER), "exec", "--sandbox", sandbox, "--json", "-"],
+            [
+                sys.executable,
+                str(Path(__file__).with_name("containment_launch_child.py")),
+                str(LAUNCHER),
+                "exec",
+                "--sandbox",
+                sandbox,
+                "--json",
+                "-",
+            ],
             input=prompt,
             text=True,
             capture_output=True,

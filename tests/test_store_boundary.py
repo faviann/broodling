@@ -46,13 +46,18 @@ DEFERRED_VOCABULARY = (
 #: the public SDK and sidecar.
 # #18's explicitly admitted read-only evidence leaf starts only declared local
 # checks inside its sandbox; the existing SDK still owns occurrences/lifecycle.
-PROCESS_CAPABLE_MODULES = {"git.py", "codex_profile.py", "mechanical_evidence.py"}
+PROCESS_CAPABLE_MODULES = {
+    "git.py",
+    "codex_profile.py",
+    "mechanical_evidence.py",
+    "containment.py",
+}
 
 #: Modules permitted to take a host-local file lock. Materializing one Attempt's
 #: worktree is single-writer on this host, which is what `fcntl` buys; it is
 #: mutual exclusion between live processes, never durable authority, so nothing
 #: that records a durable fact may reach for it.
-LOCK_CAPABLE_MODULES = {"provisioning.py"}
+LOCK_CAPABLE_MODULES = {"provisioning.py", "containment.py"}
 
 STDLIB_ONLY = {
     "__future__",
@@ -95,6 +100,7 @@ class SchemaBoundaryTests(StoreTestCase):
             (
                 "admission_decisions",
                 "attempt_abandonments",
+                "attempt_retirements",
                 "attempt_submissions",
                 "attempts",
                 "contract_revisions",
@@ -147,6 +153,8 @@ class RuntimeBoundaryTests(unittest.TestCase):
                     allowed.add("fcntl")
                 if module.name == "mechanical_evidence.py":
                     allowed.update({"platform", "tempfile"})
+                if module.name == "containment.py":
+                    allowed.update({"ctypes", "select", "signal", "tempfile"})
                 if module.name == "final_material.py":
                     allowed.update({"base64", "stat"})
                 roots = imported_roots(module) - {"broodling"}

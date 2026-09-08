@@ -40,7 +40,9 @@ def _environment() -> dict[str, str]:
     return env
 
 
-def run(repository: Path | str, *arguments: str) -> str:
+def run(
+    repository: Path | str, *arguments: str, inherited_fds: tuple[int, ...] = ()
+) -> str:
     """Run one Git command inside ``repository`` and return its stdout.
 
     A non-zero exit is a refusal, not a value: it raises with the exact stderr so
@@ -53,6 +55,7 @@ def run(repository: Path | str, *arguments: str) -> str:
         capture_output=True,
         text=True,
         env=_environment(),
+        pass_fds=inherited_fds,
         check=False,
     )
     if completed.returncode != 0:
