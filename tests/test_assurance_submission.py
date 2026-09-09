@@ -7,6 +7,7 @@ from unittest.mock import patch
 from submission_support import REQUEST, SubmissionCase
 from support import move_head
 
+from broodling.assurance_graph import assurance_graph, assurance_runtime
 from broodling.codex_profile import QualifiedCodexProfile
 from broodling.contract import MechanicalEvidence
 from broodling.errors import StaleAttempt, SubmissionConflict, SubmissionNotReady
@@ -78,7 +79,8 @@ class AssuranceSubmissionTests(SubmissionCase):
         self.assertEqual(request["initialInput"]["obligation"], "none")
         self.assertNotIn("candidateGeneration", request["initialInput"])
         self.assertEqual(request["workspace"], str(self.path))
-        self.assertEqual(request["graph"]["root"]["name"], "broodling_v1_assurance")
+        self.assertEqual(request["graph"], assurance_graph())
+        self.assertEqual(request["runtime"], assurance_runtime())
         self.assertEqual(row.state, "prepared")
         self.assertEqual(row.submission_key, f"broodling:v1:{self.attempt_id}")
 
