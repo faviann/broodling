@@ -194,9 +194,15 @@ class AssuranceSubmissionTests(SubmissionCase):
         self.assertEqual(self.coordinator.record(self.attempt_id).state, "prepared")
 
     def test_product_path_rejects_stale_attempt(self):
-        # Existing P2 fixture convention: no product retirement API is added.
-        self.store.connection.execute("DROP TRIGGER attempts_no_update")
-        self.store.connection.execute("UPDATE attempts SET is_current = 0")
+        # Ordinary stale state comes from the supported durable abandonment
+        # path; the authority triggers stay enabled for this case.
+        self.store.abandon_attempt(self.attempt_id, "caller stopped the Attempt")
         with self.assertRaises(StaleAttempt):
             self.coordinator.prepare_assurance(self.attempt_id)
         self.assertIsNone(self.coordinator.record(self.attempt_id))
+        self.assertIsNotNone(
+            self.store.connection.execute(
+                "SELECT 1 FROM sqlite_schema "
+                "WHERE type = 'trigger' AND name = 'attempts_no_update'"
+            ).fetchone()
+        )
