@@ -64,10 +64,11 @@ class CanonicalIngressTests(StoreTestCase):
 
 
 class DistinctIdentityTests(StoreTestCase):
+    #: Two named neighbours, one differing in host and one in issue number. The
+    #: full matrix of one-component variations lives in
+    #: ``test_work_reference_properties``, which generates it.
     DISTINCT = (
         ("https://gitlab.com/faviann/broodling", ISSUE),
-        ("https://github.com/faviann/broodling-fork", ISSUE),
-        ("https://github.com/someone-else/broodling", ISSUE),
         (REPOSITORY, 13),
     )
 

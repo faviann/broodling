@@ -77,6 +77,8 @@ python -m unittest discover -s tests
 
 The [V1-P2 implementation record](docs/implementation/v1-p2-admission-nucleus.md) states the selected Python/SQLite versions, the qualified Zeroshot SDK/sidecar version boundary the product configuration records, the schema, the B1/worktree policy and the retained implementation evidence.
 
+Two bounded property modules (`tests/test_work_reference_properties.py` and `tests/test_store_state_machine.py`) use Hypothesis, which is a **test-only** extra: `pip install -e '.[test]'`. The product package keeps no runtime dependencies, and both modules skip when the extra is absent. See [the property-test notes](tests/README.md) for the invariants they check, the deterministic settings profile and the recorded discrimination evidence.
+
 The Attempt tests provision real Git worktrees and therefore need a durable workspace root, which cannot be `/tmp`. They default to `~/.cache/broodling-tests`; set `BROODLING_TEST_WORKSPACE_ROOT` to choose another durable directory.
 
 ## Baseline and qualification provenance

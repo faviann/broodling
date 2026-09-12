@@ -9,6 +9,11 @@ description = "Broodling V1-P2 admission nucleus: Work Unit identity, source ent
 requires-python = ">=3.13"
 dependencies = []
 
+[project.optional-dependencies]
+# Test-only. The product package stays on the standard library; Hypothesis is
+# used by the property/state-machine tests, which skip when it is absent.
+test = ["hypothesis>=6.100"]
+
 [tool.setuptools]
 packages = ["broodling"]
 include-package-data = false
