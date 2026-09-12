@@ -72,7 +72,13 @@ class StoreTestCase(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         self.store_path = self.root / "state" / "broodling.sqlite3"
         self.store = BroodlingStore.open(self.store_path)
-        self.addCleanup(self.store.close)
+        # `reopen` closes the store it replaces, so closing whichever store is
+        # current at teardown closes them all, however many times a test
+        # reopened and whether or not the body raised. Registered after the
+        # directory removal, so it runs before it. Closing a connection twice
+        # is harmless, so cases that close the handle themselves (the crash
+        # fixtures) stay correct.
+        self.addCleanup(lambda: self.store.close())
 
     def reopen(self) -> BroodlingStore:
         """Close and reopen the store, as a restart would."""
