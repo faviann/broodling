@@ -4,8 +4,10 @@ The rules are the durable operations an operator can actually repeat: resolve a
 work reference, entitle a source and admit a Contract revision, admit the current
 Attempt, abandon it, restart the store. After every step the machine rechecks the
 durable invariants — one current Attempt at most, irreversible abandonment,
-stable and non-aliasing identity, immutable records — and every rule requires a
-refused operation to leave the durable record exactly as it was.
+stable and non-aliasing identity, immutable records — and each rule that can be
+refused checks what that particular refusal must not have changed: the Work
+Unit's current authority and its exclusive worktree reservation, or the Attempt's
+currentness and its abandonment fact.
 
 The machine keeps only facts it has already observed from the store (which
 reference resolved which Work Unit, which revision/B1 pair produced which
@@ -82,19 +84,6 @@ B1_REPOSITORY = "/srv/broodling/source.git"
 B1_COMMITS = ("0" * 40, "1" * 40)
 
 REASONS = ("controller lost", "stopped by operator")
-
-#: Durable tables a refused operation must leave untouched — every row of them,
-#: not merely the row count: rewriting an existing fact is exactly the partial
-#: authority a refusal must not leave behind.
-DURABLE_TABLES = (
-    "work_units",
-    "entitled_sources",
-    "contract_revisions",
-    "admission_decisions",
-    "attempts",
-    "attempt_abandonments",
-    "worktree_assignments",
-)
 
 
 class DurableStoreMachine(RuleBasedStateMachine):
@@ -178,7 +167,12 @@ class DurableStoreMachine(RuleBasedStateMachine):
     def admit_attempt(self, revision_id: str, commit: str):
         binding = (revision_id, commit)
         work_unit_id = self.store.get_contract_revision(revision_id).work_unit_id
-        before = self._durable_state()
+        current = self.store.current_attempt(work_unit_id)
+        reservation = (
+            None
+            if current is None
+            else self.store.worktree_assignment(current.attempt_id)
+        )
         try:
             attempt = self.store.admit_attempt(
                 revision_id,
@@ -186,7 +180,16 @@ class DurableStoreMachine(RuleBasedStateMachine):
                 workspace_root=WORKSPACE_ROOT,
             )
         except (AttemptConflict, StaleAttempt) as refusal:
-            self._assert_unchanged(before, refusal)
+            # A refused admission grants nothing: the Work Unit keeps exactly the
+            # current authority it had — including none — with the same bindings
+            # and the same exclusive worktree and branch.
+            assert self.store.current_attempt(work_unit_id) == current, (
+                f"refused admission disturbed current authority: {refusal}"
+            )
+            if current is not None:
+                assert (
+                    self.store.worktree_assignment(current.attempt_id) == reservation
+                ), f"refused admission moved the worktree reservation: {refusal}"
             # Repeating an admission that already succeeded must converge on the
             # Attempt it produced — unless this Work Unit has since been
             # abandoned, which withdraws ordinary admission authority outright.
@@ -203,11 +206,19 @@ class DurableStoreMachine(RuleBasedStateMachine):
 
     @rule(attempt_id=attempts, reason=st.sampled_from(REASONS))
     def abandon_attempt(self, attempt_id: str, reason: str) -> None:
-        before = self._durable_state()
+        attempt = self.store.get_attempt(attempt_id)
+        existing = self.store.abandonment(attempt_id)
         try:
             record = self.store.abandon_attempt(attempt_id, reason)
         except StaleAttempt as refusal:
-            self._assert_unchanged(before, refusal)
+            # A refused abandonment neither withdraws currentness nor writes or
+            # replaces the irreversible fact.
+            assert self.store.get_attempt(attempt_id) == attempt, (
+                f"refused abandonment changed the Attempt: {refusal}"
+            )
+            assert self.store.abandonment(attempt_id) == existing, (
+                f"refused abandonment touched the abandonment fact: {refusal}"
+            )
             assert attempt_id not in self.abandonments, (
                 f"an abandoned Attempt refused to report its abandonment: {refusal}"
             )
@@ -272,34 +283,6 @@ class DurableStoreMachine(RuleBasedStateMachine):
                 revision_id,
                 commit,
             ), f"{attempt_id} was rebound"
-
-    # ----------------------------------------------------------------- helpers
-
-    def _assert_unchanged(self, before, refusal: Exception) -> None:
-        """A refused operation must leave no partial authority behind."""
-
-        after = self._durable_state()
-        changed = [table for table in DURABLE_TABLES if after[table] != before[table]]
-        assert not changed, f"refused operation wrote {changed}: {refusal}"
-
-    def _durable_state(self) -> dict[str, tuple[tuple[object, ...], ...]]:
-        """Every row of every durable table, as comparable values.
-
-        Ordered by the first column — the identity of each of these tables — so
-        two reads of unchanged state compare equal, and any inserted, deleted or
-        rewritten row compares unequal.
-        """
-
-        return {
-            table: tuple(
-                tuple(row)
-                for row in self.store.connection.execute(
-                    # Fixed identifiers from DURABLE_TABLES, never caller input.
-                    f"SELECT * FROM {table} ORDER BY 1"
-                )
-            )
-            for table in DURABLE_TABLES
-        }
 
 
 # Long sequences matter more than many short ones here: an Attempt can only be

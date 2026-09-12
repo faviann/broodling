@@ -52,7 +52,9 @@ between a warm and a cold host.
   key or a Work Unit id. Distinctness is generated component by component on
   purpose: two independently drawn references practically never collide, so an
   implementation ignoring one component would never be caught that way;
-- malformed input fails closed with `InvalidWorkReference` and records nothing.
+- malformed input fails closed with `InvalidWorkReference`. A `WorkReference` is
+  a validated value and the store accepts nothing else, so there is no path from
+  malformed ingress to a durable write to assert against.
 
 `test_store_state_machine.py` drives the durable operations an operator can
 actually repeat — resolve a reference, entitle a source and admit a Contract
@@ -60,12 +62,18 @@ revision, admit the current Attempt, abandon it, restart the store — and after
 every step rechecks: at most one current Attempt per Work Unit and never an
 abandoned one; abandonment irreversible, immutable and still refusing current
 authority; identity stable and non-aliasing across restarts; revisions and
-Attempt bindings never rewritten. Every rule also requires a refused operation to
-leave the durable tables exactly as they were — every row of them compared, not
-just the row count, so a rewrite of an existing durable fact is caught as well as
-an insertion or deletion. Row counts alone would not do: a successful abandonment
-rewrites `attempts.is_current` in place without changing any table's cardinality,
-so a count comparison cannot tell an untouched table from a rewritten one.
+Attempt bindings never rewritten.
+
+Each rule that can be refused then checks what *that* refusal must not have
+changed, which is the "no partial authority" outcome #30 asks for rather than
+database-wide immutability. A refused Attempt admission must leave the Work
+Unit's current Attempt exactly as it was — including still none — and must not
+move that Attempt's exclusive worktree path or branch. A refused abandonment must
+leave the Attempt record, currentness included, and the abandonment fact exactly
+as they were. The comparisons are whole records read back through the store's own
+readers, so an in-place rewrite is caught, not just an appearing or disappearing
+row. Bookkeeping that grants no authority is deliberately not frozen: a rejected
+admission decision, for one, is a durable record the product means to keep.
 
 The machine stores only facts it has already observed from the store (which
 reference resolved which Work Unit, which revision/B1 pair produced which
@@ -101,8 +109,14 @@ single run, with no product change.
    return a fresh UUID instead of deriving identity from the Contract revision,
    B1 and admitted material. The state machine failed with
    `identical re-admission was refused`, shrunk to one reference resolution, one
-   Contract revision and two identical Attempt admissions. Checked under the
-   committed derandomized seed and six random ones.
+   Contract revision and two identical Attempt admissions.
+
+   That assertion fires only in a run that happens to repeat one binding, and
+   which runs do depends on the seed — derandomized seeds follow the test's code
+   digest, so editing a rule moves them. It failed under 7 of 8 measured random
+   seeds, but the seed current at the time of writing is one that never repeats a
+   binding. Making repetition a rule of its own, instead of leaving it to
+   collision, would remove that dependence; it is not done here.
 
 Recorded on 12 September 2026 against this branch, Hypothesis 6.168.0, CPython
 3.13.5.

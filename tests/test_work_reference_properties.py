@@ -255,14 +255,6 @@ class StoreIngressProperties(unittest.TestCase):
                 first.parse().key,
             )
 
-    @given(pair=unusable_references())
-    def test_a_refused_reference_records_nothing(self, pair) -> None:
-        repository, issue = pair
-        with temporary_store() as store:
-            with self.assertRaises(InvalidWorkReference):
-                store.resolve_work_unit(WorkReference.parse(repository, issue))
-            self.assertEqual(work_unit_count(store), 0)
-
 
 if __name__ == "__main__":
     unittest.main()
