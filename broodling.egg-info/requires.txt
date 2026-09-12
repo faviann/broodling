@@ -1,0 +1,3 @@
+
+[test]
+hypothesis>=6.100

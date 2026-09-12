@@ -1,8 +1,9 @@
-"""Hypothesis availability and the shared settings profile for property tests.
+"""The shared Hypothesis settings profile for the property tests.
 
-Hypothesis is a test-only extra (``pip install -e '.[test]'``). The product
-package itself stays on the standard library, so a host that has not installed
-the extra skips the property modules instead of failing the whole run.
+Hypothesis is a test-only dependency — the product package keeps an empty
+dependency list — so it is declared in the ``test`` extra and installed with
+``pip install -e '.[test]'``. It is not optional at test time: a run without it
+fails to import these modules rather than quietly dropping their assurance.
 
 The profile is deliberately deterministic: the same run generates the same
 inputs, a failure shrinks as usual, and ``print_blob`` prints the
@@ -13,15 +14,7 @@ keep in or out of Git.
 
 from __future__ import annotations
 
-import unittest
-
-try:
-    from hypothesis import settings
-except ModuleNotFoundError as missing:
-    raise unittest.SkipTest(
-        "hypothesis is not installed; install the test extra "
-        "(pip install -e '.[test]') to run the property tests"
-    ) from missing
+from hypothesis import settings
 
 PROFILE = "broodling"
 

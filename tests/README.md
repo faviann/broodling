@@ -12,15 +12,18 @@ and direct-SQL tests keep their real witnesses, because the external behavior
 
 ## Running them
 
-Hypothesis is a test-only extra, so the product package keeps its empty
+Hypothesis is a test-only dependency, so the product package keeps its empty
 dependency list:
 
 ```bash
 pip install -e '.[test]'
 ```
 
-Without it both modules skip (as a module-level `unittest.SkipTest`) under
-`pytest` and under `unittest discover`; the rest of the suite is unaffected.
+Test-only is not optional: with the extra missing, both modules fail to import
+and the run reports that, under `pytest` and under `unittest discover`. There is
+no skip guard, because nothing in this repository requires the suite to run
+without its test dependencies, and a module that silently disappears takes its
+invariants with it.
 
 `property_support.py` holds the shared settings profile and nothing else. It is
 `derandomize=True`, `database=None`, `print_blob=True` and `deadline=None`: a run
