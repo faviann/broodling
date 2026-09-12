@@ -3,12 +3,10 @@
 The rules are the durable operations an operator can actually repeat: resolve a
 work reference, entitle a source and admit a Contract revision, admit the current
 Attempt, repeat that identical admission, abandon it, restart the store. After
-every step the machine rechecks the
-durable invariants — one current Attempt at most, irreversible abandonment,
-stable and non-aliasing identity, immutable records — and each rule that can be
-refused checks what that particular refusal must not have changed: the Work
-Unit's current authority and its exclusive worktree reservation, or the Attempt's
-currentness and its abandonment fact.
+every step the machine rechecks the durable invariants — one current Attempt at
+most, irreversible abandonment, stable and non-aliasing identity, immutable
+records — and a refused admission checks what it must not have changed: the Work
+Unit's current authority and that Attempt's exclusive worktree reservation.
 
 The machine keeps only facts it has already observed from the store (which
 reference resolved which Work Unit, which revision/B1 pair produced which
@@ -242,23 +240,16 @@ class DurableStoreMachine(RuleBasedStateMachine):
 
     @rule(attempt_id=attempts, reason=st.sampled_from(REASONS))
     def abandon_attempt(self, attempt_id: str, reason: str) -> None:
-        attempt = self.store.get_attempt(attempt_id)
-        existing = self.store.abandonment(attempt_id)
-        try:
-            record = self.store.abandon_attempt(attempt_id, reason)
-        except StaleAttempt as refusal:
-            # A refused abandonment neither withdraws currentness nor writes or
-            # replaces the irreversible fact.
-            assert self.store.get_attempt(attempt_id) == attempt, (
-                f"refused abandonment changed the Attempt: {refusal}"
-            )
-            assert self.store.abandonment(attempt_id) == existing, (
-                f"refused abandonment touched the abandonment fact: {refusal}"
-            )
-            assert attempt_id not in self.abandonments, (
-                f"an abandoned Attempt refused to report its abandonment: {refusal}"
-            )
-            return
+        """Abandoning, once or again, commits the same one irreversible fact.
+
+        This operation has no refusal to check. Abandonment is the only
+        transition modeled here that makes an Attempt non-current, and a repeat
+        returns the record already committed rather than refusing, so the only
+        outcome is that record. ``abandonment_is_irreversible`` carries the
+        aftermath from the next step onwards.
+        """
+
+        record = self.store.abandon_attempt(attempt_id, reason)
         first = self.abandonments.setdefault(attempt_id, record)
         assert record == first, "abandonment was rebound to a later reason or time"
         self.abandoned_units.add(self.store.get_attempt(attempt_id).work_unit_id)

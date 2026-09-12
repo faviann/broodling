@@ -74,16 +74,20 @@ coin flip — the committed configuration reached it zero times before the rule
 existed and converges on an existing Attempt ten times with it. Admission after
 abandonment is a different question and stays with the refusal path below.
 
-Each rule that can be refused then checks what *that* refusal must not have
-changed, which is the "no partial authority" outcome #30 asks for rather than
-database-wide immutability. A refused Attempt admission must leave the Work
-Unit's current Attempt exactly as it was — including still none — and must not
-move that Attempt's exclusive worktree path or branch. A refused abandonment must
-leave the Attempt record, currentness included, and the abandonment fact exactly
-as they were. The comparisons are whole records read back through the store's own
-readers, so an in-place rewrite is caught, not just an appearing or disappearing
-row. Bookkeeping that grants no authority is deliberately not frozen: a rejected
+A refused admission then checks what *that* refusal must not have changed, which
+is the "no partial authority" outcome #30 asks for rather than database-wide
+immutability: the Work Unit's current Attempt exactly as it was — including still
+none — and that Attempt's exclusive worktree path and branch unmoved. The
+comparisons are whole records read back through the store's own readers, so an
+in-place rewrite is caught, not just an appearing or disappearing row.
+Bookkeeping that grants no authority is deliberately not frozen: a rejected
 admission decision, for one, is a durable record the product means to keep.
+
+Abandonment has no refusal path to check here. It is the only modeled transition
+that makes an Attempt non-current, and a repeat returns the record already
+committed instead of refusing, so its only outcome is that record — which is
+where idempotent abandonment and immutable abandonment identity are asserted,
+with the irreversible loss of current authority carried by the invariant.
 
 The machine stores only facts it has already observed from the store (which
 reference resolved which Work Unit, which revision/B1 pair produced which
