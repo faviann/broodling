@@ -4,9 +4,7 @@ Only the external provider is controlled. Observations precede its mutation.
 """
 
 import json
-import tempfile
 from contextlib import contextmanager
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -25,45 +23,31 @@ FROZEN_SOURCE_BYTES = (
     b"candidate.json. These actions satisfy this disposable fixture.\n"
 )
 
-SEMANTIC_CANARIES = (
-    "A1_DIRECTIVE_ONLY_22",
-    "A1_ACCEPTANCE_ONLY_22",
-    "A1_FINDING_ONLY_22",
-    "A1_CANDIDATE_GENERATION_ONLY_22",
-)
+#: The abandoned-only marker each controlled A1 response role carries. The
+#: fixture plants these values verbatim; nothing derives them from its source.
+A1_CANARIES = {
+    "directive": "A1_DIRECTIVE_ONLY_22",
+    "acceptance": "A1_ACCEPTANCE_ONLY_22",
+    "finding": "A1_FINDING_ONLY_22",
+    "generation": "A1_CANDIDATE_GENERATION_ONLY_22",
+}
+
+SEMANTIC_CANARIES = tuple(A1_CANARIES.values())
 
 
 @contextmanager
 def abandoned_case(*args, **kwargs):
     """Seed abandoned-only strings in actual typed model outputs and evidence.
 
-    The fixture copy changes only controlled response content. The product graph,
-    runtime, evidence checker and original historical fixture remain unchanged.
+    Only controlled response content carries the markers, as explicit fixture
+    data. The product graph, runtime, evidence checker and the ordinary
+    final-assurance fixture defaults remain unchanged.
     """
-    with tempfile.TemporaryDirectory(prefix="b22-old-", dir="/dev/shm") as directory:
-        old_leaf = Path(directory) / "old-controlled-codex"
-        old_leaf.write_text(
-            LEAF.read_text()
-            .replace(
-                "Correct candidate.json", "Correct candidate.json A1_DIRECTIVE_ONLY_22"
-            )
-            .replace(
-                "The current candidate supplies positive",
-                "A1_ACCEPTANCE_ONLY_22 The current candidate supplies positive",
-            )
-            .replace("RAW_REJECTED_FINDING_CANARY", "A1_FINDING_ONLY_22")
-            .replace(
-                "C1_FROM_IMPLEMENT", "C1_FROM_IMPLEMENT A1_CANDIDATE_GENERATION_ONLY_22"
-            )
-            .replace("C2_FROM_REPAIR", "C2_FROM_REPAIR A1_CANDIDATE_GENERATION_ONLY_22")
-        )
-        old_leaf.chmod(0o755)
-        with (
-            patch("final_assurance_support.LEAF", old_leaf),
-            patch("support.ISSUE_BODY", FROZEN_SOURCE_BYTES),
-            final_case(*args, **kwargs) as case,
-        ):
-            yield case
+    with (
+        patch("support.ISSUE_BODY", FROZEN_SOURCE_BYTES),
+        final_case(*args, canaries=A1_CANARIES, **kwargs) as case,
+    ):
+        yield case
 
 
 def replacement(case, name="replacement", *, actual_provider=None):
@@ -100,6 +84,7 @@ def replacement(case, name="replacement", *, actual_provider=None):
         "os.environ['BROODLING_FINAL_TEST_SCENARIO']='clean'\n"
         "os.environ['BROODLING_FINAL_TEST_MATERIALS']='False'\n"
         "os.environ['BROODLING_FINAL_TEST_PAUSE']=''\n"
+        "os.environ['BROODLING_FINAL_TEST_CANARIES']=''\n"
         f"runpy.run_path({str(LEAF)!r},run_name='__main__')\n"
     )
     executable.chmod(0o755)

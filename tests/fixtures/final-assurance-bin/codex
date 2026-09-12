@@ -9,6 +9,22 @@ import time
 from pathlib import Path
 
 
+def canary(role):
+    """Abandoned-state marker for one response role, supplied as fixture data.
+
+    `BROODLING_FINAL_TEST_CANARIES` carries the finite set of markers a case
+    wants planted in this fixture's controlled responses. Ordinary cases set
+    nothing and observe the ordinary text.
+    """
+    markers = json.loads(os.environ.get("BROODLING_FINAL_TEST_CANARIES") or "{}")
+    return markers.get(role)
+
+
+def marked(role, text):
+    marker = canary(role)
+    return f"{text} {marker}" if marker else text
+
+
 def assess(value):
     observations = value["evidenceContent"]["observations"]
     required = json.loads(value["contract"])["criteria"][0]
@@ -30,7 +46,9 @@ def assess(value):
         if raw.get(key) != expected:
             problems.append(f"Insufficient {key}: {raw.get(key)!r}")
     if raw.get("needsCorrection"):
-        problems.append("Candidate needs correction RAW_REJECTED_FINDING_CANARY")
+        problems.append(
+            marked("finding", "Candidate needs correction RAW_REJECTED_FINDING_CANARY")
+        )
     return problems, raw
 
 
@@ -63,7 +81,7 @@ def main():
                 raise RuntimeError("Test observer never released implementation")
             time.sleep(0.01)
         raw = json.loads(Path("desired.json").read_text())
-        raw["generationMaterial"] = "C1_FROM_IMPLEMENT"
+        raw["generationMaterial"] = marked("generation", "C1_FROM_IMPLEMENT")
         candidate.write_text(json.dumps(raw) + "\n")
         if os.environ.get("BROODLING_FINAL_TEST_MATERIALS") == "True":
             Path("source.bin").write_bytes(b"final source\x00\xff\xfe\n")
@@ -86,7 +104,7 @@ def main():
             }
     elif node == "repair":
         raw = json.loads(candidate.read_text())
-        raw["generationMaterial"] = "C2_FROM_REPAIR"
+        raw["generationMaterial"] = marked("generation", "C2_FROM_REPAIR")
         raw["needsCorrection"] = False
         raw["correctionSatisfied"] = scenario != "sticky"
         candidate.write_text(json.dumps(raw) + "\n")
@@ -130,7 +148,9 @@ def main():
                 response["signals"] = {"decision": "open_d1" if opened else "none"}
                 response["output"] = {
                     "directiveContent": {
-                        "directive": "Correct candidate.json" if opened else "",
+                        "directive": marked("directive", "Correct candidate.json")
+                        if opened
+                        else "",
                         "correction": "Set correctionSatisfied true" if opened else "",
                     }
                 }
@@ -147,10 +167,11 @@ def main():
                             "criterionId": "c1",
                             "rationale": "; ".join(problems)
                             if problems
-                            else (
+                            else marked(
+                                "acceptance",
                                 "The current candidate supplies positive, negative and boundary PASS "
                                 "observations for candidate.json on qualified-single-host in actual "
-                                "mode, with no contradictions and no outstanding correction."
+                                "mode, with no contradictions and no outstanding correction.",
                             ),
                         }
                     ]

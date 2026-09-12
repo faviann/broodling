@@ -9,6 +9,7 @@ import dataclasses
 import json
 import shutil
 import tempfile
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -28,8 +29,19 @@ LEAF = Path(__file__).parent / "fixtures/final-assurance-bin/codex"
 
 @contextmanager
 def final_case(
-    scenario="clean", *, contract_transform=None, final_materials=False, pause_node=None
+    scenario="clean",
+    *,
+    contract_transform=None,
+    final_materials=False,
+    pause_node=None,
+    canaries=None,
 ):
+    """Run the controlled model fixture over a real admitted #19 attempt.
+
+    `canaries` is the finite set of abandoned-only markers a lifecycle case
+    wants planted in the fixture's controlled responses, keyed by response
+    role (see the fixture's `canary`). Ordinary cases pass nothing.
+    """
     fixture = AttemptTestCase()
     fixture.setUp()
     run_root = Path(tempfile.mkdtemp(prefix="b19-", dir="/dev/shm"))
@@ -110,6 +122,8 @@ def final_case(
             f"os.environ['BROODLING_FINAL_TEST_SCENARIO'] = {scenario!r}\n"
             f"os.environ['BROODLING_FINAL_TEST_MATERIALS'] = {str(final_materials)!r}\n"
             f"os.environ['BROODLING_FINAL_TEST_PAUSE'] = {str(pause_node or '')!r}\n"
+            "os.environ['BROODLING_FINAL_TEST_CANARIES'] = "
+            f"{json.dumps(canaries or {})!r}\n"
             f"os.execv({str(LEAF)!r}, [{str(LEAF)!r}, *sys.argv[1:]])\n"
         )
         executable.chmod(0o755)
@@ -184,3 +198,27 @@ async def observe_released(case, operation=None):
             else case.adapter.observe_current(case.request, case.row.run_id),
             timeout=90,
         )
+
+
+async def paused(case):
+    """Release the model and wait until the case reaches its `pause_node`.
+
+    Shared by the lifecycle cases that need an actual public run stopped at a
+    known node; the status returned is the real SDK status.
+    """
+    from zeroshot import Client, LocalTarget
+
+    case.release()
+    async with Client(
+        target=LocalTarget(case.path, state_dir=case.run_root / "native"),
+        environment=case.request["target"]["environment"],
+    ) as client:
+        deadline = time.monotonic() + 40
+        while not (case.state / "paused").exists():
+            status = await client.get_run(case.row.run_id).status()
+            if status.result is not None:
+                raise AssertionError(f"run ended before pause: {status.result}")
+            if time.monotonic() > deadline:
+                raise AssertionError("control did not reach requested pause")
+            await asyncio.sleep(0.05)
+        return await client.get_run(case.row.run_id).status()
