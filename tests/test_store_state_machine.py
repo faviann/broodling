@@ -2,7 +2,8 @@
 
 The rules are the durable operations an operator can actually repeat: resolve a
 work reference, entitle a source and admit a Contract revision, admit the current
-Attempt, abandon it, restart the store. After every step the machine rechecks the
+Attempt, repeat that identical admission, abandon it, restart the store. After
+every step the machine rechecks the
 durable invariants — one current Attempt at most, irreversible abandonment,
 stable and non-aliasing identity, immutable records — and each rule that can be
 refused checks what that particular refusal must not have changed: the Work
@@ -203,6 +204,41 @@ class DurableStoreMachine(RuleBasedStateMachine):
         )
         assert self.store.current_attempt(work_unit_id) == attempt
         return attempt.attempt_id
+
+    @rule(attempt_id=attempts)
+    def re_admit_identical_request(self, attempt_id: str) -> None:
+        """An identical admission request converges on the Attempt it produced.
+
+        The revision and B1 come from the Attempt record itself, so the request
+        really is the one that created it. Once the Work Unit is abandoned,
+        ordinary admission has no authority at all; that is ``admit_attempt``'s
+        refusal path, not a second meaning for this rule.
+        """
+
+        attempt = self.store.get_attempt(attempt_id)
+        if not attempt.is_current or self.store.abandonment(attempt_id) is not None:
+            return
+        try:
+            again = self.store.admit_attempt(
+                attempt.contract_revision_id,
+                StartingState(
+                    attempt.b1_repository,
+                    attempt.b1_commit_oid,
+                    attempt.b1_requested_revision,
+                ),
+                workspace_root=WORKSPACE_ROOT,
+            )
+        except (AttemptConflict, StaleAttempt) as refusal:
+            raise AssertionError(
+                f"identical re-admission was refused: {refusal}"
+            ) from refusal
+        assert again == attempt, (
+            f"identical re-admission returned {again.attempt_id} with different "
+            f"bindings than {attempt_id}"
+        )
+        assert self.store.current_attempt(attempt.work_unit_id) == attempt, (
+            "identical re-admission created competing authority"
+        )
 
     @rule(attempt_id=attempts, reason=st.sampled_from(REASONS))
     def abandon_attempt(self, attempt_id: str, reason: str) -> None:

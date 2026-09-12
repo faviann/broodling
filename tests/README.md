@@ -64,6 +64,16 @@ abandoned one; abandonment irreversible, immutable and still refusing current
 authority; identity stable and non-aliasing across restarts; revisions and
 Attempt bindings never rewritten.
 
+One rule is a deliberate repetition: it takes an Attempt the machine already
+observed, reads the Contract revision and B1 back off that Attempt record, and
+admits again with exactly those bindings. Admission must return the same Attempt
+identity and bindings and leave it the Work Unit's one current authority. #30
+lists repeated idempotent operations among the invariants to check, and leaving
+that to Hypothesis drawing the same revision/B1 pair twice by chance made it a
+coin flip — the committed configuration reached it zero times before the rule
+existed and converges on an existing Attempt ten times with it. Admission after
+abandonment is a different question and stays with the refusal path below.
+
 Each rule that can be refused then checks what *that* refusal must not have
 changed, which is the "no partial authority" outcome #30 asks for rather than
 database-wide immutability. A refused Attempt admission must leave the Work
@@ -109,14 +119,9 @@ single run, with no product change.
    return a fresh UUID instead of deriving identity from the Contract revision,
    B1 and admitted material. The state machine failed with
    `identical re-admission was refused`, shrunk to one reference resolution, one
-   Contract revision and two identical Attempt admissions.
-
-   That assertion fires only in a run that happens to repeat one binding, and
-   which runs do depends on the seed — derandomized seeds follow the test's code
-   digest, so editing a rule moves them. It failed under 7 of 8 measured random
-   seeds, but the seed current at the time of writing is one that never repeats a
-   binding. Making repetition a rule of its own, instead of leaving it to
-   collision, would remove that dependence; it is not done here.
+   Contract revision and one repeated admission. With repetition now a rule
+   rather than a coincidence, the committed configuration reports it, from the
+   repetition rule and from a collision in the ordinary admission rule.
 
 Recorded on 12 September 2026 against this branch, Hypothesis 6.168.0, CPython
 3.13.5.
