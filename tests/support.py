@@ -71,28 +71,20 @@ class StoreTestCase(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp(prefix="broodling-p2-"))
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         self.store_path = self.root / "state" / "broodling.sqlite3"
-        self.store = self.open_store()
-
-    def open_store(self) -> BroodlingStore:
-        """Open a store on the fixture path and close it when the test ends.
-
-        The cleanup is registered after the directory removal, so unittest
-        runs it first: every connection a test opens is closed before the
-        fixture directory goes away, including the ones `reopen` replaces and
-        including when the test body raises. Closing a connection twice is
-        harmless, so cases that close a handle themselves (the crash
-        fixtures) stay correct.
-        """
-
-        store = BroodlingStore.open(self.store_path)
-        self.addCleanup(store.close)
-        return store
+        self.store = BroodlingStore.open(self.store_path)
+        # `reopen` closes the store it replaces, so closing whichever store is
+        # current at teardown closes them all, however many times a test
+        # reopened and whether or not the body raised. Registered after the
+        # directory removal, so it runs before it. Closing a connection twice
+        # is harmless, so cases that close the handle themselves (the crash
+        # fixtures) stay correct.
+        self.addCleanup(lambda: self.store.close())
 
     def reopen(self) -> BroodlingStore:
         """Close and reopen the store, as a restart would."""
 
         self.store.close()
-        self.store = self.open_store()
+        self.store = BroodlingStore.open(self.store_path)
         return self.store
 
     def admitted_work_unit(self):
