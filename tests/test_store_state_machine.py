@@ -24,11 +24,8 @@ import atexit
 import shutil
 import tempfile
 import unittest
-import uuid
 from pathlib import Path
-from unittest import mock
 
-from hypothesis import Phase
 from hypothesis import strategies as st
 from hypothesis.stateful import (
     Bundle,
@@ -36,7 +33,6 @@ from hypothesis.stateful import (
     invariant,
     multiple,
     rule,
-    run_state_machine_as_test,
 )
 from property_support import settings  # importing loads the shared profile
 from support import (
@@ -56,7 +52,6 @@ from broodling import (
     StartingState,
     WorkReference,
 )
-from broodling import store as store_module
 
 #: Store-side allocation only *derives* worktree paths and branch names, so
 #: nothing is ever created under this root. It is a real durable directory
@@ -309,74 +304,11 @@ class DurableStoreMachine(RuleBasedStateMachine):
 
 # Long sequences matter more than many short ones here: an Attempt can only be
 # re-admitted, conflicted or abandoned after several earlier steps set that up,
-# and a shallow step budget leaves those paths unreached.
-MACHINE_SETTINGS = settings(max_examples=50, stateful_step_count=40)
-
-DurableStoreMachine.TestCase.settings = MACHINE_SETTINGS
+# and a shallower step budget left those paths largely unreached.
+DurableStoreMachine.TestCase.settings = settings(
+    max_examples=50, stateful_step_count=40
+)
 DurableStoreTest = DurableStoreMachine.TestCase
-
-
-class DiscriminationTests(unittest.TestCase):
-    """The machine must fail against a wrong store, not merely pass against this one."""
-
-    def test_the_machine_catches_non_derived_attempt_identity(self) -> None:
-        # Allocating Attempt identity per call instead of deriving it from the
-        # revision, B1 and admitted material is the regression that breaks
-        # idempotent re-admission: the second identical request no longer finds
-        # the Attempt it already owns.
-        def allocated(*_arguments, **_keywords) -> str:
-            return "at-" + uuid.uuid4().hex
-
-        with (
-            mock.patch.object(store_module, "derive_attempt_id", allocated),
-            self.assertRaises(AssertionError) as caught,
-        ):
-            run_state_machine_as_test(
-                DurableStoreMachine,
-                # Generation and shrinking only: the defect shows up in a few
-                # examples, and the explain phase would re-run them for nothing.
-                settings=settings(
-                    MACHINE_SETTINGS, phases=(Phase.generate, Phase.shrink)
-                ),
-            )
-        self.assertIn("identical re-admission was refused", str(caught.exception))
-        reported = "\n".join(getattr(caught.exception, "__notes__", ()))
-        self.assertIn("admit_attempt", reported)
-        self.assertIn("@reproduce_failure", reported)
-
-    def test_the_refusal_check_sees_a_rewrite_not_only_a_row_count(self) -> None:
-        # Comparing row counts across a refusal would miss an existing durable
-        # row being rewritten in place, so the check compares the rows.
-        machine = DurableStoreMachine()
-        try:
-            work_unit_id = machine.resolve_reference(form=REFERENCE_FORMS[0])
-            revision_id = machine.admit_contract_revision(
-                work_unit_id=work_unit_id, statement=STATEMENTS[0]
-            )
-            attempt_id = machine.admit_attempt(
-                revision_id=revision_id, commit=B1_COMMITS[0]
-            )
-            before = machine._durable_state()
-            # Abandonment withdraws currentness by rewriting `attempts` in
-            # place; only `attempt_abandonments` gains a row.
-            machine.abandon_attempt(attempt_id=attempt_id, reason=REASONS[0])
-            after = machine._durable_state()
-        finally:
-            machine.teardown()
-
-        self.assertEqual(
-            {
-                table: len(rows)
-                for table, rows in after.items()
-                if table != "attempt_abandonments"
-            },
-            {
-                table: len(rows)
-                for table, rows in before.items()
-                if table != "attempt_abandonments"
-            },
-        )
-        self.assertNotEqual(after["attempts"], before["attempts"])
 
 
 if __name__ == "__main__":

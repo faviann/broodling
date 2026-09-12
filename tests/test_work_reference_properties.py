@@ -3,29 +3,23 @@
 The named matrices in ``test_work_unit_identity`` remain the documentation of
 which ingress forms are supported. These properties cover the space around them:
 *every* supported spelling of one generated reference, pairs of references that
-differ in exactly one canonical component, and malformed input. The
-``DiscriminationTests`` case at the end shows the non-aliasing property failing
-against a deliberately host-insensitive canonicalization, so the property is
-known to discriminate a wrong implementation rather than restate this one.
+differ in exactly one canonical component, and malformed input.
 """
 
 from __future__ import annotations
 
-import re
 import shutil
 import tempfile
 import unittest
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
-from unittest import mock
 
-from hypothesis import Phase, assume, given
+import property_support  # noqa: F401 - importing loads the shared settings profile
+from hypothesis import assume, given
 from hypothesis import strategies as st
-from property_support import settings  # importing loads the shared profile
 
 from broodling import BroodlingStore, InvalidWorkReference, WorkReference
-from broodling import identity as identity_module
 from broodling.identity import DEFAULT_FORGE_HOST
 
 #: Canonical components are generated in their canonical (lowercase) form, so a
@@ -256,49 +250,6 @@ class StoreIngressProperties(unittest.TestCase):
             with self.assertRaises(InvalidWorkReference):
                 store.resolve_work_unit(WorkReference.parse(repository, issue))
             self.assertEqual(work_unit_count(store), 0)
-
-
-class DiscriminationTests(unittest.TestCase):
-    """The properties must fail against a wrong canonicalization, not just pass."""
-
-    def test_non_aliasing_discriminates_a_host_insensitive_canonicalization(
-        self,
-    ) -> None:
-        original = identity_module.canonicalize_repository
-
-        def host_insensitive(submitted: str):
-            _host, owner, repository = original(submitted)
-            return DEFAULT_FORGE_HOST, owner, repository
-
-        # Generation and shrinking only: the defect is found in a handful of
-        # examples, and the explain phase would re-run them for nothing.
-        @settings(phases=(Phase.generate, Phase.shrink), max_examples=50)
-        @given(pair=reference_pairs())
-        def never_alias(pair) -> None:
-            first, second = pair
-            assert first.parse().work_unit_id != second.parse().work_unit_id
-
-        with (
-            mock.patch.object(
-                identity_module, "canonicalize_repository", host_insensitive
-            ),
-            self.assertRaises(AssertionError) as caught,
-        ):
-            never_alias()
-
-        # Hypothesis reports the shrunk counterexample, and the blob that
-        # replays it, on the failure itself.
-        reported = "\n".join(getattr(caught.exception, "__notes__", ()))
-        self.assertIn("@reproduce_failure", reported)
-        # Shrinking lands on the smallest colliding pair: two references
-        # identical apart from the host the defect discards.
-        hosts = re.findall(r"host='([^']+)'", reported)
-        owners = re.findall(r"owner='([^']+)'", reported)
-        repositories = re.findall(r"repository='([^']+)'", reported)
-        self.assertEqual(len(hosts), 2, reported)
-        self.assertNotEqual(hosts[0], hosts[1], reported)
-        self.assertEqual(owners[0], owners[1], reported)
-        self.assertEqual(repositories[0], repositories[1], reported)
 
 
 if __name__ == "__main__":

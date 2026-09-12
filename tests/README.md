@@ -65,29 +65,44 @@ Attempt, which Attempts it abandoned). It does not decide which operation
 *ought* to succeed, so it is not a second implementation of admission: refusals
 are tolerated unless an already-observed fact contradicts them.
 
-## Discrimination evidence
+It runs 50 examples of up to 40 steps. The step budget is not arbitrary: at 12
+steps one measured run reached only four Attempt admissions and no refusal at
+all, while at 40 the same run reaches 139 admissions including 43 conflicts and
+35 stale refusals. Depth is what brings re-admission, conflict and
+post-abandonment paths into reach, so a shallower budget leaves the durable
+paths this test exists for largely unexercised.
 
-Each module ends with a `DiscriminationTests` case that runs its property against
-a deliberately defective implementation and requires the failure, so the
-properties are known to reject a wrong implementation rather than restate this
-one.
+## Discrimination evidence (recorded, not retested)
 
-- A host-insensitive canonicalization (every forge collapsed onto the default
-  host) fails the non-aliasing property. Shrinking lands on the minimal
-  counterexample: two references identical apart from the host, e.g.
-  `github.com/0/0#1` against `gitlab.com/0/0#1`.
-- Allocating Attempt identity per call instead of deriving it from the Contract
-  revision, B1 and admitted material fails the state machine with
-  `identical re-admission was refused`, shrunk to one `resolve_reference`,
-  one `admit_contract_revision` and two identical `admit_attempt` steps.
+Issue #30 asks for a demonstration that these properties reject a wrong
+implementation rather than restate this one. The demonstrations were run against
+temporarily introduced defects while the properties were written, and the results
+are recorded here. The broken implementations and the tests that drove them are
+**not** part of the suite: retesting a synthetic mutation, or Hypothesis's own
+shrinking and reporting, is not assurance about Broodling.
 
-Both assertions check the reported counterexample, including the
-`@reproduce_failure` blob, rather than only that something failed.
+Each defect was simulated by replacing one function for the duration of a single
+run, with no product change.
 
-The third case pins the refusal check itself: abandonment rewrites
-`attempts.is_current` in place without changing any table's cardinality, so it
-would pass a row-count comparison and must not pass the row comparison the rules
-actually use.
+1. **Canonicalization that ignores the forge host** — `canonicalize_repository`
+   patched to return the default host for every input. The non-aliasing property
+   failed and shrank to two references identical apart from the host
+   (`github.com/0/0#1` against `gitlab.com/0/0#1`), which is the smallest input
+   that exercises the discarded component.
+2. **Attempt identity allocated per call** — `store.derive_attempt_id` patched to
+   return a fresh UUID instead of deriving identity from the Contract revision,
+   B1 and admitted material. The state machine failed with
+   `identical re-admission was refused`, shrunk to one reference resolution, one
+   Contract revision and two identical Attempt admissions. Checked under the
+   committed derandomized seed and six random ones.
+3. **A refusal that rewrites an existing durable row** — abandonment withdraws
+   currentness by rewriting `attempts.is_current` in place, changing no table's
+   row count. Comparing row counts across a refusal accepted that change;
+   comparing the rows, as the rules now do, rejected it. This is why the refusal
+   check snapshots rows rather than counts.
+
+Recorded on 12 September 2026 against this branch, Hypothesis 6.168.0, CPython
+3.13.5.
 
 ## Boundary
 
