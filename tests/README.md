@@ -55,7 +55,9 @@ every step rechecks: at most one current Attempt per Work Unit and never an
 abandoned one; abandonment irreversible, immutable and still refusing current
 authority; identity stable and non-aliasing across restarts; revisions and
 Attempt bindings never rewritten. Every rule also requires a refused operation to
-leave the durable tables exactly as they were.
+leave the durable tables exactly as they were — every row of them compared, not
+just the row count, so a rewrite of an existing durable fact is caught as well as
+an insertion or deletion.
 
 The machine stores only facts it has already observed from the store (which
 reference resolved which Work Unit, which revision/B1 pair produced which
@@ -81,6 +83,11 @@ one.
 
 Both assertions check the reported counterexample, including the
 `@reproduce_failure` blob, rather than only that something failed.
+
+The third case pins the refusal check itself: abandonment rewrites
+`attempts.is_current` in place without changing any table's cardinality, so it
+would pass a row-count comparison and must not pass the row comparison the rules
+actually use.
 
 ## Boundary
 

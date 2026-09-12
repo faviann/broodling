@@ -88,7 +88,9 @@ B1_COMMITS = ("0" * 40, "1" * 40)
 
 REASONS = ("controller lost", "stopped by operator")
 
-#: Durable tables a refused operation must leave untouched.
+#: Durable tables a refused operation must leave untouched — every row of them,
+#: not merely the row count: rewriting an existing fact is exactly the partial
+#: authority a refusal must not leave behind.
 DURABLE_TABLES = (
     "work_units",
     "entitled_sources",
@@ -181,7 +183,7 @@ class DurableStoreMachine(RuleBasedStateMachine):
     def admit_attempt(self, revision_id: str, commit: str):
         binding = (revision_id, commit)
         work_unit_id = self.store.get_contract_revision(revision_id).work_unit_id
-        before = self._durable_counts()
+        before = self._durable_state()
         try:
             attempt = self.store.admit_attempt(
                 revision_id,
@@ -189,9 +191,7 @@ class DurableStoreMachine(RuleBasedStateMachine):
                 workspace_root=WORKSPACE_ROOT,
             )
         except (AttemptConflict, StaleAttempt) as refusal:
-            assert self._durable_counts() == before, (
-                f"refused admission wrote durable state: {refusal}"
-            )
+            self._assert_unchanged(before, refusal)
             # Repeating an admission that already succeeded must converge on the
             # Attempt it produced — unless this Work Unit has since been
             # abandoned, which withdraws ordinary admission authority outright.
@@ -208,13 +208,11 @@ class DurableStoreMachine(RuleBasedStateMachine):
 
     @rule(attempt_id=attempts, reason=st.sampled_from(REASONS))
     def abandon_attempt(self, attempt_id: str, reason: str) -> None:
-        before = self._durable_counts()
+        before = self._durable_state()
         try:
             record = self.store.abandon_attempt(attempt_id, reason)
         except StaleAttempt as refusal:
-            assert self._durable_counts() == before, (
-                f"refused abandonment wrote durable state: {refusal}"
-            )
+            self._assert_unchanged(before, refusal)
             assert attempt_id not in self.abandonments, (
                 f"an abandoned Attempt refused to report its abandonment: {refusal}"
             )
@@ -280,21 +278,39 @@ class DurableStoreMachine(RuleBasedStateMachine):
                 commit,
             ), f"{attempt_id} was rebound"
 
-    # ------------------------------------------------------------------ helper
+    # ----------------------------------------------------------------- helpers
 
-    def _durable_counts(self) -> dict[str, int]:
+    def _assert_unchanged(self, before, refusal: Exception) -> None:
+        """A refused operation must leave no partial authority behind."""
+
+        after = self._durable_state()
+        changed = [table for table in DURABLE_TABLES if after[table] != before[table]]
+        assert not changed, f"refused operation wrote {changed}: {refusal}"
+
+    def _durable_state(self) -> dict[str, tuple[tuple[object, ...], ...]]:
+        """Every row of every durable table, as comparable values.
+
+        Ordered by the first column — the identity of each of these tables — so
+        two reads of unchanged state compare equal, and any inserted, deleted or
+        rewritten row compares unequal.
+        """
+
         return {
-            table: int(
-                self.store.connection.execute(
+            table: tuple(
+                tuple(row)
+                for row in self.store.connection.execute(
                     # Fixed identifiers from DURABLE_TABLES, never caller input.
-                    f"SELECT count(*) AS total FROM {table}"
-                ).fetchone()["total"]
+                    f"SELECT * FROM {table} ORDER BY 1"
+                )
             )
             for table in DURABLE_TABLES
         }
 
 
-MACHINE_SETTINGS = settings(max_examples=50, stateful_step_count=12)
+# Long sequences matter more than many short ones here: an Attempt can only be
+# re-admitted, conflicted or abandoned after several earlier steps set that up,
+# and a shallow step budget leaves those paths unreached.
+MACHINE_SETTINGS = settings(max_examples=50, stateful_step_count=40)
 
 DurableStoreMachine.TestCase.settings = MACHINE_SETTINGS
 DurableStoreTest = DurableStoreMachine.TestCase
@@ -327,6 +343,40 @@ class DiscriminationTests(unittest.TestCase):
         reported = "\n".join(getattr(caught.exception, "__notes__", ()))
         self.assertIn("admit_attempt", reported)
         self.assertIn("@reproduce_failure", reported)
+
+    def test_the_refusal_check_sees_a_rewrite_not_only_a_row_count(self) -> None:
+        # Comparing row counts across a refusal would miss an existing durable
+        # row being rewritten in place, so the check compares the rows.
+        machine = DurableStoreMachine()
+        try:
+            work_unit_id = machine.resolve_reference(form=REFERENCE_FORMS[0])
+            revision_id = machine.admit_contract_revision(
+                work_unit_id=work_unit_id, statement=STATEMENTS[0]
+            )
+            attempt_id = machine.admit_attempt(
+                revision_id=revision_id, commit=B1_COMMITS[0]
+            )
+            before = machine._durable_state()
+            # Abandonment withdraws currentness by rewriting `attempts` in
+            # place; only `attempt_abandonments` gains a row.
+            machine.abandon_attempt(attempt_id=attempt_id, reason=REASONS[0])
+            after = machine._durable_state()
+        finally:
+            machine.teardown()
+
+        self.assertEqual(
+            {
+                table: len(rows)
+                for table, rows in after.items()
+                if table != "attempt_abandonments"
+            },
+            {
+                table: len(rows)
+                for table, rows in before.items()
+                if table != "attempt_abandonments"
+            },
+        )
+        self.assertNotEqual(after["attempts"], before["attempts"])
 
 
 if __name__ == "__main__":
