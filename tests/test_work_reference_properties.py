@@ -2,8 +2,11 @@
 
 The named matrices in ``test_work_unit_identity`` remain the documentation of
 which ingress forms are supported. These properties cover the space around them:
-*every* supported spelling of one generated reference, pairs of references that
-differ in exactly one canonical component, and malformed input.
+every *promised* spelling of one generated reference, pairs of references that
+differ in exactly one canonical component, and malformed input. The generated
+spellings are variations of the ingress v1-P2 §2.1 and those named examples
+promise — not of whatever the current parser tolerates, which a property run
+asserting validity would freeze into a contract.
 """
 
 from __future__ import annotations
@@ -61,14 +64,24 @@ class CanonicalReference:
         return WorkReference.parse(repository, issue)
 
     def renderings(self) -> tuple[tuple[str, object], ...]:
-        """Every supported spelling of this reference, as ``(repository, issue)``."""
+        """The promised spellings of this reference, as ``(repository, issue)``.
+
+        Each form is a variation of ingress the product actually promises:
+        `v1-P2 §2.1 <../docs/implementation/v1-p2-admission-nucleus.md>`_ —
+        "HTTPS, SSH, ``scp``-like and bare ``owner/repo`` forms, case differences
+        and a ``.git`` suffix all resolve to one Work Unit" — and the named
+        examples in ``test_work_unit_identity.CanonicalIngressTests``, which add
+        the schemeless ``host/owner/repo`` form, a trailing slash, and the issue
+        spelled as a number, a string, ``#n`` or its canonical issue URL.
+
+        Other spellings today's parser happens to tolerate are deliberately
+        absent, so a property run neither promises nor refuses them.
+        """
 
         repositories = [
             f"https://{self.host}/{self.path}",
             f"https://{self.host}/{self.path}.git",
             f"https://{self.host}/{self.path}/",
-            f"http://{self.host}/{self.path}",
-            f"git://{self.host}/{self.path}",
             f"ssh://git@{self.host}/{self.owner.upper()}/{self.repository.upper()}",
             f"git@{self.host}:{self.path}.git",
             f"{self.host}/{self.path}",
@@ -82,7 +95,6 @@ class CanonicalReference:
             str(self.issue_number),
             f"#{self.issue_number}",
             f"https://{self.host}/{self.path}/issues/{self.issue_number}",
-            f"https://{self.host}/{self.path}/-/issues/{self.issue_number}",
         ]
         return tuple(
             (repository, issue) for repository in repositories for issue in issues

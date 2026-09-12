@@ -38,10 +38,16 @@ between a warm and a cold host.
 `test_work_reference_properties.py` generates a canonical identity
 (host, owner, repository, issue) and then:
 
-- every supported spelling of it — scheme, `.git` suffix, trailing slash, case,
-  `scp`-like remote, bare `owner/repo`, issue as number, `#n` or issue URL —
-  resolves one canonical key, one derived Work Unit id and one issue locator,
-  and a store holds exactly one Work Unit for all of them;
+- every *promised* spelling of it resolves one canonical key, one derived Work
+  Unit id and one issue locator, and a store holds exactly one Work Unit for all
+  of them. The generated forms are exactly what the product promises —
+  [v1-P2 §2.1](../docs/implementation/v1-p2-admission-nucleus.md) ("HTTPS, SSH,
+  `scp`-like and bare `owner/repo` forms, case differences and a `.git` suffix
+  all resolve to one Work Unit") plus the named examples in
+  `test_work_unit_identity.CanonicalIngressTests` (schemeless `host/owner/repo`,
+  a trailing slash, and the issue as a number, a string, `#n` or its canonical
+  issue URL). Spellings the parser merely tolerates are left out on purpose: a
+  property that asserts them valid turns incidental tolerance into a contract;
 - two references differing in exactly **one** canonical component never share a
   key or a Work Unit id. Distinctness is generated component by component on
   purpose: two independently drawn references practically never collide, so an
