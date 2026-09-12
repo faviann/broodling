@@ -24,6 +24,7 @@ dist/
 out/
 target/
 node_modules/
+*.egg-info/
 __pycache__/
 *.py[cod]
 .venv/
