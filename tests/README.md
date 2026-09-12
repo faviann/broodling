@@ -63,7 +63,9 @@ authority; identity stable and non-aliasing across restarts; revisions and
 Attempt bindings never rewritten. Every rule also requires a refused operation to
 leave the durable tables exactly as they were — every row of them compared, not
 just the row count, so a rewrite of an existing durable fact is caught as well as
-an insertion or deletion.
+an insertion or deletion. Row counts alone would not do: a successful abandonment
+rewrites `attempts.is_current` in place without changing any table's cardinality,
+so a count comparison cannot tell an untouched table from a rewritten one.
 
 The machine stores only facts it has already observed from the store (which
 reference resolved which Work Unit, which revision/B1 pair produced which
@@ -87,8 +89,8 @@ are recorded here. The broken implementations and the tests that drove them are
 **not** part of the suite: retesting a synthetic mutation, or Hypothesis's own
 shrinking and reporting, is not assurance about Broodling.
 
-Each defect was simulated by replacing one function for the duration of a single
-run, with no product change.
+Both defects were simulated by replacing one function for the duration of a
+single run, with no product change.
 
 1. **Canonicalization that ignores the forge host** — `canonicalize_repository`
    patched to return the default host for every input. The non-aliasing property
@@ -101,11 +103,6 @@ run, with no product change.
    `identical re-admission was refused`, shrunk to one reference resolution, one
    Contract revision and two identical Attempt admissions. Checked under the
    committed derandomized seed and six random ones.
-3. **A refusal that rewrites an existing durable row** — abandonment withdraws
-   currentness by rewriting `attempts.is_current` in place, changing no table's
-   row count. Comparing row counts across a refusal accepted that change;
-   comparing the rows, as the rules now do, rejected it. This is why the refusal
-   check snapshots rows rather than counts.
 
 Recorded on 12 September 2026 against this branch, Hypothesis 6.168.0, CPython
 3.13.5.
