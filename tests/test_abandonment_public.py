@@ -11,13 +11,12 @@ import os
 import signal
 import subprocess
 import sys
-import time
 import unittest
 from pathlib import Path
 from typing import ClassVar
 from unittest.mock import patch
 
-from final_assurance_support import final_case, observe_released
+from final_assurance_support import final_case, observe_released, paused
 
 from broodling import (
     AbandonmentCoordinator,
@@ -27,25 +26,6 @@ from broodling import (
     containment,
 )
 from broodling.errors import StaleAttempt
-
-
-async def paused(case):
-    from zeroshot import Client, LocalTarget
-
-    case.release()
-    async with Client(
-        target=LocalTarget(case.path, state_dir=case.run_root / "native"),
-        environment=case.request["target"]["environment"],
-    ) as client:
-        deadline = time.monotonic() + 40
-        while not (case.state / "paused").exists():
-            status = await client.get_run(case.row.run_id).status()
-            if status.result is not None:
-                raise AssertionError(f"run ended before pause: {status.result}")
-            if time.monotonic() > deadline:
-                raise AssertionError("control did not reach requested pause")
-            await asyncio.sleep(0.05)
-        return await client.get_run(case.row.run_id).status()
 
 
 def controller_pid(case):

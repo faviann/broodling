@@ -14,7 +14,7 @@ from threading import Event
 from typing import ClassVar
 from unittest.mock import patch
 
-from final_assurance_support import final_case, observe_released
+from final_assurance_support import final_case, observe_released, paused
 from replacement_support import (
     FROZEN_SOURCE_BYTES,
     FROZEN_SOURCE_CANARY,
@@ -27,7 +27,6 @@ from replacement_support import (
     wait_replacement,
 )
 from support import git, move_head
-from test_abandonment_public import paused
 
 from broodling import AbandonmentCoordinator, BroodlingStore, FinalAssuranceCoordinator
 from broodling.errors import StaleAttempt

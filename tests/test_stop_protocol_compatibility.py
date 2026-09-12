@@ -205,8 +205,8 @@ class PublicStopProtocolCompatibilityTests(unittest.TestCase):
     def test_published_graph_controller_loss_can_stop_and_retire_under_current_launcher(
         self,
     ):
-        from final_assurance_support import final_case
-        from test_abandonment_public import controller_pid, paused
+        from final_assurance_support import final_case, paused
+        from test_abandonment_public import controller_pid
 
         def legacy_state(*args, **kwargs):
             state = initial_state(*args, **kwargs)
