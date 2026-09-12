@@ -8,17 +8,18 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
-ROOT = Path.cwd()
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / 'tests'))
-import assurance_support as a
-from support import durable_test_root
-from broodling.assurance_graph import assurance_graph
-from broodling.zeroshot_sdk import assert_qualified_integration
-
 OUTPUT = Path('/dev/shm/issue17_adversarial_results.json')
 
 async def main():
+    ROOT = Path.cwd()
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(ROOT / 'tests'))
+    import assurance_support as a
+    from support import durable_test_root
+
+    from broodling.assurance_graph import assurance_graph
+    from broodling.zeroshot_sdk import assert_qualified_integration
+
     build = assert_qualified_integration()
     run_root = Path(tempfile.mkdtemp(prefix='b17ra-', dir='/dev/shm'))
     workspace_root = durable_test_root('b17-adversarial-')
@@ -81,4 +82,5 @@ async def main():
         shutil.rmtree(workspace_root, ignore_errors=True)
         shutil.rmtree(launcher, ignore_errors=True)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

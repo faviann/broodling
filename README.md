@@ -81,6 +81,9 @@ The Attempt tests provision real Git worktrees and therefore need a durable work
 
 ## Baseline and qualification provenance
 
+See [qualification entry-point safety and reproduction](qualification/README.md)
+for current invocation rules and the original source identities retained by #36.
+
 The unchanged [P0/G0 inventory](docs/baseline/p0-g0-inventory.md) links the original v0.3 target and plan, all 25 invariant fixtures, the historical-protection map and recorded input hashes. G0 PASS means specification completeness, not integration or semantic qualification.
 
 The [P1 external SDK/sidecar harness](qualification/p1/README.md), issue-scoped reports/records, the v0.4 governing pair, G0-v0.4, and issue #8 evidence are retained unchanged. Use the originating commits identified by the governing documents for reproduction; bounded historical findings do not establish broader V1 or production readiness.
