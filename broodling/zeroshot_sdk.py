@@ -269,7 +269,15 @@ class ZeroshotSubmitter:
             result = status.result
             if status.phase != "finished" or result.run_id != run_id:
                 raise UnsupportedRuntime("terminal result lacks current-run provenance")
-            if not result.succeeded or final is None or mutation is None:
+            # Two distinct facts, each fail-closed and separately named: the run
+            # itself ended unsuccessfully, or this observation never held the
+            # occurrences a success must have. One message for both leaves a
+            # refusal that cannot say which invariant failed (issue #40).
+            if not result.succeeded:
+                raise UnsupportedRuntime(
+                    f"normal observation ended in a failed run: {result.failure}"
+                )
+            if final is None or mutation is None:
                 raise UnsupportedRuntime(
                     "normal successful final occurrence was not observed"
                 )

@@ -229,3 +229,82 @@ correct next to the deadline the test already states.
 The net covers `pytest` only. `python -m unittest discover -s tests`, which the
 README also documents, has no equivalent and runs without it; that is a property
 of the runner, not a reason to add product-side timeouts.
+
+# Forward-observation refusal under full-suite load (issue #40)
+
+One full qualified-suite run failed
+`test_disposition_public.PublicDispositionTests::test_standalone_p3_custody_does_not_authorize_later_finalization`
+with `UnsupportedRuntime: normal successful final occurrence was not observed`,
+raised by `ZeroshotSubmitter.observe_current`. It never reproduced afterwards.
+Two explanations were open: a race in this control, or a gap in the product's
+current-run forward observation. The evidence says the control, and that the
+refusal itself could not say so.
+
+## Forward observation cannot miss an occurrence after its cursor
+
+`observe_current` reads one status, then watches strictly after that status's
+cursor. That stream is a durable replay, not a live feed: the pinned sidecar
+keeps every run event in its ledger, emits one status per non-log event, prunes
+nothing, and the local watch has no lossy buffer. So no speed of run can outrun
+the observer, and a terminal result arriving early cannot cost it an occurrence.
+
+Demonstrated rather than assumed: with the watch stream held closed until the
+run was already `finished`, the whole occurrence sequence — `implement` at
+`v2:2`, `final_assessment_authority_clean` at `v2:25`, the terminal result at
+`v2:31` — still arrived in order within milliseconds of opening it, and the
+capture succeeded. The only way `observe_current` can hold no occurrence is for
+the run to have passed them *before* its first status, which `observe_released`
+prevents by construction: it releases the model from inside that first status
+call, so the run is still gated on `implement` when the cursor is taken.
+
+## What that message actually meant
+
+The refusal covered three different facts at once — the run failed, no mutation
+occurrence was observed, no final occurrence was observed — so the recorded
+traceback could not distinguish them, and the issue's reading ("held neither")
+was an inference. The retained G4 disposition controls show the same string
+recorded for `rejected-semantic-gap` and `rejected-missing-rationale`, which are
+*failed runs* with their occurrences fully observed. A failed run is now refused
+as `normal observation ended in a failed run: <reason>`, which is the same
+fail-closed refusal naming which invariant broke; nothing that was refused
+before is admitted now.
+
+## The control's own release deadline
+
+`observe_released` releases the model after the adapter's first `status()`
+returns, and the fixture's `implement` leaf waited only 30 seconds for that
+release. That budget competed with unrelated suite load, and the runtime retries
+a failed provider once inside the same execution, so a crossed deadline was
+silent — it produced no new `node_started` and no status the observer could see.
+
+Reproduced deliberately by stalling the release, which is the point in the
+sequence the load acts on:
+
+| Release delayed by | Before | After |
+| --- | --- | --- |
+| 35s | first provider attempt failed, `Codex provider failed; continuing once`, retry succeeded, capture passed | one clean `implement` execution, capture passed |
+| 68s | both attempts failed, `implement` completed `error`, run terminal `failed`/`execution_unusable`, **`normal successful final occurrence was not observed`** | one clean `implement` execution, capture passed |
+
+At 68 seconds the control manufactured the exact recorded failure while the
+mutation occurrence was observed all along, at `v2:2`, and the run's terminal
+result was `succeeded=False`. The leaf's deadline is now
+`RELEASE_WEDGE_SECONDS = 120`: strictly greater than `observe_released`'s 90s
+observer window, so no release that is still legitimate can cross it, and small
+enough that both provider attempts fit inside the graph's 300s node timeout. It
+is a wedge net like the `pytest-timeout` default above, not a control, and no
+test assertion, observer window or provenance check was weakened for it.
+
+## What remains unproven
+
+The original run's failure reason was not retained, so this is the mechanism
+that reproduces the recorded message under load, not a proof that this exact
+gate is what crossed in that run. Any other load-induced run failure — a node
+exceeding its 300s timeout, a genuine provider flake — produces the same refusal
+for the same correct reason. Should it recur, the refusal now names which of the
+two it was, and #33's parallelism is the load that would show it.
+
+Both reproductions were run outside `tests/` against this fixture, with no
+product change, and are recorded rather than committed: a stalled-release or
+held-watch control asserts nothing about Broodling once the boundary it found is
+fixed. Recorded on 13 September 2026 on the qualified profile (pinned SDK and
+sidecar from `d090961`), CPython 3.13.5.

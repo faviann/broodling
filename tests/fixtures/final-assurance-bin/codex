@@ -9,6 +9,11 @@ import time
 from pathlib import Path
 
 
+# Strictly greater than `observe_released`'s 90s observer window, and small
+# enough that both provider attempts fit inside the graph's 300s node timeout.
+RELEASE_WEDGE_SECONDS = 120
+
+
 def canary(role):
     """Abandoned-state marker for one response role, supplied as fixture data.
 
@@ -75,7 +80,13 @@ def main():
             time.sleep(0.01)
     candidate = Path("candidate.json")
     if node == "implement":
-        deadline = time.monotonic() + 30
+        # Wedge net, not a control: it must outlast every window in which a
+        # legitimate release can still arrive, so that observer slowness never
+        # turns into a provider failure. The observer's own bound is
+        # `observe_released`'s 90s wait_for (issue #40); the runtime also retries
+        # a failed provider once in the same execution, which would otherwise
+        # hide a crossed deadline instead of reporting it.
+        deadline = time.monotonic() + RELEASE_WEDGE_SECONDS
         while not (state / "release").exists():
             if time.monotonic() > deadline:
                 raise RuntimeError("Test observer never released implementation")
