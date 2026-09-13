@@ -196,12 +196,12 @@ class ExclusiveOwnershipTests(AttemptTestCase):
         """A second Attempt of the second Work Unit, owning no worktree yet.
 
         The rival has to be a *real* row in `attempts`: `worktree_assignments`
-        references it, so an invented id is rejected by that foreign key before
+        references it, so an invented id is refused by that foreign key before
         the uniqueness these tests are about is ever consulted. Admission always
-        allocates an assignment with the Attempt, so the only Attempt without one
-        is a fabricated one — which is what the raw-SQL claim below has to
-        contend with. It is inserted non-current, so the one-current-Attempt
-        index is not what refuses either.
+        allocates an assignment with the Attempt, so an Attempt owning no
+        worktree is precisely what a raw-SQL claim has to fabricate. It is
+        inserted non-current, so the one-current-Attempt index is not what
+        refuses either.
         """
 
         rival = self.second.attempt.attempt_id + "-rival"
@@ -225,52 +225,53 @@ class ExclusiveOwnershipTests(AttemptTestCase):
         )
         return rival
 
-    def test_two_attempts_cannot_claim_one_worktree_path_even_by_raw_sql(self) -> None:
-        with self.assertRaises(sqlite3.IntegrityError) as refusal:
-            self.store.connection.execute(
-                """
-                INSERT INTO worktree_assignments (
-                    attempt_id, work_unit_id, repository, worktree_path, branch,
-                    state, allocated_at, provisioned_at
-                ) VALUES (?, ?, ?, ?, 'broodling/rival', 'allocated', 'now', NULL)
-                """,
-                (
-                    self.rival_attempt_id(),
-                    self.second.attempt.work_unit_id,
-                    self.second.attempt.b1_repository,
-                    self.first.assignment.worktree_path,
-                ),
-            )
-        # Naming the constraint is the point: any other IntegrityError here —
-        # the foreign key, the primary key — would mean the fixture, not the
-        # worktree-path uniqueness, refused the second claim.
-        self.assertEqual(
-            str(refusal.exception),
-            "UNIQUE constraint failed: worktree_assignments.worktree_path",
+    def claim_worktree_by_raw_sql(self, worktree_path: str, branch: str) -> None:
+        """Claim `worktree_path` and `branch` for a rival Attempt, in raw SQL."""
+
+        self.store.connection.execute(
+            """
+            INSERT INTO worktree_assignments (
+                attempt_id, work_unit_id, repository, worktree_path, branch,
+                state, allocated_at, provisioned_at
+            ) VALUES (?, ?, ?, ?, ?, 'allocated', 'now', NULL)
+            """,
+            (
+                self.rival_attempt_id(),
+                self.second.attempt.work_unit_id,
+                self.first.assignment.repository,
+                worktree_path,
+                branch,
+            ),
         )
 
-    def test_two_attempts_cannot_claim_one_branch_even_by_raw_sql(self) -> None:
-        with self.assertRaises(sqlite3.IntegrityError) as refusal:
-            self.store.connection.execute(
-                """
-                INSERT INTO worktree_assignments (
-                    attempt_id, work_unit_id, repository, worktree_path, branch,
-                    state, allocated_at, provisioned_at
-                ) VALUES (?, ?, ?, ?, ?, 'allocated', 'now', NULL)
-                """,
-                (
-                    self.rival_attempt_id(),
-                    self.second.attempt.work_unit_id,
-                    self.second.attempt.b1_repository,
-                    str(self.workspace_root / "elsewhere"),
-                    self.first.branch,
-                ),
-            )
-        self.assertEqual(
-            str(refusal.exception),
-            "UNIQUE constraint failed: worktree_assignments.repository, "
-            "worktree_assignments.branch",
+    def assertRefusedAsDuplicate(self, refusal) -> None:
+        """The refusal is a uniqueness violation, not some other constraint.
+
+        `sqlite_errorname` is the stable signal: it separates a duplicate from
+        the foreign key, the primary key and the ownership triggers, any of
+        which would mean the fixture rather than the claim was refused. The
+        message text is diagnostic prose and is deliberately not pinned; which
+        uniqueness is at stake is fixed by each claim leaving every other unique
+        column free, which its preconditions assert.
+        """
+
+        self.assertEqual(refusal.exception.sqlite_errorname, "SQLITE_CONSTRAINT_UNIQUE")
+
+    def test_two_attempts_cannot_claim_one_worktree_path_even_by_raw_sql(self) -> None:
+        branch = "broodling/rival"
+        self.assertIsNone(
+            self.store.branch_owner(self.first.assignment.repository, branch)
         )
+        with self.assertRaises(sqlite3.IntegrityError) as refusal:
+            self.claim_worktree_by_raw_sql(self.first.assignment.worktree_path, branch)
+        self.assertRefusedAsDuplicate(refusal)
+
+    def test_two_attempts_cannot_claim_one_branch_even_by_raw_sql(self) -> None:
+        path = str(self.workspace_root / "elsewhere")
+        self.assertIsNone(self.store.worktree_owner(path))
+        with self.assertRaises(sqlite3.IntegrityError) as refusal:
+            self.claim_worktree_by_raw_sql(path, self.first.assignment.branch)
+        self.assertRefusedAsDuplicate(refusal)
 
     def test_worktree_ownership_cannot_be_deleted(self) -> None:
         with self.assertRaises(sqlite3.IntegrityError):
