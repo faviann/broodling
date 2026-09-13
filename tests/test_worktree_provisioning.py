@@ -225,8 +225,15 @@ class ExclusiveOwnershipTests(AttemptTestCase):
         )
         return rival
 
-    def claim_worktree_by_raw_sql(self, worktree_path: str, branch: str) -> None:
-        """Claim `worktree_path` and `branch` for a rival Attempt, in raw SQL."""
+    def claim_worktree_by_raw_sql(
+        self, rival: str, worktree_path: str, branch: str
+    ) -> None:
+        """Claim `worktree_path` and `branch` for `rival`, in raw SQL.
+
+        The rival Attempt is created by the caller, before the expected-failure
+        scope: this insert is the only statement the tests below expect to be
+        refused, so a refusal can only be about the ownership it claims.
+        """
 
         self.store.connection.execute(
             """
@@ -236,7 +243,7 @@ class ExclusiveOwnershipTests(AttemptTestCase):
             ) VALUES (?, ?, ?, ?, ?, 'allocated', 'now', NULL)
             """,
             (
-                self.rival_attempt_id(),
+                rival,
                 self.second.attempt.work_unit_id,
                 self.first.assignment.repository,
                 worktree_path,
@@ -249,28 +256,32 @@ class ExclusiveOwnershipTests(AttemptTestCase):
 
         `sqlite_errorname` is the stable signal: it separates a duplicate from
         the foreign key, the primary key and the ownership triggers, any of
-        which would mean the fixture rather than the claim was refused. The
-        message text is diagnostic prose and is deliberately not pinned; which
-        uniqueness is at stake is fixed by each claim leaving every other unique
-        column free, which its preconditions assert.
+        which would mean something other than the ownership claim was refused.
+        The message text is diagnostic prose and is deliberately not pinned;
+        which uniqueness is at stake is fixed by each claim leaving every other
+        unique column free, which its preconditions assert.
         """
 
         self.assertEqual(refusal.exception.sqlite_errorname, "SQLITE_CONSTRAINT_UNIQUE")
 
     def test_two_attempts_cannot_claim_one_worktree_path_even_by_raw_sql(self) -> None:
+        rival = self.rival_attempt_id()
         branch = "broodling/rival"
         self.assertIsNone(
             self.store.branch_owner(self.first.assignment.repository, branch)
         )
         with self.assertRaises(sqlite3.IntegrityError) as refusal:
-            self.claim_worktree_by_raw_sql(self.first.assignment.worktree_path, branch)
+            self.claim_worktree_by_raw_sql(
+                rival, self.first.assignment.worktree_path, branch
+            )
         self.assertRefusedAsDuplicate(refusal)
 
     def test_two_attempts_cannot_claim_one_branch_even_by_raw_sql(self) -> None:
+        rival = self.rival_attempt_id()
         path = str(self.workspace_root / "elsewhere")
         self.assertIsNone(self.store.worktree_owner(path))
         with self.assertRaises(sqlite3.IntegrityError) as refusal:
-            self.claim_worktree_by_raw_sql(path, self.first.assignment.branch)
+            self.claim_worktree_by_raw_sql(rival, path, self.first.assignment.branch)
         self.assertRefusedAsDuplicate(refusal)
 
     def test_worktree_ownership_cannot_be_deleted(self) -> None:
