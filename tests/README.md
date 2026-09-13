@@ -412,16 +412,25 @@ guarantee this repository actually states. Of the 41 alive:
   particular exception, so asserting it would be writing a contract to kill a
   mutant.
 
-## Do the #30 properties and the older named tests overlap?
+## How the two identity modules relate
 
-They do not, and the same 169 mutants say so. Each module was run alone against
-them:
+They overlap heavily, and neither subsumes the other. Running the same 169
+mutants against each module alone:
 
 | Test selection | Killed | Alive | Unreachable |
 | --- | --- | --- | --- |
 | `test_work_unit_identity.py` only | 121 | 47 | 1 |
 | `test_work_reference_properties.py` only | 116 | 52 | 1 |
 | both | 127 | 41 | 1 |
+
+The single-module rows are the identity module as it stood *before* the
+consolidation below, which is the comparison that motivated it; the combined row
+is unchanged after it.
+
+Of the 127 mutants killed with both selected, 110 are killed by each module on
+its own — the overlap is most of the coverage, and neither module would be
+noticed missing by a mutation run alone. The 17 that separate them are what the
+experiment is actually evidence about.
 
 Six mutants only the properties kill: `number <= 0` → `<= 1` (issue number 1, a
 boundary the named matrices never use), `"." in head and …` → `or` (the rule
@@ -437,10 +446,42 @@ disagrees. The upstream-identity arguments (`repository_identity or None` and it
 variants) survive too: the properties never submit upstream identities, and
 `WorkUnitIdentityConflict` is the named tests' subject.
 
-So neither module dominates and nothing was consolidated. The properties cover
-the space around the named matrices; the named matrices hold canonical *form* and
-upstream-identity pinning, which a property generating canonical components
-cannot express.
+So neither module dominates. The properties cover the space around the named
+matrices; the named matrices hold canonical *form* and upstream-identity pinning,
+which a property generating canonical components cannot express.
+
+### Consolidation
+
+A module having unique kills says nothing about whether each case inside it is
+still earning its place, and #30 asks that manual cases genuinely subsumed by a
+property be removed. So the named cases were checked one at a time, against two
+questions that both had to be answered yes: does the property generate a strict
+superset of this case's inputs and assert the same outcome, and does the case
+document no separate regression or mechanism of its own? Then the campaign was
+re-run with the case removed, as a check on the reading rather than the reason
+for it.
+
+Three cases in `DistinctIdentityTests` came out subsumed and are gone:
+
+| Removed | Subsumed by |
+| --- | --- |
+| `test_a_different_reference_never_aliases_onto_an_existing_unit` | `test_two_references_are_two_work_units`, which generates pairs differing in any one of host, owner, repository and issue number rather than the two neighbours this named. Its own comment already said the full matrix lived there |
+| `test_repository_and_issue_locators_must_agree` | `test_a_disagreeing_issue_locator_is_refused`, which disagrees in host, owner or repository rather than only owner |
+| `test_unusable_references_are_refused` | the property of the same name, whose strategy draws every class the named list held — empty, host-only, over-deep path, unsupported scheme, non-positive issue, non-numeric issue, absent issue |
+
+Removing all three changes nothing about which mutants die: 127 killed, 41 alive,
+the same 41. That is corroboration, not the argument — a case that kills no
+mutant may still be the only statement of a requirement, which is why the reading
+came first.
+
+The rest of the module stays, and not merely because the module as a whole has
+unique kills. `CANONICAL_FORMS` is the named documentation of which ingress forms
+are supported, and the property module derives its generated spellings from it —
+deleting it would leave the property asserting a contract nothing states.
+Retention across a *repeated* submission, identity across a store reopen,
+upstream-identity pinning and the direct-SQL immutability witnesses are each the
+only statement of their mechanism in the suite; the properties submit no upstream
+identities and repeat no spelling.
 
 ## Keeping the tool
 
