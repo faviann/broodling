@@ -308,3 +308,126 @@ product change, and are recorded rather than committed: a stalled-release or
 held-watch control asserts nothing about Broodling once the boundary it found is
 fixed. Recorded on 13 September 2026 on the qualified profile (pinned SDK and
 sidecar from `d090961`), CPython 3.13.5.
+
+# Mutation testing as a test-suite review (issue #34)
+
+One bounded campaign was run to answer a single question: when a test claims to
+protect an invariant, does a plausible violation of that invariant actually make
+it fail? Mutation score is not a target here, mutation testing is not a gate,
+and nothing below runs in an ordinary suite run.
+
+`mutmut` is an optional extra and `[tool.mutmut]` in `pyproject.toml` is one
+bounded slice — `broodling/identity.py` against
+`test_work_unit_identity.py` and `test_work_reference_properties.py`:
+
+```bash
+pip install -e '.[test,mutation]'
+mutmut run          # ~90s, 169 mutants
+mutmut results
+mutmut show <mutant-name>
+```
+
+The config carries two non-obvious settings. `also_copy` has to name the package
+and the root `conftest.py`, because mutmut runs the suite from a `mutants/` copy
+that otherwise holds only the mutated file. `process_isolation = "forkserver"`
+with `forkserver_warmup = "none"` is there for the property modules: forking
+workers from a process that has already run the suite makes Hypothesis report
+`differing_executors`, which is a true statement about that arrangement, so the
+workers fork from a server that never ran a test rather than suppressing the
+health check.
+
+## What the campaign found
+
+169 mutants, 128 killed, 40 alive, ~90 seconds. The three that mattered:
+
+1. **The retained raw ingress was never asserted anywhere.** Replacing
+   `submitted_repository`/`submitted_issue` in `WorkReference.parse` with
+   `str(None)` — the product forgetting how every reference was spelled — passed
+   the whole suite. `work_unit_submissions` is the design's "retained raw ingress
+   forms" (v1-P2 §2), but every test that touched it, the #30 property included,
+   asserted only `submission_count`: a count is satisfied by rows that retained
+   nothing. `test_one_work_unit_absorbs_every_spelling` now compares the retained
+   spellings themselves, read from the table.
+2. **Non-string ingress was not covered by the fail-closed property.**
+   `unusable_references` generated non-string *issues* but only string
+   repositories, so turning `canonicalize_repository`'s `isinstance` guard from
+   `or` into `and` survived. The product is fail-closed for `None`, `12`, `True`,
+   `b"a/b"` — the property just never asked. It does now, and an `AttributeError`
+   out of canonicalization would no longer pass as a refusal.
+3. **The worktree-ownership raw-SQL witnesses were green for the wrong reason.**
+   Issue #34 named this as a diagnostic candidate and it was right. Both tests
+   fabricated a rival `attempt_id` by appending `-rival` to a real one;
+   `worktree_assignments.attempt_id` references `attempts`, so with
+   `PRAGMA foreign_keys = ON` the insert died on `FOREIGN KEY constraint failed`
+   before the uniqueness it claimed to prove was ever consulted. Demonstrated by
+   deleting both `UNIQUE` constraints from the schema: all 27 tests in
+   `test_worktree_provisioning.py` still passed. The rival Attempt is now a real
+   non-current row inserted first, and each test asserts the exact constraint
+   named in the refusal. With the same two constraints deleted, both now fail.
+
+Finding 3 is also the campaign's clearest limitation: `mutmut` could not have
+found it. The invariant lives in a SQL schema string, where the only mutations
+it can make are to the literal as a whole, and a broken schema kills every test
+at once. That one was found by hand, guided by the issue, and the recipe —
+delete a constraint, run the tests that name it — is worth more here than the
+tool.
+
+## Mutants deliberately left alive
+
+Of the 40 survivors, 24 mutate the text of an exception message
+(`InvalidWorkReference(None)`, `"XXissue reference is emptyXX"`, an uppercased
+message). Refusal messages are diagnostics, not the guarantee; pinning them
+would couple tests to wording. The remaining 16:
+
+| Surviving mutation | Why it stays |
+| --- | --- |
+| `"\x1f"` → `"\x1F"`, `"utf-8"` → `"UTF-8"` in `digest` | the same character and the same codec: equivalent mutants |
+| `"\x1f"` → `"XX\x1fXX"` in `digest` | changes every derived id's bytes, but still separates the parts. What v1-P2 §2 promises is that a restart or a rebuilt store resolves the *same* identities, which this preserves and the store tests already check. Cross-version byte stability is not a stated guarantee, and a golden-hash test would pin the digest recipe beyond it |
+| `{"http", …}` / `{…, "git"}` members removed (4) | `http://` and `git://` are tolerated, not promised: v1-P2 §2.1 promises HTTPS, SSH, `scp`-like and bare `owner/repo`. Asserting them would freeze incidental tolerance into a contract, which is the rule the property module already follows |
+| `host.rstrip(".")`, `path.strip("/")`, `raw.rstrip("/")` variants (7) | defensive normalization of spellings nothing promises (a trailing-dot FQDN, a leading slash in an `scp`-like path). Same reason |
+| `raw.partition("://")` → `rpartition` | differs only for a reference containing `://` twice, which is refused either way |
+| `raw.lstrip("#")` → `lstrip("XX#XX")` | reachable input never begins with `X` |
+
+## Do the #30 properties and the older named tests overlap?
+
+They do not, and the campaign says so directly. The same 169 mutants were run
+against each module alone:
+
+| Test selection | Survivors |
+| --- | --- |
+| `test_work_unit_identity.py` only | 47 |
+| `test_work_reference_properties.py` only | 54 |
+| both | 43 |
+
+Four mutants only the properties kill: `number <= 0` → `<= 1` (issue number 1 —
+the named matrices all use larger numbers), `"." in head and …` → `or` (the rule
+separating schemeless `host/owner/repo` from bare `owner/repo`, reached because
+generated owners may contain a dot), and two `strip` argument mutations reached
+through the uppercased SSH rendering.
+
+Eleven only the named tests kill, and they are structural, not incidental:
+`owner.lower()`, `repository.lower()`, `host.lower()` → `.upper()` all survive
+the properties, because the properties generate canonical lowercase components
+and vary case only per rendering — uppercase everything consistently and no
+generated spelling disagrees. The upstream-identity pinning arguments
+(`repository_identity or None` and its variants) survive too: the properties
+never submit upstream identities, and `WorkUnitIdentityConflict` is the named
+tests' subject.
+
+So neither module dominates the other and nothing was consolidated. The
+properties cover the space around the named matrices, and the named matrices
+hold canonical *form* and upstream-identity pinning, which a property generating
+canonical components cannot express.
+
+## Keeping the tool
+
+`mutmut` stays as an optional extra with the bounded config, because one 90
+second run produced two real test gaps and the complementarity evidence above,
+and because re-running it after changing identity or store code is cheap. It is
+not in CI, there is no score target, and no test was written to kill a mutant
+that corresponds to no product failure. If a future campaign returns mostly
+message-text survivors and nothing else, the honest move is to drop the extra
+rather than tune it.
+
+Recorded on 13 September 2026 against this branch, mutmut 3.8.0,
+Hypothesis 6.168.0, pytest 9.1.1, CPython 3.13.5.

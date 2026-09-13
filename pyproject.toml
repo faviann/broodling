@@ -16,6 +16,11 @@ dependencies = []
 # accidental-hang safety net configured below; the suite still runs under
 # `unittest discover`, only without that net.
 test = ["hypothesis>=6.100", "pytest-timeout>=2.4"]
+# On-demand test-suite review only (issue #34), never installed to run the
+# suite and never a quality gate. `[tool.mutmut]` below configures one bounded
+# slice; `tests/README.md` records what the campaign found and what it cannot
+# express.
+mutation = ["mutmut>=3.8"]
 
 [tool.setuptools]
 packages = ["broodling"]
@@ -36,3 +41,24 @@ testpaths = ["tests"]
 # method would os._exit the run and leave the fixtures' children behind.
 timeout = 1800
 timeout_method = "signal"
+
+# Optional test-suite review tool (issue #34), run by hand, never in CI. The
+# defaults are one bounded, seconds-fast slice: identity canonicalization
+# against the two modules that claim it. Override `source_paths` and
+# `pytest_add_cli_args_test_selection` on the command line for another slice;
+# never point them at the provider, containment, crash or qualification tests.
+[tool.mutmut]
+source_paths = ["broodling/identity.py"]
+pytest_add_cli_args_test_selection = [
+    "tests/test_work_unit_identity.py",
+    "tests/test_work_reference_properties.py",
+]
+# mutmut runs the suite from a `mutants/` copy holding only `source_paths`, so
+# the rest of the package and the root conftest have to be copied beside it.
+also_copy = ["conftest.py", "broodling"]
+# The default fork-from-main worker inherits a process that has already run the
+# suite, which Hypothesis correctly reports as `differing_executors`. Forking
+# from a server that never ran a test keeps each worker's Hypothesis state its
+# own; the alternative was suppressing a health check that is telling the truth.
+process_isolation = "forkserver"
+forkserver_warmup = "none"
