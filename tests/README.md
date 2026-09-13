@@ -137,3 +137,95 @@ stay where database enforcement is the subject, crash/process/containment/race
 witnesses stay as they are, and no generic model of the product exists. If a
 future property needs a framework of custom strategies to express, that is a
 signal to keep it out, not to build the framework.
+
+# Accidental-hang safety net (issue #32)
+
+`pytest-timeout` is configured once, in `pyproject.toml`:
+
+```toml
+timeout = 1800
+timeout_method = "signal"
+```
+
+It exists so a wedged subprocess, provider fixture, polling loop or awaited SDK
+call fails with a traceback instead of hanging an unattended run. It is **not**
+a product timing guarantee and it is not evidence about Broodling: a
+`Failed: Timeout (>1800.0s) from pytest-timeout` says the test never finished,
+never that cessation, terminalization, containment or any other guarantee was
+established or refuted. The deadlines the tests own — the 10/30/40/60/90/100
+second waits, barriers and `asyncio.wait_for` windows in the lifecycle,
+containment, race and provider tests — remain the assertions wherever timing or
+cessation is the subject, and none of them was changed, shortened or replaced by
+this net.
+
+## Why 1800 seconds
+
+The timeout applies to each of a test's setup, call and teardown phases
+separately, so a `setUpClass` that builds real provider controls is measured on
+its own. The number comes from measuring this suite on the qualified profile
+(the pinned SDK and its matching sidecar installed, so none of the provider
+tests skip):
+
+| Phase | Measured |
+| --- | --- |
+| `test_assurance_graph.AssuranceGraphTests` setup (#17 controls) | 615s alone, 619s in the full run |
+| `test_evidence_graph.EvidenceGraphTests::test_admitted_evidence_controls` call | 327s |
+| next thirteen qualified lifecycle/provider calls | 222s down to 63s |
+| whole qualified suite, 430 tests end to end | 54 minutes |
+| whole suite without the SDK (all 56 provider tests skipped) | 105s, no test over 5s |
+
+An earlier 600s default was tried first and cut the #17 control fixture at
+600.01s — a real fixture doing real work, not a hang. That is exactly the
+spurious failure this net must not produce, so the default sits at roughly three
+times the longest legitimate phase, which still leaves a host two to three times
+slower than this one uncut. A wedged phase is then reported within half an hour
+instead of never, which is the whole claim being made for it.
+
+The configuration was then validated against the whole qualified suite with the
+pinned SDK and sidecar built from the #2 harness's recorded source revision:
+430 passed, nothing skipped, no timeout failure, in 53:56. Unit, store, property,
+subprocess, crash, containment and race modules were also run on their own, and
+the suite still passes under `python -m unittest discover -s tests` (431 tests,
+56 provider tests skipped without the SDK), where the plugin does not apply at
+all.
+
+## Why the signal method
+
+`signal` raises inside the stuck test, on the main thread, at the exact call
+that hung. Two consequences matter here:
+
+- **cleanup survives.** `tearDown`, `addCleanup` and `finally` blocks still run,
+  so the fixtures that kill launcher children, reap worktrees and close stores
+  do their work. The `thread` method calls `os._exit` on the whole run instead:
+  no teardown, and the very processes these tests exist to account for would be
+  left behind.
+- **the report names the stuck boundary.** The failure carries the full
+  traceback through the test into the blocking call, plus whatever the test
+  already printed.
+
+Every test body in this suite runs on the main thread — the worker threads in
+the race tests are barrier helpers with their own deadlines — so the alarm
+always lands where it can be raised.
+
+## Demonstration (recorded, not committed)
+
+No hanging or permanently slow fixture is committed. The net was demonstrated
+with a local control run outside `tests/`: a test that starts a child sleeping
+for 300 seconds and blocks on `child.wait()`, with an `addCleanup` that kills
+and reaps it, run at `--timeout=5`. The test failed with
+`Failed: Timeout (>5.0s) from pytest-timeout`, the traceback ending in
+`subprocess.Popen._try_wait` at the `os.waitpid` call that hung; the cleanup ran
+and printed the reaped child's return code, no child survived the run, and the
+following test in the same file still executed. Recorded on 13 September 2026,
+pytest-timeout 2.4.0, pytest 9.1.1, CPython 3.13.5.
+
+## Scope
+
+One default, no per-test overrides. Every non-SDK test finishes in seconds and
+every SDK test is bounded by its own protocol deadlines, so a narrower per-test
+mark would buy no earlier diagnosis while adding a second timing number to keep
+correct next to the deadline the test already states.
+
+The net covers `pytest` only. `python -m unittest discover -s tests`, which the
+README also documents, has no equivalent and runs without it; that is a property
+of the runner, not a reason to add product-side timeouts.
