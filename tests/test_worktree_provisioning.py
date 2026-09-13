@@ -192,8 +192,41 @@ class ExclusiveOwnershipTests(AttemptTestCase):
     def test_an_unowned_path_has_no_owner(self) -> None:
         self.assertIsNone(self.store.worktree_owner(self.workspace_root / "nobody"))
 
+    def rival_attempt_id(self) -> str:
+        """A second Attempt of the second Work Unit, owning no worktree yet.
+
+        The rival has to be a *real* row in `attempts`: `worktree_assignments`
+        references it, so an invented id is rejected by that foreign key before
+        the uniqueness these tests are about is ever consulted. Admission always
+        allocates an assignment with the Attempt, so the only Attempt without one
+        is a fabricated one — which is what the raw-SQL claim below has to
+        contend with. It is inserted non-current, so the one-current-Attempt
+        index is not what refuses either.
+        """
+
+        rival = self.second.attempt.attempt_id + "-rival"
+        self.store.connection.execute(
+            """
+            INSERT INTO attempts (
+                attempt_id, work_unit_id, contract_revision_id, is_current,
+                b1_repository, b1_commit_oid, b1_material_sha256,
+                b1_requested_revision, admitted_at
+            ) VALUES (?, ?, ?, 0, ?, ?, ?, ?, 'now')
+            """,
+            (
+                rival,
+                self.second.attempt.work_unit_id,
+                self.second.attempt.contract_revision_id,
+                self.second.attempt.b1_repository,
+                self.second.attempt.b1_commit_oid,
+                self.second.attempt.b1_material_sha256,
+                self.second.attempt.b1_requested_revision,
+            ),
+        )
+        return rival
+
     def test_two_attempts_cannot_claim_one_worktree_path_even_by_raw_sql(self) -> None:
-        with self.assertRaises(sqlite3.IntegrityError):
+        with self.assertRaises(sqlite3.IntegrityError) as refusal:
             self.store.connection.execute(
                 """
                 INSERT INTO worktree_assignments (
@@ -202,15 +235,22 @@ class ExclusiveOwnershipTests(AttemptTestCase):
                 ) VALUES (?, ?, ?, ?, 'broodling/rival', 'allocated', 'now', NULL)
                 """,
                 (
-                    self.second.attempt.attempt_id + "-rival",
+                    self.rival_attempt_id(),
                     self.second.attempt.work_unit_id,
                     self.second.attempt.b1_repository,
                     self.first.assignment.worktree_path,
                 ),
             )
+        # Naming the constraint is the point: any other IntegrityError here —
+        # the foreign key, the primary key — would mean the fixture, not the
+        # worktree-path uniqueness, refused the second claim.
+        self.assertEqual(
+            str(refusal.exception),
+            "UNIQUE constraint failed: worktree_assignments.worktree_path",
+        )
 
     def test_two_attempts_cannot_claim_one_branch_even_by_raw_sql(self) -> None:
-        with self.assertRaises(sqlite3.IntegrityError):
+        with self.assertRaises(sqlite3.IntegrityError) as refusal:
             self.store.connection.execute(
                 """
                 INSERT INTO worktree_assignments (
@@ -219,13 +259,18 @@ class ExclusiveOwnershipTests(AttemptTestCase):
                 ) VALUES (?, ?, ?, ?, ?, 'allocated', 'now', NULL)
                 """,
                 (
-                    self.second.attempt.attempt_id + "-rival",
+                    self.rival_attempt_id(),
                     self.second.attempt.work_unit_id,
                     self.second.attempt.b1_repository,
                     str(self.workspace_root / "elsewhere"),
                     self.first.branch,
                 ),
             )
+        self.assertEqual(
+            str(refusal.exception),
+            "UNIQUE constraint failed: worktree_assignments.repository, "
+            "worktree_assignments.branch",
+        )
 
     def test_worktree_ownership_cannot_be_deleted(self) -> None:
         with self.assertRaises(sqlite3.IntegrityError):
