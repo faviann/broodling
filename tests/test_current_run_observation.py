@@ -29,12 +29,13 @@ def status(*active, phase="running", result=None, run_id=RUN_ID, cursor="current
     )
 
 
-def finished(*, succeeded=True, run_id=RUN_ID):
+def finished(*, succeeded=True, run_id=RUN_ID, failure=None):
     return status(
         phase="finished",
         result=SimpleNamespace(
             run_id=run_id,
             succeeded=succeeded,
+            failure=failure if not succeeded else None,
             output={"finalRationale": [{"criterionId": "c1", "rationale": "met"}]},
         ),
     )
@@ -184,6 +185,23 @@ class CurrentRunObservationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertRaises(UnsupportedRuntime),
             ):
                 await self.observe(current, following)
+
+    async def test_failed_run_is_refused_as_a_failure_not_a_missed_occurrence(self):
+        """A refusal that cannot name the failed invariant cannot be diagnosed."""
+        for following in (
+            [status((FINAL_CLEAN, "final")), finished(succeeded=False, failure="lost")],
+            [finished(succeeded=False, failure="lost")],
+        ):
+            with (
+                self.subTest(following=following),
+                self.assertRaisesRegex(UnsupportedRuntime, "failed run: lost"),
+            ):
+                await self.observe(status(("implement", "mutation")), following)
+            self.assertTrue(self.run.closed)
+        with self.assertRaisesRegex(
+            UnsupportedRuntime, "final occurrence was not observed"
+        ):
+            await self.observe(status(("implement", "mutation")), [finished()])
 
     async def test_failed_interrupted_or_ambiguous_final_has_no_result(self):
         cases = (
