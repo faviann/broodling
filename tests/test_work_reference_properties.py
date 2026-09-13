@@ -148,6 +148,13 @@ def unusable_references(draw) -> tuple[object, object]:
     reference = draw(canonical_references())
     unusable_repositories = st.one_of(
         st.sampled_from(("", "   ", "\n")),
+        # Not every caller hands ingress a string. Refusing these is the same
+        # fail-closed promise, and the way it fails matters: an AttributeError
+        # out of canonicalization is not a refusal.
+        st.none(),
+        st.booleans(),
+        st.integers(),
+        st.binary(max_size=8),
         st.just(reference.owner),  # no repository segment at all
         st.just(f"https://{reference.host}/{reference.owner}"),
         st.just(f"https://{reference.host}/{reference.path}/deeper"),
@@ -187,6 +194,26 @@ def work_unit_count(store: BroodlingStore) -> int:
         store.connection.execute("SELECT count(*) AS total FROM work_units").fetchone()[
             "total"
         ]
+    )
+
+
+def retained_submissions(
+    store: BroodlingStore, work_unit_id: str
+) -> tuple[tuple[str, str], ...]:
+    """The raw ingress spellings the store retained for one Work Unit.
+
+    Read straight from ``work_unit_submissions`` — the table the design calls
+    the "retained raw ingress forms" — because the store exposes only their
+    count, and a count is satisfied by rows that retained nothing.
+    """
+
+    return tuple(
+        (row["submitted_repository"], row["submitted_issue"])
+        for row in store.connection.execute(
+            "SELECT submitted_repository, submitted_issue FROM work_unit_submissions "
+            "WHERE work_unit_id = ? ORDER BY rowid",
+            (work_unit_id,),
+        )
     )
 
 
@@ -240,6 +267,12 @@ class StoreIngressProperties(unittest.TestCase):
             self.assertEqual(work_unit_count(store), 1)
             self.assertEqual(
                 store.submission_count(resolved[0].work_unit_id), len(forms)
+            )
+            # One Work Unit absorbs the spellings; it does not discard them.
+            # Counting the retained rows says nothing about what they retained.
+            self.assertEqual(
+                retained_submissions(store, resolved[0].work_unit_id),
+                tuple((repository, str(issue)) for repository, issue in forms),
             )
 
     @given(pair=reference_pairs())
