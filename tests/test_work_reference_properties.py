@@ -198,10 +198,12 @@ def retained_submissions(
 
     Read straight from ``work_unit_submissions`` — the table the design calls
     the "retained raw ingress forms" — because the store exposes only a count,
-    and a count is satisfied by rows that retained nothing. A ``Counter`` is
-    what retention means here: every submission is kept, including a repeat of
-    a spelling already seen, and the order rows happen to sit in is the
-    database's business rather than a promise.
+    and a count is satisfied by rows that retained nothing. A ``Counter`` makes
+    the comparison independent of the order rows happen to sit in, which is the
+    database's business rather than a promise, while still distinguishing two
+    retentions of one spelling from one. The spellings this property submits are
+    distinct; repeated submission of a single form is
+    ``test_work_unit_identity``'s subject.
     """
 
     return Counter(

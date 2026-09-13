@@ -357,8 +357,8 @@ health check that is telling the truth.
    forms" (v1-P2 §2), but every test that touched it, the #30 property included,
    asserted only `submission_count`, and a count is satisfied by rows that
    retained nothing. `test_one_work_unit_absorbs_every_spelling` now compares the
-   retained spellings themselves, as a multiset: every submission is kept,
-   repeats included, and the order the rows sit in is not a promise.
+   retained spellings themselves, compared as a multiset so the assertion does
+   not depend on the order the rows sit in, which is not a promise.
 2. **The worktree-ownership raw-SQL witnesses were green for the wrong reason.**
    #34 named this as a diagnostic candidate and was right. Both tests fabricated
    a rival `attempt_id` by appending `-rival` to a real one;
