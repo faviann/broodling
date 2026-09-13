@@ -12,8 +12,10 @@ dependencies = []
 [project.optional-dependencies]
 # Test-only: the product package stays on the standard library. Hypothesis is
 # required to run the suite — the property/state-machine tests fail to import
-# without it rather than dropping their invariants.
-test = ["hypothesis>=6.100"]
+# without it rather than dropping their invariants. pytest-timeout is the
+# accidental-hang safety net configured below; the suite still runs under
+# `unittest discover`, only without that net.
+test = ["hypothesis>=6.100", "pytest-timeout>=2.4"]
 
 [tool.setuptools]
 packages = ["broodling"]
@@ -24,3 +26,13 @@ broodling = ["codex_bin/codex"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Accidental-hang safety net only (issue #32), not a product timing guarantee.
+# The timeout applies per setup/call/teardown phase. 1800s clears the longest
+# legitimate phase measured on the qualified profile — the #17 assurance-graph
+# control fixture at 615s of setup, then a 327s call — with room for a slower
+# host, while the rest of the suite finishes in ~105s total with no single test
+# over 5s. The signal method raises inside the stuck test, so unittest teardown,
+# `finally` cleanup and the traceback of the stuck boundary survive; the thread
+# method would os._exit the run and leave the fixtures' children behind.
+timeout = 1800
+timeout_method = "signal"

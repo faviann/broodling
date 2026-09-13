@@ -79,6 +79,8 @@ The [V1-P2 implementation record](docs/implementation/v1-p2-admission-nucleus.md
 
 Two bounded property modules (`tests/test_work_reference_properties.py` and `tests/test_store_state_machine.py`) use Hypothesis. It is a **test-only** dependency — the product package keeps none at runtime — declared as the `test` extra: `pip install -e '.[test]'`. Running the suite requires it; without it those two modules fail to import rather than quietly skipping. See [the property-test notes](tests/README.md) for the invariants they check, the deterministic settings profile and the recorded discrimination evidence.
 
+`pytest-timeout` is the suite's accidental-hang safety net, also test-only and in the same extra. It is configured once in `pyproject.toml` as a generous 1800-second per-phase default using the signal method, so a wedged subprocess, provider fixture or polling loop fails with the stuck traceback instead of hanging the run. It is a diagnostic net, not a product timing guarantee, and the tests' own deadlines remain the assertions wherever timing or cessation is the subject. See [the test notes](tests/README.md#accidental-hang-safety-net-issue-32). Under `unittest discover` the suite still runs, without that net.
+
 The Attempt tests provision real Git worktrees and therefore need a durable workspace root, which cannot be `/tmp`. They default to `~/.cache/broodling-tests`; set `BROODLING_TEST_WORKSPACE_ROOT` to choose another durable directory.
 
 ## Baseline and qualification provenance
