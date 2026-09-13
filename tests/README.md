@@ -455,11 +455,19 @@ which a property generating canonical components cannot express.
 A module having unique kills says nothing about whether each case inside it is
 still earning its place, and #30 asks that manual cases genuinely subsumed by a
 property be removed. So the named cases were checked one at a time, against two
-questions that both had to be answered yes: does the property generate a strict
-superset of this case's inputs and assert the same outcome, and does the case
-document no separate regression or mechanism of its own? Then the campaign was
-re-run with the case removed, as a check on the reading rather than the reason
-for it.
+questions that both had to be answered yes: does a property cover the same
+meaningful class of input, or a broader one, and require the same outcome, and
+does the case carry no separate regression, documentation or mechanism value of
+its own? Then the campaign was re-run with the case removed, as a check on the
+reading rather than the reason for it.
+
+The criterion is class coverage, not a literal superset of examples. A generated
+strategy will not reproduce every string a hand-written list happened to use —
+`"not-a-number"` is drawn from a different alphabet than the property's
+non-numeric issue strategy — and requiring it to would keep example lists alive
+for the sake of their literals. What matters is whether an input class the
+product must handle stops being exercised, and whether the case said something
+the property does not.
 
 Three cases in `DistinctIdentityTests` came out subsumed and are gone:
 
@@ -467,7 +475,7 @@ Three cases in `DistinctIdentityTests` came out subsumed and are gone:
 | --- | --- |
 | `test_a_different_reference_never_aliases_onto_an_existing_unit` | `test_two_references_are_two_work_units`, which generates pairs differing in any one of host, owner, repository and issue number rather than the two neighbours this named. Its own comment already said the full matrix lived there |
 | `test_repository_and_issue_locators_must_agree` | `test_a_disagreeing_issue_locator_is_refused`, which disagrees in host, owner or repository rather than only owner |
-| `test_unusable_references_are_refused` | the property of the same name, whose strategy draws every class the named list held — empty, host-only, over-deep path, unsupported scheme, non-positive issue, non-numeric issue, absent issue |
+| `test_unusable_references_are_refused` | the property of the same name, which draws from every invalid class the named list held — empty, host-only, over-deep path, unsupported scheme, non-positive issue, non-numeric issue, absent issue — with different literals inside them |
 
 Removing all three changes nothing about which mutants die: 127 killed, 41 alive,
 the same 41. That is corroboration, not the argument — a case that kills no
@@ -475,13 +483,29 @@ mutant may still be the only statement of a requirement, which is why the readin
 came first.
 
 The rest of the module stays, and not merely because the module as a whole has
-unique kills. `CANONICAL_FORMS` is the named documentation of which ingress forms
-are supported, and the property module derives its generated spellings from it —
-deleting it would leave the property asserting a contract nothing states.
-Retention across a *repeated* submission, identity across a store reopen,
-upstream-identity pinning and the direct-SQL immutability witnesses are each the
-only statement of their mechanism in the suite; the properties submit no upstream
-identities and repeat no spelling.
+unique kills. Case by case:
+
+- `CANONICAL_FORMS` and `test_repeated_canonical_ingress_resolves_one_work_unit`
+  are the named documentation of which ingress forms are supported, and the
+  property module derives its generated spellings from it — deleting it would
+  leave the property asserting a contract nothing states;
+- `test_every_submission_is_retained_against_the_one_work_unit` is retention
+  across a *repeated* submission, which the property does not exercise: it draws
+  distinct spellings;
+- `test_identity_survives_reopen` is identity across a store restart, which
+  neither property in this pair reopens a store to check, and it also pins
+  `first_seen_at` — the state machine restarts a store but carries no
+  first-seen fact across the restart;
+- `test_work_unit_id_is_derived_not_allocated` overlaps generated store ingress,
+  which resolves the same Work Unit for every spelling and would fail if ids
+  were allocated per call. It stays anyway, as the direct named witness of the
+  v1-P2 §2 architectural guarantee that durable ids are *derived, not allocated*:
+  it compares the id a `WorkReference` computes with no store at all against the
+  id the store resolves, which is the guarantee stated as an equation rather than
+  inferred from ingress behaving consistently;
+- the `UpstreamIdentityPinningTests` and `IdentityStabilityTests` cases are each
+  the only statement of their mechanism in the suite — the properties submit no
+  upstream identities and issue no direct SQL.
 
 ## Keeping the tool
 
