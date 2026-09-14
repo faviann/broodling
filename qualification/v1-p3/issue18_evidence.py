@@ -44,6 +44,7 @@ def main(output):
             )
         },
         "testOnlySubstitution": "Only semantic/mutation agents use a controlled executable. Both evidence occurrences execute the actual deterministic product leaf through the exact admitted graph/runtime/coordinator/profile. Semantic assessors evaluate bound raw content rather than scenario names.",
+        "witnessScope": "Issue #45 reduced this campaign to one real run per distinct integration assumption. The five other semantic-mismatch permutations differed only in candidate bytes on one route; their Broodling-owned claim — every mismatch dimension and the frozen population reach the assessor byte for byte through the real deterministic leaf — is asserted without Zeroshot by tests/test_evidence_material_fidelity.py. Retained historical records are unchanged.",
         "limits": "Mechanics and handoff evidence, not broad model semantic reliability; real reviewer/containment evidence is retained separately. No G3 or Work Unit disposition verdict.",
         "verdict": "PASS" if all(checks.values()) else "FAIL",
     }

@@ -52,7 +52,8 @@ async def execute(output):
             "runtimeAccess": "public SDK submit/wait/status only",
             "controlledLeafLimit": "The fixture records sandbox arguments but does not enforce containment or establish model judgment; historical W2/W4 supplies those qualified boundaries.",
             "testRuntimeDeviation": "Product binding models and connections replaced by controlled provider model and fixture connection; same agent kinds, execution sessions, graph worker roles and sandbox selection.",
-            "testGraphDeviations": "Only two hang cases shorten the selected node timeout to250ms, and the explicitly named widened-binding-canary adds a forbidden raw-finding repair input to test detector sensitivity. Other cases execute the exact product graph.",
+            "testGraphDeviations": "Only the single hang case shortens the selected node timeout to 250ms. Every other case executes the exact product graph.",
+            "witnessScope": "Issue #45 reduced this campaign to a minimal discriminating set of real Zeroshot runs. Structural fail-closed topology, repair-input isolation, sticky-obligation ownership and diagnostic non-authority are now asserted directly against the authored graph by tests/test_assurance_graph_structure.py, which runs in the default regression lane. Retained historical records are unchanged.",
         },
         "build": build
         | {"python": platform.python_version(), "platform": platform.platform()},

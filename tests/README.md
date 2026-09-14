@@ -624,3 +624,134 @@ interpretation are all held by controlled tests that were already there:
 (18) for the submission contract, plus the abandonment, disposition, retry,
 custody, final-material and containment foundations. `test_containment.py` keeps
 real process witnesses without needing the SDK at all.
+
+# Minimal real-Zeroshot witnesses (issue #45)
+
+#39 moved the expensive witnesses out of the per-commit loop. This changes what
+runs *inside* that lane: the two G3-V1 campaigns were replaying complete Zeroshot
+runs to establish properties of a file in this repository.
+
+One rule, applied to every run in turn: **if the claim is decidable from
+Broodling's own authored artifact, decide it there; if the claim is Zeroshot's
+execution behaviour, keep a real witness.** Nothing was weakened to go faster, no
+run was replaced by a test-side reducer, scheduler or graph interpreter, and no
+retained qualification record was rewritten.
+
+## Before and after
+
+Real Zeroshot runs created by the two campaigns:
+
+| Campaign | Before | After |
+| --- | --- | --- |
+| `test_assurance_graph.py` setup (#17 controls) | 38 | 16 |
+| `test_evidence_graph.py` (#18 controls) | 12 | 7 |
+| Both | 50 | 23 |
+
+Wall clock on the qualified profile (pinned SDK and sidecar, nothing skipped),
+the two campaigns run back to back under `pytest --durations`:
+
+| Phase | Before | After |
+| --- | --- | --- |
+| `AssuranceGraphTests` setup | 591.4s | 244.8s |
+| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 192.5s |
+| Both modules end to end | 798.2s (13:18) | 437.8s (7:17) |
+
+The assurance number is the honest one: 58% fewer runs, 59% less time. The
+evidence number is not, and the reason is worth writing down rather than
+rounding away. Timed scenario by scenario in one sitting, the campaign looks
+like this:
+
+| Scenario | Cost | Kept |
+| --- | --- | --- |
+| `sticky` | 74.9s | yes — three rounds |
+| `repair-renewed` | 39.5s | yes — two evidence occurrences |
+| `missing-renewed` | 24.9s | yes |
+| `contradiction` | 23.4s | no |
+| `wrong-mode` | 23.1s | no |
+| `wrong-artifact` | 22.5s | no |
+| `valid` | 22.2s | yes |
+| `wrong-host` | 22.0s | no |
+| `insufficient` | 21.9s | no |
+| `wrong-population` | 21.7s | yes |
+| `timeout-descendant` | 15.0s | yes |
+| `missing-initial` | 10.7s | yes |
+
+Sum: 321.7s before, 208.8s after — the five removed permutations cost 112.9s
+between them. That the same two sets measure 206.0s and 192.5s under `pytest`
+minutes earlier is this host's variance, not a finding: the twelve-scenario
+campaign has been recorded at 327s, 322s and 206s on unchanged code. The run
+count is the number that means something here; the wall clock is a consequence,
+and what is left is dominated by the two multi-round scenarios nobody proposes
+to remove.
+
+The fast tests that took over the removed claims cost 1.5s, in the default
+regression lane, on every commit.
+
+## Why a crash at eleven nodes was one claim, not eleven
+
+`assurance_graph()` is Broodling's authored GraphSpec — a dictionary this
+repository writes. Whether every executable node has an unusable-outcome guard,
+whether an error branch can reach an accepting sink, and what state a repair node
+is allowed to read are all decidable by reading it. Reading it also decides them
+for a node added tomorrow, which eleven hand-listed crash scenarios would not.
+
+What is *not* decidable there is whether Zeroshot turns exit code 70, an
+unparseable payload, an omitted signal or a node that never answers into the node
+error those guards name. That is the dependency's behaviour, and it keeps a real
+witness — one per class of provider misbehaviour, at one representative node.
+
+`tests/test_assurance_graph_structure.py` holds the structural half, and was
+checked against nine hand-built mutants of `broodling/assurance_graph.py`: a
+dropped error guard on `repair` and on `round_complete`, a final gap routed to
+`succeed`, a widened repair input, a downgraded missing-evidence reason, an
+unbounded repair loop, a review that writes the obligation, a diagnostic
+identifier bound to the frozen Contract, and an exhausted bound routed to the
+final assessment. All nine were killed.
+
+## The assurance campaign, removed run by removed run
+
+| Removed | What it protected | Now protected by |
+| --- | --- | --- |
+| `crash-{node}` × 10 | each executable node's unusable execution fails closed | structural: all eleven nodes are guarded and every error branch is a `fail`. Runtime: `open-control-crash` witnesses that a real crash becomes a node error |
+| `missing/malformed/default/hang-round_complete` | a control fault inside the loop stops before the final assessment | structural: the loop's `until` and `post_repair_bound_route` both take `round_complete`'s error to a `fail`. Runtime: `open-control-crash` |
+| `authority-claim-implement`, `authority-claim-repair` | a mutation node's authority claim cannot bind state | structural: both mutation nodes are `step`s with null output, no signals and no write bindings. Runtime: `authority-claim-initial_review` |
+| `missing-payload-initial_review` | a declared output payload is required | `missing-payload-adjudicate_authority` — the payload that actually drives repair |
+| `missing-after-repair` | required material removed at the renewed occurrence | structural: both evidence routes carry the same missing→fail branch. Runtime: the #18 campaign's `missing-renewed`, which removes the material for real |
+| `repair-input-canary` | repair receives the directive, not raw findings | folded into `repair-resolve`, which takes the identical route, plus the structural binding assertion |
+| `forged-diagnostics` | forged Contract/source/evidence/predecessor IDs confer no authority | the fixture now emits forged identifiers on *every* response, so every retained run carries the canary; structurally, no write binding reads the diagnostic channel |
+| `contradictory-clean` | prose contradicting the node's own signal cannot bypass repair | folded into the adjudicator's diagnostic on every route |
+
+Retained, because execution behaviour is the claim: `clean`, `repair-resolve`,
+`repeat-labels`, `missing-initial`, `sticky-exhaust`, `refusal`, `final-gap`,
+`sticky-omission`, `open-control-crash`, four response-rejection faults, one
+hang, and the `widened-binding-canary`. The canary stays a real run because the
+v0.5 plan asks for it by hand, and because an isolation assertion is only worth
+having if a widened binding would actually trip it.
+
+## The evidence campaign: six permutations of one route
+
+`wrong-population`, `wrong-host`, `wrong-mode`, `wrong-artifact`, `contradiction`
+and `insufficient` differ only in bytes inside the candidate the declared check
+prints. All six take the same route to the same `semantic_gap`, through the same
+bindings, against the same real deterministic leaf. What they jointly established
+about *Broodling* is that whatever the mismatch, the leaf carries the raw
+material and the frozen population into the assessor's input unaltered, and never
+judges it — which `tests/test_evidence_material_fidelity.py` asserts against the
+real leaf, for all six dimensions, without Zeroshot.
+
+`wrong-population` keeps its complete run: the v0.5 plan names it for G3-V1, and
+one witness is still needed that available-but-insufficient evidence fails at the
+final assessment rather than at the availability signal, which reports production
+only.
+
+## What did not change
+
+`qualification/v1-p3/issue17_controls.py` and `issue18_evidence.py` run exactly
+as documented and still produce their records; each now carries a `witnessScope`
+field saying what moved and where. Retained historical records —
+`issue-17-controls.json`, `issue-18-evidence.json` and every W-level record — are
+untouched. They remain evidence of what was observed when they were written, not
+a description of what the suite runs today.
+
+#33 parallelism is the next question, not a substitute for this one: 23 runs
+scheduled concurrently is a different proposition from 50.

@@ -35,9 +35,12 @@ testpaths = ["tests"]
 # legitimate phase measured on the qualified profile — the #17 assurance-graph
 # control fixture at 615s of setup, then a 327s call — with room for a slower
 # host, while the rest of the suite finishes in ~105s total with no single test
-# over 5s. The signal method raises inside the stuck test, so unittest teardown,
-# `finally` cleanup and the traceback of the stuck boundary survive; the thread
-# method would os._exit the run and leave the fixtures' children behind.
+# over 5s. Issue #45 has since cut both of those phases to a fraction of what
+# they were (see tests/README.md); the number stays where it is, because the
+# margin is the point and a slower host still has to fit under it. The signal
+# method raises inside the stuck test, so unittest teardown, `finally` cleanup
+# and the traceback of the stuck boundary survive; the thread method would
+# os._exit the run and leave the fixtures' children behind.
 timeout = 1800
 timeout_method = "signal"
 

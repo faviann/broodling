@@ -149,61 +149,70 @@ async def run_case(run_root, workspace_root, name, scenario, *, graph=None):
 
 
 def definitions():
-    cases = [
-        (name, name, None)
-        for name in (
-            "clean",
-            "repair-resolve",
-            "repeat-labels",
-            "contradictory-clean",
-            "forged-diagnostics",
-            "repair-input-canary",
-        )
+    """The minimal discriminating real-Zeroshot witness set (issue #45).
+
+    Each entry is here because Zeroshot's own execution behaviour is the claim:
+    a route actually taken end to end, one class of provider misbehaviour the
+    runtime has to turn into a node error, or a demonstration the v0.5 plan's W3
+    list names by hand. Which *node* a fault is injected at is not a claim — the
+    authored graph guards every executable node, and
+    `test_assurance_graph_structure.py` reads that guarantee off the graph — so
+    each fault class is witnessed once, at one representative node.
+    """
+    routes = [
+        # Clean route to the distinct final assessor, and acceptance.
+        ("clean", "clean", None),
+        # Found -> adjudicated directive -> one repair round -> renewed evidence,
+        # fresh review, resolution -> repaired final. Also the run carrying the
+        # repair-input, forged-identifier and contradictory-prose canaries.
+        ("repair-resolve", "repair-resolve", None),
+        # Three rounds resolving on the last allowed one: fresh candidate per
+        # round, no reuse of an earlier round's assurance, and acceptance.
+        ("repeat-labels", "repeat-labels", None),
     ]
-    cases += [
-        (name, name, reason)
-        for name, reason in (
-            ("missing-initial", "required_evidence_missing"),
-            ("missing-after-repair", "required_evidence_missing"),
-            ("sticky-exhaust", "obligations_exhausted"),
-            ("sticky-omission", "execution_unusable"),
-            ("refusal", "authority_gap"),
-            ("final-gap", "semantic_gap"),
-        )
+    terminals = [
+        # Required raw material removed before the occurrence that relies on it.
+        ("missing-initial", "missing-initial", "required_evidence_missing"),
+        # The bound is reached with the obligation still open.
+        ("sticky-exhaust", "sticky-exhaust", "obligations_exhausted"),
+        # An authority gap hands back rather than amends the Contract.
+        ("refusal", "refusal", "authority_gap"),
+        # A signalled gap at the final assessor cannot fall through to the
+        # accepting route despite a clean review.
+        ("final-gap", "final-gap", "semantic_gap"),
     ]
-    for node in [*CLEAN_ORDER, *ROUND_ORDER, "final_assessment_authority_repaired"]:
-        base = "clean" if node in CLEAN_ORDER else "repair-resolve"
-        cases.append((f"crash-{node}", f"{base};crash:{node}", "execution_unusable"))
-    for fault in ("missing", "malformed", "default", "hang"):
-        for node in ("initial_review", "round_complete"):
-            base = "clean" if node == "initial_review" else "repair-resolve"
-            cases.append(
-                (f"{fault}-{node}", f"{base};{fault}:{node}", "execution_unusable")
-            )
-    for node in ("implement", "initial_review", "repair"):
-        cases.append(
-            (
-                f"authority-claim-{node}",
-                f"repair-resolve;authority_claim:{node}",
-                "execution_unusable",
-            )
-        )
-    for node in ("initial_review", "adjudicate_authority"):
-        cases.append(
-            (
-                f"missing-payload-{node}",
-                f"repair-resolve;missing_payload:{node}",
-                "execution_unusable",
-            )
-        )
-    cases.append(
+    faults = [
+        # Explicit eligible resolution is distinguished from its omission.
+        ("sticky-omission", "sticky-omission", None),
+        # Process death at an executable node becomes a node error, and an open
+        # obligation does not buy another repair round.
+        ("open-control-crash", "sticky-exhaust;crash:round_complete", None),
+        # The ways the pinned runtime has to reject a response that did arrive:
+        # no signal, an unparseable payload, an empty default, and a declared
+        # output payload the model omitted.
+        ("missing-initial_review", "clean;missing:initial_review", None),
+        ("malformed-initial_review", "clean;malformed:initial_review", None),
+        ("default-initial_review", "clean;default:initial_review", None),
         (
-            "open-control-crash",
-            "sticky-exhaust;crash:round_complete",
-            "execution_unusable",
-        )
+            "missing-payload-adjudicate_authority",
+            "repair-resolve;missing_payload:adjudicate_authority",
+            None,
+        ),
+        # A response claiming authority in undeclared output and signals is
+        # rejected rather than bound.
+        (
+            "authority-claim-initial_review",
+            "clean;authority_claim:initial_review",
+            None,
+        ),
+        # A node that never answers is terminated by the runtime, not waited on.
+        ("hang-initial_review", "clean;hang:initial_review", None),
+    ]
+    return (
+        routes
+        + terminals
+        + [(name, scenario, "execution_unusable") for name, scenario, _ in faults]
     )
-    return cases
 
 
 async def run_controls(run_root, workspace_root):
@@ -220,8 +229,11 @@ async def run_controls(run_root, workspace_root):
         )
         if ";hang:" in scenario:
             cases[name]["testOnlyGraphDeviation"] = {"node": selected, "timeoutMs": 250}
-    # Sensitivity control: deliberately widen repair input to include raw findings.
-    # This modified graph is evidence-only; product graph remains untouched.
+    # Sensitivity control: deliberately widen repair input to include raw
+    # findings. The v0.5 plan asks for this canary by hand, because the
+    # isolation assertion below is only worth having if a widened binding would
+    # actually trip it. This modified graph is evidence-only; the product graph
+    # remains untouched.
     widened = assurance_graph()
     repair = next(
         node for node in executable_nodes(widened["root"]) if node["name"] == "repair"
@@ -240,7 +252,7 @@ async def run_controls(run_root, workspace_root):
         run_root,
         workspace_root,
         "widened-binding-canary",
-        "repair-input-canary",
+        "repair-resolve",
         graph=widened,
     )
     return cases
@@ -250,12 +262,7 @@ def acceptance_checks(cases):
     repair = cases["repair-resolve"]
     repeated = cases["repeat-labels"]
     exhaustion = cases["sticky-exhaust"]
-    canary = next(
-        e for e in cases["repair-input-canary"]["events"] if e["node"] == "repair"
-    )
-    widened = next(
-        e for e in cases["widened-binding-canary"]["events"] if e["node"] == "repair"
-    )
+    canary = next(e for e in repair["events"] if e["node"] == "repair")
     authority = next(e for e in repair["events"] if e["node"] == "adjudicate_authority")
     mutations = [e for e in repeated["events"] if e["node"] in {"implement", "repair"}]
     return {
@@ -299,9 +306,22 @@ def acceptance_checks(cases):
             "directive": "open_d1",
             "directiveContent": DIRECTIVE,
         },
-        "widened_binding_control_detects_canary": widened["input"]["findingContent"]
+        "widened_binding_control_detects_canary": next(
+            e
+            for e in cases["widened-binding-canary"]["events"]
+            if e["node"] == "repair"
+        )["input"]["findingContent"]
         == FINDING
         and "RAW_REJECTED_FINDING_CANARY" not in json.dumps(canary["input"]),
+        # The graph binds no diagnostic channel, so every response's forged
+        # identifiers and private note are non-authoritative in every run.
+        "private_diagnostics_never_reach_a_bound_input": all(
+            token not in json.dumps(e["input"])
+            for case in cases.values()
+            for e in case["events"]
+            if e["input"] is not None
+            for token in ("PRIVATE_AUTHORITY_CANARY", "forged-")
+        ),
         "sticky_directive_survives_three_clean_reviews": all(
             e["input"]["outstanding"] == "open_d1"
             and e["input"]["directiveContent"] == DIRECTIVE
@@ -317,16 +337,14 @@ def acceptance_checks(cases):
         "bound_three_stops_before_final": nodes(exhaustion).count("repair") == 3
         and not any(n.startswith("final_assessment") for n in nodes(exhaustion)),
         "control_faults_stop_before_final": all(
-            not any(
-                n.startswith("final_assessment")
-                for n in nodes(cases[f"{fault}-round_complete"])
-            )
-            for fault in ("crash", "missing", "malformed", "default", "hang")
+            not any(n.startswith("final_assessment") for n in nodes(cases[name]))
+            for name, _, reason in definitions()
+            if reason == "execution_unusable"
         ),
         "diagnostics_do_not_retarget_contract_or_bypass_repair": all(
             cases[name]["result"]["output"]["contract"] == CONTRACT
             and "repair" in nodes(cases[name])
-            for name in ("forged-diagnostics", "contradictory-clean")
+            for name in ("repair-resolve", "repeat-labels")
         ),
         "qualified_sandbox_and_session_modes": all(
             e["argv"][e["argv"].index("--sandbox") + 1]

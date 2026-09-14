@@ -1,4 +1,13 @@
-"""Discriminating product graph controls through the pinned public SDK."""
+"""Discriminating product graph controls through the pinned public SDK.
+
+The runtime half of the #17 controls: routes actually taken end to end, and the
+classes of provider misbehaviour Zeroshot has to turn into a node error. The
+structural half — every executable node guarded, no unusable route reaching an
+accepting sink, repair reading only the adjudicated directive — is decided
+against the authored graph by `test_assurance_graph_structure.py`, which runs in
+the default regression lane. `assurance_support.definitions` says why each run
+that remains here is not decidable there.
+"""
 
 import asyncio
 import shutil

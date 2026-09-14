@@ -1,4 +1,10 @@
-"""Actual SDK graph-local mechanical evidence integration controls."""
+"""Actual SDK graph-local mechanical evidence integration controls.
+
+One complete run per distinct integration assumption; `evidence_support.SCENARIOS`
+names them. The mismatch dimensions that differ only in candidate bytes are held
+against the real deterministic leaf, without Zeroshot, by
+`test_evidence_material_fidelity.py`.
+"""
 
 import unittest
 

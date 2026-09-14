@@ -21,21 +21,36 @@ from broodling.zeroshot_sdk import ZeroshotSubmitter
 
 ROOT = Path(__file__).resolve().parents[1]
 LEAF = ROOT / "tests/fixtures/evidence-bin/codex"
+#: The distinct integration assumptions that need a complete real run (#45).
 SCENARIOS = (
+    # Complete raw evidence reaches acceptance.
     "valid",
+    # Available but insufficient evidence still fails at the final assessment
+    # rather than at the availability signal, which reports production only.
+    # The v0.5 plan names wrong-population for G3-V1; the other five mismatch
+    # dimensions differ only in candidate bytes on this same route.
+    "wrong-population",
+    # Required material absent at each of the two evidence occurrences.
+    "missing-initial",
+    "missing-renewed",
+    # Renewed evidence observes the candidate the repair actually left.
+    "repair-renewed",
+    # The directive survives clean rounds until explicit resolution.
+    "sticky",
+    # A native node timeout terminates the check's descendants.
+    "timeout-descendant",
+)
+#: Every dimension a mismatched observation can differ in. Only wrong-population
+#: is run through Zeroshot; the rest are Broodling's own transport claim, held
+#: byte for byte against the real leaf by `test_evidence_material_fidelity.py`.
+SEMANTIC_GAPS = (
     "wrong-population",
     "wrong-host",
     "wrong-mode",
     "wrong-artifact",
     "contradiction",
     "insufficient",
-    "missing-initial",
-    "missing-renewed",
-    "repair-renewed",
-    "sticky",
-    "timeout-descendant",
 )
-SEMANTIC_GAPS = SCENARIOS[1:7]
 
 
 def raw_material(scenario):
@@ -237,15 +252,15 @@ def acceptance_checks(cases):
     return {
         "valid_complete_raw_evidence_reaches_acceptance": valid["result"]["succeeded"]
         and raw(events("valid", "initial_review")[0])["results"] == ["PASS"] * 3,
-        "all_semantic_mismatches_fail_at_final_despite_available_evidence": all(
-            not cases[name]["result"]["succeeded"]
-            and cases[name]["result"]["failure"] == "semantic_gap"
-            and events(name, "initial_review")[0]["input"]["evidence"] == "valid"
-            and events(name, "final_assessment_authority_clean")[0]["response"][
-                "signals"
-            ]["assessment"]
+        "semantic_mismatch_fails_at_final_despite_available_evidence": (
+            not cases["wrong-population"]["result"]["succeeded"]
+            and cases["wrong-population"]["result"]["failure"] == "semantic_gap"
+            and events("wrong-population", "initial_review")[0]["input"]["evidence"]
+            == "valid"
+            and events("wrong-population", "final_assessment_authority_clean")[0][
+                "response"
+            ]["signals"]["assessment"]
             == "gap"
-            for name in SEMANTIC_GAPS
         ),
         "initial_missing_stops_before_review": cases["missing-initial"]["result"][
             "failure"
