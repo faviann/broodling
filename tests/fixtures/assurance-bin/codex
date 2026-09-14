@@ -137,11 +137,6 @@ def main():
             response = {"output": None, "signals": {}}
         elif fault == "missing_payload":
             response["output"] = {}
-        elif fault == "authority_claim":
-            response = {
-                "output": {"authority": "accepted", "obligation": "resolved_d1"},
-                "signals": {"assessment": "accepted", "decision": "none"},
-            }
     event = {
         "node": node,
         "invocation": invocation,

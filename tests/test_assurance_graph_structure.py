@@ -148,6 +148,55 @@ class AuthoredTopologyTests(unittest.TestCase):
             sorted((route, name) for name, route in UNUSABLE_ROUTES.items()),
         )
 
+    def test_ordinary_output_cannot_acquire_adjudication_or_final_authority(self):
+        # Every routing guard names the node whose signal it reads, and a node
+        # can only emit the signals it declares. So a review claiming `decision`
+        # or `assessment` satisfies no guard: the adjudication route reads
+        # adjudicate_authority's `decision`, and initial_review declares only
+        # `findings`. The claim routes nothing whatever the runtime does with it.
+        declared = {}
+        for name, node in self.nodes.items():
+            for field in node.get("signals", {}):
+                declared.setdefault(field, set()).add(name)
+        self.assertEqual(
+            {field: sorted(owners) for field, owners in declared.items()},
+            {
+                "availability": ["initial_evidence_check", "repair_evidence_check"],
+                "findings": ["initial_review", "repair_review"],
+                "decision": ["adjudicate_authority"],
+                "resolution": ["resolution_authority"],
+                "status": ["round_complete"],
+                "assessment": [
+                    "final_assessment_authority_clean",
+                    "final_assessment_authority_repaired",
+                ],
+            },
+        )
+        loop = groups(self.root, "loop")["bounded_repair"]
+        guards = [when for _, when, _ in self.branches] + loop["until"]["guards"]
+        signalled = 0
+        for guard in guards:
+            value = guard["value"]
+            if value["source"] != "signal":
+                continue
+            signalled += 1
+            with self.subTest(guard=json.dumps(guard, sort_keys=True)):
+                emitter = self.nodes[value["name"]]
+                self.assertIn(value["field"], emitter.get("signals", {}))
+                self.assertLessEqual(
+                    set(guard["labels"]), set(emitter["signals"][value["field"]])
+                )
+        # Each route's branches are asserted exactly elsewhere, so this only
+        # has to refuse a vacuous sweep.
+        self.assertTrue(signalled, "no signal guards found")
+        # Neither mutation nor review may write the state the authorities own.
+        for name in ("implement", "repair", "initial_review", "repair_review"):
+            targets = [b["target"] for b in self.nodes[name]["writeBindings"]]
+            with self.subTest(node=name):
+                self.assertNotIn(["obligation"], targets)
+                self.assertNotIn(["directiveContent"], targets)
+                self.assertNotIn(["finalRationale"], targets)
+
     def test_no_unusable_or_unaccepted_route_can_reach_an_accepting_sink(self):
         # An accepting sink is reachable only as the fall-through of a final
         # assessment whose error, gap and refusal branches have already been

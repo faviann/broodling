@@ -158,8 +158,8 @@ def definitions():
     own route, and `test_assurance_graph_structure.py` reads that off the graph —
     so each fault class is witnessed once, at one representative node.
 
-    Two W3 demonstrations are named by the v0.5 plan but not run here, because a
-    stronger real witness for each already exists elsewhere in the same lane.
+    Four W3 demonstrations are named by the v0.5 plan but not run here, because
+    each is either established below the seam or already witnessed elsewhere.
     Removing required evidence is exercised by the #18 campaign's own
     `missing-initial` and `missing-renewed`, which delete the material for real
     and run the exact product graph through the deterministic leaf rather than a
@@ -167,6 +167,21 @@ def definitions():
     rule witnessed by `missing-initial_review`, whose response is valid in every
     other respect so the runtime has to reject it on the absent signal; that it
     is `resolution_authority` omitting the signal is the part the graph decides.
+
+    Ordinary output acquiring authority is decided by the graph: routing guards
+    name the node whose signal they read, and a review declares only `findings`,
+    so a review claiming `decision` or `assessment` routes nothing no matter what
+    the runtime does with the claim. Measured, the runtime refuses the response
+    outright -- an otherwise valid review response carrying undeclared authority
+    fields fails `execution_unusable` -- which makes a run of it a third spelling
+    of malformed rather than a witness of the guarantee.
+
+    The widened-binding canary mutates the product graph to bind raw findings
+    into `repair`, and the invariant it guards is the authored input of `repair`,
+    read directly from the graph. Its one runtime premise -- that a bound state
+    path really is delivered -- is witnessed on the *unmodified* graph by
+    `repair-resolve`, where `findingContent` reaches `adjudicate_authority`. The
+    original canary evidence is retained in `issue-17-controls.json`.
     """
     routes = [
         # Clean route to the distinct final assessor, and acceptance.
@@ -204,13 +219,6 @@ def definitions():
             "repair-resolve;missing_payload:adjudicate_authority",
             None,
         ),
-        # A response claiming authority in undeclared output and signals is
-        # rejected rather than bound.
-        (
-            "authority-claim-initial_review",
-            "clean;authority_claim:initial_review",
-            None,
-        ),
         # A node that never answers is terminated by the runtime, not waited on.
         ("hang-initial_review", "clean;hang:initial_review", None),
     ]
@@ -224,10 +232,9 @@ def definitions():
 async def run_controls(run_root, workspace_root):
     """Every case records its graph deviation, explicitly null when it has none.
 
-    Two cases submit something other than the product graph, and a reader of the
-    retained record has to be able to tell which without recomputing hashes:
-    each hang shortens one node's timeout so the fault fits the campaign, and the
-    widened-binding canary adds the forbidden raw-finding input to `repair`.
+    One case submits something other than the product graph, and a reader of the
+    retained record has to be able to tell which without recomputing hashes: the
+    hang shortens one node's timeout so the fault fits the campaign.
     `graph_deviations_are_declared` below holds this field to the graph that was
     actually submitted: a declaration is present exactly when the submitted hash
     differs from the product graph's.
@@ -250,38 +257,6 @@ async def run_controls(run_root, workspace_root):
             run_root, workspace_root, name, scenario, graph=graph
         )
         cases[name]["testOnlyGraphDeviation"] = deviation
-    # Sensitivity control: deliberately widen repair input to include raw
-    # findings. The v0.5 plan asks for this canary by hand, because the
-    # isolation assertion below is only worth having if a widened binding would
-    # actually trip it. This modified graph is evidence-only; the product graph
-    # remains untouched.
-    widened = assurance_graph()
-    repair = next(
-        node for node in executable_nodes(widened["root"]) if node["name"] == "repair"
-    )
-    repair["input"]["fields"]["findingContent"] = {
-        "required": True,
-        "type": {"kind": "string"},
-    }
-    repair["inputBindings"].append(
-        {
-            "target": ["findingContent"],
-            "value": {"source": "state", "path": ["findingContent"]},
-        }
-    )
-    cases["widened-binding-canary"] = await run_case(
-        run_root,
-        workspace_root,
-        "widened-binding-canary",
-        "repair-resolve",
-        graph=widened,
-    )
-    cases["widened-binding-canary"]["testOnlyGraphDeviation"] = {
-        "node": "repair",
-        "change": "findingContent added to the repair input and bound from "
-        "state, which the product graph deliberately does not do; this case "
-        "exists to show the isolation assertion would catch it",
-    }
     return cases
 
 
@@ -348,14 +323,7 @@ def acceptance_checks(cases):
             for name, case in cases.items()
             if case["testOnlyGraphDeviation"] is not None
         )
-        == ["hang-initial_review", "widened-binding-canary"],
-        "widened_binding_control_detects_canary": next(
-            e
-            for e in cases["widened-binding-canary"]["events"]
-            if e["node"] == "repair"
-        )["input"]["findingContent"]
-        == FINDING
-        and "RAW_REJECTED_FINDING_CANARY" not in json.dumps(canary["input"]),
+        == ["hang-initial_review"],
         # The graph binds no diagnostic channel, so every response's forged
         # identifiers and private note are non-authoritative in every run.
         "private_diagnostics_never_reach_a_bound_input": all(

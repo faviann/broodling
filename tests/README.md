@@ -643,14 +643,14 @@ Real Zeroshot runs created by the two campaigns:
 
 | Campaign | Before | After |
 | --- | --- | --- |
-| `test_assurance_graph.py` setup (#17 controls) | 38 | 14 |
+| `test_assurance_graph.py` setup (#17 controls) | 38 | 12 |
 | `test_evidence_graph.py` (#18 controls) | 12 | 7 |
-| Both | 50 | 21 |
+| Both | 50 | 19 |
 
 Wall clock on the qualified profile (pinned SDK and sidecar, nothing skipped),
 the two campaigns run back to back under `pytest --durations`:
 
-| Phase | Before (38 + 12) | After (14 + 7) |
+| Phase | Before (38 + 12) | After (12 + 7) |
 | --- | --- | --- |
 | `AssuranceGraphTests` setup | 591.4s | 244.8s / 254.2s / 247.7s |
 | `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 192.5s / 198.6s / 204.3s |
@@ -724,7 +724,7 @@ authors its error in two places — the loop's `until`, so the loop stops, and
 `post_repair_bound_route`, so the stop is a failure — and both are asserted as
 authored facts, with nothing said about the order they are evaluated in.
 
-It was checked against sixteen hand-built mutants of
+It was checked against twenty-three hand-built mutants of
 `broodling/assurance_graph.py`. Nine change what the graph does: a dropped error
 guard on `repair` and on `round_complete`, a final gap routed to `succeed`, a
 widened repair input, a downgraded missing-evidence reason, an unbounded repair
@@ -734,12 +734,18 @@ change only *where* a guard sits: implement's and repair's guards swapped, the
 review route guarding the evidence check, the resolution route guarding
 `round_complete`, a final route guarding the adjudicator, the adjudication route
 guarding the initial review, and `round_complete`'s guard dropped from the
-post-loop route. All sixteen were killed; the seven placement mutants are the
-ones the earlier aggregate assertion would have survived.
+post-loop route. Seven attack signal ownership, added when
+`authority-claim-initial_review` was retired: a review declaring `decision` or
+`assessment` beside its own signal, a review's signal renamed to `decision`, the
+adjudication route and the bound-exit route reading a review's signal instead of
+an authority's, a final route guarding a label no assessor can emit, and a review
+given the adjudicator's write target. All twenty-three were killed; the seven
+placement mutants are the ones the earlier aggregate assertion would have
+survived.
 
 ## The assurance campaign, removed run by removed run
 
-Twenty-four runs were removed and fourteen kept, out of thirty-eight. The crash
+Twenty-six runs were removed and twelve kept, out of thirty-eight. The crash
 matrix generated one case for each of the five clean-route nodes, the five
 repair-round nodes and `final_assessment_authority_repaired` — **eleven**, all
 removed, `crash-round_complete` included.
@@ -755,22 +761,57 @@ removed, `crash-round_complete` included.
 | `forged-diagnostics` | 1 | forged Contract/source/evidence/predecessor IDs confer no authority | the fixture now emits forged identifiers on *every* response, so every retained run carries the canary; structurally, no write binding reads the diagnostic channel |
 | `contradictory-clean` | 1 | prose contradicting the node's own signal cannot bypass repair | folded into the adjudicator's diagnostic on every route |
 | `missing-initial` | 1 | required raw material removed before the occurrence relying on it | the #18 campaign's own `missing-initial`, which deletes the material for real and runs the exact product graph through the deterministic leaf rather than a model leaf reporting `missing`; plus the structural both-occurrences assertion |
+| `widened-binding-canary` | 1 | the raw-finding isolation assertion is sensitive — a widened binding would trip it | structural: `repair`'s authored input and bindings are asserted exactly, and the `widen-repair-input` mutant dies against them. Its one runtime premise, that a bound state path is delivered, is witnessed on the *unmodified* graph by `repair-resolve`, where `findingContent` reaches `adjudicate_authority`. The original canary evidence is retained in `issue-17-controls.json` |
+| `authority-claim-initial_review` | 1 | an ordinary review's output cannot become adjudication or final authority | structural: routing guards name the node whose signal they read, and a review declares only `findings`, so a claimed `decision` or `assessment` satisfies no guard. Measured, the runtime refuses such a response outright, so the run duplicated malformed-response rejection |
 | `sticky-omission` | 1 | explicit eligible resolution is distinguished from omission | `missing-initial_review`, which is the same omitted-signal rule — see below, the fixture had to be corrected before that was true; that it is `resolution_authority` omitting the signal is the part the graph decides, and `resolution_route` is in `UNUSABLE_ROUTES` |
 
-The fourteen retained, because execution behaviour is the claim: `clean`,
+The twelve retained, because execution behaviour is the claim: `clean`,
 `repair-resolve`, `repeat-labels`, `sticky-exhaust`, `refusal`, `final-gap`,
 `open-control-crash`, `missing-initial_review`, `malformed-initial_review`,
-`default-initial_review`, `missing-payload-adjudicate_authority`,
-`authority-claim-initial_review`, `hang-initial_review` and
-`widened-binding-canary`. 24 removed plus 14 retained is the 38 the campaign
+`default-initial_review`, `missing-payload-adjudicate_authority` and
+`hang-initial_review`. 26 removed plus 12 retained is the 38 the campaign
 started with.
 
-The last two rows of the table are runs this branch kept at first, on the
-grounds that the v0.5 plan's W3 list names both demonstrations by hand. Review
-pushed back, and the pushback was right: a governing document naming a
-demonstration is a reason to make sure the demonstration exists somewhere, not a
-reason to pay for it twice in the same lane. Both are covered by a *stronger*
-real witness than the one removed.
+Four of those rows are runs this branch kept at first, on the grounds that the
+v0.5 plan's W3 list names the demonstrations by hand. Review pushed back each
+time, and the pushback was right: a governing document naming a demonstration is
+a reason to make sure it exists somewhere, not a reason to pay for it every time
+the lane runs. Two — required-evidence removal and resolution-by-omission — are
+covered by a stronger or equal real witness in the same lane. The other two were
+*synthetic*, and that is a different and worse problem.
+
+### A run that mutates the graph is not a witness of the graph
+
+`widened-binding-canary` built a graph with the forbidden raw-finding binding on
+`repair` and showed the raw finding arriving. But the invariant is that the
+product graph has no such binding, and that is read straight off
+`assurance_graph()` — the `widen-repair-input` mutant dies against the authored
+assertion. What the synthetic run added was one runtime premise: that a bound
+state path really is delivered. That is witnessed on the *unmodified* graph by
+`repair-resolve`, where `findingContent` reaches `adjudicate_authority` for real.
+So the mutation demonstrated the test suite's own sensitivity, which the
+retained `issue-17-controls.json` already records, at the price of a Zeroshot run
+on a graph Broodling never ships.
+
+`authority-claim-initial_review` was the same shape of mistake with an extra
+flaw. It replaced the review's response with `{"authority": …, "obligation": …}`
+and signals `{"assessment": …, "decision": …}` — which also dropped the declared
+`findingContent` output and `findings` signal, so like the old `missing` case it
+could be rejected on shape before anything about authority was reached. Isolating
+it properly — keeping a valid review response and *adding* the undeclared
+authority fields — was measured against the pinned SDK, and the runtime refuses
+that too: `execution_unusable`. Which makes the run a third spelling of
+"malformed response", not a witness of the guarantee.
+
+The guarantee itself never depended on that rejection. Routing guards name the
+node whose signal they read: the adjudication route reads
+`adjudicate_authority`'s `decision`, and `initial_review` declares only
+`findings`. A review claiming `decision` routes nothing whether the runtime
+refuses the claim or ignores it.
+`test_ordinary_output_cannot_acquire_adjudication_or_final_authority` asserts
+signal ownership exactly, that every guard reads a field its named node declares
+with labels that node can emit, and that no mutation or review node writes
+`obligation`, `directiveContent` or `finalRationale`.
 
 ### The omitted-signal witness did not witness omitted signals
 
@@ -803,13 +844,10 @@ The general lesson is worth keeping: a fault case that replaces a whole response
 tests whatever the runtime checks *first*. Isolating one defect per case is what
 makes the retained set discriminating rather than four spellings of "malformed".
 
-The canary stays a real run because an isolation assertion is only worth having
-if a widened binding would actually trip it — the one place where the plan
-naming something by hand coincides with the run being the only witness of it.
-
-It submits a modified graph, and so does the hang. Both declare what they changed
-in a per-case `testOnlyGraphDeviation`; every other case declares an explicit
-`null`; and `graph_deviations_are_declared` enforces exactly one thing: a
+With the canary retired, the hang is the only case that submits anything but the
+product graph. It declares what it changed in a per-case
+`testOnlyGraphDeviation`; every other case declares an explicit `null`; and
+`graph_deviations_are_declared` enforces exactly one thing: a
 declaration is present precisely when the submitted `graphSha256` differs from
 the product graph's. So a future case that modifies the graph and says nothing
 fails the campaign. The declaration's wording is descriptive and is *not*
@@ -842,5 +880,5 @@ field saying what moved and where. Retained historical records —
 untouched. They remain evidence of what was observed when they were written, not
 a description of what the suite runs today.
 
-#33 parallelism is the next question, not a substitute for this one: 21 runs
+#33 parallelism is the next question, not a substitute for this one: 19 runs
 scheduled concurrently is a different proposition from 50.
