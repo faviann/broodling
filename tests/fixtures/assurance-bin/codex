@@ -37,10 +37,6 @@ def main():
         candidate.write_text("C1_FROM_IMPLEMENT\n")
     if node == "repair":
         candidate.write_text(f"C{invocation + 1}_FROM_REPAIR\n")
-    if (base == "missing-initial" and node == "implement") or (
-        base == "missing-after-repair" and node == "repair"
-    ):
-        evidence.unlink(missing_ok=True)
     input_match = re.search(
         r"Input JSON:\n([^\n]+)\nRuntime-owned response contract:", prompt
     )
@@ -65,18 +61,14 @@ def main():
             "diagnostic": diag,
         }
     elif node.endswith("review"):
-        found = node == "initial_review" and base not in {
-            "clean",
-            "refusal",
-            "missing-initial",
-        }
+        found = node == "initial_review" and base not in {"clean", "refusal"}
         response = {
             "output": {"findingContent": FINDING if found else ""},
             "signals": {"findings": "found" if found else "clean"},
             "diagnostic": diag,
         }
     elif node == "adjudicate_authority":
-        opened = base not in {"clean", "refusal", "missing-initial"}
+        opened = base not in {"clean", "refusal"}
         response = {
             "output": {
                 "directiveContent": DIRECTIVE
@@ -101,8 +93,6 @@ def main():
             "signals": {"resolution": "open_d1" if opened else "resolved_d1"},
             "diagnostic": diag,
         }
-        if base == "sticky-omission":
-            response["signals"] = {}
     elif node == "round_complete":
         response = {
             "output": None,
