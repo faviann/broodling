@@ -27,6 +27,25 @@ from broodling.assurance_graph import (
 
 #: Zeroshot's unusable-execution labels, as every product error guard names them.
 ERROR_LABELS = ["timeout", "crash", "malformed", "refusal"]
+#: The route each executable occurrence's unusable execution is caught on, as
+#: the graph authors it. Stated, not derived: where Zeroshot goes after a node
+#: finishes is Zeroshot's semantics — loop termination before anything outside
+#: the loop, for one — and reimplementing that here would move a dependency's
+#: control flow into Broodling's test suite. Which route Broodling put each
+#: guard on is Broodling's own decision, and it is this table.
+UNUSABLE_ROUTES = {
+    "implement": "implementation_route",
+    "initial_evidence_check": "initial_evidence_route",
+    "initial_review": "initial_review_route",
+    "adjudicate_authority": "adjudication_route",
+    "repair": "repair_execution_route",
+    "repair_evidence_check": "repair_evidence_route",
+    "repair_review": "repair_review_route",
+    "resolution_authority": "resolution_route",
+    "round_complete": "post_repair_bound_route",
+    "final_assessment_authority_clean": "final_route_clean",
+    "final_assessment_authority_repaired": "final_route_repaired",
+}
 #: The only state paths any worker response is allowed to write.
 WRITABLE_PATHS = {
     "evidence",
@@ -39,57 +58,23 @@ WRITABLE_PATHS = {
 }
 
 
-def children(node):
-    """The constructs `node` directly encloses, in authored order."""
-    kind = node["kind"]
-    if kind == "seq":
-        return node["children"]
-    if kind == "choice":
-        return [branch["node"] for branch in node["branches"]] + [node["otherwise"]]
-    if kind == "loop":
-        return [node["body"]]
-    return []
-
-
 def walk(node):
     """Yield every node of the authored tree, parents before children."""
     yield node
-    for child in children(node):
-        yield from walk(child)
+    kind = node["kind"]
+    if kind == "seq":
+        for child in node["children"]:
+            yield from walk(child)
+    elif kind == "choice":
+        for branch in node["branches"]:
+            yield from walk(branch["node"])
+        yield from walk(node["otherwise"])
+    elif kind == "loop":
+        yield from walk(node["body"])
 
 
 def executables(root):
     return {n["name"]: n for n in walk(root) if n["kind"] in {"step", "verifier"}}
-
-
-def parents(root):
-    """Map each node to the construct directly enclosing it, by identity."""
-    found = {id(root): None}
-    for node in walk(root):
-        for child in children(node):
-            found[id(child)] = node
-    return found
-
-
-def continuation(enclosing, node):
-    """The construct execution reaches next once `node` itself is finished.
-
-    A `seq` hands control to the sibling after its child; a construct that ends
-    without one hands control to whatever follows the construct itself. For every
-    executable node in this graph that lands on the `choice` carrying its own
-    routing, which is the point where its unusable outcome has to be caught.
-    """
-    current = node
-    while (parent := enclosing[id(current)]) is not None:
-        if parent["kind"] == "seq":
-            siblings = parent["children"]
-            position = next(
-                index for index, child in enumerate(siblings) if child is current
-            )
-            if position + 1 < len(siblings):
-                return siblings[position + 1]
-        current = parent
-    return None
 
 
 def groups(root, kind):
@@ -117,7 +102,6 @@ class AuthoredTopologyTests(unittest.TestCase):
         self.graph = assurance_graph()
         self.root = self.graph["root"]
         self.nodes = executables(self.root)
-        self.enclosing = parents(self.root)
         self.choices = groups(self.root, "choice")
         self.branches = [
             (choice["name"], branch["when"], branch["node"])
@@ -138,36 +122,30 @@ class AuthoredTopologyTests(unittest.TestCase):
         self.assertEqual(sorted(self.nodes), sorted(EXECUTABLE_NODES))
         self.assertEqual(len(EXECUTABLE_NODES), len(set(EXECUTABLE_NODES)))
 
-    def test_each_executable_occurrence_catches_its_own_unusable_execution(self):
-        # Not "the graph mentions every node in some error guard somewhere":
-        # the guard has to sit on the route execution actually continues into
-        # from that occurrence. A guard naming the wrong node, or the right node
-        # from the wrong route, leaves the occurrence it was meant to catch
-        # running on into whatever follows it.
-        owners = {}
-        for name, node in self.nodes.items():
-            with self.subTest(node=name):
-                route = continuation(self.enclosing, node)
-                self.assertIsNotNone(route, name)
-                self.assertEqual(route["kind"], "choice")
+    def test_each_executable_occurrence_is_caught_on_its_own_authored_route(self):
+        # Not "the graph mentions every node in some error guard somewhere": a
+        # guard naming the wrong node, or the right node from a route belonging
+        # to a different occurrence, leaves the occurrence it was meant to catch
+        # with no handling of its own. The pairing is asserted both ways, so a
+        # swapped pair of guards fails on both halves.
+        self.assertEqual(sorted(UNUSABLE_ROUTES), sorted(EXECUTABLE_NODES))
+        for name, route in UNUSABLE_ROUTES.items():
+            with self.subTest(node=name, route=route):
                 caught = [
                     branch
-                    for branch in route["branches"]
+                    for branch in self.choices[route]["branches"]
                     if branch["when"] == error_guard(name)
                 ]
-                self.assertEqual(len(caught), 1, route["name"])
+                self.assertEqual(len(caught), 1, route)
                 self.assertEqual(caught[0]["node"]["kind"], "fail")
                 self.assertEqual(caught[0]["node"]["reason"], "execution_unusable")
-                owners[name] = route["name"]
-        # And no route catches an occurrence that is not the one continuing into
-        # it, which is what a swapped pair of guards would look like.
         self.assertEqual(
             sorted(
                 (choice, when["value"]["name"])
                 for choice, when, _ in self.branches
                 if when["value"]["source"] == "error"
             ),
-            sorted((route, name) for name, route in owners.items()),
+            sorted((route, name) for name, route in UNUSABLE_ROUTES.items()),
         )
 
     def test_no_unusable_or_unaccepted_route_can_reach_an_accepting_sink(self):
@@ -339,6 +317,10 @@ class AuthoredTopologyTests(unittest.TestCase):
         loop = groups(self.root, "loop")["bounded_repair"]
         self.assertEqual(loop["maxIterations"], REPAIR_BOUND)
         self.assertEqual(REPAIR_BOUND, 3)
+        # The graph authors round_complete's unusable execution in two places:
+        # here, so the loop stops, and on post_repair_bound_route, so the stop
+        # is a failure. Both are asserted as authored facts; neither says
+        # anything about the order Zeroshot evaluates them in.
         self.assertEqual(
             loop["until"],
             {

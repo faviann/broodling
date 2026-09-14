@@ -643,23 +643,24 @@ Real Zeroshot runs created by the two campaigns:
 
 | Campaign | Before | After |
 | --- | --- | --- |
-| `test_assurance_graph.py` setup (#17 controls) | 38 | 16 |
+| `test_assurance_graph.py` setup (#17 controls) | 38 | 14 |
 | `test_evidence_graph.py` (#18 controls) | 12 | 7 |
-| Both | 50 | 23 |
+| Both | 50 | 21 |
 
 Wall clock on the qualified profile (pinned SDK and sidecar, nothing skipped),
 the two campaigns run back to back under `pytest --durations`:
 
-| Phase | Before | After |
+| Phase | Before (38 + 12) | After (14 + 7) |
 | --- | --- | --- |
-| `AssuranceGraphTests` setup | 591.4s | 244.8s |
-| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 192.5s |
-| Both modules end to end | 798.2s (13:18) | 437.8s (7:17) |
+| `AssuranceGraphTests` setup | 591.4s | 244.8s / 254.2s / 247.7s |
+| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 192.5s / 198.6s / 204.3s |
+| Both modules end to end | 798.2s (13:18) | 437.8s / 453.2s / 452.5s |
 
-A second run of the same two sets, after the #45 review changes, measured 254.2s
-and 198.6s — the spread below is this host, not the change.
+Three "after" samples are listed because they were taken across the review
+rounds, and the spread between them — about 10s on a 250s phase — is larger than
+the two runs dropped in the last round. That spread is this host, not the change.
 
-The assurance number is the honest one: 58% fewer runs, 59% less time. The
+The assurance number is the honest one: 63% fewer runs, roughly 58% less time. The
 evidence number is not, and the reason is worth writing down rather than
 rounding away. Timed scenario by scenario in one sitting, the campaign looks
 like this:
@@ -706,10 +707,22 @@ witness — one per class of provider misbehaviour, at one representative node.
 `tests/test_assurance_graph_structure.py` holds the structural half. The
 requirement it has to prove is per *occurrence*, not per name: an aggregate
 "every node appears in some error guard" would pass a graph whose guards sat on
-the wrong routes, leaving each occurrence running on into whatever follows it.
-So each executable node is resolved to the construct execution continues into
-once that node finishes, and the guard has to be there — with the reverse
-direction asserted too, so no route catches an occurrence that is not its own.
+the wrong routes, leaving each occurrence with no handling of its own.
+
+The module states the pairing rather than deriving it. `UNUSABLE_ROUTES` is a
+table of the eleven executable nodes against the eleven authored routes that
+catch them, asserted in both directions so a swapped pair fails on both halves.
+An earlier draft computed that pairing by walking the tree for "the construct
+execution reaches next", which was the wrong thing to do twice over: it put a
+model of Zeroshot's control flow inside Broodling's test suite, and the model was
+already wrong about `round_complete`, where the loop's termination guards are
+evaluated before anything outside the loop is reached. Where Zeroshot goes after
+a node finishes is Zeroshot's semantics. Which route Broodling put each guard on
+is Broodling's decision, and a table is the honest way to write it down.
+`round_complete` is the case that makes the distinction visible: the graph
+authors its error in two places — the loop's `until`, so the loop stops, and
+`post_repair_bound_route`, so the stop is a failure — and both are asserted as
+authored facts, with nothing said about the order they are evaluated in.
 
 It was checked against sixteen hand-built mutants of
 `broodling/assurance_graph.py`. Nine change what the graph does: a dropped error
@@ -726,7 +739,7 @@ ones the earlier aggregate assertion would have survived.
 
 ## The assurance campaign, removed run by removed run
 
-Twenty-two runs were removed and sixteen kept, out of thirty-eight. The crash
+Twenty-four runs were removed and fourteen kept, out of thirty-eight. The crash
 matrix generated one case for each of the five clean-route nodes, the five
 repair-round nodes and `final_assessment_authority_repaired` — **eleven**, all
 removed, `crash-round_complete` included.
@@ -741,22 +754,37 @@ removed, `crash-round_complete` included.
 | `repair-input-canary` | 1 | repair receives the directive, not raw findings | folded into `repair-resolve`, which takes the identical route, plus the structural binding assertion |
 | `forged-diagnostics` | 1 | forged Contract/source/evidence/predecessor IDs confer no authority | the fixture now emits forged identifiers on *every* response, so every retained run carries the canary; structurally, no write binding reads the diagnostic channel |
 | `contradictory-clean` | 1 | prose contradicting the node's own signal cannot bypass repair | folded into the adjudicator's diagnostic on every route |
+| `missing-initial` | 1 | required raw material removed before the occurrence relying on it | the #18 campaign's own `missing-initial`, which deletes the material for real and runs the exact product graph through the deterministic leaf rather than a model leaf reporting `missing`; plus the structural both-occurrences assertion |
+| `sticky-omission` | 1 | explicit eligible resolution is distinguished from omission | `missing-initial_review`, which is the same omitted-signal rule; that it is `resolution_authority` omitting the signal is the part the graph decides, and `resolution_route` is in `UNUSABLE_ROUTES` |
 
-The sixteen retained, because execution behaviour is the claim: `clean`,
-`repair-resolve`, `repeat-labels`, `missing-initial`, `sticky-exhaust`,
-`refusal`, `final-gap`, `sticky-omission`, `open-control-crash`,
-`missing-initial_review`, `malformed-initial_review`, `default-initial_review`,
-`missing-payload-adjudicate_authority`, `authority-claim-initial_review`,
-`hang-initial_review` and `widened-binding-canary`. 22 removed plus 16 retained
-is the 38 the campaign started with.
+The fourteen retained, because execution behaviour is the claim: `clean`,
+`repair-resolve`, `repeat-labels`, `sticky-exhaust`, `refusal`, `final-gap`,
+`open-control-crash`, `missing-initial_review`, `malformed-initial_review`,
+`default-initial_review`, `missing-payload-adjudicate_authority`,
+`authority-claim-initial_review`, `hang-initial_review` and
+`widened-binding-canary`. 24 removed plus 14 retained is the 38 the campaign
+started with.
 
-The canary stays a real run because the v0.5 plan asks for it by hand, and
-because an isolation assertion is only worth having if a widened binding would
-actually trip it. It submits a modified graph, and so does the hang; both now
-declare what they changed in a per-case `testOnlyGraphDeviation`, and
-`declared_graph_deviations_match_submitted_graphs` holds that declaration to the
-recorded `graphSha256` so the retained record cannot claim a deviation it did
-not make, or omit one it did.
+The last two rows of the table are runs this branch kept at first, on the
+grounds that the v0.5 plan's W3 list names both demonstrations by hand. Review
+pushed back, and the pushback was right: a governing document naming a
+demonstration is a reason to make sure the demonstration exists somewhere, not a
+reason to pay for it twice in the same lane. Both are covered by a *stronger*
+real witness than the one removed.
+
+The canary stays a real run because an isolation assertion is only worth having
+if a widened binding would actually trip it — the one place where the plan
+naming something by hand coincides with the run being the only witness of it.
+
+It submits a modified graph, and so does the hang. Both declare what they changed
+in a per-case `testOnlyGraphDeviation`; every other case declares an explicit
+`null`; and `graph_deviations_are_declared` enforces exactly one thing: a
+declaration is present precisely when the submitted `graphSha256` differs from
+the product graph's. So a future case that modifies the graph and says nothing
+fails the campaign. The declaration's wording is descriptive and is *not*
+machine-compared against the submitted bytes — the check is named for what it
+enforces rather than for what the sentence next to it happens to say, and the
+per-case `graphSha256` remains the authoritative record of what ran.
 
 ## The evidence campaign: six permutations of one route
 
@@ -783,5 +811,5 @@ field saying what moved and where. Retained historical records —
 untouched. They remain evidence of what was observed when they were written, not
 a description of what the suite runs today.
 
-#33 parallelism is the next question, not a substitute for this one: 23 runs
+#33 parallelism is the next question, not a substitute for this one: 21 runs
 scheduled concurrently is a different proposition from 50.

@@ -152,12 +152,20 @@ def definitions():
     """The minimal discriminating real-Zeroshot witness set (issue #45).
 
     Each entry is here because Zeroshot's own execution behaviour is the claim:
-    a route actually taken end to end, one class of provider misbehaviour the
-    runtime has to turn into a node error, or a demonstration the v0.5 plan's W3
-    list names by hand. Which *node* a fault is injected at is not a claim — the
-    authored graph guards every executable node, and
-    `test_assurance_graph_structure.py` reads that guarantee off the graph — so
-    each fault class is witnessed once, at one representative node.
+    a route actually taken end to end, or one class of provider misbehaviour the
+    runtime has to turn into a node error. Which *node* a fault is injected at is
+    not a claim — the authored graph catches every executable occurrence on its
+    own route, and `test_assurance_graph_structure.py` reads that off the graph —
+    so each fault class is witnessed once, at one representative node.
+
+    Two W3 demonstrations are named by the v0.5 plan but not run here, because a
+    stronger real witness for each already exists elsewhere in the same lane.
+    Removing required evidence is exercised by the #18 campaign's own
+    `missing-initial` and `missing-renewed`, which delete the material for real
+    and run the exact product graph through the deterministic leaf rather than a
+    model leaf reporting `missing`. Resolution-by-omission is the omitted-signal
+    rule already witnessed by `missing-initial_review`; that it is
+    `resolution_authority` omitting the signal is the part the graph decides.
     """
     routes = [
         # Clean route to the distinct final assessor, and acceptance.
@@ -171,8 +179,6 @@ def definitions():
         ("repeat-labels", "repeat-labels", None),
     ]
     terminals = [
-        # Required raw material removed before the occurrence that relies on it.
-        ("missing-initial", "missing-initial", "required_evidence_missing"),
         # The bound is reached with the obligation still open.
         ("sticky-exhaust", "sticky-exhaust", "obligations_exhausted"),
         # An authority gap hands back rather than amends the Contract.
@@ -182,8 +188,6 @@ def definitions():
         ("final-gap", "final-gap", "semantic_gap"),
     ]
     faults = [
-        # Explicit eligible resolution is distinguished from its omission.
-        ("sticky-omission", "sticky-omission", None),
         # Process death at an executable node becomes a node error, and an open
         # obligation does not buy another repair round.
         ("open-control-crash", "sticky-exhaust;crash:round_complete", None),
@@ -326,10 +330,12 @@ def acceptance_checks(cases):
             "directive": "open_d1",
             "directiveContent": DIRECTIVE,
         },
-        # Provenance: a case submitting anything but the product graph declares
-        # what it changed, and a case declaring nothing submitted the product
-        # graph exactly. Prose in the retained record cannot drift from this.
-        "declared_graph_deviations_match_submitted_graphs": all(
+        # Provenance, exactly as far as it goes: a case submitting anything but
+        # the product graph carries a declaration, and a case carrying one really
+        # did submit a different graph. The declaration's text describes the
+        # change for a reader; it is not itself checked against the bytes. What
+        # this catches is a future case that modifies the graph and says nothing.
+        "graph_deviations_are_declared": all(
             (case["graphSha256"] == canonical_hash(assurance_graph()))
             is (case["testOnlyGraphDeviation"] is None)
             for case in cases.values()
