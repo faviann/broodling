@@ -16,8 +16,8 @@ from support import REPOSITORY, StoreTestCase, work_reference
 #: derivation recipe is a compatibility contract, not an implementation detail.
 #: Change it and an upgraded build stops finding a Work Unit its store already
 #: holds, then fails to insert the replacement against the existing
-#: ``reference_key``. A new scheme therefore needs a migration, which is what
-#: this constant exists to force.
+#: ``reference_key``. A new scheme therefore owes a migration, and freezing the
+#: derivation is what forces that to be a decision rather than an accident.
 V1_WORK_UNIT_ID = "wu-88920fac767d5d1561fc0ede6f80349fd02caa2a01ad9f1b19ad07e14660587d"
 
 
@@ -74,12 +74,10 @@ class CanonicalIngressTests(StoreTestCase):
             self.store.resolve_work_unit(work_reference()).work_unit_id,
         )
 
-    def test_a_work_unit_persisted_by_the_v1_scheme_still_resolves(self) -> None:
-        """This build resolves the identity an earlier build would have stored."""
-
-        resolved = self.store.resolve_work_unit(work_reference())
-        self.assertEqual(resolved.reference_key, "github.com/faviann/broodling#12")
-        self.assertEqual(resolved.work_unit_id, V1_WORK_UNIT_ID)
+    def test_the_v1_work_unit_id_derivation_is_frozen(self) -> None:
+        reference = work_reference()
+        self.assertEqual(reference.key, "github.com/faviann/broodling#12")
+        self.assertEqual(reference.work_unit_id, V1_WORK_UNIT_ID)
 
 
 class DistinctIdentityTests(StoreTestCase):

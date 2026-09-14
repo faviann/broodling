@@ -311,16 +311,17 @@ sidecar from `d090961`), CPython 3.13.5.
 
 # Mutation testing as a test-suite review (issue #34)
 
-One bounded campaign was run to answer a single question: when a test claims to
-protect an invariant, does a plausible violation of that invariant actually make
-it fail? Mutation score is not a target, mutation testing is not a gate, and
-nothing here runs in an ordinary suite run.
+`mutmut` is an optional developer tool here, not a gate and not part of any test
+run. It answers one question: when a test claims to protect an invariant, does a
+plausible violation of that invariant actually make it fail? Mutation score is
+not a target, and no test in this repository exists to kill a mutant that
+corresponds to no product failure.
 
 ## Running it
 
 ```bash
 pip install -e '.[test,mutation]'
-mutmut run                    # the configured slice: 169 mutants, ~90s
+mutmut run                    # the configured slice, well under two minutes
 mutmut results                # everything not killed
 mutmut show <mutant-name>     # the diff for one
 mutmut run <mutant-name> ...  # re-run named mutants after a change
@@ -329,230 +330,161 @@ mutmut run <mutant-name> ...  # re-run named mutants after a change
 `mutmut run` takes only `--max-children` and mutant names; the slice itself is
 `[tool.mutmut]` in `pyproject.toml`, so aiming it at other code means editing
 `source_paths` and `pytest_add_cli_args_test_selection` there. The default is
-`broodling/identity.py` against the two modules that claim identity, which is
-what keeps a campaign to seconds and off the provider, containment, crash and
-qualification tests that #34 asks not to mutate by default. Mutating other store
-or constraint code is a reasonable thing to do deliberately; pair it with a test
-selection that is actually about that code, or the run reports weakness in tests
-that were never claiming the invariant.
+`broodling/identity.py` against the two modules that claim identity, which keeps
+a campaign to seconds and off the provider, containment, crash and qualification
+tests #34 asks not to mutate by default. Mutating other store or constraint code
+is a reasonable thing to do deliberately; pair it with a test selection that is
+actually about that code, or the run reports weakness in tests that never
+claimed the invariant.
 
-Two config settings are not obvious. `also_copy` names the package and the root
-`conftest.py`, because mutmut runs the suite from a `mutants/` copy that
-otherwise holds only the mutated file. `process_isolation = "forkserver"` with
-`forkserver_warmup = "none"` is there for the property modules: forking workers
-from a process that has already run the suite makes Hypothesis report
-`differing_executors`, which is a true statement about that arrangement, so the
-workers fork from a server that never ran a test rather than suppressing a
-health check that is telling the truth.
+Two config settings are not obvious and should not be removed:
 
-## What the campaign found
+- `also_copy` names the package and the root `conftest.py`. mutmut runs the
+  suite from a `mutants/` copy that otherwise holds only the mutated file, so
+  without this the tests cannot import `broodling` at all.
+- `process_isolation = "forkserver"` with `forkserver_warmup = "none"` exists for
+  the property modules. Forking workers from a process that has already run the
+  suite makes Hypothesis report `differing_executors`, which is a true statement
+  about that arrangement; forking from a server that never ran a test keeps each
+  worker's Hypothesis state its own, rather than suppressing a health check that
+  is telling the truth.
 
-169 mutants, 126 killed, 42 alive, 1 unreachable from this slice
-(`content_digest`, which the identity tests do not call). Two findings — one test
-defect, and one mutant this document first classified wrongly:
+## What it found, and what it could not
 
-1. **The worktree-ownership raw-SQL witnesses were green for the wrong reason.**
-   #34 named this as a diagnostic candidate and was right. Both tests fabricated
-   a rival `attempt_id` by appending `-rival` to a real one;
-   `worktree_assignments.attempt_id` references `attempts`, so with
-   `PRAGMA foreign_keys = ON` the insert died on `SQLITE_CONSTRAINT_FOREIGNKEY`
-   before the uniqueness it claimed to prove was ever consulted. Shown by
-   deleting both `UNIQUE` constraints from the schema: all 27 tests in
-   `test_worktree_provisioning.py` still passed. The rival is now a real,
-   non-current Attempt row, each claim leaves every unique column but its target
-   free, and the assertion is `sqlite_errorname == "SQLITE_CONSTRAINT_UNIQUE"` —
-   enough to separate a duplicate from the foreign key, primary key and
-   ownership triggers, without pinning SQLite's message text. With the same two
-   constraints deleted, both now fail.
+**mutmut's finding: the Work Unit id derivation is a compatibility contract.**
+A mutant that changed `digest`'s separator survived, and the first reading of
+that was wrong — that v1-P2 §2 promises only that a restart or a rebuilt store
+resolves the *same* identities, which a consistently different separator
+preserves. The store says otherwise: `work_units.work_unit_id` is persisted,
+stores migrate in place from schema v2 onward, and `resolve_work_unit` looks a
+Work Unit up **by the id it derives**. A build that changed the recipe would miss
+a Work Unit its own store already holds, then fail to insert the replacement
+against the existing `reference_key`. `test_work_unit_id_is_derived_not_allocated`
+cannot catch that — it compares two computations by the *same* build, which agree
+however the recipe is spelled — so
+`test_the_v1_work_unit_id_derivation_is_frozen` pins the one id the V1 scheme
+derives for `github.com/faviann/broodling#12`. A new scheme owes a migration;
+that test is what makes it a decision rather than an accident.
 
-2. **The Work Unit id derivation is a compatibility contract, and nothing said
-   so.** Covered under *One survivor was reclassified* below: the `digest`
-   separator mutant was left alive on a misreading of what the store guarantees,
-   and it is now killed by a named witness of persisted identity compatibility.
+**Found by hand, not by mutmut: the worktree-uniqueness witnesses were green for
+the wrong reason.** #34 named this as a diagnostic candidate and was right. Both
+raw-SQL tests fabricated a rival `attempt_id` by appending `-rival` to a real
+one; `worktree_assignments.attempt_id` references `attempts`, so with
+`PRAGMA foreign_keys = ON` the insert died on `SQLITE_CONSTRAINT_FOREIGNKEY`
+before the uniqueness it claimed to prove was consulted. Deleting both `UNIQUE`
+constraints from the schema left every test in
+`test_worktree_provisioning.py` passing. The rival is now a real, non-current
+Attempt row, each claim leaves every unique column but its target free, and the
+assertion is `sqlite_errorname == "SQLITE_CONSTRAINT_UNIQUE"` — enough to
+separate a duplicate from the foreign key, primary key and ownership triggers,
+without pinning SQLite's message text.
 
-Finding 1 is also the campaign's clearest limit: `mutmut` could not have found
-it. That invariant lives in a SQL schema string, where the only mutation
-available is to the literal as a whole, and a broken schema kills every test at
-once. It was found by hand, and the recipe generalizes better than the tool does
-— **delete a constraint, run the tests that name it; if they still pass, they are
-witnessing something else.** Worth repeating whenever a test asserts that the
-database, rather than Python, refuses something.
+mutmut could not have found that one: the invariant lives in a SQL schema
+string, where the only mutation available is to the literal as a whole, and a
+broken schema kills every test at once. The manual recipe generalizes better
+than the tool does — **delete a constraint, run the tests that name it; if they
+still pass, they are witnessing something else** — and is worth repeating
+whenever a test asserts that the database, rather than Python, refuses
+something.
 
-## Which mutants are left alive, and why
+## Mutants deliberately left alive
 
 A mutant is worth killing only if it corresponds to a product failure of a
-guarantee this repository actually states. Of the 42 alive:
+guarantee this repository actually states. Most survivors of the identity slice
+fall into these categories, and finding them again is not a new result:
 
-- **24 mutate the text of a refusal message** (`InvalidWorkReference(None)`, an
-  uppercased or `XX`-padded message). Messages are diagnostics; pinning them
-  couples tests to wording.
-- **9 change normalization of spellings nothing promises** — a trailing-dot
-  FQDN, a leading slash in an `scp`-like path, a second `://` in one reference.
-  v1-P2 §2.1 promises HTTPS, SSH, `scp`-like and bare `owner/repo`; asserting
-  the rest would freeze incidental parser tolerance into a contract, which is the
-  rule `test_work_reference_properties.py` already follows.
-- **4 remove `http` or `git` from the accepted scheme set.** Same reason: both
-  are tolerated, neither is promised.
-- **2 are literally equivalent** — `"\x1f"` → `"\x1F"` is the same character and
+- **Refusal message text** — `InvalidWorkReference(None)`, an uppercased or
+  `XX`-padded message. Messages are diagnostics; pinning them couples tests to
+  wording.
+- **Normalization of spellings nothing promises** — a trailing-dot FQDN, a
+  leading slash in an `scp`-like path, a second `://` in one reference, and the
+  `http`/`git` schemes the parser tolerates. v1-P2 §2.1 promises HTTPS, SSH,
+  `scp`-like and bare `owner/repo`; asserting the rest freezes incidental parser
+  tolerance into a contract, which is the rule
+  `test_work_reference_properties.py` already follows.
+- **Literally equivalent mutations** — `"\x1f"` → `"\x1F"` is the same character,
   `"utf-8"` → `"UTF-8"` the same codec.
-- **1 turns `canonicalize_repository`'s `isinstance` guard from `or` into
-  `and`**, so a non-string repository raises `AttributeError` instead of
-  `InvalidWorkReference`. Every promised repository form is a string — the issue
-  side is different, and legitimately accepts an `int`, which the property does
+- **The `isinstance` guard in `canonicalize_repository`** turning `or` into
+  `and`, so a non-string repository raises `AttributeError` instead of
+  `InvalidWorkReference`. Every promised repository form is a string; the issue
+  side is different and legitimately accepts an `int`, which the property does
   generate. Nothing requires ingress to refuse arbitrary typed values with a
-  particular exception, so asserting it would be writing a contract to kill a
-  mutant.
-- **2 replace the retained raw ingress** with `str(None)`, so
-  `work_unit_submissions` records the string `"None"` instead of the spelling
-  submitted. Nothing in the product reads those two columns back: `store.py`
-  writes them in `_record_submission` and the only reader, `submission_count`,
-  counts rows. No obligation in the v1-P2 traceability table asks for retained
-  ingress, and no API, report or qualification artifact consumes it. The one
-  mention — `work_unit_submissions   retained raw ingress forms` in the §2
-  inventory of what the store holds — is a caption on a schema record, not a
-  requirement; contrast `entitled_sources   exact admitted bytes + entitling
-  authority`, which has an obligation row and tests of its own. Asserting the
-  column contents would be pinning the implementation's bookkeeping because a
-  mutation exists, which is the thing #34 says not to do. If a consumer ever
-  needs the submitted spelling — an operator report, a provenance answer — that
-  consumer is what the test should go through.
+  particular exception.
+- **The retained raw ingress** — `submitted_repository`/`submitted_issue`
+  replaced with `str(None)`. Nothing reads those columns back: `store.py` writes
+  them in `_record_submission`, and the only reader, `submission_count`, counts
+  rows. No obligation in the v1-P2 traceability table asks for retained ingress
+  and no API, report or qualification artifact consumes it. The one mention —
+  `work_unit_submissions   retained raw ingress forms` in the §2 inventory of
+  what the store holds — is a caption on a schema record, not a requirement;
+  contrast `entitled_sources   exact admitted bytes + entitling authority`, which
+  has an obligation row and tests of its own. `submission_count` stays asserted,
+  because that *is* store API. If a consumer ever needs the submitted spelling,
+  the test belongs with that consumer.
 
-That last pair is a reversal: an earlier revision of this branch asserted the
-retained spellings, on the strength of the §2 caption. Checking for a consumer
-rather than a record is what settled it, and the assertion is gone.
-`submission_count` stays asserted, in the property and in
-`test_work_unit_identity` — that one *is* store API, and how many times a Work
-Unit was submitted is a number the store is asked for.
+The general rule behind all of these: before writing a test to kill a mutant,
+find the requirement or the consumer it protects. A schema record with no reader
+is neither.
 
-### One survivor was reclassified
+## The two identity modules overlap, and neither subsumes the other
 
-The `digest` separator mutation — `"\x1f"` → `"XX\x1fXX"` — was first left alive
-here on the reasoning that v1-P2 §2 promises a restart or a rebuilt store
-resolves the *same* identities, which a consistently different separator
-preserves. That was wrong about how the store works. `work_units.work_unit_id`
-is persisted, stores migrate in place from schema v2 onward, and
-`resolve_work_unit` looks a Work Unit up **by the id it derives**. So a build
-that changed the recipe would miss a Work Unit its own store already holds and
-then fail to insert the replacement against the existing `reference_key` — the
-Work Unit becomes unreachable, and no amount of restarting fixes it. Persisted
-identity compatibility is the guarantee, and the derivation recipe is part of it.
+`test_work_unit_identity.py` and `test_work_reference_properties.py` cover mostly
+the same ground, and a campaign against each alone showed each killing mutants
+the other misses. That asymmetry is structural, and is the reason both stay:
 
-`test_work_unit_id_is_derived_not_allocated` could not catch this: it compares
-two computations by the *same* build, which agree however the recipe is spelled.
-`test_a_work_unit_persisted_by_the_v1_scheme_still_resolves` now pins the one id
-the V1 scheme derives for `github.com/faviann/broodling#12`, which is the smallest
-statement of the contract — change the recipe and the test says so, which is the
-point at which a migration is owed. The two literally-equivalent `digest` mutants
-still survive it, correctly.
+- the properties generate canonical *lowercase* components and vary case only
+  per rendering, so uppercasing `owner`, `repository` or `host` consistently
+  leaves every generated spelling agreeing. Canonical form is the named tests'
+  subject;
+- the properties submit no upstream identities, so
+  `repository_identity`/`issue_identity` pinning and
+  `WorkUnitIdentityConflict` are the named tests' subject;
+- the properties reach boundaries and component combinations no hand-written
+  matrix lists — issue number 1, the rule separating schemeless
+  `host/owner/repo` from bare `owner/repo`, case variation inside a generated
+  spelling.
 
-## How the two identity modules relate
+### What was consolidated, and the criterion
 
-They overlap heavily, and neither subsumes the other. Running the same 169
-mutants against each module alone:
+#30 asks that manual cases genuinely subsumed by a property be removed, so each
+named case was checked against two questions that both had to be yes: does a
+property cover the same meaningful class of input, or a broader one, and require
+the same outcome; and does the case carry no separate regression, documentation
+or mechanism value? The criterion is class coverage, not a literal superset of
+examples — a generated strategy will not reproduce every string a hand-written
+list happened to use, and requiring it to would keep example lists alive for the
+sake of their literals.
 
-| Test selection | Killed | Alive | Unreachable |
-| --- | --- | --- | --- |
-| `test_work_unit_identity.py` only | 121 | 47 | 1 |
-| `test_work_reference_properties.py` only | 116 | 52 | 1 |
-| both | 126 | 42 | 1 |
+Three cases in `DistinctIdentityTests` were subsumed and removed: plain
+non-aliasing (generated over every canonical component rather than two named
+neighbours), the disagreeing issue locator (over host, owner or repository
+rather than owner alone), and unusable references (over every invalid class the
+named list held).
 
-The single-module rows are the identity module as it stood *before* the
-consolidation below and before the compatibility witness was added, which is the
-comparison that motivated the consolidation; the combined row is current.
-
-Of the 127 mutants both modules killed at the time of that comparison, 110 were
-killed by each module on its own — the overlap is most of the coverage, and neither module would be
-noticed missing by a mutation run alone. The 17 that separate them are what the
-experiment is actually evidence about.
-
-Four mutants only the properties kill: `number <= 0` → `<= 1` (issue number 1, a
-boundary the named matrices never use), `"." in head and …` → `or` (the rule
-separating schemeless `host/owner/repo` from bare `owner/repo`, reached because
-generated owners may contain a dot), and two `strip` arguments reached through
-the uppercased SSH rendering. (The retained-ingress pair counted here in an
-earlier revision, until the assertion that killed them was withdrawn.)
-
-Eleven only the named tests kill, and they are structural. `owner.lower()`,
-`repository.lower()` and `host.lower()` → `.upper()` all survive the properties,
-because the properties generate canonical lowercase components and vary case only
-per rendering — uppercase everything consistently and no generated spelling
-disagrees. The upstream-identity arguments (`repository_identity or None` and its
-variants) survive too: the properties never submit upstream identities, and
-`WorkUnitIdentityConflict` is the named tests' subject.
-
-So neither module dominates. The properties cover the space around the named
-matrices; the named matrices hold canonical *form* and upstream-identity pinning,
-which a property generating canonical components cannot express.
-
-### Consolidation
-
-A module having unique kills says nothing about whether each case inside it is
-still earning its place, and #30 asks that manual cases genuinely subsumed by a
-property be removed. So the named cases were checked one at a time, against two
-questions that both had to be answered yes: does a property cover the same
-meaningful class of input, or a broader one, and require the same outcome, and
-does the case carry no separate regression, documentation or mechanism value of
-its own? Then the campaign was re-run with the case removed, as a check on the
-reading rather than the reason for it.
-
-The criterion is class coverage, not a literal superset of examples. A generated
-strategy will not reproduce every string a hand-written list happened to use —
-`"not-a-number"` is drawn from a different alphabet than the property's
-non-numeric issue strategy — and requiring it to would keep example lists alive
-for the sake of their literals. What matters is whether an input class the
-product must handle stops being exercised, and whether the case said something
-the property does not.
-
-Three cases in `DistinctIdentityTests` came out subsumed and are gone:
-
-| Removed | Subsumed by |
-| --- | --- |
-| `test_a_different_reference_never_aliases_onto_an_existing_unit` | `test_two_references_are_two_work_units`, which generates pairs differing in any one of host, owner, repository and issue number rather than the two neighbours this named. Its own comment already said the full matrix lived there |
-| `test_repository_and_issue_locators_must_agree` | `test_a_disagreeing_issue_locator_is_refused`, which disagrees in host, owner or repository rather than only owner |
-| `test_unusable_references_are_refused` | the property of the same name, which draws from every invalid class the named list held — empty, host-only, over-deep path, unsupported scheme, non-positive issue, non-numeric issue, absent issue — with different literals inside them |
-
-Removing all three changed nothing about which mutants die: the same 127 killed
-and the same 41 alive as before the removals. That is corroboration, not the
-argument — a case that kills no mutant may still be the only statement of a
-requirement, which is why the reading came first.
-
-The rest of the module stays, and not merely because the module as a whole has
-unique kills. Case by case:
+The rest of the module stays for reasons of its own, not because the module as a
+whole has unique kills:
 
 - `CANONICAL_FORMS` and `test_repeated_canonical_ingress_resolves_one_work_unit`
   are the named documentation of which ingress forms are supported, and the
   property module derives its generated spellings from it — deleting it would
   leave the property asserting a contract nothing states;
 - `test_every_submission_is_retained_against_the_one_work_unit` is retention
-  across a *repeated* submission, which the property does not exercise: it draws
-  distinct spellings;
-- `test_identity_survives_reopen` is identity across a store restart, which
-  neither property in this pair reopens a store to check, and it also pins
-  `first_seen_at` — the state machine restarts a store but carries no
-  first-seen fact across the restart;
-- `test_a_work_unit_persisted_by_the_v1_scheme_still_resolves` is the persisted
-  identity contract of finding 3, and the only case in the suite that would
-  notice a changed derivation recipe;
-- `test_work_unit_id_is_derived_not_allocated` overlaps generated store ingress,
-  which resolves the same Work Unit for every spelling and would fail if ids
-  were allocated per call. It stays anyway, as the direct named witness of the
-  v1-P2 §2 architectural guarantee that durable ids are *derived, not allocated*:
-  it compares the id a `WorkReference` computes with no store at all against the
-  id the store resolves, which is the guarantee stated as an equation rather than
-  inferred from ingress behaving consistently;
+  across a *repeated* submission; the property draws distinct spellings;
+- `test_identity_survives_reopen` is identity across a store restart and pins
+  `first_seen_at`, which neither property carries;
+- `test_the_v1_work_unit_id_derivation_is_frozen` is the persisted-identity
+  contract above, and the only case that would notice a changed recipe;
+- `test_work_unit_id_is_derived_not_allocated` states the v1-P2 §2 guarantee that
+  durable ids are *derived, not allocated* as an equation — the id a
+  `WorkReference` computes with no store against the id the store resolves —
+  rather than inferring it from ingress behaving consistently;
 - the `UpstreamIdentityPinningTests` and `IdentityStabilityTests` cases are each
-  the only statement of their mechanism in the suite — the properties submit no
-  upstream identities and issue no direct SQL.
+  the only statement of their mechanism in the suite.
 
 ## Keeping the tool
 
-`mutmut` stays as an optional extra with the bounded config, because one 90
-second run produced a real test gap and the complementarity evidence above, and
-because re-running it after changing identity or store code is cheap. It is not
-in CI, there is no score target, and no test here exists to kill a mutant that
-corresponds to no product failure. If a later campaign returns only message-text
-and unpromised-tolerance survivors, the honest move is to drop the extra rather
-than tune it.
-
-Recorded on 13 September 2026, mutmut 3.8.0, Hypothesis 6.168.0, pytest 9.1.1,
-CPython 3.13.5.
+`mutmut` stays an optional extra with a bounded config because re-running it
+after changing identity or store code is cheap and has paid for itself once. It
+is not in CI and there is no score target. If a later campaign returns only
+message-text and unpromised-tolerance survivors, the honest move is to drop the
+extra rather than tune it.
