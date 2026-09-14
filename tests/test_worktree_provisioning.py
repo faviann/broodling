@@ -192,40 +192,97 @@ class ExclusiveOwnershipTests(AttemptTestCase):
     def test_an_unowned_path_has_no_owner(self) -> None:
         self.assertIsNone(self.store.worktree_owner(self.workspace_root / "nobody"))
 
+    def rival_attempt_id(self) -> str:
+        """A second Attempt of the second Work Unit, owning no worktree yet.
+
+        The rival has to be a *real* row in `attempts`: `worktree_assignments`
+        references it, so an invented id is refused by that foreign key before
+        the uniqueness these tests are about is ever consulted. Admission always
+        allocates an assignment with the Attempt, so an Attempt owning no
+        worktree is precisely what a raw-SQL claim has to fabricate. It is
+        inserted non-current, so the one-current-Attempt index is not what
+        refuses either.
+        """
+
+        rival = self.second.attempt.attempt_id + "-rival"
+        self.store.connection.execute(
+            """
+            INSERT INTO attempts (
+                attempt_id, work_unit_id, contract_revision_id, is_current,
+                b1_repository, b1_commit_oid, b1_material_sha256,
+                b1_requested_revision, admitted_at
+            ) VALUES (?, ?, ?, 0, ?, ?, ?, ?, 'now')
+            """,
+            (
+                rival,
+                self.second.attempt.work_unit_id,
+                self.second.attempt.contract_revision_id,
+                self.second.attempt.b1_repository,
+                self.second.attempt.b1_commit_oid,
+                self.second.attempt.b1_material_sha256,
+                self.second.attempt.b1_requested_revision,
+            ),
+        )
+        return rival
+
+    def claim_worktree_by_raw_sql(
+        self, rival: str, worktree_path: str, branch: str
+    ) -> None:
+        """Claim `worktree_path` and `branch` for `rival`, in raw SQL.
+
+        The rival Attempt is created by the caller, before the expected-failure
+        scope: this insert is the only statement the tests below expect to be
+        refused, so a refusal can only be about the ownership it claims.
+        """
+
+        self.store.connection.execute(
+            """
+            INSERT INTO worktree_assignments (
+                attempt_id, work_unit_id, repository, worktree_path, branch,
+                state, allocated_at, provisioned_at
+            ) VALUES (?, ?, ?, ?, ?, 'allocated', 'now', NULL)
+            """,
+            (
+                rival,
+                self.second.attempt.work_unit_id,
+                self.first.assignment.repository,
+                worktree_path,
+                branch,
+            ),
+        )
+
+    def assertRefusedAsDuplicate(self, refusal) -> None:
+        """The refusal is a uniqueness violation, not some other constraint.
+
+        `sqlite_errorname` is the stable signal: it separates a duplicate from
+        the foreign key, the primary key and the ownership triggers, any of
+        which would mean something other than the ownership claim was refused.
+        The message text is diagnostic prose and is deliberately not pinned;
+        which uniqueness is at stake is fixed by each claim leaving every other
+        unique column free, which its preconditions assert.
+        """
+
+        self.assertEqual(refusal.exception.sqlite_errorname, "SQLITE_CONSTRAINT_UNIQUE")
+
     def test_two_attempts_cannot_claim_one_worktree_path_even_by_raw_sql(self) -> None:
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.store.connection.execute(
-                """
-                INSERT INTO worktree_assignments (
-                    attempt_id, work_unit_id, repository, worktree_path, branch,
-                    state, allocated_at, provisioned_at
-                ) VALUES (?, ?, ?, ?, 'broodling/rival', 'allocated', 'now', NULL)
-                """,
-                (
-                    self.second.attempt.attempt_id + "-rival",
-                    self.second.attempt.work_unit_id,
-                    self.second.attempt.b1_repository,
-                    self.first.assignment.worktree_path,
-                ),
+        rival = self.rival_attempt_id()
+        branch = "broodling/rival"
+        self.assertIsNone(
+            self.store.branch_owner(self.first.assignment.repository, branch)
+        )
+        with self.assertRaises(sqlite3.IntegrityError) as refusal:
+            self.claim_worktree_by_raw_sql(
+                rival, self.first.assignment.worktree_path, branch
             )
+        self.assertRefusedAsDuplicate(refusal)
 
     def test_two_attempts_cannot_claim_one_branch_even_by_raw_sql(self) -> None:
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.store.connection.execute(
-                """
-                INSERT INTO worktree_assignments (
-                    attempt_id, work_unit_id, repository, worktree_path, branch,
-                    state, allocated_at, provisioned_at
-                ) VALUES (?, ?, ?, ?, ?, 'allocated', 'now', NULL)
-                """,
-                (
-                    self.second.attempt.attempt_id + "-rival",
-                    self.second.attempt.work_unit_id,
-                    self.second.attempt.b1_repository,
-                    str(self.workspace_root / "elsewhere"),
-                    self.first.branch,
-                ),
-            )
+        rival = self.rival_attempt_id()
+        path = str(self.workspace_root / "elsewhere")
+        self.assertIsNone(self.store.worktree_owner(path))
+        with self.assertRaises(sqlite3.IntegrityError) as refusal:
+            self.claim_worktree_by_raw_sql(rival, path, self.first.assignment.branch)
+        self.assertRefusedAsDuplicate(refusal)
 
     def test_worktree_ownership_cannot_be_deleted(self) -> None:
         with self.assertRaises(sqlite3.IntegrityError):

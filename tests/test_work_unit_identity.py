@@ -5,8 +5,20 @@ from __future__ import annotations
 import sqlite3
 import unittest
 
-from broodling import InvalidWorkReference, WorkReference, WorkUnitIdentityConflict
-from support import ISSUE, REPOSITORY, StoreTestCase, work_reference
+from broodling import WorkReference, WorkUnitIdentityConflict
+from support import REPOSITORY, StoreTestCase, work_reference
+
+
+#: The Work Unit id the V1 identity scheme derives for
+#: ``github.com/faviann/broodling#12``. Stores persist this value in
+#: ``work_units.work_unit_id`` and migrate in place across schema versions, and
+#: ``resolve_work_unit`` looks a Work Unit up *by* the id it derives — so the
+#: derivation recipe is a compatibility contract, not an implementation detail.
+#: Change it and an upgraded build stops finding a Work Unit its store already
+#: holds, then fails to insert the replacement against the existing
+#: ``reference_key``. A new scheme therefore owes a migration, and freezing the
+#: derivation is what forces that to be a decision rather than an accident.
+V1_WORK_UNIT_ID = "wu-88920fac767d5d1561fc0ede6f80349fd02caa2a01ad9f1b19ad07e14660587d"
 
 
 class CanonicalIngressTests(StoreTestCase):
@@ -62,25 +74,22 @@ class CanonicalIngressTests(StoreTestCase):
             self.store.resolve_work_unit(work_reference()).work_unit_id,
         )
 
+    def test_the_v1_work_unit_id_derivation_is_frozen(self) -> None:
+        reference = work_reference()
+        self.assertEqual(reference.key, "github.com/faviann/broodling#12")
+        self.assertEqual(reference.work_unit_id, V1_WORK_UNIT_ID)
+
 
 class DistinctIdentityTests(StoreTestCase):
-    #: Two named neighbours, one differing in host and one in issue number. The
-    #: full matrix of one-component variations lives in
-    #: ``test_work_reference_properties``, which generates it.
-    DISTINCT = (
-        ("https://gitlab.com/faviann/broodling", ISSUE),
-        (REPOSITORY, 13),
-    )
+    """Asserting an identity the reference does not name.
 
-    def test_a_different_reference_never_aliases_onto_an_existing_unit(self) -> None:
-        original = self.store.resolve_work_unit(work_reference())
-        for repository, issue in self.DISTINCT:
-            other = self.store.resolve_work_unit(WorkReference.parse(repository, issue))
-            self.assertNotEqual(other.work_unit_id, original.work_unit_id)
-        self.assertEqual(
-            self.store.get_work_unit(original.work_unit_id).reference_key,
-            "github.com/faviann/broodling#12",
-        )
+    Plain non-aliasing — two references differing in one canonical component
+    resolving to two Work Units, and a disagreeing issue locator or unusable
+    ingress being refused — is generated in
+    ``test_work_reference_properties``, over every component rather than the two
+    or three this module used to name. What is left here is the store operation
+    that has no counterpart there: a submission that *asserts* a Work Unit id.
+    """
 
     def test_asserting_a_known_id_for_a_different_reference_conflicts(self) -> None:
         original = self.store.resolve_work_unit(work_reference())
@@ -93,26 +102,6 @@ class DistinctIdentityTests(StoreTestCase):
         self.assertEqual(
             self.store.get_work_unit(original.work_unit_id).issue_number, 12
         )
-
-    def test_repository_and_issue_locators_must_agree(self) -> None:
-        with self.assertRaises(InvalidWorkReference):
-            WorkReference.parse(
-                REPOSITORY, "https://github.com/someone-else/broodling/issues/12"
-            )
-
-    def test_unusable_references_are_refused(self) -> None:
-        for repository, issue in (
-            ("", 1),
-            ("https://github.com/faviann", 1),
-            ("https://github.com/a/b/c", 1),
-            ("ftp://github.com/a/b", 1),
-            (REPOSITORY, 0),
-            (REPOSITORY, "not-a-number"),
-            (REPOSITORY, None),
-        ):
-            with self.subTest(repository=repository, issue=issue):
-                with self.assertRaises(InvalidWorkReference):
-                    WorkReference.parse(repository, issue)
 
 
 class UpstreamIdentityPinningTests(StoreTestCase):
