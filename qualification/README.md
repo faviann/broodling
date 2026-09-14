@@ -122,3 +122,17 @@ python -m pytest tests/test_qualification_entrypoints.py -q
 ```
 
 No P5 work, product requalification claim, or G1–G4 guarantee change is included.
+
+## Lane selection added to four entry points (issue #39)
+
+`issue19_capture.py`, `issue21_lifecycle.py`, `issue22_lifecycle.py` and
+`issue23_controls.py` each gained one `os.environ.setdefault(
+"BROODLING_ZEROSHOT_LANE", "1")` before they import the test class they run.
+Broodling regression now excludes the real-Zeroshot witnesses by default
+([the lane notes](../tests/README.md#two-test-lanes-issue-39)); these campaigns
+are that lane, so they select it rather than requiring the operator to.
+
+This changes no campaign, fixture, assertion or retained record, and no
+documented command. As with the #36 guards, the original bytes remain in Git at
+the commits those reports name; a current checkout's executable is not offered
+as the historical source identity.

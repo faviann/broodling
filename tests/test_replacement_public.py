@@ -1,7 +1,6 @@
 """Actual SDK replacement witnesses; external provider responses are controlled."""
 
 import asyncio
-import importlib.util
 import json
 import sqlite3
 import subprocess
@@ -27,6 +26,7 @@ from replacement_support import (
     wait_replacement,
 )
 from support import git, move_head
+from zeroshot_lane import qualification_lane
 
 from broodling import AbandonmentCoordinator, BroodlingStore, FinalAssuranceCoordinator
 from broodling.errors import StaleAttempt
@@ -34,7 +34,7 @@ from broodling.provisioning import AttemptProvisioner
 from broodling.replacement import RetryCoordinator
 
 
-@unittest.skipUnless(importlib.util.find_spec("zeroshot"), "install pinned SDK")
+@qualification_lane
 class PublicReplacementTests(unittest.TestCase):
     control_records: ClassVar[dict] = {}
 

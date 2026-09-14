@@ -5,7 +5,6 @@ separately retained by qualification/v1-p4/issue21_provider.py.
 """
 
 import asyncio
-import importlib.util
 import json
 import os
 import signal
@@ -17,6 +16,7 @@ from typing import ClassVar
 from unittest.mock import patch
 
 from final_assurance_support import final_case, observe_released, paused
+from zeroshot_lane import qualification_lane
 
 from broodling import (
     AbandonmentCoordinator,
@@ -55,7 +55,7 @@ def controller_pid(case):
     return found[0]
 
 
-@unittest.skipUnless(importlib.util.find_spec("zeroshot"), "install pinned SDK")
+@qualification_lane
 class PublicAbandonmentTests(unittest.TestCase):
     control_records: ClassVar[dict] = {}
 
