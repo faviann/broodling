@@ -746,7 +746,7 @@ removed, `crash-round_complete` included.
 
 | Removed | Count | What it protected | Now protected by |
 | --- | --- | --- | --- |
-| `crash-{node}` | 11 | each executable node's unusable execution fails closed | structural: every executable occurrence is caught by the route it continues into, and every such branch is a `fail`. Runtime: `open-control-crash`, a separate case that stays, witnesses that a real crash becomes a node error |
+| `crash-{node}` | 11 | each executable node's unusable execution fails closed | structural: every executable occurrence is caught on the route the graph authors for it, and every such branch is a `fail`. Runtime: `open-control-crash`, a separate case that stays, witnesses that a real crash becomes a node error |
 | `{missing,malformed,default,hang}-round_complete` | 4 | a control fault inside the loop stops before the final assessment | structural: the loop's `until` and `post_repair_bound_route` both take `round_complete`'s error to a `fail`. Runtime: `open-control-crash`, which is a crash at that same node |
 | `authority-claim-implement`, `authority-claim-repair` | 2 | a mutation node's authority claim cannot bind state | structural: both mutation nodes are `step`s with null output, no signals and no write bindings. Runtime: `authority-claim-initial_review` |
 | `missing-payload-initial_review` | 1 | a declared output payload is required | `missing-payload-adjudicate_authority` — the payload that actually drives repair |
@@ -755,7 +755,7 @@ removed, `crash-round_complete` included.
 | `forged-diagnostics` | 1 | forged Contract/source/evidence/predecessor IDs confer no authority | the fixture now emits forged identifiers on *every* response, so every retained run carries the canary; structurally, no write binding reads the diagnostic channel |
 | `contradictory-clean` | 1 | prose contradicting the node's own signal cannot bypass repair | folded into the adjudicator's diagnostic on every route |
 | `missing-initial` | 1 | required raw material removed before the occurrence relying on it | the #18 campaign's own `missing-initial`, which deletes the material for real and runs the exact product graph through the deterministic leaf rather than a model leaf reporting `missing`; plus the structural both-occurrences assertion |
-| `sticky-omission` | 1 | explicit eligible resolution is distinguished from omission | `missing-initial_review`, which is the same omitted-signal rule; that it is `resolution_authority` omitting the signal is the part the graph decides, and `resolution_route` is in `UNUSABLE_ROUTES` |
+| `sticky-omission` | 1 | explicit eligible resolution is distinguished from omission | `missing-initial_review`, which is the same omitted-signal rule — see below, the fixture had to be corrected before that was true; that it is `resolution_authority` omitting the signal is the part the graph decides, and `resolution_route` is in `UNUSABLE_ROUTES` |
 
 The fourteen retained, because execution behaviour is the claim: `clean`,
 `repair-resolve`, `repeat-labels`, `sticky-exhaust`, `refusal`, `final-gap`,
@@ -771,6 +771,37 @@ pushed back, and the pushback was right: a governing document naming a
 demonstration is a reason to make sure the demonstration exists somewhere, not a
 reason to pay for it twice in the same lane. Both are covered by a *stronger*
 real witness than the one removed.
+
+### The omitted-signal witness did not witness omitted signals
+
+Dropping `sticky-omission` rested on `missing-initial_review` covering the same
+rule, and for one review round that was not true. The `missing` fault replaced
+the whole response with `{"signals": {}, "diagnostic": None}` — which omits the
+required signal, but also drops the `findingContent` output that `initial_review`
+declares. A runtime rejecting that on shape never reaches its signal validation,
+so the case was a second malformed-response witness wearing the wrong name, and
+`sticky-omission` — which set `signals` to `{}` and changed nothing else — had
+been the only isolated one.
+
+The fault now omits the signal and nothing else. Against the pinned SDK the
+response submitted is
+
+```json
+{"output": {"findingContent": ""},
+ "diagnostic": {"note": "PRIVATE_AUTHORITY_CANARY", "contractId": "forged-contractId", "...": "..."},
+ "signals": {}}
+```
+
+and the run fails `execution_unusable` after `implement`,
+`initial_evidence_check`, `initial_review` — valid payload, valid diagnostic,
+rejected on the absent signal, at the occurrence the graph routes. That is the
+behaviour `sticky-omission` used to hold, now held once, and it is why
+`sticky-omission` stays out: the node an omission happens at is what
+`UNUSABLE_ROUTES` decides, not what a second run would show.
+
+The general lesson is worth keeping: a fault case that replaces a whole response
+tests whatever the runtime checks *first*. Isolating one defect per case is what
+makes the retained set discriminating rather than four spellings of "malformed".
 
 The canary stays a real run because an isolation assertion is only worth having
 if a widened binding would actually trip it — the one place where the plan

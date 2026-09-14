@@ -135,7 +135,14 @@ def main():
         if fault == "malformed":
             response = {"wrong": True}
         elif fault == "missing":
-            response = {"signals": {}, "diagnostic": None}
+            # Omit the required signal and nothing else. Replacing the whole
+            # response would also drop the declared output payload, and the
+            # runtime could then reject the shape before it ever looks for the
+            # signal -- which would make this a second malformed-response case
+            # rather than the omitted-signal witness it is kept for.
+            if response is None:
+                raise ValueError(f"{node} declares no signal to omit")
+            response["signals"] = {}
         elif fault == "default":
             response = {"output": None, "signals": {}}
         elif fault == "missing_payload":

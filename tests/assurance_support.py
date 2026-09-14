@@ -164,8 +164,9 @@ def definitions():
     `missing-initial` and `missing-renewed`, which delete the material for real
     and run the exact product graph through the deterministic leaf rather than a
     model leaf reporting `missing`. Resolution-by-omission is the omitted-signal
-    rule already witnessed by `missing-initial_review`; that it is
-    `resolution_authority` omitting the signal is the part the graph decides.
+    rule witnessed by `missing-initial_review`, whose response is valid in every
+    other respect so the runtime has to reject it on the absent signal; that it
+    is `resolution_authority` omitting the signal is the part the graph decides.
     """
     routes = [
         # Clean route to the distinct final assessor, and acceptance.
@@ -191,9 +192,10 @@ def definitions():
         # Process death at an executable node becomes a node error, and an open
         # obligation does not buy another repair round.
         ("open-control-crash", "sticky-exhaust;crash:round_complete", None),
-        # The ways the pinned runtime has to reject a response that did arrive:
-        # no signal, an unparseable payload, an empty default, and a declared
-        # output payload the model omitted.
+        # The ways the pinned runtime has to reject a response that did arrive.
+        # Each isolates one defect: the required signal omitted from an otherwise
+        # valid response, an unparseable payload, an empty default, and a
+        # declared output payload the model omitted.
         ("missing-initial_review", "clean;missing:initial_review", None),
         ("malformed-initial_review", "clean;malformed:initial_review", None),
         ("default-initial_review", "clean;default:initial_review", None),
@@ -226,8 +228,9 @@ async def run_controls(run_root, workspace_root):
     retained record has to be able to tell which without recomputing hashes:
     each hang shortens one node's timeout so the fault fits the campaign, and the
     widened-binding canary adds the forbidden raw-finding input to `repair`.
-    `declared_graph_deviations_match_submitted_graphs` below holds this field to
-    the graph that was actually submitted.
+    `graph_deviations_are_declared` below holds this field to the graph that was
+    actually submitted: a declaration is present exactly when the submitted hash
+    differs from the product graph's.
     """
     cases = {}
     for name, scenario, _ in definitions():
