@@ -2,7 +2,6 @@
 
 import asyncio
 import dataclasses
-import importlib.util
 import json
 import shutil
 import signal
@@ -18,6 +17,7 @@ from unittest.mock import patch
 
 from final_assurance_support import final_case, observe_released
 from replacement_support import abandoned_case, replacement, retire
+from zeroshot_lane import qualification_lane
 
 from broodling import (
     AbandonmentCoordinator,
@@ -31,7 +31,7 @@ from broodling.provisioning import AttemptProvisioner
 from broodling.replacement import RetryCoordinator
 
 
-@unittest.skipUnless(importlib.util.find_spec("zeroshot"), "install pinned SDK")
+@qualification_lane
 class PublicDispositionTests(unittest.TestCase):
     control_records: ClassVar[dict] = {}
 

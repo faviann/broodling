@@ -1,12 +1,11 @@
 """Run actual admitted P3 Attempts through the public coordinator and SDK."""
 
-import importlib.util
 import unittest
 
+from zeroshot_lane import qualification_lane
 
-@unittest.skipUnless(
-    importlib.util.find_spec("zeroshot"), "install the G1-V1 qualified SDK/sidecar"
-)
+
+@qualification_lane
 class AdmittedAssuranceTests(unittest.TestCase):
     def test_clean_and_repaired_attempts_use_product_request_and_replay_after_mutation(
         self,

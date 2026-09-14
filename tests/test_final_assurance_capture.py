@@ -2,7 +2,6 @@
 
 import asyncio
 import base64
-import importlib.util
 import json
 import shutil
 import sqlite3
@@ -11,6 +10,7 @@ from typing import ClassVar
 from unittest.mock import patch
 
 from final_assurance_support import final_case, observe_released
+from zeroshot_lane import qualification_lane
 
 from broodling.assurance import FinalAssuranceCoordinator
 from broodling.errors import SubmissionNotReady, UnsupportedRuntime
@@ -27,9 +27,7 @@ async def native_succeeded(case):
         return (await client.get_run(case.row.run_id).wait(wait_timeout=90)).succeeded
 
 
-@unittest.skipUnless(
-    importlib.util.find_spec("zeroshot"), "install the G1-V1 qualified SDK/sidecar"
-)
+@qualification_lane
 class FinalAssuranceCaptureTests(unittest.TestCase):
     # The qualification entry point serializes these raw observations. Ordinary
     # regression execution writes no evidence files.

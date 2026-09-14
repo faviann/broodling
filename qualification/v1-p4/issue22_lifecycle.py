@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -26,6 +27,9 @@ def main(argv=None) -> int:
     with output:
         ROOT = Path(__file__).resolve().parents[2]
         sys.path[:0] = [str(ROOT), str(ROOT / "tests")]
+        # This campaign *is* the real-Zeroshot lane (#39); select it before
+        # the import below, so the command needs no extra environment.
+        os.environ.setdefault("BROODLING_ZEROSHOT_LANE", "1")
 
         from test_replacement_public import PublicReplacementTests
 

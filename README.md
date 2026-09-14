@@ -71,9 +71,20 @@ The historical [G1-core review](qualification/p1/issue-7-g1-core.md) remains **B
 The Broodling product package is `broodling/`, a Python 3.13 package whose admission/storage code uses the standard library; run submission additionally requires the exact G1-V1 qualified Zeroshot SDK/sidecar. It owns one SQLite database holding the durable admission and Attempt facts. Provisioning an Attempt worktree runs the local `git` binary — host-local administrative setup, not a delivery effect — and the narrow submission adapter invokes the official SDK/matching sidecar. It imports the SDK lazily, uses public submission and forward observation of a current correlated run, and does not mirror the Zeroshot RunLedger.
 
 ```bash
-python -m pytest tests
-python -m unittest discover -s tests
+python -m pytest tests                              # Broodling regression
+python -m unittest discover -s tests                # the same lane, no plugins
+BROODLING_ZEROSHOT_LANE=1 python -m pytest tests    # + real-Zeroshot witnesses
 ```
+
+The default lane is Broodling's own behaviour and finishes in minutes. The
+real-Zeroshot integration/qualification witnesses — the G3 actual graph and
+evidence controls, the G4 disposition and replacement races, #19 custody and
+current-run observation, and the stop/cessation windows — run only with
+`BROODLING_ZEROSHOT_LANE=1` and the qualified SDK/sidecar installed, because
+they cost the better part of an hour and are paid for a gate rather than for the
+next commit. Nothing is doubled or weakened to achieve that; see
+[the lane notes](tests/README.md#two-test-lanes-issue-39) for what each lane
+holds and why the cheap real submission witnesses stay in regression.
 
 The [V1-P2 implementation record](docs/implementation/v1-p2-admission-nucleus.md) states the selected Python/SQLite versions, the qualified Zeroshot SDK/sidecar version boundary the product configuration records, the schema, the B1/worktree policy and the retained implementation evidence.
 

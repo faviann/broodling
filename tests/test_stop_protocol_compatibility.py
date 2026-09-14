@@ -7,7 +7,6 @@ It is retained test data, with no production import of historical qualification.
 import asyncio
 import copy
 import hashlib
-import importlib.util
 import json
 import os
 import signal
@@ -18,6 +17,7 @@ from unittest.mock import AsyncMock, patch
 
 from retry_test_support import RetryCase
 from submission_support import SubmissionCase
+from zeroshot_lane import qualification_lane
 
 from broodling import AbandonmentCoordinator, CessationUnconfirmed, containment
 from broodling.assurance_graph import assurance_graph, assurance_runtime, initial_state
@@ -200,7 +200,7 @@ class RetryProtocolCompatibilityTests(RetryCase):
         self.assertIsNone(coordinator.submission.record(attempt.attempt_id))
 
 
-@unittest.skipUnless(importlib.util.find_spec("zeroshot"), "install pinned SDK")
+@qualification_lane
 class PublicStopProtocolCompatibilityTests(unittest.TestCase):
     def test_published_graph_controller_loss_can_stop_and_retire_under_current_launcher(
         self,

@@ -3,6 +3,7 @@
 
 import hashlib
 import json
+import os
 import sys
 import unittest
 from datetime import UTC, datetime
@@ -11,6 +12,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
+# This campaign *is* the real-Zeroshot lane (#39); select it before the test
+# module is imported, so the command below needs no extra environment.
+os.environ.setdefault("BROODLING_ZEROSHOT_LANE", "1")
 
 from test_final_assurance_capture import FinalAssuranceCaptureTests
 

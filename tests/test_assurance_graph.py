@@ -1,20 +1,18 @@
 """Discriminating product graph controls through the pinned public SDK."""
 
 import asyncio
-import importlib.util
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
 from support import durable_test_root
+from zeroshot_lane import qualification_lane
 
 from broodling.zeroshot_sdk import assert_qualified_integration
 
 
-@unittest.skipUnless(
-    importlib.util.find_spec("zeroshot"), "install the G1-V1 qualified SDK/sidecar"
-)
+@qualification_lane
 class AssuranceGraphTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

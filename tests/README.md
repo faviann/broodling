@@ -488,3 +488,139 @@ after changing identity or store code is cheap and has paid for itself once. It
 is not in CI and there is no score target. If a later campaign returns only
 message-text and unpromised-tolerance survivors, the honest move is to drop the
 extra rather than tune it.
+
+# Two test lanes (issue #39)
+
+Broodling regression is the default lane and runs on every change. The
+real-Zeroshot integration/qualification witnesses are opt-in:
+
+```bash
+python -m pytest                                 # Broodling regression
+python -m unittest discover -s tests             # the same lane, no plugins
+BROODLING_ZEROSHOT_LANE=1 python -m pytest       # + the real-Zeroshot lane
+BROODLING_ZEROSHOT_LANE=1 python -m unittest discover -s tests
+```
+
+The lane needs the G1-V1 qualified SDK/sidecar installed as well as the variable
+set; without the SDK its tests skip either way, and the skip message says which
+of the two is missing.
+
+`tests/zeroshot_lane.py` is the whole mechanism: one `unittest.skipUnless` built
+from an environment variable, applied as `@qualification_lane` to nine test
+classes. An environment variable rather than a pytest marker because the suite is
+also documented to run under `unittest discover`, where markers do not exist —
+and `skipUnless` needs no plugin, conftest hook or configuration in either
+runner.
+
+The four qualification entry points that load a lane class by name —
+`qualification/v1-p3/issue19_capture.py` and `v1-p4/issue21_lifecycle.py`,
+`issue22_lifecycle.py`, `issue23_controls.py` — select the lane themselves with
+`os.environ.setdefault` before importing the test module. Those campaigns *are*
+the lane, their documented commands are unchanged, and each records
+`mechanicsPassed` only when nothing skipped, so a lane that failed to select
+would fail the campaign rather than quietly produce an empty record.
+
+## Why the split, measured
+
+Every test in the suite was timed on the qualified profile (pinned SDK and
+sidecar built from `d090961`, so nothing skips):
+
+| Lane | Result | Time |
+| --- | --- | --- |
+| Whole suite before the split | 431 passed, 0 skipped | 48:59 |
+| Broodling regression (default) | 390 passed, 39 skipped | 2:40 |
+| Both lanes | 431 passed, 0 skipped | ~49 min, unchanged |
+
+The before/both rows were measured on the branch point; #43 has since net
+removed two identity cases, so the same runs report 429 today. The split itself
+accounts for the 39.
+
+56 tests required the real SDK and accounted for **2844.5s of 2937.3s — 96.8% of
+the runtime**; the other 356 cost 92.8s between them. Cost inside the real-SDK
+set is just as lopsided, which is what made a judgement split possible rather
+than an all-or-nothing one:
+
+| Group | Tests | Time |
+| --- | --- | --- |
+| Moved to the lane | 39 | 2784.9s |
+| Real SDK, kept in regression | 17 | 59.6s |
+| Controlled or SDK-free | 356 | 92.8s |
+
+## What is in the lane, and why
+
+Real Zeroshot execution whose cost is paid for a gate rather than for the next
+commit. Each entry keeps its full witness; only the moment it runs changed.
+
+| Module | Tests | Protects |
+| --- | --- | --- |
+| `test_assurance_graph.py` | 3 | G3-V1 actual graph negative/positive controls (#17) |
+| `test_evidence_graph.py` | 1 | G3-V1 graph-local mechanical evidence controls (#18) |
+| `test_assurance_public.py` | 1 | actual admitted P3 Attempts through the public coordinator |
+| `test_final_assurance_capture.py` | 7 | #19 completed custody against the actual SDK path |
+| `test_final_assurance_public.py` | 4 | #19 current-run observation on the real graph |
+| `test_disposition_public.py` | 10 | G4-V1 no-effect disposition and finalization races |
+| `test_replacement_public.py` | 6 | actual A1→A2 replacement witnesses |
+| `test_abandonment_public.py` | 6 | stop/cessation/retirement windows on the pinned SDK |
+| `test_stop_protocol_compatibility.py` | 1 | published #21 protocol can still cease and retire |
+
+G3-V1 requires *actual* graph controls and G4-V1 requires a real-provider
+no-effect vertical slice, so none of these was replaced by a double. The gate
+still has the witness it asks for; a developer no longer pays for it on every
+run.
+
+## What stayed in regression, and why
+
+The P2 submission witnesses use the real SDK with an inert graph — no provider,
+no long run — and cost about 65 seconds for 17 tests:
+
+- `test_submission.py::PublicSubmissionTests` and `PublicSourceConflictTests`
+  (6): acknowledgement loss replayed against the real public boundary, and the
+  conflict a genuinely different request or source produces under one submission
+  key;
+- `test_submission_crashes.py::SubmissionCrashTests` (11): process death at each
+  window around dispatch and correlation, which needs a real accepted run on the
+  other side to be a window at all.
+
+These are the G2-V1 obligation — "duplicate ingress/ack loss preserves one
+authority/run relationship" — and the cross-boundary behaviour is the guarantee,
+not a detail Broodling merely consumes. #39 lists duplicate-submission and
+ack-loss conflict semantics among the candidates to review, and the review
+answer is that 65 seconds buys the one real demonstration that Broodling's
+reconciliation converges on the run Zeroshot already accepted. Moving them would
+save a rounding error and cost a G2 witness.
+
+## Tests whose subject is really Zeroshot
+
+Two of #39's candidates are exactly what it suspected. Both are now in the lane,
+and both have a Broodling-owned counterpart that already runs in regression
+against a controlled double, so the default lane loses no assertion:
+
+- `test_final_assurance_public.py::test_completed_run_cannot_be_used_for_late_observation`
+  drives a real run to completion to show `observe_current` refuses a terminal
+  run. The Broodling half — a `finished` status refused with `UnsupportedRuntime`
+  and the forward watch never opened — is already asserted by
+  `test_current_run_observation.py::test_initial_terminal_or_stopping_run_never_opens_history`,
+  including that `after` stays `None`. What the real run adds is that the pinned
+  SDK reports a completed run as terminal, which is Zeroshot's behaviour.
+- `test_abandonment_public.py::test_concurrent_stop_callers_converge_after_public_stop`
+  records a pinned-controller quirk in its own comment: the controller "exits
+  after terminal publication without draining all concurrent RPC replies", so
+  one caller may see `TargetError: transport disconnected`. Durable convergence
+  of concurrent abandoners is already covered without the SDK by
+  `test_abandonment_foundation.py::test_concurrent_abandoners_converge`.
+
+Neither was deleted. A dependency-behaviour witness is worth keeping where it
+records an assumption Broodling relies on — it is worth keeping *out* of the
+per-commit loop.
+
+## What the default lane still covers with doubles
+
+Moving 39 tests removed no category of Broodling behaviour from regression.
+Request construction, persistence, refusal, reconciliation and observation
+interpretation are all held by controlled tests that were already there:
+`test_current_run_observation.py` (10) for the observation seam,
+`test_stop_adapter.py` (8) for administrative stop, `test_submission.py`'s
+`SubmissionControls`, `QualifiedAdapterTests` and `AdditionalSubmissionControls`
+(18) for the submission contract, plus the abandonment, disposition, retry,
+custody, final-material and containment foundations. `test_containment.py` keeps
+real process witnesses without needing the SDK at all.

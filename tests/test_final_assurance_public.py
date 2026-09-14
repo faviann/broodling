@@ -1,19 +1,17 @@
 """#19 normal current-run controls through the actual qualified SDK/sidecar."""
 
 import asyncio
-import importlib.util
 import json
 import unittest
 
 from final_assurance_support import final_case, observe_released
+from zeroshot_lane import qualification_lane
 
 from broodling.assurance_graph import assurance_graph, assurance_runtime
 from broodling.errors import UnsupportedRuntime
 
 
-@unittest.skipUnless(
-    importlib.util.find_spec("zeroshot"), "install the G1-V1 qualified SDK/sidecar"
-)
+@qualification_lane
 class FinalAssurancePublicTests(unittest.TestCase):
     def test_clean_repaired_and_forged_claims_keep_designated_current_authority(self):
         for scenario in ("clean", "repair", "forged-identifiers"):
