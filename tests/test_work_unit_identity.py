@@ -9,6 +9,18 @@ from broodling import WorkReference, WorkUnitIdentityConflict
 from support import REPOSITORY, StoreTestCase, work_reference
 
 
+#: The Work Unit id the V1 identity scheme derives for
+#: ``github.com/faviann/broodling#12``. Stores persist this value in
+#: ``work_units.work_unit_id`` and migrate in place across schema versions, and
+#: ``resolve_work_unit`` looks a Work Unit up *by* the id it derives — so the
+#: derivation recipe is a compatibility contract, not an implementation detail.
+#: Change it and an upgraded build stops finding a Work Unit its store already
+#: holds, then fails to insert the replacement against the existing
+#: ``reference_key``. A new scheme therefore needs a migration, which is what
+#: this constant exists to force.
+V1_WORK_UNIT_ID = "wu-88920fac767d5d1561fc0ede6f80349fd02caa2a01ad9f1b19ad07e14660587d"
+
+
 class CanonicalIngressTests(StoreTestCase):
     CANONICAL_FORMS = (
         ("https://github.com/faviann/broodling", 12),
@@ -61,6 +73,13 @@ class CanonicalIngressTests(StoreTestCase):
             work_reference().work_unit_id,
             self.store.resolve_work_unit(work_reference()).work_unit_id,
         )
+
+    def test_a_work_unit_persisted_by_the_v1_scheme_still_resolves(self) -> None:
+        """This build resolves the identity an earlier build would have stored."""
+
+        resolved = self.store.resolve_work_unit(work_reference())
+        self.assertEqual(resolved.reference_key, "github.com/faviann/broodling#12")
+        self.assertEqual(resolved.work_unit_id, V1_WORK_UNIT_ID)
 
 
 class DistinctIdentityTests(StoreTestCase):

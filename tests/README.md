@@ -347,8 +347,9 @@ health check that is telling the truth.
 
 ## What the campaign found
 
-169 mutants, 127 killed, 41 alive, 1 unreachable from this slice
-(`content_digest`, which the identity tests do not call). Two findings:
+169 mutants, 128 killed, 40 alive, 1 unreachable from this slice
+(`content_digest`, which the identity tests do not call). Three findings — two
+test defects, and one mutant this document first classified wrongly:
 
 1. **The retained raw ingress was never asserted anywhere.** Replacing
    `submitted_repository`/`submitted_issue` in `WorkReference.parse` with
@@ -373,6 +374,11 @@ health check that is telling the truth.
    ownership triggers, without pinning SQLite's message text. With the same two
    constraints deleted, both now fail.
 
+3. **The Work Unit id derivation is a compatibility contract, and nothing said
+   so.** Covered under *One survivor was reclassified* below: the `digest`
+   separator mutant was left alive on a misreading of what the store guarantees,
+   and it is now killed by a named witness of persisted identity compatibility.
+
 Finding 2 is also the campaign's clearest limit: `mutmut` could not have found
 it. That invariant lives in a SQL schema string, where the only mutation
 available is to the literal as a whole, and a broken schema kills every test at
@@ -384,7 +390,7 @@ database, rather than Python, refuses something.
 ## Which mutants are left alive, and why
 
 A mutant is worth killing only if it corresponds to a product failure of a
-guarantee this repository actually states. Of the 41 alive:
+guarantee this repository actually states. Of the 40 alive:
 
 - **24 mutate the text of a refusal message** (`InvalidWorkReference(None)`, an
   uppercased or `XX`-padded message). Messages are diagnostics; pinning them
@@ -398,12 +404,6 @@ guarantee this repository actually states. Of the 41 alive:
   are tolerated, neither is promised.
 - **2 are literally equivalent** — `"\x1f"` → `"\x1F"` is the same character and
   `"utf-8"` → `"UTF-8"` the same codec.
-- **1 changes the `digest` separator** to `"XX\x1fXX"`, which alters every
-  derived id's bytes while still separating the parts. What v1-P2 §2 promises is
-  that a restart or a rebuilt store resolves the *same* identities, which this
-  preserves and the store tests already check. Cross-version byte stability is
-  not a stated guarantee, and a golden-hash test would pin the digest recipe
-  beyond it.
 - **1 turns `canonicalize_repository`'s `isinstance` guard from `or` into
   `and`**, so a non-string repository raises `AttributeError` instead of
   `InvalidWorkReference`. Every promised repository form is a string — the issue
@@ -411,6 +411,27 @@ guarantee this repository actually states. Of the 41 alive:
   generate. Nothing requires ingress to refuse arbitrary typed values with a
   particular exception, so asserting it would be writing a contract to kill a
   mutant.
+
+### One survivor was reclassified
+
+The `digest` separator mutation — `"\x1f"` → `"XX\x1fXX"` — was first left alive
+here on the reasoning that v1-P2 §2 promises a restart or a rebuilt store
+resolves the *same* identities, which a consistently different separator
+preserves. That was wrong about how the store works. `work_units.work_unit_id`
+is persisted, stores migrate in place from schema v2 onward, and
+`resolve_work_unit` looks a Work Unit up **by the id it derives**. So a build
+that changed the recipe would miss a Work Unit its own store already holds and
+then fail to insert the replacement against the existing `reference_key` — the
+Work Unit becomes unreachable, and no amount of restarting fixes it. Persisted
+identity compatibility is the guarantee, and the derivation recipe is part of it.
+
+`test_work_unit_id_is_derived_not_allocated` could not catch this: it compares
+two computations by the *same* build, which agree however the recipe is spelled.
+`test_a_work_unit_persisted_by_the_v1_scheme_still_resolves` now pins the one id
+the V1 scheme derives for `github.com/faviann/broodling#12`, which is the smallest
+statement of the contract — change the recipe and the test says so, which is the
+point at which a migration is owed. The two literally-equivalent `digest` mutants
+still survive it, correctly.
 
 ## How the two identity modules relate
 
@@ -421,14 +442,14 @@ mutants against each module alone:
 | --- | --- | --- | --- |
 | `test_work_unit_identity.py` only | 121 | 47 | 1 |
 | `test_work_reference_properties.py` only | 116 | 52 | 1 |
-| both | 127 | 41 | 1 |
+| both | 128 | 40 | 1 |
 
 The single-module rows are the identity module as it stood *before* the
-consolidation below, which is the comparison that motivated it; the combined row
-is unchanged after it.
+consolidation below and before the compatibility witness was added, which is the
+comparison that motivated the consolidation; the combined row is current.
 
-Of the 127 mutants killed with both selected, 110 are killed by each module on
-its own — the overlap is most of the coverage, and neither module would be
+Of the 127 mutants both modules killed at the time of that comparison, 110 were
+killed by each module on its own — the overlap is most of the coverage, and neither module would be
 noticed missing by a mutation run alone. The 17 that separate them are what the
 experiment is actually evidence about.
 
@@ -477,10 +498,10 @@ Three cases in `DistinctIdentityTests` came out subsumed and are gone:
 | `test_repository_and_issue_locators_must_agree` | `test_a_disagreeing_issue_locator_is_refused`, which disagrees in host, owner or repository rather than only owner |
 | `test_unusable_references_are_refused` | the property of the same name, which draws from every invalid class the named list held — empty, host-only, over-deep path, unsupported scheme, non-positive issue, non-numeric issue, absent issue — with different literals inside them |
 
-Removing all three changes nothing about which mutants die: 127 killed, 41 alive,
-the same 41. That is corroboration, not the argument — a case that kills no
-mutant may still be the only statement of a requirement, which is why the reading
-came first.
+Removing all three changed nothing about which mutants die: the same 127 killed
+and the same 41 alive as before the removals. That is corroboration, not the
+argument — a case that kills no mutant may still be the only statement of a
+requirement, which is why the reading came first.
 
 The rest of the module stays, and not merely because the module as a whole has
 unique kills. Case by case:
@@ -496,6 +517,9 @@ unique kills. Case by case:
   neither property in this pair reopens a store to check, and it also pins
   `first_seen_at` — the state machine restarts a store but carries no
   first-seen fact across the restart;
+- `test_a_work_unit_persisted_by_the_v1_scheme_still_resolves` is the persisted
+  identity contract of finding 3, and the only case in the suite that would
+  notice a changed derivation recipe;
 - `test_work_unit_id_is_derived_not_allocated` overlaps generated store ingress,
   which resolves the same Work Unit for every spelling and would fail if ids
   were allocated per call. It stays anyway, as the direct named witness of the
