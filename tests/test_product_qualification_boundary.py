@@ -40,7 +40,16 @@ class ProductDependencyBoundaryTests(unittest.TestCase):
             [
                 sys.executable,
                 "-c",
-                "import broodling, sys; assert not any(n.startswith(('zeroshot', 'qualification')) for n in sys.modules)",
+                (
+                    "import broodling, sys\n"
+                    "forbidden = sorted(\n"
+                    "    name for name in sys.modules\n"
+                    "    if name.startswith(('zeroshot', 'qualification'))\n"
+                    ")\n"
+                    "if forbidden:\n"
+                    "    raise RuntimeError("
+                    "f'unexpected eager imports: {forbidden}')\n"
+                ),
             ],
             check=True,
         )
