@@ -347,20 +347,11 @@ health check that is telling the truth.
 
 ## What the campaign found
 
-169 mutants, 128 killed, 40 alive, 1 unreachable from this slice
-(`content_digest`, which the identity tests do not call). Three findings — two
-test defects, and one mutant this document first classified wrongly:
+169 mutants, 126 killed, 42 alive, 1 unreachable from this slice
+(`content_digest`, which the identity tests do not call). Two findings — one test
+defect, and one mutant this document first classified wrongly:
 
-1. **The retained raw ingress was never asserted anywhere.** Replacing
-   `submitted_repository`/`submitted_issue` in `WorkReference.parse` with
-   `str(None)` — the product forgetting how every reference was spelled — passed
-   the whole suite. `work_unit_submissions` is the design's "retained raw ingress
-   forms" (v1-P2 §2), but every test that touched it, the #30 property included,
-   asserted only `submission_count`, and a count is satisfied by rows that
-   retained nothing. `test_one_work_unit_absorbs_every_spelling` now compares the
-   retained spellings themselves, compared as a multiset so the assertion does
-   not depend on the order the rows sit in, which is not a promise.
-2. **The worktree-ownership raw-SQL witnesses were green for the wrong reason.**
+1. **The worktree-ownership raw-SQL witnesses were green for the wrong reason.**
    #34 named this as a diagnostic candidate and was right. Both tests fabricated
    a rival `attempt_id` by appending `-rival` to a real one;
    `worktree_assignments.attempt_id` references `attempts`, so with
@@ -374,12 +365,12 @@ test defects, and one mutant this document first classified wrongly:
    ownership triggers, without pinning SQLite's message text. With the same two
    constraints deleted, both now fail.
 
-3. **The Work Unit id derivation is a compatibility contract, and nothing said
+2. **The Work Unit id derivation is a compatibility contract, and nothing said
    so.** Covered under *One survivor was reclassified* below: the `digest`
    separator mutant was left alive on a misreading of what the store guarantees,
    and it is now killed by a named witness of persisted identity compatibility.
 
-Finding 2 is also the campaign's clearest limit: `mutmut` could not have found
+Finding 1 is also the campaign's clearest limit: `mutmut` could not have found
 it. That invariant lives in a SQL schema string, where the only mutation
 available is to the literal as a whole, and a broken schema kills every test at
 once. It was found by hand, and the recipe generalizes better than the tool does
@@ -390,7 +381,7 @@ database, rather than Python, refuses something.
 ## Which mutants are left alive, and why
 
 A mutant is worth killing only if it corresponds to a product failure of a
-guarantee this repository actually states. Of the 40 alive:
+guarantee this repository actually states. Of the 42 alive:
 
 - **24 mutate the text of a refusal message** (`InvalidWorkReference(None)`, an
   uppercased or `XX`-padded message). Messages are diagnostics; pinning them
@@ -411,6 +402,27 @@ guarantee this repository actually states. Of the 40 alive:
   generate. Nothing requires ingress to refuse arbitrary typed values with a
   particular exception, so asserting it would be writing a contract to kill a
   mutant.
+- **2 replace the retained raw ingress** with `str(None)`, so
+  `work_unit_submissions` records the string `"None"` instead of the spelling
+  submitted. Nothing in the product reads those two columns back: `store.py`
+  writes them in `_record_submission` and the only reader, `submission_count`,
+  counts rows. No obligation in the v1-P2 traceability table asks for retained
+  ingress, and no API, report or qualification artifact consumes it. The one
+  mention — `work_unit_submissions   retained raw ingress forms` in the §2
+  inventory of what the store holds — is a caption on a schema record, not a
+  requirement; contrast `entitled_sources   exact admitted bytes + entitling
+  authority`, which has an obligation row and tests of its own. Asserting the
+  column contents would be pinning the implementation's bookkeeping because a
+  mutation exists, which is the thing #34 says not to do. If a consumer ever
+  needs the submitted spelling — an operator report, a provenance answer — that
+  consumer is what the test should go through.
+
+That last pair is a reversal: an earlier revision of this branch asserted the
+retained spellings, on the strength of the §2 caption. Checking for a consumer
+rather than a record is what settled it, and the assertion is gone.
+`submission_count` stays asserted, in the property and in
+`test_work_unit_identity` — that one *is* store API, and how many times a Work
+Unit was submitted is a number the store is asked for.
 
 ### One survivor was reclassified
 
@@ -442,7 +454,7 @@ mutants against each module alone:
 | --- | --- | --- | --- |
 | `test_work_unit_identity.py` only | 121 | 47 | 1 |
 | `test_work_reference_properties.py` only | 116 | 52 | 1 |
-| both | 128 | 40 | 1 |
+| both | 126 | 42 | 1 |
 
 The single-module rows are the identity module as it stood *before* the
 consolidation below and before the compatibility witness was added, which is the
@@ -453,11 +465,12 @@ killed by each module on its own — the overlap is most of the coverage, and ne
 noticed missing by a mutation run alone. The 17 that separate them are what the
 experiment is actually evidence about.
 
-Six mutants only the properties kill: `number <= 0` → `<= 1` (issue number 1, a
+Four mutants only the properties kill: `number <= 0` → `<= 1` (issue number 1, a
 boundary the named matrices never use), `"." in head and …` → `or` (the rule
 separating schemeless `host/owner/repo` from bare `owner/repo`, reached because
-generated owners may contain a dot), two `strip` arguments reached through the
-uppercased SSH rendering, and both retained-ingress mutants above.
+generated owners may contain a dot), and two `strip` arguments reached through
+the uppercased SSH rendering. (The retained-ingress pair counted here in an
+earlier revision, until the assertion that killed them was withdrawn.)
 
 Eleven only the named tests kill, and they are structural. `owner.lower()`,
 `repository.lower()` and `host.lower()` → `.upper()` all survive the properties,

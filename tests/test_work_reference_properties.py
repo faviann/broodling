@@ -14,7 +14,6 @@ from __future__ import annotations
 import shutil
 import tempfile
 import unittest
-from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -191,31 +190,6 @@ def work_unit_count(store: BroodlingStore) -> int:
     )
 
 
-def retained_submissions(
-    store: BroodlingStore, work_unit_id: str
-) -> Counter[tuple[str, str]]:
-    """How many times the store retained each raw ingress spelling.
-
-    Read straight from ``work_unit_submissions`` — the table the design calls
-    the "retained raw ingress forms" — because the store exposes only a count,
-    and a count is satisfied by rows that retained nothing. A ``Counter`` makes
-    the comparison independent of the order rows happen to sit in, which is the
-    database's business rather than a promise, while still distinguishing two
-    retentions of one spelling from one. The spellings this property submits are
-    distinct; repeated submission of a single form is
-    ``test_work_unit_identity``'s subject.
-    """
-
-    return Counter(
-        (row["submitted_repository"], row["submitted_issue"])
-        for row in store.connection.execute(
-            "SELECT submitted_repository, submitted_issue FROM work_unit_submissions "
-            "WHERE work_unit_id = ?",
-            (work_unit_id,),
-        )
-    )
-
-
 class CanonicalIdentityProperties(unittest.TestCase):
     @given(reference=canonical_references())
     def test_every_spelling_names_one_canonical_identity(self, reference) -> None:
@@ -266,12 +240,6 @@ class StoreIngressProperties(unittest.TestCase):
             self.assertEqual(work_unit_count(store), 1)
             self.assertEqual(
                 store.submission_count(resolved[0].work_unit_id), len(forms)
-            )
-            # One Work Unit absorbs the spellings; it does not discard them.
-            # Counting the retained rows says nothing about what they retained.
-            self.assertEqual(
-                retained_submissions(store, resolved[0].work_unit_id),
-                Counter((repository, str(issue)) for repository, issue in forms),
             )
 
     @given(pair=reference_pairs())
