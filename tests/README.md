@@ -656,6 +656,9 @@ the two campaigns run back to back under `pytest --durations`:
 | `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 192.5s |
 | Both modules end to end | 798.2s (13:18) | 437.8s (7:17) |
 
+A second run of the same two sets, after the #45 review changes, measured 254.2s
+and 198.6s — the spread below is this host, not the change.
+
 The assurance number is the honest one: 58% fewer runs, 59% less time. The
 evidence number is not, and the reason is worth writing down rather than
 rounding away. Timed scenario by scenario in one sitting, the campaign looks
@@ -684,8 +687,8 @@ count is the number that means something here; the wall clock is a consequence,
 and what is left is dominated by the two multi-round scenarios nobody proposes
 to remove.
 
-The fast tests that took over the removed claims cost 1.5s, in the default
-regression lane, on every commit.
+The fast tests that took over the removed claims cost 1.5s for 15 tests, in the
+default regression lane, on every commit.
 
 ## Why a crash at eleven nodes was one claim, not eleven
 
@@ -700,33 +703,60 @@ unparseable payload, an omitted signal or a node that never answers into the nod
 error those guards name. That is the dependency's behaviour, and it keeps a real
 witness — one per class of provider misbehaviour, at one representative node.
 
-`tests/test_assurance_graph_structure.py` holds the structural half, and was
-checked against nine hand-built mutants of `broodling/assurance_graph.py`: a
-dropped error guard on `repair` and on `round_complete`, a final gap routed to
-`succeed`, a widened repair input, a downgraded missing-evidence reason, an
-unbounded repair loop, a review that writes the obligation, a diagnostic
-identifier bound to the frozen Contract, and an exhausted bound routed to the
-final assessment. All nine were killed.
+`tests/test_assurance_graph_structure.py` holds the structural half. The
+requirement it has to prove is per *occurrence*, not per name: an aggregate
+"every node appears in some error guard" would pass a graph whose guards sat on
+the wrong routes, leaving each occurrence running on into whatever follows it.
+So each executable node is resolved to the construct execution continues into
+once that node finishes, and the guard has to be there — with the reverse
+direction asserted too, so no route catches an occurrence that is not its own.
+
+It was checked against sixteen hand-built mutants of
+`broodling/assurance_graph.py`. Nine change what the graph does: a dropped error
+guard on `repair` and on `round_complete`, a final gap routed to `succeed`, a
+widened repair input, a downgraded missing-evidence reason, an unbounded repair
+loop, a review that writes the obligation, a diagnostic identifier bound to the
+frozen Contract, and an exhausted bound routed to the final assessment. Seven
+change only *where* a guard sits: implement's and repair's guards swapped, the
+review route guarding the evidence check, the resolution route guarding
+`round_complete`, a final route guarding the adjudicator, the adjudication route
+guarding the initial review, and `round_complete`'s guard dropped from the
+post-loop route. All sixteen were killed; the seven placement mutants are the
+ones the earlier aggregate assertion would have survived.
 
 ## The assurance campaign, removed run by removed run
 
-| Removed | What it protected | Now protected by |
-| --- | --- | --- |
-| `crash-{node}` × 10 | each executable node's unusable execution fails closed | structural: all eleven nodes are guarded and every error branch is a `fail`. Runtime: `open-control-crash` witnesses that a real crash becomes a node error |
-| `missing/malformed/default/hang-round_complete` | a control fault inside the loop stops before the final assessment | structural: the loop's `until` and `post_repair_bound_route` both take `round_complete`'s error to a `fail`. Runtime: `open-control-crash` |
-| `authority-claim-implement`, `authority-claim-repair` | a mutation node's authority claim cannot bind state | structural: both mutation nodes are `step`s with null output, no signals and no write bindings. Runtime: `authority-claim-initial_review` |
-| `missing-payload-initial_review` | a declared output payload is required | `missing-payload-adjudicate_authority` — the payload that actually drives repair |
-| `missing-after-repair` | required material removed at the renewed occurrence | structural: both evidence routes carry the same missing→fail branch. Runtime: the #18 campaign's `missing-renewed`, which removes the material for real |
-| `repair-input-canary` | repair receives the directive, not raw findings | folded into `repair-resolve`, which takes the identical route, plus the structural binding assertion |
-| `forged-diagnostics` | forged Contract/source/evidence/predecessor IDs confer no authority | the fixture now emits forged identifiers on *every* response, so every retained run carries the canary; structurally, no write binding reads the diagnostic channel |
-| `contradictory-clean` | prose contradicting the node's own signal cannot bypass repair | folded into the adjudicator's diagnostic on every route |
+Twenty-two runs were removed and sixteen kept, out of thirty-eight. The crash
+matrix generated one case for each of the five clean-route nodes, the five
+repair-round nodes and `final_assessment_authority_repaired` — **eleven**, all
+removed, `crash-round_complete` included.
 
-Retained, because execution behaviour is the claim: `clean`, `repair-resolve`,
-`repeat-labels`, `missing-initial`, `sticky-exhaust`, `refusal`, `final-gap`,
-`sticky-omission`, `open-control-crash`, four response-rejection faults, one
-hang, and the `widened-binding-canary`. The canary stays a real run because the
-v0.5 plan asks for it by hand, and because an isolation assertion is only worth
-having if a widened binding would actually trip it.
+| Removed | Count | What it protected | Now protected by |
+| --- | --- | --- | --- |
+| `crash-{node}` | 11 | each executable node's unusable execution fails closed | structural: every executable occurrence is caught by the route it continues into, and every such branch is a `fail`. Runtime: `open-control-crash`, a separate case that stays, witnesses that a real crash becomes a node error |
+| `{missing,malformed,default,hang}-round_complete` | 4 | a control fault inside the loop stops before the final assessment | structural: the loop's `until` and `post_repair_bound_route` both take `round_complete`'s error to a `fail`. Runtime: `open-control-crash`, which is a crash at that same node |
+| `authority-claim-implement`, `authority-claim-repair` | 2 | a mutation node's authority claim cannot bind state | structural: both mutation nodes are `step`s with null output, no signals and no write bindings. Runtime: `authority-claim-initial_review` |
+| `missing-payload-initial_review` | 1 | a declared output payload is required | `missing-payload-adjudicate_authority` — the payload that actually drives repair |
+| `missing-after-repair` | 1 | required material removed at the renewed occurrence | structural: both evidence routes carry the same missing→fail branch. Runtime: the #18 campaign's `missing-renewed`, which removes the material for real |
+| `repair-input-canary` | 1 | repair receives the directive, not raw findings | folded into `repair-resolve`, which takes the identical route, plus the structural binding assertion |
+| `forged-diagnostics` | 1 | forged Contract/source/evidence/predecessor IDs confer no authority | the fixture now emits forged identifiers on *every* response, so every retained run carries the canary; structurally, no write binding reads the diagnostic channel |
+| `contradictory-clean` | 1 | prose contradicting the node's own signal cannot bypass repair | folded into the adjudicator's diagnostic on every route |
+
+The sixteen retained, because execution behaviour is the claim: `clean`,
+`repair-resolve`, `repeat-labels`, `missing-initial`, `sticky-exhaust`,
+`refusal`, `final-gap`, `sticky-omission`, `open-control-crash`,
+`missing-initial_review`, `malformed-initial_review`, `default-initial_review`,
+`missing-payload-adjudicate_authority`, `authority-claim-initial_review`,
+`hang-initial_review` and `widened-binding-canary`. 22 removed plus 16 retained
+is the 38 the campaign started with.
+
+The canary stays a real run because the v0.5 plan asks for it by hand, and
+because an isolation assertion is only worth having if a widened binding would
+actually trip it. It submits a modified graph, and so does the hang; both now
+declare what they changed in a per-case `testOnlyGraphDeviation`, and
+`declared_graph_deviations_match_submitted_graphs` holds that declaration to the
+recorded `graphSha256` so the retained record cannot claim a deviation it did
+not make, or omit one it did.
 
 ## The evidence campaign: six permutations of one route
 

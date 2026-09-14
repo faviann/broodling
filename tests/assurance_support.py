@@ -216,19 +216,33 @@ def definitions():
 
 
 async def run_controls(run_root, workspace_root):
+    """Every case records its graph deviation, explicitly null when it has none.
+
+    Two cases submit something other than the product graph, and a reader of the
+    retained record has to be able to tell which without recomputing hashes:
+    each hang shortens one node's timeout so the fault fits the campaign, and the
+    widened-binding canary adds the forbidden raw-finding input to `repair`.
+    `declared_graph_deviations_match_submitted_graphs` below holds this field to
+    the graph that was actually submitted.
+    """
     cases = {}
     for name, scenario, _ in definitions():
         graph = assurance_graph()
+        deviation = None
         if ";hang:" in scenario:
             selected = scenario.split(":")[1]
             for node in executable_nodes(graph["root"]):
                 if node["name"] == selected:
                     node["timeoutMs"] = 250
+            deviation = {
+                "node": selected,
+                "change": "timeoutMs shortened to 250 so the hang terminates "
+                "inside the campaign; the product node is 300000",
+            }
         cases[name] = await run_case(
             run_root, workspace_root, name, scenario, graph=graph
         )
-        if ";hang:" in scenario:
-            cases[name]["testOnlyGraphDeviation"] = {"node": selected, "timeoutMs": 250}
+        cases[name]["testOnlyGraphDeviation"] = deviation
     # Sensitivity control: deliberately widen repair input to include raw
     # findings. The v0.5 plan asks for this canary by hand, because the
     # isolation assertion below is only worth having if a widened binding would
@@ -255,6 +269,12 @@ async def run_controls(run_root, workspace_root):
         "repair-resolve",
         graph=widened,
     )
+    cases["widened-binding-canary"]["testOnlyGraphDeviation"] = {
+        "node": "repair",
+        "change": "findingContent added to the repair input and bound from "
+        "state, which the product graph deliberately does not do; this case "
+        "exists to show the isolation assertion would catch it",
+    }
     return cases
 
 
@@ -306,6 +326,20 @@ def acceptance_checks(cases):
             "directive": "open_d1",
             "directiveContent": DIRECTIVE,
         },
+        # Provenance: a case submitting anything but the product graph declares
+        # what it changed, and a case declaring nothing submitted the product
+        # graph exactly. Prose in the retained record cannot drift from this.
+        "declared_graph_deviations_match_submitted_graphs": all(
+            (case["graphSha256"] == canonical_hash(assurance_graph()))
+            is (case["testOnlyGraphDeviation"] is None)
+            for case in cases.values()
+        )
+        and sorted(
+            name
+            for name, case in cases.items()
+            if case["testOnlyGraphDeviation"] is not None
+        )
+        == ["hang-initial_review", "widened-binding-canary"],
         "widened_binding_control_detects_canary": next(
             e
             for e in cases["widened-binding-canary"]["events"]

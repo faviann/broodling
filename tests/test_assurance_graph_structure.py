@@ -39,23 +39,57 @@ WRITABLE_PATHS = {
 }
 
 
+def children(node):
+    """The constructs `node` directly encloses, in authored order."""
+    kind = node["kind"]
+    if kind == "seq":
+        return node["children"]
+    if kind == "choice":
+        return [branch["node"] for branch in node["branches"]] + [node["otherwise"]]
+    if kind == "loop":
+        return [node["body"]]
+    return []
+
+
 def walk(node):
     """Yield every node of the authored tree, parents before children."""
     yield node
-    kind = node["kind"]
-    if kind == "seq":
-        for child in node["children"]:
-            yield from walk(child)
-    elif kind == "choice":
-        for branch in node["branches"]:
-            yield from walk(branch["node"])
-        yield from walk(node["otherwise"])
-    elif kind == "loop":
-        yield from walk(node["body"])
+    for child in children(node):
+        yield from walk(child)
 
 
 def executables(root):
     return {n["name"]: n for n in walk(root) if n["kind"] in {"step", "verifier"}}
+
+
+def parents(root):
+    """Map each node to the construct directly enclosing it, by identity."""
+    found = {id(root): None}
+    for node in walk(root):
+        for child in children(node):
+            found[id(child)] = node
+    return found
+
+
+def continuation(enclosing, node):
+    """The construct execution reaches next once `node` itself is finished.
+
+    A `seq` hands control to the sibling after its child; a construct that ends
+    without one hands control to whatever follows the construct itself. For every
+    executable node in this graph that lands on the `choice` carrying its own
+    routing, which is the point where its unusable outcome has to be caught.
+    """
+    current = node
+    while (parent := enclosing[id(current)]) is not None:
+        if parent["kind"] == "seq":
+            siblings = parent["children"]
+            position = next(
+                index for index, child in enumerate(siblings) if child is current
+            )
+            if position + 1 < len(siblings):
+                return siblings[position + 1]
+        current = parent
+    return None
 
 
 def groups(root, kind):
@@ -83,6 +117,7 @@ class AuthoredTopologyTests(unittest.TestCase):
         self.graph = assurance_graph()
         self.root = self.graph["root"]
         self.nodes = executables(self.root)
+        self.enclosing = parents(self.root)
         self.choices = groups(self.root, "choice")
         self.branches = [
             (choice["name"], branch["when"], branch["node"])
@@ -103,17 +138,37 @@ class AuthoredTopologyTests(unittest.TestCase):
         self.assertEqual(sorted(self.nodes), sorted(EXECUTABLE_NODES))
         self.assertEqual(len(EXECUTABLE_NODES), len(set(EXECUTABLE_NODES)))
 
-    def test_every_executable_node_routes_its_unusable_execution_to_a_fail_sink(self):
-        guarded = set()
-        for choice, when, node in self.branches:
-            if when["value"]["source"] != "error":
-                continue
-            with self.subTest(choice=choice, node=when["value"]["name"]):
-                self.assertEqual(when["labels"], ERROR_LABELS)
-                self.assertEqual(node["kind"], "fail")
-                self.assertEqual(node["reason"], "execution_unusable")
-                guarded.add(when["value"]["name"])
-        self.assertEqual(guarded, set(EXECUTABLE_NODES))
+    def test_each_executable_occurrence_catches_its_own_unusable_execution(self):
+        # Not "the graph mentions every node in some error guard somewhere":
+        # the guard has to sit on the route execution actually continues into
+        # from that occurrence. A guard naming the wrong node, or the right node
+        # from the wrong route, leaves the occurrence it was meant to catch
+        # running on into whatever follows it.
+        owners = {}
+        for name, node in self.nodes.items():
+            with self.subTest(node=name):
+                route = continuation(self.enclosing, node)
+                self.assertIsNotNone(route, name)
+                self.assertEqual(route["kind"], "choice")
+                caught = [
+                    branch
+                    for branch in route["branches"]
+                    if branch["when"] == error_guard(name)
+                ]
+                self.assertEqual(len(caught), 1, route["name"])
+                self.assertEqual(caught[0]["node"]["kind"], "fail")
+                self.assertEqual(caught[0]["node"]["reason"], "execution_unusable")
+                owners[name] = route["name"]
+        # And no route catches an occurrence that is not the one continuing into
+        # it, which is what a swapped pair of guards would look like.
+        self.assertEqual(
+            sorted(
+                (choice, when["value"]["name"])
+                for choice, when, _ in self.branches
+                if when["value"]["source"] == "error"
+            ),
+            sorted((route, name) for name, route in owners.items()),
+        )
 
     def test_no_unusable_or_unaccepted_route_can_reach_an_accepting_sink(self):
         # An accepting sink is reachable only as the fall-through of a final
