@@ -67,8 +67,6 @@ def main():
         raw["needsCorrection"] = False
         raw["correctionSatisfied"] = True
         candidate.write_text(json.dumps(raw))
-        if scenario == "missing-renewed":
-            candidate.unlink()
         response = None
     else:
         diagnostic = {

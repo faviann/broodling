@@ -533,7 +533,9 @@ sidecar built from `d090961`, so nothing skips):
 
 The before/both rows were measured on the branch point; #43 has since net
 removed two identity cases, so the same runs report 429 today. The split itself
-accounts for the 39.
+accounts for the 39. #45 has since deleted `test_assurance_public.py`, so the
+lane is 37 tests and a default run reports 406 passed, 37 skipped of 443
+collected — see *The admitted submissions were the same two routes again*.
 
 56 tests required the real SDK and accounted for **2844.5s of 2937.3s — 96.8% of
 the runtime**; the other 356 cost 92.8s between them. Cost inside the real-SDK
@@ -555,7 +557,6 @@ commit. Each entry keeps its full witness; only the moment it runs changed.
 | --- | --- | --- |
 | `test_assurance_graph.py` | 2 | G3-V1 actual graph negative/positive controls (#17) |
 | `test_evidence_graph.py` | 1 | G3-V1 graph-local mechanical evidence controls (#18) |
-| `test_assurance_public.py` | 1 | actual admitted P3 Attempts through the public coordinator |
 | `test_final_assurance_capture.py` | 7 | #19 completed custody against the actual SDK path |
 | `test_final_assurance_public.py` | 4 | #19 current-run observation on the real graph |
 | `test_disposition_public.py` | 10 | G4-V1 no-effect disposition and finalization races |
@@ -644,17 +645,42 @@ Real Zeroshot runs created by the two campaigns:
 | Campaign | Before | After |
 | --- | --- | --- |
 | `test_assurance_graph.py` setup (#17 controls) | 38 | 8 |
-| `test_evidence_graph.py` (#18 controls) | 12 | 6 |
-| Both | 50 | 14 |
+| `test_evidence_graph.py` (#18 controls) | 12 | 5 |
+| Both | 50 | 13 |
+
+Those are the *pytest* cases, and for most of this change they were the only
+thing counted — which under-reported the qualification run. The #17 entrypoint
+ran two further real executions of its own, outside `definitions()`: admitted
+product submissions of the `clean` and `repair-resolve` routes through the P3
+coordinator, recorded under `admittedProductSubmissions`.
+`test_assurance_public.py` ran the same two in the lane. Counted honestly, per
+producer of real runs:
+
+| Producer | Before | After |
+| --- | --- | --- |
+| `issue17_controls.py` (`definitions()` + admitted submissions) | 38 + 2 | 8 |
+| `issue18_evidence.py` (`SCENARIOS`) | 12 | 5 |
+| `test_assurance_public.py` (lane module, admitted submissions) | 2 | removed |
+| A full qualification pass | 52 | 13 |
+
+See *The admitted submissions were the same two routes again* below for why the
+four went.
 
 Wall clock on the qualified profile (pinned SDK and sidecar, nothing skipped),
 the two campaigns run back to back under `pytest --durations`:
 
-| Phase | Before (38 + 12) | 12 + 7 | 10 + 6 | After (8 + 6) |
-| --- | --- | --- | --- | --- |
-| `AssuranceGraphTests` setup | 591.4s | 244.8s / 254.2s / 247.7s | 168.7s | 122.9s |
-| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 192.5s / 198.6s / 204.3s | 129.5s | 133.5s |
-| Both modules end to end | 798.2s (13:18) | 437.8s / 453.2s / 452.5s | 298.8s (4:58) | 257.0s (4:16) |
+| Phase | Before (38 + 12) | 12 + 7 | 10 + 6 | 8 + 6 | After (8 + 5) |
+| --- | --- | --- | --- | --- | --- |
+| `AssuranceGraphTests` setup | 591.4s | 244.8s / 254.2s / 247.7s | 168.7s | 122.9s | 126.1s |
+| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 192.5s / 198.6s / 204.3s | 129.5s | 133.5s | 101.4s |
+| Both modules end to end | 798.2s (13:18) | 437.8s / 453.2s / 452.5s | 298.8s (4:58) | 257.0s (4:16) | 227.8s (3:47) |
+
+The last column drops only `missing-renewed`, and only from the evidence
+campaign — the assurance campaign runs the same eight cases, and 122.9s versus
+126.1s is this host again. Neither column shows the two admitted submissions
+this round also removed: they were never part of these two modules.
+`test_assurance_public.py` ran them in the lane and is deleted, and
+`issue17_controls.py` ran them outside its case set.
 
 The 12 + 7 column keeps three samples because they were taken across review
 rounds, and the spread between them — about 10s on a 250s phase — was larger
@@ -666,9 +692,10 @@ drops two more complete assurance runs and shortens two of the faults that
 remain from four and five nodes to one and three.
 
 The assurance number is the honest one: 79% fewer runs, and the time to match.
-The evidence column moves by less than nothing in the last round — it is the same
-six runs, and 129.5s versus 133.5s is this host.
-The evidence number reads well now — 50% fewer runs, 37% less time — but it did
+The evidence column moved by less than nothing in the 8 + 6 round — it was the
+same six runs, and 129.5s versus 133.5s is this host — and then moved properly
+when a sixth scenario went.
+The evidence number reads well now — 58% fewer runs, 51% less time — but it did
 not for most of this change, and why is worth writing down rather than rounding
 away. Timed scenario by scenario in one sitting, the twelve-scenario campaign
 looked like this:
@@ -677,7 +704,7 @@ looked like this:
 | --- | --- | --- |
 | `sticky` | 74.9s | no |
 | `repair-renewed` | 39.5s | yes — two evidence occurrences |
-| `missing-renewed` | 24.9s | yes |
+| `missing-renewed` | 24.9s | no — see below |
 | `contradiction` | 23.4s | no |
 | `wrong-mode` | 23.1s | no |
 | `wrong-artifact` | 22.5s | no |
@@ -689,8 +716,9 @@ looked like this:
 | `missing-initial` | 10.7s | yes |
 
 Sum: 321.7s before; 208.8s once the five permutations went, 133.9s once `sticky`
-went with them — the six removed scenarios cost 187.8s between them, and 74.9s
-of that is `sticky` alone. Dropping five of twelve runs moved the wall clock by
+went with them, 109.0s once `missing-renewed` went too — the seven removed
+scenarios cost 212.7s between them, and 74.9s of that is `sticky` alone.
+Dropping five of twelve runs moved the wall clock by
 less than this host's own variance: the same two sets measure 206.0s and 192.5s
 under `pytest` minutes apart, and the twelve-scenario campaign has been recorded
 at 327s, 322s and 206s on unchanged code. Dropping the sixth moved it visibly,
@@ -788,7 +816,7 @@ removed, `crash-round_complete` included.
 | `{missing,malformed,default,hang}-round_complete` | 4 | a control fault inside the loop stops before the final assessment | structural: the loop's `until` and `post_repair_bound_route` both take `round_complete`'s error to a `fail`, both asserted |
 | `authority-claim-implement`, `authority-claim-repair` | 2 | a mutation node's authority claim cannot bind state | structural: both mutation nodes are `step`s with null output, no signals and no write bindings |
 | `missing-payload-{node}` | 1 | a declared output payload is required | one case, at `initial_review` — the first model node declaring both a signal and an output payload, so every response defect is injected at the same occurrence |
-| `missing-after-repair` | 1 | required material removed at the renewed occurrence | structural: both evidence routes carry the same missing→fail branch. Runtime: the #18 campaign's `missing-renewed`, which removes the material for real |
+| `missing-after-repair` | 1 | required material removed at the renewed occurrence | structural: both evidence routes carry the same missing→fail branch, asserted branch for branch. Runtime: `missing-initial` witnesses the removal itself, and `repair-renewed` witnesses fresh evidence executing after a mutation — the #18 campaign's own `missing-renewed` has since gone for the same reason |
 | `repair-input-canary` | 1 | repair receives the directive, not raw findings | the #18 campaign's `repair-renewed`, which takes the identical route on the exact product runtime, plus the structural binding assertion |
 | `forged-diagnostics` | 1 | forged Contract/source/evidence/predecessor IDs confer no authority | the fixture now emits forged identifiers on *every* response, so every retained run carries the canary; structurally, no write binding reads the diagnostic channel |
 | `contradictory-clean` | 1 | prose contradicting the node's own signal cannot bypass repair | folded into the adjudicator's diagnostic on every route, asserted on `repeat-labels` |
@@ -836,6 +864,38 @@ what each check produced is held against the review that consumes it
 (`observation_carries_actual_check_profile_and_required_raw_material`). So the
 route assertions compare the model-node sequence, with the evidence occurrences
 witnessed by their output rather than by a transcript line.
+
+### The admitted submissions were the same two routes again
+
+`issue17_controls.py` and `test_assurance_public.py` each ran
+`admitted_case("clean")` and `admitted_case("repair-resolve")`: real Zeroshot
+executions submitted through the P3 `SubmissionCoordinator` with the product
+launcher, graph and runtime, and only the profile's external Codex executable
+replaced by the assurance test leaf.
+
+Those are the same two routes the #18 campaign's `valid` and `repair-renewed`
+now take, through the same coordinator and — unlike this campaign, which
+substitutes every runtime binding's model and connections — on the exact product
+runtime, while driving the real deterministic evidence leaf at both occurrences.
+By the rule this change applies everywhere else, the weaker witness of a
+duplicated claim goes.
+
+What `admitted_case` carried that `valid` and `repair-renewed` do not is the
+restart-and-retry property: the store is reopened after graph-owned mutation and
+the Attempt re-submitted, and `samePersistedRequest` plus
+`runId == replayedRunId` assert that the request replays unchanged and the retry
+correlates to the run already accepted. That is Broodling's durable submission
+behaviour, not Zeroshot's, and `test_assurance_submission.py` asserts it
+directly in the default regression lane —
+`test_product_submission_replays_same_request_after_owned_mutation` restarts
+after a real `move_head` and holds the re-submitted request against the
+original, and `test_correlated_product_retry_never_submits_another_run` asserts
+the second dispatch never happens. Neither needs a completed graph execution to
+be the window it is testing.
+
+So `admitted_case` had no remaining caller and went with them, and
+`test_assurance_public.py` — whose only test was the pair — was deleted rather
+than left as an empty module.
 
 ### Faults are injected at the first occurrence that can carry them
 
@@ -1013,6 +1073,37 @@ Because it submits through the product coordinator on the exact product graph
 *The single-round routes belong to the campaign that runs the product runtime*
 above for the two positive routes it took over from #17.
 
+## The evidence campaign: the renewed removal was the composition of two runs
+
+`missing-renewed` deleted the required material inside `repair`, so the renewed
+evidence occurrence found nothing and the run failed `required_evidence_missing`
+before a fresh review or a final assessment. The requirement it stood for —
+missing required evidence *after a mutation* fails closed — is kept. What is
+gone is a second real run to establish it, because three things already there
+compose into exactly that:
+
+- `missing-initial` removes the material for real and fails
+  `required_evidence_missing` through the product evidence boundary, so the
+  missing-material behaviour itself has a real witness;
+- `repair-renewed` runs the repair round and the renewed check for real, so
+  "fresh evidence actually executes against the candidate the repair left" —
+  the *after a mutation* half — has a real witness, asserted by
+  `renewed_evidence_observes_structurally_current_candidate`;
+- `test_missing_required_evidence_fails_closed_at_both_occurrences` asserts the
+  missing→failure branch on `initial_evidence_route` *and*
+  `repair_evidence_route`, branch for branch, including that the valid
+  fall-through leads to the fresh review rather than straight to an assessment.
+
+The two occurrences run the same deterministic leaf through the same authored
+branch; the only thing the second run varied was which of the two took it, and
+that is what the structural test decides. It is the same rule the assurance
+campaign applies to fault injection: *where* a fault happens is authored, not
+witnessed.
+
+The `needsCorrection` flag the scenario shared with `repair-renewed` went with
+it, along with the leaf's `candidate.unlink()` in the `repair` branch, so the
+evidence fixture now removes material at one place only.
+
 ## The evidence campaign: a second sticky run bought nothing
 
 `sticky` ran three repair rounds through the deterministic leaf to show a
@@ -1034,14 +1125,22 @@ evidence observing the candidate the repair actually left.
 there, on the run already being made. The second multi-round execution protected
 no evidence/runtime boundary the first did not.
 
-## What did not change
+## The entrypoints, and what did not change
 
-`qualification/v1-p3/issue17_controls.py` and `issue18_evidence.py` run exactly
-as documented and still produce their records; each now carries a `witnessScope`
-field saying what moved and where. Retained historical records —
+`qualification/v1-p3/issue17_controls.py` and `issue18_evidence.py` still
+produce their records, and each carries a `witnessScope` field saying what moved
+and where. One entrypoint's *record shape* did change: #17 no longer emits
+`admittedProductSubmissions` or the `admitted_product_clean_and_repaired` check,
+because it no longer makes those two runs. Its record is now exactly the eight
+cases it executes, which is the point — the record and the run are the same
+number again. Retained historical records —
 `issue-17-controls.json`, `issue-18-evidence.json` and every W-level record — are
-untouched. They remain evidence of what was observed when they were written, not
-a description of what the suite runs today.
+untouched, including the `admittedProductSubmissions` and `missing-renewed`
+evidence they already hold. They remain evidence of what was observed when they
+were written, not a description of what the suite runs today; the review
+documents that cite them (`issue-18-evidence-review.md`,
+`issue-19-final-assurance.md`) are descriptions of those records and are
+likewise unchanged.
 
-#33 parallelism is the next question, not a substitute for this one: 14 runs
-scheduled concurrently is a different proposition from 50.
+#33 parallelism is the next question, not a substitute for this one: 13 runs
+scheduled concurrently is a different proposition from 52.

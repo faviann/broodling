@@ -36,9 +36,13 @@ SCENARIOS = (
     # The v0.5 plan names wrong-population for G3-V1; the other five mismatch
     # dimensions differ only in candidate bytes on this same route.
     "wrong-population",
-    # Required material absent at each of the two evidence occurrences.
+    # Required material absent at the evidence occurrence relying on it. The
+    # renewed occurrence carries the same authored missing->fail branch --
+    # `test_assurance_graph_structure.py` asserts both branch for branch -- and
+    # `repair-renewed` witnesses that fresh evidence really does execute against
+    # the repaired candidate, so a second real removal adds no dependency
+    # behaviour.
     "missing-initial",
-    "missing-renewed",
     # Renewed evidence observes the candidate the repair actually left, and a
     # directive raised from real evidence survives the repair round until the
     # renewed observation explicitly satisfies it.
@@ -67,7 +71,7 @@ def raw_material(scenario):
         "artifact": "candidate.json",
         "results": ["PASS", "PASS", "PASS"],
         "contradictions": [],
-        "needsCorrection": scenario in {"missing-renewed", "repair-renewed"},
+        "needsCorrection": scenario == "repair-renewed",
         "correctionSatisfied": False,
     }
     mutations = {
@@ -297,15 +301,6 @@ def acceptance_checks(cases):
         ]
         == "required_evidence_missing"
         and [e["node"] for e in cases["missing-initial"]["events"]] == ["implement"],
-        "renewed_missing_stops_before_fresh_review_or_final": cases["missing-renewed"][
-            "result"
-        ]["failure"]
-        == "required_evidence_missing"
-        and not events("missing-renewed", "repair_review")
-        and not any(
-            e["node"].startswith("final_assessment")
-            for e in cases["missing-renewed"]["events"]
-        ),
         "renewed_evidence_observes_structurally_current_candidate": cases[
             "repair-renewed"
         ]["result"]["succeeded"]

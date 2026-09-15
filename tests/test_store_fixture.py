@@ -17,7 +17,7 @@ def is_closed(store) -> bool:
 
 
 class _ReopeningCase(StoreTestCase):
-    """A fixture consumer that restarts twice, as `admitted_case()` does."""
+    """A fixture consumer that restarts, as the restart-and-retry tests do."""
 
     #: Driven by the cases below; not a test of its own.
     __test__ = False

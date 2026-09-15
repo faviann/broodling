@@ -4,14 +4,13 @@ Only controlled provider behavior is substituted. There is no qualification
 import, product router, runtime storage read, or production observer here.
 """
 
-import asyncio
 import dataclasses
 import hashlib
 import json
 import os
 from pathlib import Path
 
-from support import AttemptTestCase, git
+from support import git
 
 from broodling.assurance_graph import assurance_graph, assurance_runtime, initial_state
 
@@ -193,12 +192,14 @@ def definitions():
     Eight W3 demonstrations are named by the v0.5 plan but not run here, because
     each is either established below the seam or already witnessed elsewhere.
     Removing required evidence is exercised by the #18 campaign's own
-    `missing-initial` and `missing-renewed`, which delete the material for real
-    and run the exact product graph through the deterministic leaf rather than a
-    model leaf reporting `missing`. Resolution-by-omission is the omitted-signal
-    rule witnessed by `missing-initial_review`, whose response is valid in every
-    other respect so the runtime has to reject it on the absent signal; that it
-    is `resolution_authority` omitting the signal is the part the graph decides.
+    `missing-initial`, which deletes the material for real and runs the exact
+    product graph through the deterministic leaf rather than a model leaf
+    reporting `missing`; the renewed occurrence carries the same authored
+    missing->fail branch and is not run again. Resolution-by-omission is the
+    omitted-signal rule witnessed by `missing-initial_review`, whose response is
+    valid in every other respect so the runtime has to reject it on the absent
+    signal; that it is `resolution_authority` omitting the signal is the part
+    the graph decides.
 
     Ordinary output acquiring authority is decided by the graph: routing guards
     name the node whose signal they read, and a review declares only `findings`,
@@ -404,120 +405,3 @@ def acceptance_checks(cases):
             for e in repeated["events"]
         ),
     }
-
-
-def admitted_case(scenario):
-    """Exercise the unmodified P3 submission API with a controlled executable.
-
-    The real product launcher, environment, graph and runtime are all retained.
-    Only the profile's external Codex executable is a deterministic test leaf.
-    """
-    import shutil
-    import tempfile
-
-    from broodling.codex_profile import QualifiedCodexProfile
-    from broodling.submission import SubmissionCoordinator
-    from broodling.zeroshot_sdk import ZeroshotSubmitter
-
-    fixture = AttemptTestCase()
-    fixture.setUp()
-    try:
-        repository = fixture.repository
-        git(
-            repository,
-            "remote",
-            "add",
-            "origin",
-            "https://github.com/faviann/broodling.git",
-        )
-        (repository / "candidate.txt").write_text("C0_ADMITTED\n")
-        (repository / "evidence").mkdir()
-        (repository / "evidence/raw.txt").write_text("REQUIRED_RAW_EVIDENCE\n")
-        git(repository, "add", ".")
-        git(repository, "commit", "-m", "assurance fixture inputs at B1")
-        from dataclasses import replace
-
-        from broodling.contract import MechanicalEvidence
-
-        contract = fixture.revision.contract
-        revision = fixture.store.record_contract_revision(
-            replace(
-                contract,
-                criteria=tuple(
-                    replace(
-                        item,
-                        mechanical_evidence=MechanicalEvidence(
-                            argv=("/usr/bin/cat", "candidate.txt"),
-                            materials=("evidence/raw.txt",),
-                        ),
-                    )
-                    for item in contract.criteria
-                ),
-            )
-        )
-        fixture.store.admit(revision.contract_revision_id)
-        provisioned = fixture.provisioner().admit_and_provision(
-            revision.contract_revision_id, repository
-        )
-        run_root = Path(tempfile.mkdtemp(prefix="b17a-", dir="/dev/shm"))
-        fixture.addCleanup(shutil.rmtree, run_root, ignore_errors=True)
-        leaf_state = run_root / "leaf"
-        executable = fixture.root / "controlled-codex"
-        executable.write_text(
-            "#!/usr/bin/env python3\nimport os, sys\n"
-            "if sys.argv[1:] == ['--version']:\n print('codex-cli 0.153.4')\n sys.exit(0)\n"
-            f"os.environ['BROODLING_FIXTURE_SCENARIO'] = {scenario!r}\n"
-            f"os.environ['BROODLING_FIXTURE_STATE'] = {str(leaf_state)!r}\n"
-            f"os.execv({str(LEAF_BIN / 'codex')!r}, [{str(LEAF_BIN / 'codex')!r}, *sys.argv[1:]])\n"
-        )
-        executable.chmod(0o755)
-        home = fixture.root / "profile-home"
-        home.mkdir()
-        codex_home = fixture.root / "codex-home"
-        codex_home.mkdir()
-        (codex_home / "auth.json").write_text("{}")
-        profile = QualifiedCodexProfile(executable, home, codex_home)
-        adapter = ZeroshotSubmitter(run_root / "native", codex_profile=profile)
-        coordinator = SubmissionCoordinator(fixture.store, adapter)
-        row = coordinator.submit_assurance(provisioned.attempt.attempt_id)
-        request = json.loads(row.request_json)
-
-        async def wait():
-            from zeroshot import Client, LocalTarget
-
-            async with Client(
-                target=LocalTarget(provisioned.path, state_dir=run_root / "native"),
-                environment=request["target"]["environment"],
-            ) as client:
-                result = await client.get_run(row.run_id).wait(wait_timeout=60)
-                return jsonable(result)
-
-        result = asyncio.run(wait())
-        original_request = row.request_json
-        # Actual graph-owned mutation has happened; retry must keep the run ID.
-        fixture.reopen()
-        replay = SubmissionCoordinator(fixture.store, adapter).submit_assurance(
-            provisioned.attempt.attempt_id
-        )
-        events = [
-            json.loads(line)
-            for line in (leaf_state / "driver.jsonl").read_text().splitlines()
-        ]
-        return {
-            "scenario": scenario,
-            "result": result,
-            "runId": row.run_id,
-            "replayedRunId": replay.run_id,
-            "samePersistedRequest": replay.request_json == original_request,
-            "workUnitId": fixture.work_unit.work_unit_id,
-            "contractRevisionId": revision.contract_revision_id,
-            "attemptId": provisioned.attempt.attempt_id,
-            "graphSha256": canonical_hash(request["graph"]),
-            "runtimeSha256": canonical_hash(request["runtime"]),
-            "initialInput": request["initialInput"],
-            "events": events,
-            "testOnlySubstitution": "QualifiedCodexProfile real_codex points to a controlled test executable that reports the qualified CLI version; product launcher/graph/runtime/environment and P3 coordinator are unchanged. This proves integration, not real-provider containment.",
-        }
-    finally:
-        fixture.tearDown()
-        fixture.doCleanups()
