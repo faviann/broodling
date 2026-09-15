@@ -145,6 +145,13 @@ async def run_case(run_root, workspace_root, name, scenario, *, graph=None):
         "events": [json.loads(line) for line in transcript.read_text().splitlines()]
         if transcript.exists()
         else [],
+        # Written by the leaf from inside the intentional hang, per node.
+        "hangEnteredNs": {
+            marker.name.removesuffix(".hang-entered"): int(marker.read_text())
+            for marker in sorted(leaf_state.glob("*.hang-entered"))
+        }
+        if leaf_state.exists()
+        else {},
     }
 
 
@@ -182,6 +189,18 @@ def definitions():
     path really is delivered -- is witnessed on the *unmodified* graph by
     `repair-resolve`, where `findingContent` reaches `adjudicate_authority`. The
     original canary evidence is retained in `issue-17-controls.json`.
+
+    The final assessor's refusal and gap routes are not run here either. #45
+    treats that routing as Broodling-owned structural behaviour, and
+    `test_no_unusable_or_unaccepted_route_can_reach_an_accepting_sink` asserts
+    both final routes branch for branch: the `gap` and `refused` guards, the
+    `semantic_gap` and `authority_gap` sinks they reach, the acceptance that is
+    reachable only as the fall-through once both are taken out, and the three
+    labels an assessor may emit. What a real run added is that the runtime routes
+    a non-accepted signal label to its authored sink rather than falling through
+    -- witnessed by `sticky-exhaust` on `resolution_authority`'s `open_d1`, and
+    at a final assessor itself by the #18 campaign's `wrong-population`, which
+    signals `gap` and fails `semantic_gap` on the exact product graph.
     """
     routes = [
         # Clean route to the distinct final assessor, and acceptance.
@@ -195,13 +214,15 @@ def definitions():
         ("repeat-labels", "repeat-labels", None),
     ]
     terminals = [
-        # The bound is reached with the obligation still open.
+        # The bound is reached with the obligation still open: a signalled
+        # non-accepting label reaching its authored failure sink instead of
+        # falling through. The final assessor's two other non-accepting labels,
+        # `gap` and `refused`, are that same runtime mechanism one node later.
+        # Which sink each reaches is authored -- `final_route_clean` and
+        # `final_route_repaired` are asserted branch for branch -- and that the
+        # runtime really does route a non-accepted assessment off an assessor
+        # is witnessed for real by the #18 campaign's `wrong-population`.
         ("sticky-exhaust", "sticky-exhaust", "obligations_exhausted"),
-        # An authority gap hands back rather than amends the Contract.
-        ("refusal", "refusal", "authority_gap"),
-        # A signalled gap at the final assessor cannot fall through to the
-        # accepting route despite a clean review.
-        ("final-gap", "final-gap", "semantic_gap"),
     ]
     faults = [
         # Process death at an executable node becomes a node error, and an open
@@ -347,6 +368,27 @@ def acceptance_checks(cases):
         ),
         "bound_three_stops_before_final": nodes(exhaustion).count("repair") == 3
         and not any(n.startswith("final_assessment") for n in nodes(exhaustion)),
+        # A hang case is only a witness of a *provider* hang if the provider got
+        # as far as hanging. The leaf records the execution in the transcript on
+        # entry, then records reaching the intentional hang from inside it; a
+        # runtime that timed the node out during startup would leave the second
+        # record absent. So: the selected node and only the selected node
+        # entered the hang, it entered after its execution was recorded, and no
+        # other case entered one at all.
+        "hang_terminated_a_provider_inside_the_intentional_hang": (
+            set(cases["hang-initial_review"]["hangEnteredNs"]) == {"initial_review"}
+            and cases["hang-initial_review"]["hangEnteredNs"]["initial_review"]
+            >= next(
+                e["recordedNs"]
+                for e in cases["hang-initial_review"]["events"]
+                if e["node"] == "initial_review"
+            )
+            and not any(
+                case["hangEnteredNs"]
+                for name, case in cases.items()
+                if name != "hang-initial_review"
+            )
+        ),
         "control_faults_stop_before_final": all(
             not any(n.startswith("final_assessment") for n in nodes(cases[name]))
             for name, _, reason in definitions()

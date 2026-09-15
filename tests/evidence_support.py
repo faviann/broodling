@@ -33,10 +33,10 @@ SCENARIOS = (
     # Required material absent at each of the two evidence occurrences.
     "missing-initial",
     "missing-renewed",
-    # Renewed evidence observes the candidate the repair actually left.
+    # Renewed evidence observes the candidate the repair actually left, and a
+    # directive raised from real evidence survives the repair round until the
+    # renewed observation explicitly satisfies it.
     "repair-renewed",
-    # The directive survives clean rounds until explicit resolution.
-    "sticky",
     # A native node timeout terminates the check's descendants.
     "timeout-descendant",
 )
@@ -61,7 +61,7 @@ def raw_material(scenario):
         "artifact": "candidate.json",
         "results": ["PASS", "PASS", "PASS"],
         "contradictions": [],
-        "needsCorrection": scenario in {"missing-renewed", "repair-renewed", "sticky"},
+        "needsCorrection": scenario in {"missing-renewed", "repair-renewed"},
         "correctionSatisfied": False,
     }
     mutations = {
@@ -248,7 +248,7 @@ def acceptance_checks(cases):
     initial = events("repair-renewed", "initial_review")[0]
     renewed = events("repair-renewed", "repair_review")[0]
     repair = events("repair-renewed", "repair")[0]
-    stable = events("sticky", "resolution_authority")
+    resolution = events("repair-renewed", "resolution_authority")
     return {
         "valid_complete_raw_evidence_reaches_acceptance": valid["result"]["succeeded"]
         and raw(events("valid", "initial_review")[0])["results"] == ["PASS"] * 3,
@@ -310,15 +310,21 @@ def acceptance_checks(cases):
                 "FORGED_",
             )
         ),
-        "sticky_directive_survives_clean_review_until_explicit_resolution": len(stable)
-        == 3
-        and cases["sticky"]["result"]["failure"] == "obligations_exhausted"
-        and all(
-            e["input"]["findings"] == "clean"
-            and e["input"]["outstanding"] == "open_d1"
-            and e["input"]["directiveContent"] == repair["input"]["directiveContent"]
-            for e in stable
-        ),
+        # The obligation the real evidence raised is still open and still
+        # carrying its payload when the round's resolution is taken, and it is
+        # that authority -- not the fresh clean review beside it -- that closes
+        # it. Sticky-across-several-rounds and the exhausted bound are the same
+        # graph behaviour with no evidence of their own, and are witnessed for
+        # real by the #17 campaign's `sticky-exhaust`.
+        "directive_stays_open_into_the_round_and_is_closed_only_by_resolution": len(
+            resolution
+        )
+        == 1
+        and resolution[0]["input"]["outstanding"] == "open_d1"
+        and resolution[0]["input"]["findings"] == "clean"
+        and resolution[0]["input"]["directiveContent"]
+        == repair["input"]["directiveContent"]
+        and resolution[0]["response"]["signals"]["resolution"] == "resolved_d1",
         "deterministic_evidence_never_reaches_model_executable": all(
             not e["node"].endswith("evidence_check")
             for case in cases.values()

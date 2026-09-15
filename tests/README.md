@@ -643,31 +643,35 @@ Real Zeroshot runs created by the two campaigns:
 
 | Campaign | Before | After |
 | --- | --- | --- |
-| `test_assurance_graph.py` setup (#17 controls) | 38 | 12 |
-| `test_evidence_graph.py` (#18 controls) | 12 | 7 |
-| Both | 50 | 19 |
+| `test_assurance_graph.py` setup (#17 controls) | 38 | 10 |
+| `test_evidence_graph.py` (#18 controls) | 12 | 6 |
+| Both | 50 | 16 |
 
 Wall clock on the qualified profile (pinned SDK and sidecar, nothing skipped),
 the two campaigns run back to back under `pytest --durations`:
 
-| Phase | Before (38 + 12) | After (12 + 7) |
-| --- | --- | --- |
-| `AssuranceGraphTests` setup | 591.4s | 244.8s / 254.2s / 247.7s |
-| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 192.5s / 198.6s / 204.3s |
-| Both modules end to end | 798.2s (13:18) | 437.8s / 453.2s / 452.5s |
+| Phase | Before (38 + 12) | 12 + 7 | After (10 + 6) |
+| --- | --- | --- | --- |
+| `AssuranceGraphTests` setup | 591.4s | 244.8s / 254.2s / 247.7s | 168.7s |
+| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 192.5s / 198.6s / 204.3s | 129.5s |
+| Both modules end to end | 798.2s (13:18) | 437.8s / 453.2s / 452.5s | 298.8s (4:58) |
 
-Three "after" samples are listed because they were taken across the review
-rounds, and the spread between them — about 10s on a 250s phase — is larger than
-the two runs dropped in the last round. That spread is this host, not the change.
+The middle column keeps three samples because they were taken across review
+rounds, and the spread between them — about 10s on a 250s phase — was larger
+than the two runs dropped in that round. That spread is this host, not the
+change. The last column is the one round where the drops are big enough to read
+through it: `refusal` and `final-gap` are two complete runs, and `sticky` was the
+evidence campaign's longest scenario by a factor of two.
 
-The assurance number is the honest one: 63% fewer runs, roughly 58% less time. The
-evidence number is not, and the reason is worth writing down rather than
-rounding away. Timed scenario by scenario in one sitting, the campaign looks
-like this:
+The assurance number is the honest one: 74% fewer runs, roughly 71% less time.
+The evidence number reads well now — 50% fewer runs, 37% less time — but it did
+not for most of this change, and why is worth writing down rather than rounding
+away. Timed scenario by scenario in one sitting, the twelve-scenario campaign
+looked like this:
 
 | Scenario | Cost | Kept |
 | --- | --- | --- |
-| `sticky` | 74.9s | yes — three rounds |
+| `sticky` | 74.9s | no |
 | `repair-renewed` | 39.5s | yes — two evidence occurrences |
 | `missing-renewed` | 24.9s | yes |
 | `contradiction` | 23.4s | no |
@@ -680,15 +684,17 @@ like this:
 | `timeout-descendant` | 15.0s | yes |
 | `missing-initial` | 10.7s | yes |
 
-Sum: 321.7s before, 208.8s after — the five removed permutations cost 112.9s
-between them. That the same two sets measure 206.0s and 192.5s under `pytest`
-minutes earlier is this host's variance, not a finding: the twelve-scenario
-campaign has been recorded at 327s, 322s and 206s on unchanged code. The run
-count is the number that means something here; the wall clock is a consequence,
-and what is left is dominated by the two multi-round scenarios nobody proposes
-to remove.
+Sum: 321.7s before; 208.8s once the five permutations went, 133.9s once `sticky`
+went with them — the six removed scenarios cost 187.8s between them, and 74.9s
+of that is `sticky` alone. Dropping five of twelve runs moved the wall clock by
+less than this host's own variance: the same two sets measure 206.0s and 192.5s
+under `pytest` minutes apart, and the twelve-scenario campaign has been recorded
+at 327s, 322s and 206s on unchanged code. Dropping the sixth moved it visibly,
+because it was a three-round scenario among ten single-round ones. Neither fact
+is the argument for removing anything — the run count is the number that means
+something here, and the wall clock is a consequence.
 
-The fast tests that took over the removed claims cost 1.5s for 15 tests, in the
+The fast tests that took over the removed claims cost 1.5s for 16 tests, in the
 default regression lane, on every commit.
 
 ## Why a crash at eleven nodes was one claim, not eleven
@@ -745,7 +751,7 @@ survived.
 
 ## The assurance campaign, removed run by removed run
 
-Twenty-six runs were removed and twelve kept, out of thirty-eight. The crash
+Twenty-eight runs were removed and ten kept, out of thirty-eight. The crash
 matrix generated one case for each of the five clean-route nodes, the five
 repair-round nodes and `final_assessment_authority_repaired` — **eleven**, all
 removed, `crash-round_complete` included.
@@ -763,22 +769,39 @@ removed, `crash-round_complete` included.
 | `missing-initial` | 1 | required raw material removed before the occurrence relying on it | the #18 campaign's own `missing-initial`, which deletes the material for real and runs the exact product graph through the deterministic leaf rather than a model leaf reporting `missing`; plus the structural both-occurrences assertion |
 | `widened-binding-canary` | 1 | the raw-finding isolation assertion is sensitive — a widened binding would trip it | structural: `repair`'s authored input and bindings are asserted exactly, and the `widen-repair-input` mutant dies against them. Its one runtime premise, that a bound state path is delivered, is witnessed on the *unmodified* graph by `repair-resolve`, where `findingContent` reaches `adjudicate_authority`. The original canary evidence is retained in `issue-17-controls.json` |
 | `authority-claim-initial_review` | 1 | an ordinary review's output cannot become adjudication or final authority | structural: routing guards name the node whose signal they read, and a review declares only `findings`, so a claimed `decision` or `assessment` satisfies no guard. Measured, the runtime refuses such a response outright, so the run duplicated malformed-response rejection |
+| `refusal`, `final-gap` | 2 | a refused or gapped final assessment cannot fall through to acceptance | structural: `final_route_clean` and `final_route_repaired` are asserted branch for branch — the `gap` and `refused` guards, the `semantic_gap` and `authority_gap` sinks, acceptance reachable only as the fall-through once both are taken out, and the three labels an assessor may emit. Runtime: `sticky-exhaust` witnesses a signalled non-accepting label reaching its authored failure sink, and the #18 campaign's `wrong-population` witnesses that at a final assessor itself, signalling `gap` and failing `semantic_gap` on the exact product graph |
 | `sticky-omission` | 1 | explicit eligible resolution is distinguished from omission | `missing-initial_review`, which is the same omitted-signal rule — see below, the fixture had to be corrected before that was true; that it is `resolution_authority` omitting the signal is the part the graph decides, and `resolution_route` is in `UNUSABLE_ROUTES` |
 
-The twelve retained, because execution behaviour is the claim: `clean`,
-`repair-resolve`, `repeat-labels`, `sticky-exhaust`, `refusal`, `final-gap`,
-`open-control-crash`, `missing-initial_review`, `malformed-initial_review`,
-`default-initial_review`, `missing-payload-adjudicate_authority` and
-`hang-initial_review`. 26 removed plus 12 retained is the 38 the campaign
-started with.
+The ten retained, because execution behaviour is the claim: `clean`,
+`repair-resolve`, `repeat-labels`, `sticky-exhaust`, `open-control-crash`,
+`missing-initial_review`, `malformed-initial_review`, `default-initial_review`,
+`missing-payload-adjudicate_authority` and `hang-initial_review`. 28 removed plus
+10 retained is the 38 the campaign started with.
 
-Four of those rows are runs this branch kept at first, on the grounds that the
-v0.5 plan's W3 list names the demonstrations by hand. Review pushed back each
-time, and the pushback was right: a governing document naming a demonstration is
-a reason to make sure it exists somewhere, not a reason to pay for it every time
-the lane runs. Two — required-evidence removal and resolution-by-omission — are
-covered by a stronger or equal real witness in the same lane. The other two were
-*synthetic*, and that is a different and worse problem.
+`refusal` and `final-gap` are the last rows to go, and they go for the reason
+#45 states rather than for the 40-odd seconds they cost. #45 names
+refusal/final-assessment failure routing as Broodling-owned structural
+behaviour, and `test_no_unusable_or_unaccepted_route_can_reach_an_accepting_sink`
+now asserts the exact branches: which guard, which sink, in which order, with
+acceptance reachable only as the fall-through. The mutant that routes a final gap
+to `succeed` dies against it. What the two runs added on top of that was a single
+runtime premise — that a non-accepted signal label is routed to the sink the
+graph names instead of falling through — and that premise is witnessed twice over
+by runs nobody proposes to drop: `sticky-exhaust`, where `resolution_authority`'s
+`open_d1` reaches `obligations_exhausted`, and the #18 campaign's
+`wrong-population`, where a final assessor signals `gap` on the exact product
+graph and the run fails `semantic_gap`.
+
+Six of those runs are ones this branch kept at first, on the grounds that the
+v0.5 plan's W3 list names the demonstrations by hand — the authority gap and the
+semantic gap among them. Review pushed back each time, and the pushback was right: a
+governing document naming a demonstration is a reason to make sure it exists
+somewhere, not a reason to pay for it every time the lane runs. Four —
+required-evidence removal, resolution-by-omission, refusal and the gapped final
+— are covered by a stronger or equal witness: the first three by a real run in
+the same lane, and refusal/gap by the authored routes plus `wrong-population`'s
+real gapped assessment. The other two were *synthetic*, and that is a different
+and worse problem.
 
 ### A run that mutates the graph is not a witness of the graph
 
@@ -844,6 +867,26 @@ The general lesson is worth keeping: a fault case that replaces a whole response
 tests whatever the runtime checks *first*. Isolating one defect per case is what
 makes the retained set discriminating rather than four spellings of "malformed".
 
+### A hang has to be a hang, not a slow start
+
+`hang-initial_review` is the witness that a node which never answers is
+terminated by the runtime rather than waited on. That claim has a cheap
+false positive: if the provider were timed out *before* or during startup, the
+run would fail `execution_unusable` at the same node and look identical from the
+outside, and the case would be witnessing the campaign's shortened 250ms timeout
+rather than Zeroshot's handling of a hung provider.
+
+The leaf now writes one marker file from inside the intentional hang, after the
+transcript event it writes on entry. Two records, one ordering:
+`initial_review` executed (transcript, with `recordedNs`), then reached the hang
+(`{node}.hang-entered`, with its own timestamp), and only then was terminated.
+`hang_terminated_a_provider_inside_the_intentional_hang` asserts the marker
+exists for the selected node and no other, that its timestamp is not before the
+recorded execution, and that no other case entered a hang at all. That is the
+whole addition — a file with a timestamp in it — because distinguishing a
+provider hang from a startup timeout needs a record that startup finished, and
+nothing more.
+
 With the canary retired, the hang is the only case that submits anything but the
 product graph. It declares what it changed in a per-case
 `testOnlyGraphDeviation`; every other case declares an explicit `null`; and
@@ -869,7 +912,30 @@ real leaf, for all six dimensions, without Zeroshot.
 `wrong-population` keeps its complete run: the v0.5 plan names it for G3-V1, and
 one witness is still needed that available-but-insufficient evidence fails at the
 final assessment rather than at the availability signal, which reports production
-only.
+only. It is also, now, the lane's one real witness that a final assessor's
+non-accepted signal reaches the sink the graph names — which is why `refusal` and
+`final-gap` could go from the #17 campaign.
+
+## The evidence campaign: a second sticky run bought nothing
+
+`sticky` ran three repair rounds through the deterministic leaf to show a
+directive surviving clean reviews until explicit resolution, and exhausting the
+bound when it never came. At 74.9s it was the campaign's most expensive scenario
+by a wide margin, and every property it established was already established.
+
+Sticky-across-rounds and the exhausted bound are graph behaviour with no evidence
+content of their own: the obligation is carried by `bounded_repair`'s
+`promotedStatePaths` and written only by the two authorities, both asserted
+structurally, and the #17 campaign's `sticky-exhaust` witnesses the same three
+rounds through real Zeroshot. What is evidence-specific — that a directive raised
+from *real deterministic evidence* is still open and still carrying its payload
+when the round's resolution authority runs, and that it is that authority and not
+the fresh clean review beside it which closes the obligation — happens inside
+`repair-renewed`, which was already paying for a repair round to witness renewed
+evidence observing the candidate the repair actually left.
+`directive_stays_open_into_the_round_and_is_closed_only_by_resolution` asserts it
+there, on the run already being made. The second multi-round execution protected
+no evidence/runtime boundary the first did not.
 
 ## What did not change
 
@@ -880,5 +946,5 @@ field saying what moved and where. Retained historical records —
 untouched. They remain evidence of what was observed when they were written, not
 a description of what the suite runs today.
 
-#33 parallelism is the next question, not a substitute for this one: 19 runs
+#33 parallelism is the next question, not a substitute for this one: 16 runs
 scheduled concurrently is a different proposition from 50.

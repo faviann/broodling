@@ -61,14 +61,14 @@ def main():
             "diagnostic": diag,
         }
     elif node.endswith("review"):
-        found = node == "initial_review" and base not in {"clean", "refusal"}
+        found = node == "initial_review" and base != "clean"
         response = {
             "output": {"findingContent": FINDING if found else ""},
             "signals": {"findings": "found" if found else "clean"},
             "diagnostic": diag,
         }
     elif node == "adjudicate_authority":
-        opened = base not in {"clean", "refusal"}
+        opened = base != "clean"
         response = {
             "output": {
                 "directiveContent": DIRECTIVE
@@ -100,13 +100,9 @@ def main():
             "diagnostic": diag,
         }
     elif node.startswith("final_assessment_authority"):
-        assessment = (
-            "refused"
-            if base == "refusal"
-            else "gap"
-            if base == "final-gap"
-            else "accepted"
-        )
+        # Every retained case that reaches an assessment reaches it clean. The
+        # assessor's `gap` and `refused` labels are routed by the authored
+        # graph, asserted there, and witnessed for real by the #18 campaign.
         response = {
             "output": {
                 "finalRationale": [
@@ -116,7 +112,7 @@ def main():
                     }
                 ]
             },
-            "signals": {"assessment": assessment},
+            "signals": {"assessment": "accepted"},
             "diagnostic": diag,
         }
     else:
@@ -156,6 +152,11 @@ def main():
     if fault == "crash" and selected == node:
         return 70
     if fault == "hang" and selected == node:
+        # Record entry into the hang itself, after the transcript event that
+        # says the execution started. The two together are what distinguish a
+        # provider that reached its intentional hang and was terminated there
+        # from one Zeroshot timed out during startup.
+        (state / f"{node}.hang-entered").write_text(str(time.time_ns()))
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
         while True:
             time.sleep(1)

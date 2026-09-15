@@ -65,7 +65,7 @@ def main():
         raw = json.loads(candidate.read_text())
         raw["generationMaterial"] += ":AFTER_REPAIR"
         raw["needsCorrection"] = False
-        raw["correctionSatisfied"] = scenario != "sticky"
+        raw["correctionSatisfied"] = True
         candidate.write_text(json.dumps(raw))
         if scenario == "missing-renewed":
             candidate.unlink()
