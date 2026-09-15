@@ -640,19 +640,37 @@ retained list beside it, and nothing else.
 
 ## Counts and cost
 
-Real Zeroshot runs, per producer. The pytest case counts alone under-report a
-qualification pass: `issue17_controls.py` made two further executions outside
-`definitions()`, recorded under `admittedProductSubmissions`, and
-`test_assurance_public.py` ran the same two in the lane.
+Real Zeroshot runs. Two separate things execute these cases, and they are
+counted separately: the opt-in pytest lane (`BROODLING_ZEROSHOT_LANE=1`), and the
+standalone qualification entrypoints, which are run by hand to produce a record.
+They share the case sets — `assurance_support.run_controls` and
+`evidence_support.SCENARIOS` — so the two tables below are the same removals seen
+from two callers, not two independent sets of runs. Do not add them together.
 
-| Producer | Before | After |
+**Opt-in pytest qualification lane:**
+
+| Lane module | Case set | Before | After |
+| --- | --- | --- | --- |
+| `test_assurance_graph.py` (class setup) | `run_controls` | 38 | 8 |
+| `test_evidence_graph.py` | `SCENARIOS` | 12 | 5 |
+| `test_assurance_public.py` | 2 admitted product submissions | 2 | module deleted |
+| **Opt-in lane total** | | **52** | **13** |
+
+**Standalone qualification entrypoints**, each executing its case set again when
+run by hand:
+
+| Entrypoint | Before | After |
 | --- | --- | --- |
-| `issue17_controls.py` (`definitions()` + admitted submissions) | 38 + 2 | 8 |
-| `issue18_evidence.py` (`SCENARIOS`) | 12 | 5 |
-| `test_assurance_public.py` (lane module, admitted submissions) | 2 | removed |
-| **A full qualification pass** | **52** | **13** |
+| `qualification/v1-p3/issue17_controls.py` | 38 cases + 2 admitted product submissions | 8 cases |
+| `qualification/v1-p3/issue18_evidence.py` | 12 scenarios | 5 scenarios |
 
-Wall clock on the qualified profile, both campaigns back to back:
+The two admitted product submissions had **two** producers — the lane module and
+the #17 entrypoint, four executions between them — which is why the mapping table
+below counts them as 4, and why `issue17_controls.py` no longer emits
+`admittedProductSubmissions`.
+
+Wall clock for the lane's two campaign modules on the qualified profile, run
+back to back:
 
 | Phase | Before | After |
 | --- | --- | --- |
@@ -686,7 +704,8 @@ non-accepted signal reaches the sink the graph names.
 ## What each removed run is now covered by
 
 Thirty of thirty-eight #17 cases, seven of twelve #18 scenarios, and the four
-admitted product submissions. "Structural" means
+admitted product submissions (two routes, run by two producers each).
+"Structural" means
 `tests/test_assurance_graph_structure.py`, in the default regression lane.
 
 | Removed | From | n | Now covered by |
@@ -695,7 +714,7 @@ admitted product submissions. "Structural" means
 | `{missing,malformed,default,hang}-round_complete` | #17 | 4 | structural: the loop's `until` and `post_repair_bound_route` both take `round_complete`'s error to a `fail` |
 | `authority-claim-{implement,repair}` | #17 | 2 | structural: both mutation nodes are `step`s with null output, no signals and no write bindings |
 | `refusal`, `final-gap` | #17 | 2 | structural: both final routes asserted branch for branch, acceptance reachable only as the fall-through. Runtime: retained `sticky-exhaust` and #18's `wrong-population` |
-| `clean`, `repair-resolve`, and the 4 admitted submissions | #17, `test_assurance_public.py` | 2 + 4 | #18's `valid` and `repair-renewed`, same two routes on the exact product graph *and* runtime. The restart-and-retry property only `admitted_case` carried is asserted without Zeroshot by `test_assurance_submission.py` |
+| `clean`, `repair-resolve`, and the admitted product submissions of both | #17 case set; both admitted-submission producers | 2 + 4 | #18's `valid` and `repair-renewed`, same two routes on the exact product graph *and* runtime. The restart-and-retry property only `admitted_case` carried is asserted without Zeroshot by `test_assurance_submission.py` |
 | `missing-after-repair`, `missing-initial` | #17 | 2 | structural: both evidence routes carry the same missing→fail branch. Runtime: #18's `missing-initial` removes material for real, `repair-renewed` witnesses fresh evidence after a mutation |
 | `repair-input-canary`, `widened-binding-canary` | #17 | 2 | structural: `repair`'s input and bindings asserted exactly. Runtime: #18's `repair-renewed` delivers a bound state path on the *unmodified* graph |
 | `missing-payload-{node}` | #17 | 1 | one case, at `initial_review` |
@@ -761,5 +780,5 @@ a description of what the suite runs today; the review documents that cite them
 (`issue-18-evidence-review.md`, `issue-19-final-assurance.md`) are descriptions of
 those records and are likewise unchanged.
 
-#33 parallelism is the next question, not a substitute for this one: 13 runs
-scheduled concurrently is a different proposition from 52.
+#33 parallelism is the next question, not a substitute for this one: a 13-run
+opt-in lane scheduled concurrently is a different proposition from a 52-run one.
