@@ -9,7 +9,9 @@ a malformed response or a hang into the node error these guards name, and that i
 honours the routes once it does.
 
 Nothing here executes, interprets or simulates a graph. Every assertion is a
-statement about the authored definition.
+statement about the authored definition — including the placement ones, which
+read local parent/child adjacency in the authored tree and never decide which
+branch a run would take.
 """
 
 from __future__ import annotations
@@ -28,11 +30,13 @@ from broodling.assurance_graph import (
 #: Zeroshot's unusable-execution labels, as every product error guard names them.
 ERROR_LABELS = ["timeout", "crash", "malformed", "refusal"]
 #: The route each executable occurrence's unusable execution is caught on, as
-#: the graph authors it. Stated, not derived: where Zeroshot goes after a node
-#: finishes is Zeroshot's semantics — loop termination before anything outside
-#: the loop, for one — and reimplementing that here would move a dependency's
-#: control flow into Broodling's test suite. Which route Broodling put each
-#: guard on is Broodling's own decision, and it is this table.
+#: the graph authors it. Which route Broodling put each guard on is Broodling's
+#: own decision, so the identity of the route is stated here rather than derived:
+#: deriving it would mean deciding where Zeroshot goes after a node finishes —
+#: loop termination before anything outside the loop, for one — which is the
+#: dependency's control flow and does not belong in this suite. What *is* read
+#: off the tree is whether each route sits where that occurrence's outcome
+#: actually arrives, which is local authored adjacency and nothing more.
 UNUSABLE_ROUTES = {
     "implement": "implementation_route",
     "initial_evidence_check": "initial_evidence_route",
@@ -58,19 +62,112 @@ WRITABLE_PATHS = {
 }
 
 
+#: The one executable the authored pair below cannot express, and why. Every
+#: other occurrence is followed inside its own seq by the choice that routes it;
+#: round_complete ends the loop body, so what the graph authors after it is the
+#: loop's `until` rather than a sibling. Handled explicitly, not exempted.
+LOOP_TAIL = "round_complete"
+
+
+def children(node):
+    """The authored children of a node, in the order the graph declares them."""
+    kind = node["kind"]
+    if kind == "seq":
+        return list(node["children"])
+    if kind == "choice":
+        return [branch["node"] for branch in node["branches"]] + [node["otherwise"]]
+    if kind == "loop":
+        return [node["body"]]
+    return []
+
+
 def walk(node):
     """Yield every node of the authored tree, parents before children."""
     yield node
-    kind = node["kind"]
-    if kind == "seq":
-        for child in node["children"]:
-            yield from walk(child)
-    elif kind == "choice":
-        for branch in node["branches"]:
-            yield from walk(branch["node"])
-        yield from walk(node["otherwise"])
-    elif kind == "loop":
-        yield from walk(node["body"])
+    for child in children(node):
+        yield from walk(child)
+
+
+def parents(root):
+    """Parent of every authored node, by identity rather than by equality."""
+    table = {}
+    for node in walk(root):
+        for child in children(node):
+            table[id(child)] = node
+    return table
+
+
+def position(node, parent):
+    """Index of `node` among its parent's authored children, by identity."""
+    return next(i for i, c in enumerate(children(parent)) if c is node)
+
+
+def at_tail(node, parent):
+    """Whether the parent authors nothing to run after `node`."""
+    return position(node, parent) == len(children(parent)) - 1
+
+
+def tail_chain(node, table):
+    """Names from `node` up through every group it is the last position of.
+
+    Stops at the first ancestor that authors something after it. A chain ending
+    at a group's name is the statement "nothing inside that group is authored to
+    run after this node" — a path read off the tree, not a claim about the order
+    Zeroshot evaluates anything in.
+    """
+    chain = [node["name"]]
+    current = node
+    while True:
+        parent = table.get(id(current))
+        if parent is None or not at_tail(current, parent):
+            return chain
+        chain.append(parent["name"])
+        current = parent
+
+
+def catches_unusable(choice, name):
+    """Whether this choice routes an unusable execution of `name` to a sink."""
+    caught = [
+        branch for branch in choice["branches"] if branch["when"] == error_guard(name)
+    ]
+    return (
+        len(caught) == 1
+        and caught[0]["node"]["kind"] == "fail"
+        and caught[0]["node"]["reason"] == "execution_unusable"
+    )
+
+
+def unpaired_occurrences(root):
+    """Executables not authored as `seq(occurrence, the route that catches it)`.
+
+    This is the placement half of the control. Naming a node in a guard is not
+    catching it: the guard has to sit on the continuation the graph authors for
+    that occurrence, which here is a local two-child shape — the occurrence
+    first, its own route second — and nothing more. Returned rather than
+    asserted so the relocation regression can read a deliberately broken graph
+    through exactly the same check.
+    """
+    table = parents(root)
+    return [
+        node["name"]
+        for node in walk(root)
+        if node["kind"] in {"step", "verifier"}
+        and node["name"] != LOOP_TAIL
+        and not paired_with_its_route(node, table.get(id(node)))
+    ]
+
+
+def paired_with_its_route(node, parent):
+    """Whether `parent` is exactly `seq(node, the route that catches node)`."""
+    if parent is None or parent["kind"] != "seq" or len(parent["children"]) != 2:
+        return False
+    occurrence, route = parent["children"]
+    return (
+        occurrence is node
+        and route["kind"] == "choice"
+        and route["name"] == UNUSABLE_ROUTES.get(node["name"])
+        and catches_unusable(route, node["name"])
+    )
 
 
 def executables(root):
@@ -103,6 +200,7 @@ class AuthoredTopologyTests(unittest.TestCase):
         self.root = self.graph["root"]
         self.nodes = executables(self.root)
         self.choices = groups(self.root, "choice")
+        self.parents = parents(self.root)
         self.branches = [
             (choice["name"], branch["when"], branch["node"])
             for choice in self.choices.values()
@@ -121,6 +219,13 @@ class AuthoredTopologyTests(unittest.TestCase):
         # would leave a guard below asserting over nothing.
         self.assertEqual(sorted(self.nodes), sorted(EXECUTABLE_NODES))
         self.assertEqual(len(EXECUTABLE_NODES), len(set(EXECUTABLE_NODES)))
+        # Occurrences, not just names: `executables` is keyed by name, so a node
+        # authored twice would collapse into one entry and the per-occurrence
+        # placement below would silently cover only whichever copy walked last.
+        occurrences = [
+            n["name"] for n in walk(self.root) if n["kind"] in {"step", "verifier"}
+        ]
+        self.assertEqual(sorted(occurrences), sorted(EXECUTABLE_NODES))
 
     def test_each_executable_occurrence_is_caught_on_its_own_authored_route(self):
         # Not "the graph mentions every node in some error guard somewhere": a
@@ -147,6 +252,95 @@ class AuthoredTopologyTests(unittest.TestCase):
             ),
             sorted((route, name) for name, route in UNUSABLE_ROUTES.items()),
         )
+        # Everything above reads guards by name, and a name is not a position: a
+        # correctly named guard on a choice reached before the occurrence runs,
+        # or on one it never reaches, catches nothing. So the placement is read
+        # too. Every executable but round_complete is authored as a two-child
+        # seq — the occurrence, then its own route — and that local pair is the
+        # whole statement; no traversal decides what runs next.
+        self.assertEqual(unpaired_occurrences(self.root), [])
+        # round_complete is the exception and gets its own reading. It is the
+        # tail of the loop body, so the graph authors nothing after it inside
+        # the loop and there is no pair to find: what follows is the loop's
+        # `until`. Its position is therefore the two places that outcome can
+        # land — the loop's own termination guards, and the choice authored
+        # immediately after the loop.
+        control = self.nodes[LOOP_TAIL]
+        self.assertIs(self.choices["resolution_route"]["otherwise"], control)
+        self.assertEqual(
+            tail_chain(control, self.parents),
+            [
+                LOOP_TAIL,
+                "resolution_route",
+                "repair_resolution",
+                "repair_review_route",
+                "fresh_review_and_resolution",
+                "repair_evidence_route",
+                "renewed_evidence_and_assurance",
+                "repair_execution_route",
+                "repair_round",
+                "bounded_repair",
+            ],
+        )
+        loop = groups(self.root, "loop")["bounded_repair"]
+        self.assertIn(error_guard(LOOP_TAIL), loop["until"]["guards"])
+        siblings = children(self.parents[id(loop)])
+        after_loop = siblings[position(loop, self.parents[id(loop)]) + 1]
+        self.assertEqual(after_loop["name"], UNUSABLE_ROUTES[LOOP_TAIL])
+        self.assertTrue(catches_unusable(after_loop, LOOP_TAIL))
+
+    def test_a_route_hoisted_ahead_of_its_occurrence_is_rejected(self):
+        # The relocation the pairing exists to kill: repair_execution_route
+        # lifted in front of repair, so the guard is evaluated before the
+        # execution it claims to catch and an unusable repair runs on into the
+        # renewed evidence check. Everything the name-based reading looks at
+        # survives it — the route keeps its name, its error guard and its
+        # execution_unusable sink, the guard still names repair, no other guard
+        # appears, and the workers still run in the same order — so the position
+        # of the choice is the only thing that separates this graph from the
+        # authored one.
+        graph = assurance_graph()
+        loop = groups(graph["root"], "loop")["bounded_repair"]
+        round_body = loop["body"]
+        self.assertEqual(
+            [child.get("name") for child in round_body["children"]],
+            ["repair", "repair_execution_route"],
+        )
+        repair, route = round_body["children"]
+        round_body["children"] = [
+            dict(
+                route,
+                otherwise=dict(
+                    round_body,
+                    name="hoisted_repair_round",
+                    children=[repair, route["otherwise"]],
+                ),
+            )
+        ]
+        hoisted = groups(graph["root"], "choice")["repair_execution_route"]
+        self.assertTrue(catches_unusable(hoisted, "repair"))
+        self.assertEqual(
+            sorted(
+                (choice["name"], when["value"]["name"])
+                for choice in groups(graph["root"], "choice").values()
+                for when in [branch["when"] for branch in choice["branches"]]
+                if when["value"]["source"] == "error"
+            ),
+            sorted((route, name) for name, route in UNUSABLE_ROUTES.items()),
+        )
+        self.assertEqual(
+            [n["name"] for n in walk(loop["body"]) if "worker" in n],
+            [
+                "repair",
+                "repair_evidence_check",
+                "repair_review",
+                "resolution_authority",
+                LOOP_TAIL,
+            ],
+        )
+        # Only the placement reading tells them apart, and it does.
+        self.assertEqual(unpaired_occurrences(graph["root"]), ["repair"])
+        self.assertEqual(unpaired_occurrences(self.root), [])
 
     def test_ordinary_output_cannot_acquire_adjudication_or_final_authority(self):
         # Every routing guard names the node whose signal it reads, and a node
