@@ -59,12 +59,6 @@ WRITABLE_PATHS = {
 }
 
 
-#: The one executable not authored as the pair below. `round_complete` ends the
-#: loop body, so what the graph runs after it is the loop's `until` rather than a
-#: sibling. Handled explicitly, not exempted.
-LOOP_TAIL = "round_complete"
-
-
 def walk(node):
     """Yield every node of the authored tree, parents before children."""
     yield node
@@ -80,31 +74,54 @@ def walk(node):
         yield from walk(node["body"])
 
 
-def authored_pairs(root):
-    """Map each executable authored as `seq(occurrence, route)` to that route.
+def routes_authored_after(root):
+    """Pairs of (executable, choice) where the choice is authored to run later.
 
-    The second child of a `seq` is what the graph runs when the first finishes,
-    so this reads each occurrence's authored continuation as a local shape. No
-    traversal decides which branch a run would take.
+    A `seq` runs its children in order, so anything inside a later child happens
+    after anything inside an earlier one. That is the whole reading: it says one
+    position cannot precede another, and decides nothing about which branch a run
+    takes or how Zeroshot schedules the rest of the graph. It is deliberately
+    indifferent to the tree syntax around the pair -- extra siblings, nesting, an
+    inert group spliced between -- because none of that moves the route in front
+    of the occurrence it guards, which is the failure this rules out.
     """
-    return {
-        node["children"][0]["name"]: node["children"][1]
-        for node in walk(root)
-        if node["kind"] == "seq"
-        and len(node["children"]) == 2
-        and node["children"][0]["kind"] in {"step", "verifier"}
-    }
+    pairs = set()
+    for node in walk(root):
+        if node["kind"] != "seq":
+            continue
+        for index, child in enumerate(node["children"]):
+            occurrences = {
+                n["name"] for n in walk(child) if n["kind"] in {"step", "verifier"}
+            }
+            routes = {
+                n["name"]
+                for later in node["children"][index + 1 :]
+                for n in walk(later)
+                if n["kind"] == "choice"
+            }
+            pairs |= {(name, route) for name in occurrences for route in routes}
+    return pairs
 
 
-def last_authored(node):
-    """Descend to the position the graph authors last within `node`."""
-    while True:
-        if node["kind"] == "seq":
-            node = node["children"][-1]
-        elif node["kind"] == "choice":
-            node = node["otherwise"]
-        else:
-            return node
+def routing(*pairs):
+    """Guard-to-sink pairs of a choice, compared without pinning branch order.
+
+    Which guard reaches which sink is the requirement. The order the branches
+    sit in is only a requirement where two guards can hold at once, and a node's
+    own guards cannot: it either fails to produce a usable execution or emits one
+    label, never both. Routes whose guards read *different* nodes are the
+    exception and are compared in order where they appear.
+    """
+    return sorted(
+        (json.dumps(guard, sort_keys=True), reason) for guard, reason in pairs
+    )
+
+
+def routed(choice):
+    """`routing` as the graph actually authors this choice."""
+    return routing(
+        *((branch["when"], branch["node"]["reason"]) for branch in choice["branches"])
+    )
 
 
 def executables(root):
@@ -189,33 +206,17 @@ class AuthoredTopologyTests(unittest.TestCase):
             sorted((route, name) for name, route in UNUSABLE_ROUTES.items()),
         )
         # Everything above reads guards by name, and a name is not a position:
-        # a correctly named guard on a choice reached before the occurrence runs
-        # catches nothing. So the placement is read too. Ten of the eleven
-        # executables are authored as `seq(occurrence, its route)`, and the
-        # second child of a seq is what runs when the first finishes.
-        pairs = authored_pairs(self.root)
-        self.assertEqual(
-            sorted(pairs), sorted(n for n in EXECUTABLE_NODES if n != LOOP_TAIL)
-        )
-        for name, route in pairs.items():
-            with self.subTest(node=name):
-                self.assertEqual(route["kind"], "choice")
-                self.assertEqual(route["name"], UNUSABLE_ROUTES[name])
-        # round_complete is the eleventh, and its position is read directly: it
-        # is the last thing the loop body authors, so nothing inside the loop
-        # follows it and the outcome lands on the loop's own `until` and on the
-        # choice authored immediately after the loop. Both carry its guard —
-        # asserted exactly in the bound test below.
-        loop = groups(self.root, "loop")["bounded_repair"]
-        self.assertIs(last_authored(loop["body"]), self.nodes[LOOP_TAIL])
-        self.assertIn(error_guard(LOOP_TAIL), loop["until"]["guards"])
-        self.assertEqual(
-            [
-                child["name"]
-                for child in groups(self.root, "seq")["repair_then_final"]["children"]
-            ],
-            ["bounded_repair", UNUSABLE_ROUTES[LOOP_TAIL]],
-        )
+        # a guard on a choice the graph runs *before* the occurrence catches
+        # nothing, however correctly it is named. So each pairing is also
+        # required to be authored in that order -- the route somewhere after the
+        # occurrence, which for the loop control means after the loop it ends.
+        # Only the order is asserted. What shape the authored tree uses to get
+        # there is not a product requirement, and pinning it would fail honest
+        # refactors that move no guard.
+        authored_after = routes_authored_after(self.root)
+        for name, route in UNUSABLE_ROUTES.items():
+            with self.subTest(node=name, route=route):
+                self.assertIn((name, route), authored_after)
 
     def test_ordinary_output_cannot_acquire_adjudication_or_final_authority(self):
         # Every routing guard names the node whose signal it reads, and a node
@@ -289,16 +290,12 @@ class AuthoredTopologyTests(unittest.TestCase):
             assessor = f"final_assessment_authority_{suffix}"
             route = self.choices[f"final_route_{suffix}"]
             self.assertEqual(
-                [branch["when"] for branch in route["branches"]],
-                [
-                    error_guard(assessor),
-                    signal_guard(assessor, "assessment", "gap"),
-                    signal_guard(assessor, "assessment", "refused"),
-                ],
-            )
-            self.assertEqual(
-                [branch["node"]["reason"] for branch in route["branches"]],
-                ["execution_unusable", "semantic_gap", "authority_gap"],
+                routed(route),
+                routing(
+                    (error_guard(assessor), "execution_unusable"),
+                    (signal_guard(assessor, "assessment", "gap"), "semantic_gap"),
+                    (signal_guard(assessor, "assessment", "refused"), "authority_gap"),
+                ),
             )
             self.assertEqual(
                 route["otherwise"]["name"], f"semantic_acceptance_{suffix}"
@@ -314,15 +311,14 @@ class AuthoredTopologyTests(unittest.TestCase):
             route = self.choices[f"{prefix}_evidence_route"]
             with self.subTest(occurrence=prefix):
                 self.assertEqual(
-                    [branch["when"] for branch in route["branches"]],
-                    [
-                        error_guard(check),
-                        signal_guard(check, "availability", "missing"),
-                    ],
-                )
-                self.assertEqual(
-                    [branch["node"]["reason"] for branch in route["branches"]],
-                    ["execution_unusable", "required_evidence_missing"],
+                    routed(route),
+                    routing(
+                        (error_guard(check), "execution_unusable"),
+                        (
+                            signal_guard(check, "availability", "missing"),
+                            "required_evidence_missing",
+                        ),
+                    ),
                 )
                 # Availability only reports production: the valid fall-through
                 # leads to the fresh review, never straight to an assessment.
@@ -453,17 +449,26 @@ class AuthoredTopologyTests(unittest.TestCase):
         # rather than re-derived, which is what makes the directive sticky.
         for path in (["obligation"], ["directiveContent"], ["findings"]):
             self.assertIn(path, loop["promotedStatePaths"])
+        # The one route whose branch order is itself a requirement. Its two
+        # guards read different nodes -- round_complete's error and
+        # resolution_authority's `open_d1` -- so both can hold at the same time,
+        # and which is authored first decides whether the run reports an
+        # unusable execution or an exhausted bound. That is exactly the state the
+        # #17 campaign's `open-control-crash` reaches, and it fails
+        # `execution_unusable`. Compared in order, unlike the routes above.
         route = self.choices["post_repair_bound_route"]
         self.assertEqual(
-            [branch["when"] for branch in route["branches"]],
             [
-                error_guard("round_complete"),
-                signal_guard("resolution_authority", "resolution", "open_d1"),
+                (branch["when"], branch["node"]["reason"])
+                for branch in route["branches"]
             ],
-        )
-        self.assertEqual(
-            [branch["node"]["reason"] for branch in route["branches"]],
-            ["execution_unusable", "obligations_exhausted"],
+            [
+                (error_guard("round_complete"), "execution_unusable"),
+                (
+                    signal_guard("resolution_authority", "resolution", "open_d1"),
+                    "obligations_exhausted",
+                ),
+            ],
         )
         self.assertEqual(
             route["otherwise"]["name"], "final_semantic_assessment_repaired"
