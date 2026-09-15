@@ -152,11 +152,10 @@ def main():
     if fault == "crash" and selected == node:
         return 70
     if fault == "hang" and selected == node:
-        # Record entry into the hang itself, after the transcript event that
-        # says the execution started. The two together are what distinguish a
-        # provider that reached its intentional hang and was terminated there
-        # from one Zeroshot timed out during startup.
-        (state / f"{node}.hang-entered").write_text(str(time.time_ns()))
+        # Record reaching the hang itself. Its presence is what distinguishes a
+        # provider terminated inside its intentional hang from one the runtime
+        # timed out before the execution got that far.
+        (state / f"{node}.hang-entered").touch()
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
         while True:
             time.sleep(1)

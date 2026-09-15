@@ -18,7 +18,6 @@ from broodling.assurance_graph import assurance_graph, assurance_runtime, initia
 ROOT = Path(__file__).resolve().parents[1]
 LEAF_BIN = ROOT / "tests/fixtures/assurance-bin"
 CONTRACT = "frozen-contract-v1: replace the old greeting; preserve newline"
-FINDING = "Candidate still prints the old greeting. RAW_REJECTED_FINDING_CANARY"
 DIRECTIVE = {
     "directive": "Replace the old greeting with the Contract greeting.",
     "correction": "Update candidate.txt and preserve its trailing newline.",
@@ -131,7 +130,14 @@ async def run_case(run_root, workspace_root, name, scenario, *, graph=None):
         environment=environment,
     ) as client:
         run = await client.submit(request)
-        result = await run.wait(wait_timeout=60)
+        # The campaign's own deadline, not a product timing guarantee: node
+        # timeouts stay at the authored 300000ms. `sticky-exhaust` is the
+        # longest case at 19 node executions and measures 34-36s here, and 60s
+        # left too little margin on a host whose wall clock for these campaigns
+        # has been recorded varying by more than half again on unchanged code --
+        # a slow sample truncated the run and failed its terminal assertions.
+        # 90s matches what the #18 campaign already allows its own longest runs.
+        result = await run.wait(wait_timeout=90)
         status = await run.status()
     transcript = leaf_state / "driver.jsonl"
     return {
@@ -146,12 +152,12 @@ async def run_case(run_root, workspace_root, name, scenario, *, graph=None):
         if transcript.exists()
         else [],
         # Written by the leaf from inside the intentional hang, per node.
-        "hangEnteredNs": {
-            marker.name.removesuffix(".hang-entered"): int(marker.read_text())
-            for marker in sorted(leaf_state.glob("*.hang-entered"))
-        }
+        "hangEntered": sorted(
+            marker.name.removesuffix(".hang-entered")
+            for marker in leaf_state.glob("*.hang-entered")
+        )
         if leaf_state.exists()
-        else {},
+        else [],
     }
 
 
@@ -165,7 +171,26 @@ def definitions():
     own route, and `test_assurance_graph_structure.py` reads that off the graph —
     so each fault class is witnessed once, at one representative node.
 
-    Four W3 demonstrations are named by the v0.5 plan but not run here, because
+    The clean route and the found -> adjudicated -> repaired -> resolved route
+    are not run here. The #18 campaign's `valid` and `repair-renewed` take those
+    same two routes through the *exact* product graph and runtime -- this
+    campaign substitutes the runtime's binding models -- while additionally
+    driving the real deterministic evidence leaf, so they are the stronger
+    witness of the same execution. The assertions those two runs carried moved
+    with them: route order, the adjudicator receiving the review's actual
+    finding, and the repair handoff carrying the directive and nothing else.
+
+    Where a fault is injected is not a claim either, so each fault class is
+    witnessed at the earliest occurrence that can carry it: process death at
+    `implement`, the first executable node, and every response defect at
+    `initial_review`, the first model node declaring both a signal and an output
+    payload. That an error at a *later* occurrence is caught on that
+    occurrence's own route, and that a control error inside the loop stops the
+    loop rather than buying another round, are authored facts asserted against
+    the graph -- `UNUSABLE_ROUTES`, and `round_complete`'s error in both the
+    loop's `until` and `post_repair_bound_route`.
+
+    Eight W3 demonstrations are named by the v0.5 plan but not run here, because
     each is either established below the seam or already witnessed elsewhere.
     Removing required evidence is exercised by the #18 campaign's own
     `missing-initial` and `missing-renewed`, which delete the material for real
@@ -186,9 +211,10 @@ def definitions():
     The widened-binding canary mutates the product graph to bind raw findings
     into `repair`, and the invariant it guards is the authored input of `repair`,
     read directly from the graph. Its one runtime premise -- that a bound state
-    path really is delivered -- is witnessed on the *unmodified* graph by
-    `repair-resolve`, where `findingContent` reaches `adjudicate_authority`. The
-    original canary evidence is retained in `issue-17-controls.json`.
+    path really is delivered -- is witnessed on the *unmodified* graph by the #18
+    campaign's `repair-renewed`, where the bytes the review emitted as
+    `findingContent` reach `adjudicate_authority`. The original canary evidence
+    is retained in `issue-17-controls.json`.
 
     The final assessor's refusal and gap routes are not run here either. #45
     treats that routing as Broodling-owned structural behaviour, and
@@ -203,12 +229,6 @@ def definitions():
     signals `gap` and fails `semantic_gap` on the exact product graph.
     """
     routes = [
-        # Clean route to the distinct final assessor, and acceptance.
-        ("clean", "clean", None),
-        # Found -> adjudicated directive -> one repair round -> renewed evidence,
-        # fresh review, resolution -> repaired final. Also the run carrying the
-        # repair-input, forged-identifier and contradictory-prose canaries.
-        ("repair-resolve", "repair-resolve", None),
         # Three rounds resolving on the last allowed one: fresh candidate per
         # round, no reuse of an earlier round's assurance, and acceptance.
         ("repeat-labels", "repeat-labels", None),
@@ -225,19 +245,20 @@ def definitions():
         ("sticky-exhaust", "sticky-exhaust", "obligations_exhausted"),
     ]
     faults = [
-        # Process death at an executable node becomes a node error, and an open
-        # obligation does not buy another repair round.
-        ("open-control-crash", "sticky-exhaust;crash:round_complete", None),
+        # Process death at an executable node becomes a node error, witnessed at
+        # the first executable occurrence there is.
+        ("crash-implement", "clean;crash:implement", None),
         # The ways the pinned runtime has to reject a response that did arrive.
         # Each isolates one defect: the required signal omitted from an otherwise
         # valid response, an unparseable payload, an empty default, and a
-        # declared output payload the model omitted.
+        # declared output payload the model omitted. All four are injected at the
+        # first model node that declares both a signal and an output payload.
         ("missing-initial_review", "clean;missing:initial_review", None),
         ("malformed-initial_review", "clean;malformed:initial_review", None),
         ("default-initial_review", "clean;default:initial_review", None),
         (
-            "missing-payload-adjudicate_authority",
-            "repair-resolve;missing_payload:adjudicate_authority",
+            "missing-payload-initial_review",
+            "clean;missing_payload:initial_review",
             None,
         ),
         # A node that never answers is terminated by the runtime, not waited on.
@@ -282,11 +303,8 @@ async def run_controls(run_root, workspace_root):
 
 
 def acceptance_checks(cases):
-    repair = cases["repair-resolve"]
     repeated = cases["repeat-labels"]
     exhaustion = cases["sticky-exhaust"]
-    canary = next(e for e in repair["events"] if e["node"] == "repair")
-    authority = next(e for e in repair["events"] if e["node"] == "adjudicate_authority")
     mutations = [e for e in repeated["events"] if e["node"] in {"implement", "repair"}]
     return {
         "expected_terminal_routes": all(
@@ -296,9 +314,6 @@ def acceptance_checks(cases):
             for name, _, reason in definitions()
             for case in [cases[name]]
         ),
-        "clean_requires_distinct_final": nodes(cases["clean"]) == CLEAN_ORDER,
-        "repair_requires_fresh_evidence_review_authority": nodes(repair)
-        == CLEAN_ORDER[:-1] + ROUND_ORDER + ["final_assessment_authority_repaired"],
         "repeated_labels_cannot_reuse_old_assurance": nodes(repeated)
         == CLEAN_ORDER[:-1] + ROUND_ORDER * 3 + ["final_assessment_authority_repaired"]
         and [e["candidate"] for e in mutations]
@@ -321,14 +336,6 @@ def acceptance_checks(cases):
             for e in repeated["events"]
             if e["node"] in ROUND_ORDER
         ),
-        "actual_findings_reach_adjudicator": authority["input"]["findingContent"]
-        == FINDING,
-        "actual_directive_reaches_repair_without_raw_findings": canary["input"]
-        == {
-            "contract": CONTRACT,
-            "directive": "open_d1",
-            "directiveContent": DIRECTIVE,
-        },
         # Provenance, exactly as far as it goes: a case submitting anything but
         # the product graph carries a declaration, and a case carrying one really
         # did submit a different graph. The declaration's text describes the
@@ -368,37 +375,24 @@ def acceptance_checks(cases):
         ),
         "bound_three_stops_before_final": nodes(exhaustion).count("repair") == 3
         and not any(n.startswith("final_assessment") for n in nodes(exhaustion)),
-        # A hang case is only a witness of a *provider* hang if the provider got
-        # as far as hanging. The leaf records the execution in the transcript on
-        # entry, then records reaching the intentional hang from inside it; a
-        # runtime that timed the node out during startup would leave the second
-        # record absent. So: the selected node and only the selected node
-        # entered the hang, it entered after its execution was recorded, and no
-        # other case entered one at all.
-        "hang_terminated_a_provider_inside_the_intentional_hang": (
-            set(cases["hang-initial_review"]["hangEnteredNs"]) == {"initial_review"}
-            and cases["hang-initial_review"]["hangEnteredNs"]["initial_review"]
-            >= next(
-                e["recordedNs"]
-                for e in cases["hang-initial_review"]["events"]
-                if e["node"] == "initial_review"
-            )
-            and not any(
-                case["hangEnteredNs"]
-                for name, case in cases.items()
-                if name != "hang-initial_review"
-            )
-        ),
+        # A hang case is only a witness of a *provider* hang if the provider
+        # got as far as hanging. The leaf writes this marker from inside the
+        # intentional hang; a node timed out during startup would leave it
+        # absent, and the run would fail identically from the outside.
+        "hang_terminated_a_provider_inside_the_intentional_hang": cases[
+            "hang-initial_review"
+        ]["hangEntered"]
+        == ["initial_review"],
         "control_faults_stop_before_final": all(
             not any(n.startswith("final_assessment") for n in nodes(cases[name]))
             for name, _, reason in definitions()
             if reason == "execution_unusable"
         ),
-        "diagnostics_do_not_retarget_contract_or_bypass_repair": all(
-            cases[name]["result"]["output"]["contract"] == CONTRACT
-            and "repair" in nodes(cases[name])
-            for name in ("repair-resolve", "repeat-labels")
-        ),
+        "diagnostics_do_not_retarget_contract_or_bypass_repair": repeated["result"][
+            "output"
+        ]["contract"]
+        == CONTRACT
+        and "repair" in nodes(repeated),
         "qualified_sandbox_and_session_modes": all(
             e["argv"][e["argv"].index("--sandbox") + 1]
             == (

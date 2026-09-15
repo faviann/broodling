@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
-from assurance_support import canonical_hash, jsonable
+from assurance_support import CLEAN_ORDER, ROUND_ORDER, canonical_hash, jsonable
 from support import AttemptTestCase, criterion, git
 
 from broodling import EvidencePopulation
@@ -22,8 +22,14 @@ from broodling.zeroshot_sdk import ZeroshotSubmitter
 ROOT = Path(__file__).resolve().parents[1]
 LEAF = ROOT / "tests/fixtures/evidence-bin/codex"
 #: The distinct integration assumptions that need a complete real run (#45).
+#: The clean and repaired routes as the model transcript records them. The two
+#: evidence occurrences are missing because they run the real deterministic leaf
+#: rather than the model executable -- which is itself asserted below, and what
+#: each check produced is held against the reviews that consume it.
+MODEL_CLEAN_ROUTE = [n for n in CLEAN_ORDER if not n.endswith("evidence_check")]
+MODEL_ROUND_ROUTE = [n for n in ROUND_ORDER if not n.endswith("evidence_check")]
 SCENARIOS = (
-    # Complete raw evidence reaches acceptance.
+    # The clean route end to end, on the exact product graph and runtime.
     "valid",
     # Available but insufficient evidence still fails at the final assessment
     # rather than at the availability signal, which reports production only.
@@ -248,10 +254,34 @@ def acceptance_checks(cases):
     initial = events("repair-renewed", "initial_review")[0]
     renewed = events("repair-renewed", "repair_review")[0]
     repair = events("repair-renewed", "repair")[0]
+    adjudication = events("repair-renewed", "adjudicate_authority")[0]
     resolution = events("repair-renewed", "resolution_authority")
     return {
         "valid_complete_raw_evidence_reaches_acceptance": valid["result"]["succeeded"]
         and raw(events("valid", "initial_review")[0])["results"] == ["PASS"] * 3,
+        # The two routes themselves, taken end to end. A clean adjudication
+        # reaches the assessor reserved for it; a repaired round renews evidence,
+        # review and resolution and reaches the other one. The two assessors are
+        # distinct nodes, so neither run can borrow the other's assessment.
+        "clean_route_reaches_the_distinct_clean_final": [
+            e["node"] for e in valid["events"]
+        ]
+        == MODEL_CLEAN_ROUTE,
+        "repair_route_renews_review_and_authority_before_the_repaired_final": [
+            e["node"] for e in cases["repair-renewed"]["events"]
+        ]
+        == MODEL_CLEAN_ROUTE[:-1]
+        + MODEL_ROUND_ROUTE
+        + ["final_assessment_authority_repaired"],
+        # A bound state path really is delivered: the raw finding the review
+        # produced arrives at the adjudicator, which is the only node entitled to
+        # turn it into a directive. This is the runtime premise the retired
+        # widened-binding canary rested on, witnessed on the unmodified graph.
+        "the_reviews_actual_finding_reaches_the_adjudicator": adjudication["input"][
+            "findingContent"
+        ]
+        == initial["response"]["output"]["findingContent"]
+        and "RAW_REJECTED_FINDING_CANARY" in adjudication["input"]["findingContent"],
         "semantic_mismatch_fails_at_final_despite_available_evidence": (
             not cases["wrong-population"]["result"]["succeeded"]
             and cases["wrong-population"]["result"]["failure"] == "semantic_gap"
