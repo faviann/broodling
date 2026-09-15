@@ -674,24 +674,30 @@ back to back:
 
 | Phase | Before | After |
 | --- | --- | --- |
-| `AssuranceGraphTests` setup | 591.4s | 126.1s |
-| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 101.4s |
-| Both modules end to end | 798.2s (13:18) | 227.8s (3:47) |
+| `AssuranceGraphTests` setup | 591.4s | 133.9s |
+| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 104.4s |
+| Both modules end to end | 798.2s (13:18) | 238.7s (3:58) |
 
 Treat any smaller difference than those as noise: these two campaigns have been
 recorded at 327s, 322s and 206s on *unchanged* code, so a few runs added or
 removed will not be readable in the wall clock. The run count is the number that
-means something. The tests that took over the removed claims cost under a second
-for 16, in the default regression lane, on every commit.
+means something. The assurance row carries about 13s for `open-control-crash`,
+which reaches `round_complete` through a repair round rather than crashing at
+the first node; the evidence campaign did not change, and 101.4s in an earlier
+sample against 104.4s here is the same host noise.
+
+The tests that took over the removed claims cost under a second for 16, in the
+default regression lane, on every commit.
 
 ## Retained witnesses
 
 Kept because execution behaviour is the claim and nothing cheaper or stronger
 already holds it.
 
-- **#17 controls** (8 of 38): `repeat-labels`, `sticky-exhaust`, `crash-implement`,
-  `missing-initial_review`, `malformed-initial_review`, `default-initial_review`,
-  `missing-payload-initial_review`, `hang-initial_review`.
+- **#17 controls** (8 of 38): `repeat-labels`, `sticky-exhaust`,
+  `open-control-crash`, `missing-initial_review`, `malformed-initial_review`,
+  `default-initial_review`, `missing-payload-initial_review`,
+  `hang-initial_review`.
 - **#18 evidence** (5 of 12): `valid`, `wrong-population`, `missing-initial`,
   `repair-renewed`, `timeout-descendant`.
 
@@ -710,8 +716,8 @@ admitted product submissions (two routes, run by two producers each).
 
 | Removed | From | n | Now covered by |
 | --- | --- | --- | --- |
-| `crash-{node}` | #17 | 11 | structural: every occurrence is caught on the route the graph authors *after* it, every such branch a `fail`. Runtime: retained `crash-implement` |
-| `{missing,malformed,default,hang}-round_complete` | #17 | 4 | structural: the loop's `until` and `post_repair_bound_route` both take `round_complete`'s error to a `fail` |
+| `crash-{node}` | #17 | 11 | structural: every occurrence is caught on the route the graph authors *after* it, every such branch a `fail`. Runtime: retained `open-control-crash` |
+| `{missing,malformed,default,hang}-round_complete` | #17 | 4 | structural: the loop's `until` and `post_repair_bound_route` both take `round_complete`'s error to a `fail`. Runtime: retained `open-control-crash`, for the one part of this the graph cannot decide — see rule 3 |
 | `authority-claim-{implement,repair}` | #17 | 2 | structural: both mutation nodes are `step`s with null output, no signals and no write bindings |
 | `refusal`, `final-gap` | #17 | 2 | structural: both final routes asserted branch for branch, acceptance reachable only as the fall-through. Runtime: retained `sticky-exhaust` and #18's `wrong-population` |
 | `clean`, `repair-resolve`, and the admitted product submissions of both | #17 case set; both admitted-submission producers | 2 + 4 | #18's `valid` and `repair-renewed`, same two routes on the exact product graph *and* runtime. The restart-and-retry property only `admitted_case` carried is asserted without Zeroshot by `test_assurance_submission.py` |
@@ -742,11 +748,18 @@ Five rules, in the order they usually apply.
    product coordinator on the exact product graph *and* runtime and drives the
    real deterministic evidence leaf, while #17 substitutes every runtime
    binding's model and connections.
-3. **Which node a fault happens at is authored, not witnessed.** The graph
-   catches every executable occurrence on its own route, so inject each fault at
-   the first occurrence that can carry it: process death at `implement`, every
-   response defect at `initial_review`, the first model node declaring both a
-   signal and an output payload.
+3. **Which node a fault happens at is authored, not witnessed — unless the node
+   is where a dependency behaviour shows.** The graph catches every executable
+   occurrence on its own route, so every response defect is witnessed once at
+   `initial_review`, the first model node declaring both a signal and an output
+   payload. `round_complete` is the exception: the graph authors its error into
+   the loop's `until` as well as onto `post_repair_bound_route`, and whether
+   Zeroshot *evaluates* an error-sourced `until` — ending the loop after the
+   failed round instead of spending another, or falling through to a final
+   assessment — is loop semantics the graph reads identically either way. So the
+   crash is injected there, with the obligation open and two of three rounds
+   unspent, and `open-control-crash` carries both that claim and process death
+   becoming a node error rather than paying for two runs.
 4. **A run on a mutated graph is not a witness of the graph.** It demonstrates
    the suite's own sensitivity, which belongs in a mutant check, not in a
    Zeroshot run on a graph Broodling never ships.

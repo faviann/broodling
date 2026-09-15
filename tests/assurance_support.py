@@ -179,15 +179,23 @@ def definitions():
     with them: route order, the adjudicator receiving the review's actual
     finding, and the repair handoff carrying the directive and nothing else.
 
-    Where a fault is injected is not a claim either, so each fault class is
-    witnessed at the earliest occurrence that can carry it: process death at
-    `implement`, the first executable node, and every response defect at
-    `initial_review`, the first model node declaring both a signal and an output
-    payload. That an error at a *later* occurrence is caught on that
-    occurrence's own route, and that a control error inside the loop stops the
-    loop rather than buying another round, are authored facts asserted against
-    the graph -- `UNUSABLE_ROUTES`, and `round_complete`'s error in both the
-    loop's `until` and `post_repair_bound_route`.
+    Where a fault is injected is usually not a claim either, so every response
+    defect is witnessed once at `initial_review`, the first model node declaring
+    both a signal and an output payload; that an error at a later occurrence is
+    caught on that occurrence's own route is authored, and read off the graph as
+    `UNUSABLE_ROUTES`.
+
+    `round_complete` is the one exception, and it is why the crash is injected
+    there rather than at `implement`. The graph authors that node's error in two
+    places -- the loop's `until`, and `post_repair_bound_route` -- and both
+    placements are authored facts the structural tests assert. What they cannot
+    reach is whether Zeroshot *evaluates* an error-sourced `until`: a runtime
+    that ignored it would spend another of the three rounds, or fall through to
+    a final assessment, on a graph that reads identically. That is the
+    dependency's loop semantics, so it keeps a real witness -- injected with the
+    obligation still open and two rounds still available, so a loop that did not
+    stop would visibly run on. One run carries both that claim and process
+    death becoming a node error.
 
     Eight W3 demonstrations are named by the v0.5 plan but not run here, because
     each is either established below the seam or already witnessed elsewhere.
@@ -246,9 +254,12 @@ def definitions():
         ("sticky-exhaust", "sticky-exhaust", "obligations_exhausted"),
     ]
     faults = [
-        # Process death at an executable node becomes a node error, witnessed at
-        # the first executable occurrence there is.
-        ("crash-implement", "clean;crash:implement", None),
+        # Process death at an executable node becomes a node error, and an
+        # error-sourced loop `until` really does end the loop. See the docstring
+        # above for why these two travel together, and
+        # `open_control_error_stops_the_loop_without_another_round` for what the
+        # run has to show.
+        ("open-control-crash", "sticky-exhaust;crash:round_complete", None),
         # The ways the pinned runtime has to reject a response that did arrive.
         # Each isolates one defect: the required signal omitted from an otherwise
         # valid response, an unparseable payload, an empty default, and a
@@ -306,6 +317,7 @@ async def run_controls(run_root, workspace_root):
 def acceptance_checks(cases):
     repeated = cases["repeat-labels"]
     exhaustion = cases["sticky-exhaust"]
+    control_crash = cases["open-control-crash"]
     mutations = [e for e in repeated["events"] if e["node"] in {"implement", "repair"}]
     return {
         "expected_terminal_routes": all(
@@ -384,6 +396,31 @@ def acceptance_checks(cases):
             "hang-initial_review"
         ]["hangEntered"]
         == ["initial_review"],
+        # The loop's `until` names round_complete's error, and this is the run
+        # that shows Zeroshot acting on it. The obligation is open and two of
+        # the three rounds are unspent, so a runtime that ignored the guard
+        # would start another round or fall through to the repaired final
+        # assessment, on a graph that reads identically either way.
+        #
+        # Measured, the runtime starts the provider twice for a node killed by
+        # process death -- `round_complete` here, and `implement` under the
+        # `crash-implement` this case replaces -- while a rejected response is
+        # started once. That is the dependency's own recovery behaviour, not
+        # something Broodling authors (`attempts` is 1 on every node, asserted
+        # structurally), so the count of control executions is deliberately not
+        # asserted here. Dropping `round_complete` from the sequence leaves
+        # exactly what this case is a witness of: the clean prefix, one repair
+        # round, no second round and no final assessment.
+        "open_control_error_stops_the_loop_without_another_round": [
+            node for node in nodes(control_crash) if node != "round_complete"
+        ]
+        == CLEAN_ORDER[:-1] + ROUND_ORDER[:-1]
+        and all(
+            event["response"]["signals"]["resolution"] == "open_d1"
+            for event in control_crash["events"]
+            if event["node"] == "resolution_authority"
+        )
+        and control_crash["result"]["failure"] == "execution_unusable",
         "control_faults_stop_before_final": all(
             not any(n.startswith("final_assessment") for n in nodes(cases[name]))
             for name, _, reason in definitions()
