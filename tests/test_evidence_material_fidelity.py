@@ -1,16 +1,8 @@
-"""Every mismatch dimension survives the deterministic leaf byte for byte.
+"""The Broodling collector preserves opaque raw material and frozen metadata.
 
-Issue #45. The #18 campaign used to run six complete Zeroshot scenarios —
-population, host, mode, artifact, contradiction, insufficiency — that differ only
-in the bytes inside the candidate the check prints. Each one traverses the same
-graph on the same route and ends the same way, so what they jointly established
-about *Broodling* is this: whatever the mismatch, the product's deterministic
-evidence leaf carries the raw material and the frozen population into the
-assessor's input unaltered, and never judges it.
-
-That is decidable here, against the real leaf, without Zeroshot. The campaign
-keeps one real run to witness that available-but-insufficient evidence still
-fails at the final assessment rather than short-circuiting the review.
+The representative payloads contain mismatches, but the collector does not judge
+their sufficiency. These tests stop at its output: they do not prove assessor
+behavior, transport through Zeroshot, or semantic rejection of six dimensions.
 """
 
 from __future__ import annotations
@@ -56,14 +48,14 @@ class DeterministicMaterialFidelityTests(unittest.TestCase):
         self.assertEqual(len(observations), 1)
         return observations[0]
 
-    def test_each_mismatch_dimension_reaches_the_assessor_unaltered(self):
+    def test_opaque_payloads_are_collected_unaltered(self):
         for scenario in ("valid", *SEMANTIC_GAPS):
             with self.subTest(scenario=scenario):
                 raw = raw_material(scenario)
                 raw["generationMaterial"] = "AFTER_IMPLEMENT"
                 candidate = json.dumps(raw)
                 observed = self.observe(candidate)
-                # stdout is what the assessor reads and materials[0] is the
+                # stdout is the command output and materials[0] is the
                 # candidate it was read from; both must be the exact bytes.
                 self.assertEqual(json.loads(observed["stdout"]), raw)
                 self.assertEqual(observed["stdout"], candidate + "\n")

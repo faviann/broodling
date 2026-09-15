@@ -506,7 +506,7 @@ set; without the SDK its tests skip either way, and the skip message says which
 of the two is missing.
 
 `tests/zeroshot_lane.py` is the whole mechanism: one `unittest.skipUnless` built
-from an environment variable, applied as `@qualification_lane` to nine test
+from an environment variable, applied as `@qualification_lane` to seven test
 classes. An environment variable rather than a pytest marker because the suite is
 also documented to run under `unittest discover`, where markers do not exist —
 and `skipUnless` needs no plugin, conftest hook or configuration in either
@@ -531,11 +531,9 @@ sidecar built from `d090961`, so nothing skips):
 | Broodling regression (default) | 390 passed, 39 skipped | 2:40 |
 | Both lanes | 431 passed, 0 skipped | ~49 min, unchanged |
 
-The before/both rows were measured on the branch point; #43 has since net
-removed two identity cases, so the same runs report 429 today. The split itself
-accounts for the 39. #45 has since deleted `test_assurance_public.py`, so the
-lane is 37 tests and a default run reports 406 passed, 37 skipped of 443
-collected — see *What each removed run is now covered by* under #45.
+The before/both rows are historical measurements at the split's branch point.
+Subsequent test changes, including the ownership audit below, changed collection
+and campaign counts; these rows do not describe current collection.
 
 56 tests required the real SDK and accounted for **2844.5s of 2937.3s — 96.8% of
 the runtime**; the other 356 cost 92.8s between them. Cost inside the real-SDK
@@ -550,13 +548,13 @@ than an all-or-nothing one:
 
 ## What is in the lane, and why
 
-Real Zeroshot execution whose cost is paid for a gate rather than for the next
-commit. Each entry keeps its full witness; only the moment it runs changed.
+The following integration/lifecycle witnesses are opt-in. The split originally
+changed only when they ran; the ownership audit below also removes engine-only
+assertions and retires the #17 campaign.
 
 | Module | Tests | Protects |
 | --- | --- | --- |
-| `test_assurance_graph.py` | 2 | G3-V1 actual graph negative/positive controls (#17) |
-| `test_evidence_graph.py` | 1 | G3-V1 graph-local mechanical evidence controls (#18) |
+| `test_evidence_graph.py` | 1 | Broodling evidence/authority integration seams (#18) |
 | `test_final_assurance_capture.py` | 7 | #19 completed custody against the actual SDK path |
 | `test_final_assurance_public.py` | 4 | #19 current-run observation on the real graph |
 | `test_disposition_public.py` | 10 | G4-V1 no-effect disposition and finalization races |
@@ -564,10 +562,10 @@ commit. Each entry keeps its full witness; only the moment it runs changed.
 | `test_abandonment_public.py` | 6 | stop/cessation/retirement windows on the pinned SDK |
 | `test_stop_protocol_compatibility.py` | 1 | published #21 protocol can still cease and retire |
 
-G3-V1 requires *actual* graph controls and G4-V1 requires a real-provider
-no-effect vertical slice, so none of these was replaced by a double. The gate
-still has the witness it asks for; a developer no longer pays for it on every
-run.
+The ownership audit below supersedes the rule that every historical gate
+witness must remain an executable test. Actual Broodling integration and lifecycle
+witnesses remain; dependency-control-flow assertions do not. Historical gate
+records retain their original meaning.
 
 ## What stayed in regression, and why
 
@@ -610,9 +608,9 @@ against a controlled double, so the default lane loses no assertion:
   of concurrent abandoners is already covered without the SDK by
   `test_abandonment_foundation.py::test_concurrent_abandoners_converge`.
 
-Neither was deleted. A dependency-behaviour witness is worth keeping where it
-records an assumption Broodling relies on — it is worth keeping *out* of the
-per-commit loop.
+These two tests still accompany existing production behavior; they are not a
+precedent for preserving dependency conformance tests. The terminal-observation
+restriction is explicitly flagged for production redesign in the PR #48 audit.
 
 ## What the default lane still covers with doubles
 
@@ -628,170 +626,107 @@ real process witnesses without needing the SDK at all.
 
 # Minimal real-Zeroshot witnesses (issue #45)
 
-The two G3-V1 campaigns were replaying complete Zeroshot runs to establish
-properties of a file this repository authors. One rule was applied to every run:
-**if the claim is decidable from Broodling's own authored artifact, decide it
-there; if the claim is Zeroshot's execution behaviour, keep a real witness.**
+The 15 September PR #48 ownership re-audit supersedes the earlier strategy of
+replacing runtime permutations with graph-structure proofs. **First identify a
+Broodling requirement or integration assumption.** Authorship, inspectability and
+historical qualification coverage do not establish ownership. Delete assertions
+of Zeroshot internals rather than moving them to a cheaper simulated layer.
 
-This section is the only place that mapping is written down. The campaign
-entrypoints' `witnessScope` fields state what their own record contains and point
-here. Adding or dropping a witness should mean editing the table below and the
-retained list beside it, and nothing else.
+The [ownership audit](../docs/implementation/pr48-ownership-audit.md) records the
+boundary, the justified tests, deliberately removed claims, over-specified #45
+and G3/G4 requirements, and production design that still conflicts with the target.
 
-## Counts and cost
+## Current coverage
 
-Real Zeroshot runs. Two separate things execute these cases, and they are
-counted separately: the opt-in pytest lane (`BROODLING_ZEROSHOT_LANE=1`), and the
-standalone qualification entrypoints, which are run by hand to produce a record.
-They share the case sets — `assurance_support.run_controls` and
-`evidence_support.SCENARIOS` — so the two tables below are the same removals seen
-from two callers, not two independent sets of runs. Do not add them together.
+Seven tests in test_assurance_policy.py check role/runtime correspondence,
+mutation capability, repair/reviewer input isolation, designated authority writers,
+immutable admission/private-diagnostic boundaries, and the fresh-session/evidence
+configuration. They enumerate declarations, not possible execution paths.
+Submission/profile, evidence collection, terminal interpretation, custody,
+disposition, abandonment/replacement and no-effect tests retain their own coverage.
 
-**Opt-in pytest qualification lane:**
+The real evidence campaign retains only these integration cases:
 
-| Lane module | Case set | Before | After |
-| --- | --- | --- | --- |
-| `test_assurance_graph.py` (class setup) | `run_controls` | 38 | 8 |
-| `test_evidence_graph.py` | `SCENARIOS` | 12 | 5 |
-| `test_assurance_public.py` | 2 admitted product submissions | 2 | module deleted |
-| **Opt-in lane total** | | **52** | **13** |
+| Case | Broodling integration claim |
+| --- | --- |
+| valid | Frozen invocation runs with the custom evidence leaf and returns complete evidence/rationale |
+| wrong-population | Availability alone does not become acceptance at the configured result seam; controlled semantics, not broad model reliability |
+| missing-initial | Actual missing material from the custom leaf produces non-success |
+| repair-renewed | Finding/directive isolation and repaired evidence bytes survive the actual handoffs into the terminal result |
+| timeout-descendant | A child created by Broodling's custom evidence collector is actually present, then absent after runtime cancellation |
 
-**Standalone qualification entrypoints**, each executing its case set again when
-run by hand:
+The first four use the product graph/runtime unchanged. The last declares its
+5,000 ms evidence-node timeout in the record instead of using the 300,000 ms
+product timeout. It protects the custom subprocess boundary, not generic engine
+timer behavior. No case asserts an exact transcript, route placement, branch
+precedence, per-node failure matrix or loop iteration count.
 
-| Entrypoint | Before | After |
-| --- | --- | --- |
-| `qualification/v1-p3/issue17_controls.py` | 38 cases + 2 admitted product submissions | 8 cases |
-| `qualification/v1-p3/issue18_evidence.py` | 12 scenarios | 5 scenarios |
+The material-fidelity tests stop at the real collector's output. Mismatched raw
+payloads remain opaque data beside frozen metadata; those tests do not establish
+semantic rejection, assessor behavior or SDK transport.
 
-The two admitted product submissions had **two** producers — the lane module and
-the #17 entrypoint, four executions between them — which is why the mapping table
-below counts them as 4, and why `issue17_controls.py` no longer emits
-`admittedProductSubmissions`.
+## Deleted, not replaced
 
-Wall clock for the lane's two campaign modules on the qualified profile, run
-back to back:
+The 522-line test_assurance_graph_structure.py and eight-run #17 campaign are
+removed, along with their model fixture and control/adversarial entrypoints.
+This removes per-executable guards, routes_authored_after, sink/branch/loop/error
+proofs, repeated-label and sticky-exhaustion traces, response-defect matrices and
+generic hangs. Policy bindings survive in the seven tests above; engine claims
+have no replacement. No interpreter, analyzer or mutation framework is added.
 
-| Phase | Before | After |
-| --- | --- | --- |
-| `AssuranceGraphTests` setup | 591.4s | 133.9s |
-| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 104.4s |
-| Both modules end to end | 798.2s (13:18) | 238.7s (3:58) |
+Historical #17/#18/W-level evidence JSON and reports remain unchanged. To reproduce
+an older campaign, use its recorded Git tree; the reviewed pre-audit PR tree is
+d2d34ae30a2e573e23a61379184b623c988944f5. A deleted entrypoint does not emit an empty
+PASS or silently rerun another campaign. Current #18 records describe only the
+five cases and checks that actually ran.
 
-Treat any smaller difference than those as noise: these two campaigns have been
-recorded at 327s, 322s and 206s on *unchanged* code, so a few runs added or
-removed will not be readable in the wall clock. The run count is the number that
-means something. The assurance row carries about 13s for `open-control-crash`,
-which reaches `round_complete` through a repair round rather than crashing at
-the first node; the evidence campaign did not change, and 101.4s in an earlier
-sample against 104.4s here is the same host noise.
+## Counts and measurement
 
-The tests that took over the removed claims cost under a second for 16, in the
-default regression lane, on every commit.
+| Assurance/evidence opt-in runs | Before #45 | Reviewed PR #48 | After ownership audit |
+| --- | ---: | ---: | ---: |
+| #17 assurance campaign | 38 | 8 | 0 |
+| #18 evidence integration | 12 | 5 | 5 |
+| separate admitted submissions | 2 | 0 | 0 |
+| Total | 52 | 13 | 5 |
 
-## Retained witnesses
+These counts exclude other lifecycle/custody campaigns. The standalone #18
+record writer runs the same five cases when invoked separately; do not add its
+counts to the pytest alternative as though they were distinct requirements.
 
-Kept because execution behaviour is the claim and nothing cheaper or stronger
-already holds it.
+Previously recorded timings were 798.2 seconds for the two original campaign
+modules and 238.7 seconds for the reviewed 13-run PR (133.9 assurance, 104.4
+evidence). These are historical samples, not fresh measurements of this revision.
+Host variation prevents interpreting a small timing difference as a regression.
 
-- **#17 controls** (8 of 38): `repeat-labels`, `sticky-exhaust`,
-  `open-control-crash`, `missing-initial_review`, `malformed-initial_review`,
-  `default-initial_review`, `missing-payload-initial_review`,
-  `hang-initial_review`.
-- **#18 evidence** (5 of 12): `valid`, `wrong-population`, `missing-initial`,
-  `repair-renewed`, `timeout-descendant`.
+## Remaining architectural mismatch
 
-`wrong-population` carries three things at once: the v0.5 plan names it for
-G3-V1; it is the one witness that available-but-insufficient evidence fails at
-the final assessment rather than at the availability signal, which reports
-production only; and it is the lane's one real witness that a final assessor's
-non-accepted signal reaches the sink the graph names.
+The product still observes live mutation/final occurrences in observe_current and
+uses those references for final custody. Its tests remain while that production
+behavior exists. The audit explicitly proposes replacing this with the trusted
+terminal-result/artifact boundary, not deleting current lifecycle safeguards
+without changing their consumer. This PR narrows test ownership; it does not
+complete the production architecture migration or requalify all G3/G4 obligations.
 
-## What each removed run is now covered by
+## Verification of the ownership correction (15 September 2026)
 
-Thirty of thirty-eight #17 cases, seven of twelve #18 scenarios, and the four
-admitted product submissions (two routes, run by two producers each).
-"Structural" means
-`tests/test_assurance_graph_structure.py`, in the default regression lane.
+Qualified workstation profile: CPython 3.13.5, SDK 0.1.0.dev0 and sidecar/source
+hashes accepted by assert_qualified_integration. Production imports resolved to
+the isolated PR worktree, not the shared checkout.
 
-| Removed | From | n | Now covered by |
-| --- | --- | --- | --- |
-| `crash-{node}` | #17 | 11 | structural: every occurrence is caught on the route the graph authors *after* it, every such branch a `fail`. Runtime: retained `open-control-crash` |
-| `{missing,malformed,default,hang}-round_complete` | #17 | 4 | structural: the loop's `until` and `post_repair_bound_route` both take `round_complete`'s error to a `fail`. Runtime: retained `open-control-crash`, for the one part of this the graph cannot decide — see rule 3 |
-| `authority-claim-{implement,repair}` | #17 | 2 | structural: both mutation nodes are `step`s with null output, no signals and no write bindings |
-| `refusal`, `final-gap` | #17 | 2 | structural: both final routes asserted branch for branch, acceptance reachable only as the fall-through. Runtime: retained `sticky-exhaust` and #18's `wrong-population` |
-| `clean`, `repair-resolve`, and the admitted product submissions of both | #17 case set; both admitted-submission producers | 2 + 4 | #18's `valid` and `repair-renewed`, same two routes on the exact product graph *and* runtime. The restart-and-retry property only `admitted_case` carried is asserted without Zeroshot by `test_assurance_submission.py` |
-| `missing-after-repair`, `missing-initial` | #17 | 2 | structural: both evidence routes carry the same missing→fail branch. Runtime: #18's `missing-initial` removes material for real, `repair-renewed` witnesses fresh evidence after a mutation |
-| `repair-input-canary`, `widened-binding-canary` | #17 | 2 | structural: `repair`'s input and bindings asserted exactly. Runtime: #18's `repair-renewed` delivers a bound state path on the *unmodified* graph |
-| `missing-payload-{node}` | #17 | 1 | one case, at `initial_review` |
-| `forged-diagnostics` | #17 | 1 | the fixture emits forged identifiers on *every* response, so every retained run carries the canary; structurally, no write binding reads the diagnostic channel |
-| `contradictory-clean` | #17 | 1 | folded into the adjudicator's diagnostic on every route, asserted on `repeat-labels` |
-| `sticky-omission` | #17 | 1 | `missing-initial_review`, whose fault now omits the signal and nothing else |
-| `authority-claim-initial_review` | #17 | 1 | structural: guards name the node whose signal they read, and a review declares only `findings`, so a claimed `decision` or `assessment` satisfies no guard |
-| `wrong-host`, `wrong-mode`, `wrong-artifact`, `contradiction`, `insufficient` | #18 | 5 | `tests/test_evidence_material_fidelity.py`, all six mismatch dimensions against the real deterministic leaf |
-| `sticky` | #18 | 1 | structural: the obligation is carried by `bounded_repair`'s `promotedStatePaths` and written only by the two authorities. Runtime: #17's `sticky-exhaust`, plus `directive_stays_open_into_the_round_and_is_closed_only_by_resolution` inside `repair-renewed` |
-| `missing-renewed` | #18 | 1 | `missing-initial` + `repair-renewed` + the both-occurrences structural assertion, which together are exactly "missing evidence after a mutation fails closed" |
+The entire default regression selection was run in two disjoint groups:
 
-## Choosing a witness
+| Command selection | Result | Wall clock |
+| --- | --- | ---: |
+| pytest tests --ignore=tests/test_submission.py --ignore=tests/test_submission_crashes.py | 365 passed, 35 expected opt-in skips; 327 subtests passed | 99.57s |
+| pytest tests/test_submission.py tests/test_submission_crashes.py | 35 passed; 23 subtests passed | 68.57s |
+| BROODLING_ZEROSHOT_LANE=1 pytest tests/test_evidence_graph.py | All five real-SDK cases; 1 test and 14 subtests passed; no skips | 114.02s |
 
-Five rules, in the order they usually apply.
+Aggregate default selection: 400 passed, 35 expected skips, 350 subtests passed.
+The five-case campaign call itself took 113.62s. Earlier focused policy/evidence/
+submission/entrypoint coverage also passed (35 tests, 68 subtests, 21.07s).
+Changed Python files pass Ruff checks; git diff --check is clean.
 
-1. **Decide it from the artifact when you can.** `assurance_graph()` is a
-   dictionary this repository writes, so guard placement, reachable sinks and
-   what a repair node may read are decidable by reading it — and decidable for a
-   node added tomorrow, which eleven hand-listed crash scenarios were not. What
-   is *not* decidable there is whether Zeroshot turns exit code 70, an
-   unparseable payload, an omitted signal or a node that never answers into the
-   node error those guards name.
-2. **Keep the strongest witness of a claim, not one per campaign.** Where both
-   campaigns could make a claim it belongs to #18, which submits through the
-   product coordinator on the exact product graph *and* runtime and drives the
-   real deterministic evidence leaf, while #17 substitutes every runtime
-   binding's model and connections.
-3. **Which node a fault happens at is authored, not witnessed — unless the node
-   is where a dependency behaviour shows.** The graph catches every executable
-   occurrence on its own route, so every response defect is witnessed once at
-   `initial_review`, the first model node declaring both a signal and an output
-   payload. `round_complete` is the exception: the graph authors its error into
-   the loop's `until` as well as onto `post_repair_bound_route`, and whether
-   Zeroshot *evaluates* an error-sourced `until` — ending the loop after the
-   failed round instead of spending another, or falling through to a final
-   assessment — is loop semantics the graph reads identically either way. So the
-   crash is injected there, with the obligation open and two of three rounds
-   unspent, and `open-control-crash` carries both that claim and process death
-   becoming a node error rather than paying for two runs.
-4. **A run on a mutated graph is not a witness of the graph.** It demonstrates
-   the suite's own sensitivity, which belongs in a mutant check, not in a
-   Zeroshot run on a graph Broodling never ships.
-5. **Isolate one defect per case.** A fault that replaces a whole response tests
-   whatever the runtime checks first, which is how three cases became spellings
-   of "malformed response" while appearing to cover three different rules. The
-   same applies to a witness that can succeed for the wrong reason:
-   `hang-initial_review` writes a marker from inside the intentional hang, so a
-   provider terminated *in* its hang is distinguishable from one timed out before
-   it got there.
-
-## The qualification records
-
-The hang is the only remaining case submitting anything but the product graph. It
-declares what it changed in a per-case `testOnlyGraphDeviation`; every other case
-carries an explicit `null`; and `graph_deviations_are_declared` enforces that a
-declaration is present precisely when the submitted `graphSha256` differs from
-the product graph's, so an undeclared future deviation fails the campaign. The
-declaration's wording is descriptive and is *not* machine-compared against the
-bytes — the per-case `graphSha256` is the authoritative record of what ran.
-
-`issue17_controls.py` no longer emits `admittedProductSubmissions` or the
-`admitted_product_clean_and_repaired` check, because it no longer makes those two
-runs; its record is again exactly the eight cases it executes.
-
-Retained historical records — `issue-17-controls.json`, `issue-18-evidence.json`
-and every W-level record — are untouched, including the
-`admittedProductSubmissions`, canary, `missing-renewed` and `sticky` evidence they
-already hold. They are evidence of what was observed when they were written, not
-a description of what the suite runs today; the review documents that cite them
-(`issue-18-evidence-review.md`, `issue-19-final-assurance.md`) are descriptions of
-those records and are likewise unchanged.
-
-#33 parallelism is the next question, not a substitute for this one: a 13-run
-opt-in lane scheduled concurrently is a different proposition from a 52-run one.
+The full opt-in custody/disposition/replacement/abandonment campaigns and actual
+provider semantic qualification were not rerun. Their production code, graph,
+runtime/profile pins and historical evidence are unchanged. These results do not
+claim a new G3/G4 gate pass or completion of the terminal-only production redesign.

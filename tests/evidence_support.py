@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
-from assurance_support import CLEAN_ORDER, ROUND_ORDER, canonical_hash, jsonable
+from assurance_support import canonical_hash, executable_nodes, jsonable
 from support import AttemptTestCase, criterion, git
 
 from broodling import EvidencePopulation
@@ -21,38 +21,17 @@ from broodling.zeroshot_sdk import ZeroshotSubmitter
 
 ROOT = Path(__file__).resolve().parents[1]
 LEAF = ROOT / "tests/fixtures/evidence-bin/codex"
-#: The distinct integration assumptions that need a complete real run (#45).
-#: The clean and repaired routes as the model transcript records them. The two
-#: evidence occurrences are missing because they run the real deterministic leaf
-#: rather than the model executable -- which is itself asserted below, and what
-#: each check produced is held against the reviews that consume it.
-MODEL_CLEAN_ROUTE = [n for n in CLEAN_ORDER if not n.endswith("evidence_check")]
-MODEL_ROUND_ROUTE = [n for n in ROUND_ORDER if not n.endswith("evidence_check")]
+# Product integration seams, not a Zeroshot conformance campaign. Semantic and
+# mutation agents are controlled; the evidence leaf and submission path are real.
 SCENARIOS = (
-    # The clean route end to end, on the exact product graph and runtime.
-    "valid",
-    # Available but insufficient evidence still fails at the final assessment
-    # rather than at the availability signal, which reports production only.
-    # The v0.5 plan names wrong-population for G3-V1; the other five mismatch
-    # dimensions differ only in candidate bytes on this same route.
-    "wrong-population",
-    # Required material absent at the evidence occurrence relying on it. The
-    # renewed occurrence carries the same authored missing->fail branch --
-    # `test_assurance_graph_structure.py` asserts both branch for branch -- and
-    # `repair-renewed` witnesses that fresh evidence really does execute against
-    # the repaired candidate, so a second real removal adds no dependency
-    # behaviour.
-    "missing-initial",
-    # Renewed evidence observes the candidate the repair actually left, and a
-    # directive raised from real evidence survives the repair round until the
-    # renewed observation explicitly satisfies it.
-    "repair-renewed",
-    # A native node timeout terminates the check's descendants.
-    "timeout-descendant",
+    "valid",  # complete evidence survives the configured run/result seam
+    "wrong-population",  # available evidence is not itself semantic acceptance
+    "missing-initial",  # the custom leaf's missing-material result is not accepted
+    "repair-renewed",  # actual repair handoff and renewed material in the result
+    "timeout-descendant",  # cancellation across Broodling's custom subprocess boundary
 )
-#: Every dimension a mismatched observation can differ in. Only wrong-population
-#: is run through Zeroshot; the rest are Broodling's own transport claim, held
-#: byte for byte against the real leaf by `test_evidence_material_fidelity.py`.
+# Representative opaque payloads for the collector tests. These are not claims
+# that Broodling or a controlled model proves semantic sufficiency.
 SEMANTIC_GAPS = (
     "wrong-population",
     "wrong-host",
@@ -177,8 +156,6 @@ def run_case(scenario):
         graph = assurance_graph()
         deviation = None
         if scenario == "timeout-descendant":
-            from assurance_support import executable_nodes
-
             for node in executable_nodes(graph["root"]):
                 if node["name"] == "initial_evidence_check":
                     # The trusted parent digest plus namespace startup can
@@ -255,58 +232,46 @@ def acceptance_checks(cases):
         return json.loads(observed(event)["stdout"])
 
     valid = cases["valid"]
+    repaired = cases["repair-renewed"]
     initial = events("repair-renewed", "initial_review")[0]
     renewed = events("repair-renewed", "repair_review")[0]
     repair = events("repair-renewed", "repair")[0]
     adjudication = events("repair-renewed", "adjudicate_authority")[0]
-    resolution = events("repair-renewed", "resolution_authority")
+    resolution = events("repair-renewed", "resolution_authority")[0]
     return {
-        "valid_complete_raw_evidence_reaches_acceptance": valid["result"]["succeeded"]
-        and raw(events("valid", "initial_review")[0])["results"] == ["PASS"] * 3,
-        # The two routes themselves, taken end to end. A clean adjudication
-        # reaches the assessor reserved for it; a repaired round renews evidence,
-        # review and resolution and reaches the other one. The two assessors are
-        # distinct nodes, so neither run can borrow the other's assessment.
-        "clean_route_reaches_the_distinct_clean_final": [
-            e["node"] for e in valid["events"]
-        ]
-        == MODEL_CLEAN_ROUTE,
-        "repair_route_renews_review_and_authority_before_the_repaired_final": [
-            e["node"] for e in cases["repair-renewed"]["events"]
-        ]
-        == MODEL_CLEAN_ROUTE[:-1]
-        + MODEL_ROUND_ROUTE
-        + ["final_assessment_authority_repaired"],
-        # A bound state path really is delivered: the raw finding the review
-        # produced arrives at the adjudicator, which is the only node entitled to
-        # turn it into a directive. This is the runtime premise the retired
-        # widened-binding canary rested on, witnessed on the unmodified graph.
-        "the_reviews_actual_finding_reaches_the_adjudicator": adjudication["input"][
-            "findingContent"
-        ]
-        == initial["response"]["output"]["findingContent"]
-        and "RAW_REJECTED_FINDING_CANARY" in adjudication["input"]["findingContent"],
-        "semantic_mismatch_fails_at_final_despite_available_evidence": (
+        "complete_evidence_is_returned_by_the_admitted_run": (
+            valid["result"]["succeeded"]
+            and raw(events("valid", "initial_review")[0])["results"] == ["PASS"] * 3
+            and valid["result"]["output"]["evidenceContent"]
+            == events("valid", "initial_review")[0]["input"]["evidenceContent"]
+            and bool(valid["result"]["output"]["finalRationale"])
+        ),
+        # Check the authored data/authority handoff, not which path the runtime
+        # took to deliver it or the sequence of executable node names.
+        "the_reviews_actual_finding_reaches_the_adjudicator": (
+            adjudication["input"]["findingContent"]
+            == initial["response"]["output"]["findingContent"]
+            and "RAW_REJECTED_FINDING_CANARY" in adjudication["input"]["findingContent"]
+        ),
+        "available_evidence_alone_is_not_semantic_acceptance": (
             not cases["wrong-population"]["result"]["succeeded"]
             and cases["wrong-population"]["result"]["failure"] == "semantic_gap"
             and events("wrong-population", "initial_review")[0]["input"]["evidence"]
             == "valid"
-            and events("wrong-population", "final_assessment_authority_clean")[0][
-                "response"
-            ]["signals"]["assessment"]
-            == "gap"
         ),
-        "initial_missing_stops_before_review": cases["missing-initial"]["result"][
-            "failure"
-        ]
-        == "required_evidence_missing"
-        and [e["node"] for e in cases["missing-initial"]["events"]] == ["implement"],
-        "renewed_evidence_observes_structurally_current_candidate": cases[
-            "repair-renewed"
-        ]["result"]["succeeded"]
-        and raw(initial)["generationMaterial"] == "AFTER_IMPLEMENT"
-        and raw(renewed)["generationMaterial"] == "AFTER_IMPLEMENT:AFTER_REPAIR"
-        and json.loads(observed(renewed)["materials"][0]["content"]) == raw(renewed),
+        "missing_required_material_is_not_accepted": (
+            not cases["missing-initial"]["result"]["succeeded"]
+            and cases["missing-initial"]["result"]["failure"]
+            == "required_evidence_missing"
+        ),
+        "repaired_result_contains_renewed_evidence": (
+            repaired["result"]["succeeded"]
+            and raw(initial)["generationMaterial"] == "AFTER_IMPLEMENT"
+            and raw(renewed)["generationMaterial"] == "AFTER_IMPLEMENT:AFTER_REPAIR"
+            and json.loads(observed(renewed)["materials"][0]["content"]) == raw(renewed)
+            and repaired["result"]["output"]["evidenceContent"]
+            == renewed["input"]["evidenceContent"]
+        ),
         "frozen_contract_population_and_comparison_cannot_be_retargeted": all(
             event["input"]["contract"]
             == json.dumps(case["frozenContract"], sort_keys=True, separators=(",", ":"))
@@ -318,38 +283,28 @@ def acceptance_checks(cases):
             for event in case["events"]
             if event["node"].endswith("review")
         ),
-        "repair_handoff_excludes_evidence_raw_findings_and_private_rationale": set(
-            repair["input"]
-        )
-        == {"contract", "directive", "directiveContent"}
-        and repair["input"]["directiveContent"]
-        == {
-            "directive": "Correct candidate.json",
-            "correction": "Set correctionSatisfied true",
-        }
-        and all(
-            token not in json.dumps(repair["input"])
-            for token in (
-                "RAW_REJECTED_FINDING_CANARY",
-                "PRIVATE_AUTHORITY_CANARY",
-                "FORGED_",
+        "repair_handoff_excludes_evidence_raw_findings_and_private_rationale": (
+            set(repair["input"]) == {"contract", "directive", "directiveContent"}
+            and repair["input"]["directiveContent"]
+            == {
+                "directive": "Correct candidate.json",
+                "correction": "Set correctionSatisfied true",
+            }
+            and all(
+                token not in json.dumps(repair["input"])
+                for token in (
+                    "RAW_REJECTED_FINDING_CANARY",
+                    "PRIVATE_AUTHORITY_CANARY",
+                    "FORGED_",
+                )
             )
         ),
-        # The obligation the real evidence raised is still open and still
-        # carrying its payload when the round's resolution is taken, and it is
-        # that authority -- not the fresh clean review beside it -- that closes
-        # it. Sticky-across-several-rounds and the exhausted bound are the same
-        # graph behaviour with no evidence of their own, and are witnessed for
-        # real by the #17 campaign's `sticky-exhaust`.
-        "directive_stays_open_into_the_round_and_is_closed_only_by_resolution": len(
-            resolution
-        )
-        == 1
-        and resolution[0]["input"]["outstanding"] == "open_d1"
-        and resolution[0]["input"]["findings"] == "clean"
-        and resolution[0]["input"]["directiveContent"]
-        == repair["input"]["directiveContent"]
-        and resolution[0]["response"]["signals"]["resolution"] == "resolved_d1",
+        "adjudicated_directive_reaches_the_designated_resolution_role": (
+            resolution["input"]["outstanding"] == "open_d1"
+            and resolution["input"]["directiveContent"]
+            == repair["input"]["directiveContent"]
+            and repaired["result"]["output"]["obligation"] == "resolved_d1"
+        ),
         "deterministic_evidence_never_reaches_model_executable": all(
             not e["node"].endswith("evidence_check")
             for case in cases.values()
@@ -377,12 +332,14 @@ def acceptance_checks(cases):
             and case["sameReplayedRunAndRequest"]
             for case in cases.values()
         ),
-        "native_timeout_terminates_check_descendants_before_terminal": (
-            cases["timeout-descendant"]["result"]["failure"] == "execution_unusable"
+        # Broodling's custom leaf/collector creates this descendant. This tests
+        # cancellation across that seam, not Zeroshot's generic timeout semantics.
+        # Seeing the live child first prevents a startup failure from passing.
+        "custom_evidence_descendants_do_not_survive_runtime_cancellation": (
+            not cases["timeout-descendant"]["result"]["succeeded"]
+            and cases["timeout-descendant"]["result"]["failure"] == "execution_unusable"
             and bool(cases["timeout-descendant"]["observedDescendantPidsDuringCheck"])
             and not cases["timeout-descendant"]["descendantPidsAfterTerminal"]
-            and [e["node"] for e in cases["timeout-descendant"]["events"]]
-            == ["implement"]
         ),
         "freeform_contract_strings_never_interpreted_as_commands": all(
             case["freeformStringsNotExecuted"] for case in cases.values()

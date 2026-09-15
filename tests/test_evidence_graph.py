@@ -1,9 +1,7 @@
-"""Actual SDK graph-local mechanical evidence integration controls.
+"""Product submission, evidence/authority handoffs and terminal artifacts.
 
-One complete run per distinct integration assumption; `evidence_support.SCENARIOS`
-names them. The mismatch dimensions that differ only in candidate bytes are held
-against the real deterministic leaf, without Zeroshot, by
-`test_evidence_material_fidelity.py`.
+These five real-SDK cases validate Broodling's integration seams. They do not
+assert route placement, branch ordering, loop semantics or execution traces.
 """
 
 import unittest

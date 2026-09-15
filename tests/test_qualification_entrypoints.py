@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = (
     "qualification/v1-p2/issue14_evidence.py",
     "qualification/v1-p2/issue14_regression.py",
-    "qualification/v1-p3/issue17_adversarial.py",
     "qualification/v1-p4/issue21_lifecycle.py",
     "qualification/v1-p4/issue22_lifecycle.py",
 )
