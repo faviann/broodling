@@ -1,4 +1,15 @@
-"""Discriminating product graph controls through the pinned public SDK."""
+"""Discriminating product graph controls through the pinned public SDK.
+
+The runtime half of the #17 controls: the multi-round routes whose execution
+behaviour nothing else witnesses, and the classes of provider misbehaviour
+Zeroshot has to turn into a node error. The structural half — every executable
+node guarded, no unusable route reaching an accepting sink, repair reading only
+the adjudicated directive — is decided against the authored graph by
+`test_assurance_graph_structure.py`, which runs in the default regression lane.
+The single-round clean and repaired routes are taken through the exact product
+graph and runtime by the #18 campaign. `assurance_support.definitions` says why
+each run that remains here is not decidable, or already witnessed, elsewhere.
+"""
 
 import asyncio
 import shutil
@@ -40,10 +51,3 @@ class AssuranceGraphTests(unittest.TestCase):
                     result = self.cases[name]["result"]
                     self.assertFalse(result["succeeded"])
                     self.assertEqual(result["failure"], reason)
-
-    def test_control_error_with_open_obligation_does_not_start_another_repair(self):
-        from assurance_support import nodes
-
-        sequence = nodes(self.cases["open-control-crash"])
-        self.assertEqual(sequence.count("repair"), 1)
-        self.assertEqual(sequence[-1], "round_complete")

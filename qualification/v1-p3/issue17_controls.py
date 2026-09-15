@@ -19,7 +19,6 @@ from assurance_support import (
     CONTRACT,
     LEAF_BIN,
     acceptance_checks,
-    admitted_case,
     canonical_hash,
     controlled_runtime,
     run_controls,
@@ -36,10 +35,6 @@ async def execute(output):
     workspace_root = durable_test_root("broodling-assurance-evidence-")
     cases = await run_controls(run_root, workspace_root)
     checks = acceptance_checks(cases)
-    admitted = {
-        scenario: await asyncio.to_thread(admitted_case, scenario)
-        for scenario in ("clean", "repair-resolve")
-    }
     graph = assurance_graph()
     runtime = assurance_runtime()
     record = {
@@ -52,7 +47,8 @@ async def execute(output):
             "runtimeAccess": "public SDK submit/wait/status only",
             "controlledLeafLimit": "The fixture records sandbox arguments but does not enforce containment or establish model judgment; historical W2/W4 supplies those qualified boundaries.",
             "testRuntimeDeviation": "Product binding models and connections replaced by controlled provider model and fixture connection; same agent kinds, execution sessions, graph worker roles and sandbox selection.",
-            "testGraphDeviations": "Only two hang cases shorten the selected node timeout to250ms, and the explicitly named widened-binding-canary adds a forbidden raw-finding repair input to test detector sensitivity. Other cases execute the exact product graph.",
+            "testGraphDeviations": "One of the eight cases submits a modified graph and declares it in its own testOnlyGraphDeviation field: hang-initial_review shortens that node's timeoutMs to 250 so the hang terminates inside the campaign. Every other case carries an explicit null and submits the exact product graph; the product graph itself is never mutated. The acceptanceChecks entry graph_deviations_are_declared enforces only that a declaration is present exactly when the submitted graphSha256 differs from the product graph's, so an undeclared future deviation fails the campaign. The wording of a declaration is descriptive and is not machine-compared against the submitted bytes; the recorded per-case graphSha256 is the authoritative record of what ran.",
+            "witnessScope": "Issue #45 reduced this campaign to a minimal discriminating set of real Zeroshot runs: 38 cases became 8, and this entrypoint no longer makes the two admitted product submissions of the clean and repair-resolve routes that earlier records show under admittedProductSubmissions -- the #18 evidence campaign's valid and repair-renewed take those two routes through the same P3 coordinator on the exact product graph and runtime, where this campaign substitutes every runtime binding's model and connections. Retained here: repeat-labels, sticky-exhaust, crash-implement, missing-initial_review, malformed-initial_review, default-initial_review, missing-payload-initial_review, hang-initial_review. Claims decidable from Broodling's own authored GraphSpec -- fail-closed topology with every executable occurrence caught on the authored route that continues it, repair-input isolation, sticky-obligation and authority ownership, diagnostic non-authority, and final-assessment failure routing -- are asserted against the graph by tests/test_assurance_graph_structure.py in the default regression lane. The mapping from each removed run to the structural test or stronger retained runtime witness that now holds its claim is tests/README.md, section 'Minimal real-Zeroshot witnesses (issue #45)'; it is not restated here, so this field does not go stale when the witness set changes. This record describes only the run that produced it: the cases below are exactly what ran.",
         },
         "build": build
         | {"python": platform.python_version(), "platform": platform.platform()},
@@ -78,17 +74,7 @@ async def execute(output):
         "acceptanceChecks": checks,
         "verdict": "PASS" if all(checks.values()) else "FAIL",
         "cases": cases,
-        "admittedProductSubmissions": admitted,
     }
-    checks["admitted_product_clean_and_repaired"] = all(
-        case["result"]["succeeded"]
-        and case["samePersistedRequest"]
-        and case["runId"] == case["replayedRunId"]
-        and case["graphSha256"] == canonical_hash(graph)
-        and case["runtimeSha256"] == canonical_hash(runtime)
-        for case in admitted.values()
-    )
-    record["verdict"] = "PASS" if all(checks.values()) else "FAIL"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     print(

@@ -533,7 +533,9 @@ sidecar built from `d090961`, so nothing skips):
 
 The before/both rows were measured on the branch point; #43 has since net
 removed two identity cases, so the same runs report 429 today. The split itself
-accounts for the 39.
+accounts for the 39. #45 has since deleted `test_assurance_public.py`, so the
+lane is 37 tests and a default run reports 407 passed, 37 skipped of 443
+collected — see *What each removed run is now covered by* under #45.
 
 56 tests required the real SDK and accounted for **2844.5s of 2937.3s — 96.8% of
 the runtime**; the other 356 cost 92.8s between them. Cost inside the real-SDK
@@ -553,9 +555,8 @@ commit. Each entry keeps its full witness; only the moment it runs changed.
 
 | Module | Tests | Protects |
 | --- | --- | --- |
-| `test_assurance_graph.py` | 3 | G3-V1 actual graph negative/positive controls (#17) |
+| `test_assurance_graph.py` | 2 | G3-V1 actual graph negative/positive controls (#17) |
 | `test_evidence_graph.py` | 1 | G3-V1 graph-local mechanical evidence controls (#18) |
-| `test_assurance_public.py` | 1 | actual admitted P3 Attempts through the public coordinator |
 | `test_final_assurance_capture.py` | 7 | #19 completed custody against the actual SDK path |
 | `test_final_assurance_public.py` | 4 | #19 current-run observation on the real graph |
 | `test_disposition_public.py` | 10 | G4-V1 no-effect disposition and finalization races |
@@ -624,3 +625,358 @@ interpretation are all held by controlled tests that were already there:
 (18) for the submission contract, plus the abandonment, disposition, retry,
 custody, final-material and containment foundations. `test_containment.py` keeps
 real process witnesses without needing the SDK at all.
+
+# Minimal real-Zeroshot witnesses (issue #45)
+
+#39 moved the expensive witnesses out of the per-commit loop. This changes what
+runs *inside* that lane: the two G3-V1 campaigns were replaying complete Zeroshot
+runs to establish properties of a file in this repository.
+
+One rule, applied to every run in turn: **if the claim is decidable from
+Broodling's own authored artifact, decide it there; if the claim is Zeroshot's
+execution behaviour, keep a real witness.** Nothing was weakened to go faster, no
+run was replaced by a test-side reducer, scheduler or graph interpreter, and no
+retained qualification record was rewritten.
+
+This section is the one place that argument is written down. The campaign
+entrypoints' `witnessScope` fields state what the run they produced contains and
+point here; they do not restate it. A change that adds or drops a witness should
+need to touch the table below and the retained list beside it, and nothing else.
+
+## Before and after
+
+Real Zeroshot runs created by the two campaigns. The *pytest* case counts were
+for most of this change the only thing counted, which under-reported the
+qualification run: the #17 entrypoint ran two further real executions outside
+`definitions()` — admitted product submissions of the `clean` and
+`repair-resolve` routes through the P3 coordinator, recorded under
+`admittedProductSubmissions` — and `test_assurance_public.py` ran the same two in
+the lane. Counted per producer of real runs:
+
+| Producer | Before | After |
+| --- | --- | --- |
+| `issue17_controls.py` (`definitions()` + admitted submissions) | 38 + 2 | 8 |
+| `issue18_evidence.py` (`SCENARIOS`) | 12 | 5 |
+| `test_assurance_public.py` (lane module, admitted submissions) | 2 | removed |
+| A full qualification pass | 52 | 13 |
+
+Wall clock on the qualified profile (pinned SDK and sidecar, nothing skipped),
+the two campaigns run back to back under `pytest --durations`:
+
+| Phase | Before (38 + 12) | 12 + 7 | 10 + 6 | 8 + 6 | After (8 + 5) |
+| --- | --- | --- | --- | --- | --- |
+| `AssuranceGraphTests` setup | 591.4s | 244.8s / 254.2s / 247.7s | 168.7s | 122.9s | 126.1s |
+| `EvidenceGraphTests::test_admitted_evidence_controls` | 206.0s | 192.5s / 198.6s / 204.3s | 129.5s | 133.5s | 101.4s |
+| Both modules end to end | 798.2s (13:18) | 437.8s / 453.2s / 452.5s | 298.8s (4:58) | 257.0s (4:16) | 227.8s (3:47) |
+
+Read that with the host's own variance in mind, or it will mislead. The 12 + 7
+column keeps three samples because they were taken across review rounds, and the
+~10s spread between them on a 250s phase was larger than the two runs dropped in
+that round. The same two campaigns have been recorded at 327s, 322s and 206s on
+*unchanged* code. Only the last columns drop enough at once to read through that:
+the 8 + 6 round drops two complete assurance runs and shortens two remaining
+faults from four and five nodes to one and three; the final column drops
+`missing-renewed` and nothing else, which is why the assurance row moves by 3s.
+Neither number is the argument for removing anything — the run count is the
+figure that means something, and the wall clock is a consequence.
+
+The evidence campaign was also timed scenario by scenario in one sitting,
+because for most of this change its wall clock barely moved:
+
+| Scenario | Cost | Kept |
+| --- | --- | --- |
+| `sticky` | 74.9s | no |
+| `repair-renewed` | 39.5s | yes — two evidence occurrences |
+| `missing-renewed` | 24.9s | no |
+| `contradiction` | 23.4s | no |
+| `wrong-mode` | 23.1s | no |
+| `wrong-artifact` | 22.5s | no |
+| `valid` | 22.2s | yes |
+| `wrong-host` | 22.0s | no |
+| `insufficient` | 21.9s | no |
+| `wrong-population` | 21.7s | yes |
+| `timeout-descendant` | 15.0s | yes |
+| `missing-initial` | 10.7s | yes |
+
+Sum: 321.7s before; 208.8s once the five permutations went, 133.9s once `sticky`
+went with them, 109.0s once `missing-renewed` went too. The seven removed
+scenarios cost 212.7s between them and 74.9s of that is `sticky` alone, which is
+why removing five of twelve runs moved the clock by less than host variance and
+removing the sixth moved it visibly.
+
+The fast tests that took over the removed claims cost under a second for 17
+tests, in the default regression lane, on every commit.
+
+## Why a crash at eleven nodes was one claim, not eleven
+
+`assurance_graph()` is Broodling's authored GraphSpec — a dictionary this
+repository writes. Whether every executable node has an unusable-outcome guard,
+whether an error branch can reach an accepting sink, and what state a repair node
+is allowed to read are all decidable by reading it. Reading it also decides them
+for a node added tomorrow, which eleven hand-listed crash scenarios would not.
+
+What is *not* decidable there is whether Zeroshot turns exit code 70, an
+unparseable payload, an omitted signal or a node that never answers into the node
+error those guards name. That is the dependency's behaviour, and it keeps a real
+witness — one per class of provider misbehaviour, at one representative node.
+
+`tests/test_assurance_graph_structure.py` holds the structural half. The
+requirement it has to prove is per *occurrence*, not per name: an aggregate
+"every node appears in some error guard" would pass a graph whose guards sat on
+the wrong routes, leaving each occurrence with no handling of its own.
+
+The module states the *identity* of the pairing rather than deriving it.
+`UNUSABLE_ROUTES` is a table of the eleven executable nodes against the eleven
+authored routes that catch them, asserted in both directions so a swapped pair
+fails on both halves. An earlier draft computed that pairing by walking the tree
+for "the construct execution reaches next", which was the wrong thing to do twice
+over: it put a model of Zeroshot's control flow inside Broodling's test suite,
+and the model was already wrong about `round_complete`, where the loop's
+termination guards are evaluated before anything outside the loop is reached.
+Where Zeroshot goes after a node finishes is Zeroshot's semantics. Which route
+Broodling put each guard on is Broodling's decision, and a table is the honest
+way to write it down.
+
+But the identity of a route is not the same claim as the *position* of its guard,
+and for a while only the identity was read. Every assertion in the module named
+guards: this route exists, it carries this node's error guard, it takes it to a
+`fail`. A relocation that kept all three — `repair_execution_route` hoisted in
+front of `repair`, guarding an execution that has not happened yet, with the
+route name, the guard, the sink and the order the workers run in all intact —
+passed unnoticed, because nothing asserted where the choice sat relative to the
+occurrence it guards. That is precisely the fail-open the per-occurrence
+requirement exists to rule out.
+
+Position is now read as well, and it needs no control-flow model to read: ten of
+the eleven executables are authored as a two-child `seq` — the occurrence, then
+its own route — so "the guard is on this occurrence's continuation" is a local
+parent/child shape, checked by `unpaired_occurrences` against the same table.
+Nothing decides which branch a run would take.
+
+`round_complete` is the eleventh and is handled explicitly rather than exempted,
+and it is still the case that makes the distinction visible. It is the tail of
+the loop body, so there is no pair to find: the graph authors nothing after it
+inside the loop, and what follows is the loop's `until`. Its position is read as
+that fact plus the two places the outcome can land — a `tail_chain` up to
+`bounded_repair`, showing nothing in the loop is authored to run after it; the
+loop's own `until`, so the loop stops; and the choice authored immediately after
+the loop, `post_repair_bound_route`, so the stop is a failure. All are authored
+facts, with nothing said about the order Zeroshot evaluates them in.
+
+The module was checked against twenty-seven hand-built mutants of
+`broodling/assurance_graph.py`, all killed:
+
+- **Nine change what the graph does**: a dropped error guard on `repair` and on
+  `round_complete`, a final gap routed to `succeed`, a widened repair input, a
+  downgraded missing-evidence reason, an unbounded repair loop, a review that
+  writes the obligation, a diagnostic identifier bound to the frozen Contract,
+  and an exhausted bound routed to the final assessment.
+- **Seven rename which node a guard catches**: implement's and repair's guards
+  swapped, the review route guarding the evidence check, the resolution route
+  guarding `round_complete`, a final route guarding the adjudicator, the
+  adjudication route guarding the initial review, and `round_complete`'s guard
+  dropped from the post-loop route. These die against the table alone, which is
+  why they never caught the relocation above.
+- **Four move a guard with every name left alone**: `repair_execution_route`
+  hoisted in front of `repair`, the `bounded_repair` loop wrapped so
+  `post_repair_bound_route` no longer follows it, an empty `seq` spliced between
+  a final assessor and its route, and `round_complete` given a sibling inside the
+  loop so it is no longer the body's tail. These need the position reading. The
+  hoist is asserted directly as
+  `test_a_route_hoisted_ahead_of_its_occurrence_is_rejected`, which builds the
+  relocated graph in the suite and first checks that the route name, the error
+  guard, the `execution_unusable` sink and the worker order all survive it.
+- **Seven attack signal ownership**, added when `authority-claim-initial_review`
+  was retired: a review declaring `decision` or `assessment` beside its own
+  signal, a review's signal renamed to `decision`, the adjudication route and the
+  bound-exit route reading a review's signal instead of an authority's, a final
+  route guarding a label no assessor can emit, and a review given the
+  adjudicator's write target.
+
+## What each removed run is now covered by
+
+This table is the canonical mapping. Thirty-seven runs were removed across both
+campaigns — thirty of thirty-eight from #17, seven of twelve from #18 — plus the
+four admitted product submissions, which the pytest case counts never included.
+The crash matrix generated one case for each of the five clean-route nodes, the
+five repair-round nodes and `final_assessment_authority_repaired` — **eleven**,
+all removed, `crash-round_complete` included.
+
+"Structural" means `tests/test_assurance_graph_structure.py` unless another
+module is named; it runs in the default regression lane.
+
+| Removed | From | Count | What it protected | Now protected by |
+| --- | --- | --- | --- | --- |
+| `crash-{node}` | #17 | 11 | each executable node's unusable execution fails closed | structural: every executable occurrence is caught on the route the graph authors for it, and every such branch is a `fail`. Runtime: the retained `crash-implement` witnesses a real exit code 70 becoming a node error |
+| `{missing,malformed,default,hang}-round_complete` | #17 | 4 | a control fault inside the loop stops before the final assessment | structural: the loop's `until` and `post_repair_bound_route` both take `round_complete`'s error to a `fail`, both asserted |
+| `authority-claim-implement`, `authority-claim-repair` | #17 | 2 | a mutation node's authority claim cannot bind state | structural: both mutation nodes are `step`s with null output, no signals and no write bindings |
+| `refusal`, `final-gap` | #17 | 2 | a refused or gapped final assessment cannot fall through to acceptance | structural: both final routes asserted branch for branch — the `gap` and `refused` guards, the `semantic_gap` and `authority_gap` sinks, the three labels an assessor may emit, acceptance reachable only as the fall-through. Runtime: the retained `sticky-exhaust` and #18's `wrong-population` both witness a non-accepted label reaching its authored sink |
+| `clean`, `repair-resolve` | #17 | 2 | the clean route reaches the assessor reserved for it; a found finding is adjudicated, repaired, re-reviewed and resolved to the other assessor | #18's `valid` and `repair-renewed`, which take the same two routes on the **exact** product graph *and* runtime and additionally drive the real deterministic evidence leaf. See *Keep the strongest witness of a claim, not one per campaign* below |
+| admitted `clean`, `repair-resolve` (×2 producers) | #17 entrypoint, `test_assurance_public.py` | 4 | the same two routes through the P3 `SubmissionCoordinator` | the same #18 runs, which submit through that coordinator on the exact product runtime. The restart-and-retry property these uniquely carried is asserted without Zeroshot by `test_assurance_submission.py` — see below |
+| `missing-payload-{node}` | #17 | 1 | a declared output payload is required | one case, at `initial_review` — see *faults are injected at the first occurrence that can carry them* |
+| `missing-after-repair` | #17 | 1 | required material removed at the renewed occurrence | structural: both evidence routes carry the same missing→fail branch, asserted branch for branch. Runtime: `missing-initial` witnesses the removal, `repair-renewed` witnesses fresh evidence executing after a mutation |
+| `missing-initial` | #17 | 1 | required raw material removed before the occurrence relying on it | #18's own `missing-initial`, which deletes the material for real and runs the exact product graph through the deterministic leaf rather than a model leaf reporting `missing`; plus the structural both-occurrences assertion |
+| `repair-input-canary` | #17 | 1 | repair receives the directive, not raw findings | #18's `repair-renewed`, which takes the identical route on the exact product runtime, plus the structural binding assertion |
+| `forged-diagnostics` | #17 | 1 | forged Contract/source/evidence/predecessor IDs confer no authority | the fixture now emits forged identifiers on *every* response, so every retained run carries the canary; structurally, no write binding reads the diagnostic channel |
+| `contradictory-clean` | #17 | 1 | prose contradicting the node's own signal cannot bypass repair | folded into the adjudicator's diagnostic on every route, asserted on `repeat-labels` |
+| `sticky-omission` | #17 | 1 | explicit eligible resolution is distinguished from omission | `missing-initial_review`, once its fault was isolated — see *A fault case that replaces a whole response tests whatever the runtime checks first* |
+| `widened-binding-canary` | #17 | 1 | the raw-finding isolation assertion is sensitive | structural: `repair`'s authored input and bindings are asserted exactly, and the `widen-repair-input` mutant dies against them. Its one runtime premise is witnessed on the *unmodified* graph by #18's `repair-renewed` — see *a run that mutates the graph is not a witness of the graph* |
+| `authority-claim-initial_review` | #17 | 1 | an ordinary review's output cannot become adjudication or final authority | structural: routing guards name the node whose signal they read, and a review declares only `findings`, so a claimed `decision` or `assessment` satisfies no guard. Measured, the runtime refuses such a response outright, so the run duplicated malformed-response rejection |
+| `wrong-host`, `wrong-mode`, `wrong-artifact`, `contradiction`, `insufficient` | #18 | 5 | every evidence-mismatch dimension and the frozen population reach the assessor byte for byte | `tests/test_evidence_material_fidelity.py`, which asserts all six dimensions against the real deterministic leaf without Zeroshot. `wrong-population` keeps its complete run |
+| `sticky` | #18 | 1 | a directive survives clean reviews across rounds and exhausts the bound | structural: the obligation is carried by `bounded_repair`'s `promotedStatePaths` and written only by the two authorities. Runtime: #17's `sticky-exhaust` witnesses the same three rounds, and the evidence-specific half — a directive raised from real deterministic evidence still open and still carrying its payload when the resolution authority runs, and closed by that authority rather than by the clean review beside it — is asserted inside `repair-renewed` by `directive_stays_open_into_the_round_and_is_closed_only_by_resolution` |
+| `missing-renewed` | #18 | 1 | missing required evidence *after a mutation* fails closed | the composition of three things already in the lane: `missing-initial` removes material for real, `repair-renewed` witnesses fresh evidence executing against the candidate a repair left (`renewed_evidence_observes_structurally_current_candidate`), and `test_missing_required_evidence_fails_closed_at_both_occurrences` asserts the missing→failure branch on both evidence routes including that the valid fall-through leads to the fresh review. *Where* a fault happens is authored, not witnessed |
+
+**Retained, because execution behaviour is the claim and nothing cheaper or
+stronger already holds it.** #17 (8 of 38): `repeat-labels`, `sticky-exhaust`,
+`crash-implement`, `missing-initial_review`, `malformed-initial_review`,
+`default-initial_review`, `missing-payload-initial_review`, `hang-initial_review`.
+#18 (5 of 12): `valid`, `wrong-population`, `missing-initial`, `repair-renewed`,
+`timeout-descendant`.
+
+`wrong-population` is worth naming twice: the v0.5 plan names it for G3-V1, it is
+the one witness that available-but-insufficient evidence fails at the final
+assessment rather than at the availability signal (which reports production
+only), and it is the lane's one real witness that a final assessor's non-accepted
+signal reaches the sink the graph names — which is what let `refusal` and
+`final-gap` go.
+
+## The decisions behind that table
+
+These are the parts that are not restatements of a row. Each governs how a future
+witness should be chosen, not just why a past one went.
+
+**Keep the strongest witness of a claim, not one per campaign.** Where both
+campaigns could make a claim, it belongs to #18: it submits through the product
+coordinator and asserts `request["runtime"] == assurance_runtime()` — the exact
+product runtime — and drives the real deterministic evidence leaf at both
+occurrences, while #17 replaces every runtime binding's model and connections
+with a controlled leaf. That is why `clean`/`repair-resolve` and the four
+admitted submissions went and their assertions moved to `valid` and
+`repair-renewed`: route order
+(`clean_route_reaches_the_distinct_clean_final`,
+`repair_route_renews_review_and_authority_before_the_repaired_final`), the repair
+handoff (`repair_handoff_excludes_evidence_raw_findings_and_private_rationale`),
+and the bound-state-path delivery premise
+(`the_reviews_actual_finding_reaches_the_adjudicator`, holding the adjudicator's
+`findingContent` against the bytes the review actually emitted). The #18
+transcript omits the two evidence occurrences because those nodes run the
+deterministic leaf rather than the model executable — asserted directly by
+`deterministic_evidence_never_reaches_model_executable` — so route assertions
+compare the model-node sequence and the evidence occurrences are witnessed by
+their output. What `admitted_case` carried that those runs do not is Broodling's
+own restart-and-retry behaviour, and `test_assurance_submission.py` asserts it
+without Zeroshot: `test_product_submission_replays_same_request_after_owned_mutation`
+restarts after a real `move_head` and holds the re-submitted request against the
+original, and `test_correlated_product_retry_never_submits_another_run` asserts
+the second dispatch never happens. `admitted_case` then had no caller, and
+`test_assurance_public.py` — whose only test was the pair — was deleted rather
+than left empty.
+
+**Faults are injected at the first occurrence that can carry them.** Which node a
+fault happens at is authored, not witnessed — the graph catches every executable
+occurrence on its own route. Two retained faults were not taking that seriously:
+the crash rode a three-round `sticky-exhaust` to reach `round_complete`, and the
+missing-payload case rode `repair-resolve` to reach `adjudicate_authority`. Both
+moved to the earliest occurrence that can carry them: process death to
+`implement`, the first executable node, and every response defect to
+`initial_review`, the first model node declaring both a signal and an output
+payload. The one assertion that went with `open-control-crash` — that a control
+error with an open obligation does not buy another repair round — is
+`round_complete`'s error authored in both the loop's `until` and
+`post_repair_bound_route`, and
+`test_repair_is_bounded_and_an_open_obligation_cannot_reach_a_final_assessment`
+asserts both, with the mutant dropping either dying against it. That the loop's
+`until` is honoured at all is witnessed by `repeat-labels`, which exits on
+`resolved_d1`, and `sticky-exhaust`, which reaches `maxIterations` still open.
+
+**A run that mutates the graph is not a witness of the graph.**
+`widened-binding-canary` built a graph carrying the forbidden raw-finding binding
+on `repair` and watched the raw finding arrive. But the invariant is that the
+*product* graph has no such binding, read straight off `assurance_graph()`, and
+the `widen-repair-input` mutant dies against the authored assertion. The one
+runtime premise it added — that a bound state path really is delivered — is
+witnessed on the unmodified graph by `repair-renewed`. So the mutation
+demonstrated the suite's own sensitivity, which the retained
+`issue-17-controls.json` already records, at the price of a Zeroshot run on a
+graph Broodling never ships. `authority-claim-initial_review` was the same shape
+with an extra flaw: it replaced the review's whole response, dropping the
+declared `findingContent` output and `findings` signal, so it could be refused on
+shape before authority was reached. Isolated properly — a valid review response
+with the undeclared authority fields *added* — and measured against the pinned
+SDK, the runtime refuses that too, which makes it a third spelling of malformed.
+The guarantee never rested on that refusal:
+`test_ordinary_output_cannot_acquire_adjudication_or_final_authority` asserts
+signal ownership exactly, that every guard reads a field its named node declares
+with labels that node can emit, and that no mutation or review node writes
+`obligation`, `directiveContent` or `finalRationale`.
+
+**A fault case that replaces a whole response tests whatever the runtime checks
+first.** Dropping `sticky-omission` rested on `missing-initial_review` covering
+the same rule, and for one review round that was not true: the `missing` fault
+replaced the whole response with `{"signals": {}, "diagnostic": None}`, dropping
+the `findingContent` output that `initial_review` declares, so a runtime
+rejecting it on shape never reached signal validation. It was a second
+malformed-response witness wearing the wrong name, and `sticky-omission` had been
+the only isolated one. The fault now omits the signal and nothing else — a valid
+payload, a valid diagnostic, rejected on the absent signal, failing
+`execution_unusable` after `implement`, `initial_evidence_check`,
+`initial_review`. Isolating one defect per case is what makes the retained set
+discriminating rather than four spellings of "malformed".
+
+**A hang witness has to witness a hang.** `hang-initial_review` establishes that a
+node which never answers is terminated by the runtime rather than waited on, and
+that claim has a cheap false positive: a provider timed out *before* or during
+startup fails `execution_unusable` at the same node and looks identical from
+outside, making the case a witness of the campaign's shortened 250ms timeout
+instead. The leaf now writes one empty marker file from inside the intentional
+hang, and `hang_terminated_a_provider_inside_the_intentional_hang` asserts the
+case's markers are exactly `["initial_review"]`. The marker exists only if the
+provider reached the hang; the terminal outcome is asserted separately.
+
+**One deadline was too tight, and it was not the product's.** The 8 + 6 round's
+first combined run failed: `sticky-exhaust` came back without reaching
+`obligations_exhausted`, taking `expected_terminal_routes` and
+`bound_three_stops_before_final` with it. Nothing else failed, and the same code
+passed alone and passed again combined — but it was diagnosed rather than re-run
+until green. The cause was the campaign's own `run.wait(wait_timeout=60)`:
+`sticky-exhaust` is the longest case in either campaign (three rounds, 19 node
+executions) and measures 34.7s, 36.3s and 34.3s on an idle host, and a 1.7x
+margin is not enough on a host recorded at 327s, 322s and 206s for the same
+campaigns on unchanged code. The deadline is now 90s, matching what #18 already
+allows its own longest runs. Authored node timeouts stay at 300000ms, the hang's
+declared 250ms deviation stays, and no assertion moved. It is recorded because a
+harness deadline that close to a retained witness is worth knowing about, and
+because `sticky-exhaust` got *relatively* more exposed as the campaign shrank
+around it.
+
+## The qualification records
+
+The hang is the only remaining case that submits anything but the product graph.
+It declares what it changed in a per-case `testOnlyGraphDeviation`; every other
+case carries an explicit `null`; and `graph_deviations_are_declared` enforces
+exactly one thing — a declaration is present precisely when the submitted
+`graphSha256` differs from the product graph's — so a future case that modifies
+the graph and says nothing fails the campaign. The declaration's wording is
+descriptive and is *not* machine-compared against the submitted bytes; the
+per-case `graphSha256` is the authoritative record of what ran.
+
+`qualification/v1-p3/issue17_controls.py` and `issue18_evidence.py` still produce
+their records. Each `witnessScope` states the before/after count, the retained
+set, and that the record describes only the run it came from; the reasoning lives
+here, so a future witness change does not have to be re-argued inside a JSON
+string. One record *shape* changed: #17 no longer emits
+`admittedProductSubmissions` or the `admitted_product_clean_and_repaired` check,
+because it no longer makes those two runs, so its record is again exactly the
+eight cases it executes.
+
+Retained historical records — `issue-17-controls.json`, `issue-18-evidence.json`
+and every W-level record — are untouched, including the
+`admittedProductSubmissions`, canary, authority-claim, `missing-renewed` and
+`sticky` evidence they already hold. They are evidence of what was observed when
+they were written, not a description of what the suite runs today; the review
+documents that cite them (`issue-18-evidence-review.md`,
+`issue-19-final-assurance.md`) are descriptions of those records and are likewise
+unchanged.
+
+#33 parallelism is the next question, not a substitute for this one: 13 runs
+scheduled concurrently is a different proposition from 52.

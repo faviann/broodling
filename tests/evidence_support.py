@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
-from assurance_support import canonical_hash, jsonable
+from assurance_support import CLEAN_ORDER, ROUND_ORDER, canonical_hash, jsonable
 from support import AttemptTestCase, criterion, git
 
 from broodling import EvidencePopulation
@@ -21,21 +21,46 @@ from broodling.zeroshot_sdk import ZeroshotSubmitter
 
 ROOT = Path(__file__).resolve().parents[1]
 LEAF = ROOT / "tests/fixtures/evidence-bin/codex"
+#: The distinct integration assumptions that need a complete real run (#45).
+#: The clean and repaired routes as the model transcript records them. The two
+#: evidence occurrences are missing because they run the real deterministic leaf
+#: rather than the model executable -- which is itself asserted below, and what
+#: each check produced is held against the reviews that consume it.
+MODEL_CLEAN_ROUTE = [n for n in CLEAN_ORDER if not n.endswith("evidence_check")]
+MODEL_ROUND_ROUTE = [n for n in ROUND_ORDER if not n.endswith("evidence_check")]
 SCENARIOS = (
+    # The clean route end to end, on the exact product graph and runtime.
     "valid",
+    # Available but insufficient evidence still fails at the final assessment
+    # rather than at the availability signal, which reports production only.
+    # The v0.5 plan names wrong-population for G3-V1; the other five mismatch
+    # dimensions differ only in candidate bytes on this same route.
+    "wrong-population",
+    # Required material absent at the evidence occurrence relying on it. The
+    # renewed occurrence carries the same authored missing->fail branch --
+    # `test_assurance_graph_structure.py` asserts both branch for branch -- and
+    # `repair-renewed` witnesses that fresh evidence really does execute against
+    # the repaired candidate, so a second real removal adds no dependency
+    # behaviour.
+    "missing-initial",
+    # Renewed evidence observes the candidate the repair actually left, and a
+    # directive raised from real evidence survives the repair round until the
+    # renewed observation explicitly satisfies it.
+    "repair-renewed",
+    # A native node timeout terminates the check's descendants.
+    "timeout-descendant",
+)
+#: Every dimension a mismatched observation can differ in. Only wrong-population
+#: is run through Zeroshot; the rest are Broodling's own transport claim, held
+#: byte for byte against the real leaf by `test_evidence_material_fidelity.py`.
+SEMANTIC_GAPS = (
     "wrong-population",
     "wrong-host",
     "wrong-mode",
     "wrong-artifact",
     "contradiction",
     "insufficient",
-    "missing-initial",
-    "missing-renewed",
-    "repair-renewed",
-    "sticky",
-    "timeout-descendant",
 )
-SEMANTIC_GAPS = SCENARIOS[1:7]
 
 
 def raw_material(scenario):
@@ -46,7 +71,7 @@ def raw_material(scenario):
         "artifact": "candidate.json",
         "results": ["PASS", "PASS", "PASS"],
         "contradictions": [],
-        "needsCorrection": scenario in {"missing-renewed", "repair-renewed", "sticky"},
+        "needsCorrection": scenario == "repair-renewed",
         "correctionSatisfied": False,
     }
     mutations = {
@@ -233,34 +258,49 @@ def acceptance_checks(cases):
     initial = events("repair-renewed", "initial_review")[0]
     renewed = events("repair-renewed", "repair_review")[0]
     repair = events("repair-renewed", "repair")[0]
-    stable = events("sticky", "resolution_authority")
+    adjudication = events("repair-renewed", "adjudicate_authority")[0]
+    resolution = events("repair-renewed", "resolution_authority")
     return {
         "valid_complete_raw_evidence_reaches_acceptance": valid["result"]["succeeded"]
         and raw(events("valid", "initial_review")[0])["results"] == ["PASS"] * 3,
-        "all_semantic_mismatches_fail_at_final_despite_available_evidence": all(
-            not cases[name]["result"]["succeeded"]
-            and cases[name]["result"]["failure"] == "semantic_gap"
-            and events(name, "initial_review")[0]["input"]["evidence"] == "valid"
-            and events(name, "final_assessment_authority_clean")[0]["response"][
-                "signals"
-            ]["assessment"]
+        # The two routes themselves, taken end to end. A clean adjudication
+        # reaches the assessor reserved for it; a repaired round renews evidence,
+        # review and resolution and reaches the other one. The two assessors are
+        # distinct nodes, so neither run can borrow the other's assessment.
+        "clean_route_reaches_the_distinct_clean_final": [
+            e["node"] for e in valid["events"]
+        ]
+        == MODEL_CLEAN_ROUTE,
+        "repair_route_renews_review_and_authority_before_the_repaired_final": [
+            e["node"] for e in cases["repair-renewed"]["events"]
+        ]
+        == MODEL_CLEAN_ROUTE[:-1]
+        + MODEL_ROUND_ROUTE
+        + ["final_assessment_authority_repaired"],
+        # A bound state path really is delivered: the raw finding the review
+        # produced arrives at the adjudicator, which is the only node entitled to
+        # turn it into a directive. This is the runtime premise the retired
+        # widened-binding canary rested on, witnessed on the unmodified graph.
+        "the_reviews_actual_finding_reaches_the_adjudicator": adjudication["input"][
+            "findingContent"
+        ]
+        == initial["response"]["output"]["findingContent"]
+        and "RAW_REJECTED_FINDING_CANARY" in adjudication["input"]["findingContent"],
+        "semantic_mismatch_fails_at_final_despite_available_evidence": (
+            not cases["wrong-population"]["result"]["succeeded"]
+            and cases["wrong-population"]["result"]["failure"] == "semantic_gap"
+            and events("wrong-population", "initial_review")[0]["input"]["evidence"]
+            == "valid"
+            and events("wrong-population", "final_assessment_authority_clean")[0][
+                "response"
+            ]["signals"]["assessment"]
             == "gap"
-            for name in SEMANTIC_GAPS
         ),
         "initial_missing_stops_before_review": cases["missing-initial"]["result"][
             "failure"
         ]
         == "required_evidence_missing"
         and [e["node"] for e in cases["missing-initial"]["events"]] == ["implement"],
-        "renewed_missing_stops_before_fresh_review_or_final": cases["missing-renewed"][
-            "result"
-        ]["failure"]
-        == "required_evidence_missing"
-        and not events("missing-renewed", "repair_review")
-        and not any(
-            e["node"].startswith("final_assessment")
-            for e in cases["missing-renewed"]["events"]
-        ),
         "renewed_evidence_observes_structurally_current_candidate": cases[
             "repair-renewed"
         ]["result"]["succeeded"]
@@ -295,15 +335,21 @@ def acceptance_checks(cases):
                 "FORGED_",
             )
         ),
-        "sticky_directive_survives_clean_review_until_explicit_resolution": len(stable)
-        == 3
-        and cases["sticky"]["result"]["failure"] == "obligations_exhausted"
-        and all(
-            e["input"]["findings"] == "clean"
-            and e["input"]["outstanding"] == "open_d1"
-            and e["input"]["directiveContent"] == repair["input"]["directiveContent"]
-            for e in stable
-        ),
+        # The obligation the real evidence raised is still open and still
+        # carrying its payload when the round's resolution is taken, and it is
+        # that authority -- not the fresh clean review beside it -- that closes
+        # it. Sticky-across-several-rounds and the exhausted bound are the same
+        # graph behaviour with no evidence of their own, and are witnessed for
+        # real by the #17 campaign's `sticky-exhaust`.
+        "directive_stays_open_into_the_round_and_is_closed_only_by_resolution": len(
+            resolution
+        )
+        == 1
+        and resolution[0]["input"]["outstanding"] == "open_d1"
+        and resolution[0]["input"]["findings"] == "clean"
+        and resolution[0]["input"]["directiveContent"]
+        == repair["input"]["directiveContent"]
+        and resolution[0]["response"]["signals"]["resolution"] == "resolved_d1",
         "deterministic_evidence_never_reaches_model_executable": all(
             not e["node"].endswith("evidence_check")
             for case in cases.values()
