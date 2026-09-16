@@ -1,4 +1,8 @@
-"""Actual SDK graph-local mechanical evidence integration controls."""
+"""Product submission, evidence/authority handoffs and terminal artifacts.
+
+These three real-SDK cases validate Broodling's integration seams. They do not
+assert route placement, branch ordering, loop semantics or execution traces.
+"""
 
 import unittest
 

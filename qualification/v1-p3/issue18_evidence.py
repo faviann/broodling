@@ -43,7 +43,8 @@ def main(output):
                 ROOT / "broodling/submission.py",
             )
         },
-        "testOnlySubstitution": "Only semantic/mutation agents use a controlled executable. Both evidence occurrences execute the actual deterministic product leaf through the exact admitted graph/runtime/coordinator/profile. Semantic assessors evaluate bound raw content rather than scenario names.",
+        "testOnlySubstitution": "Semantic/mutation agents use a controlled executable; the evidence leaf is the actual product implementation. valid and repair-renewed use the unchanged product graph/runtime/coordinator/profile. timeout-descendant declares its shortened evidence-node timeout in the case record. Controlled judgments do not establish real-model semantic reliability.",
+        "witnessScope": "Three Broodling integration seams: complete returned evidence, isolated repair handoff with renewed terminal evidence, and cancellation across the custom evidence subprocess boundary. No execution-order, per-node error, branch or loop conformance claims. Missing-material collection and terminal-result refusal, and frozen-population transport and non-success refusal, are tested directly at the Broodling-owned boundaries instead of by complete Zeroshot runs. See docs/implementation/pr48-ownership-audit.md and tests/README.md. Historical records remain unchanged.",
         "limits": "Mechanics and handoff evidence, not broad model semantic reliability; real reviewer/containment evidence is retained separately. No G3 or Work Unit disposition verdict.",
         "verdict": "PASS" if all(checks.values()) else "FAIL",
     }

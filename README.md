@@ -77,12 +77,13 @@ BROODLING_ZEROSHOT_LANE=1 python -m pytest tests    # + real-Zeroshot witnesses
 ```
 
 The default lane is Broodling's own behaviour and finishes in minutes. The
-real-Zeroshot integration/qualification witnesses — the G3 actual graph and
-evidence controls, the G4 disposition and replacement races, #19 custody and
+real-Zeroshot integration/qualification witnesses — the scoped evidence/authority
+integration controls, the G4 disposition and replacement races, #19 custody and
 current-run observation, and the stop/cessation windows — run only with
 `BROODLING_ZEROSHOT_LANE=1` and the qualified SDK/sidecar installed, because
-they cost the better part of an hour and are paid for a gate rather than for the
-next commit. Nothing is doubled or weakened to achieve that; see
+the broader lifecycle/custody campaigns are expensive and are run deliberately
+rather than on every commit. PR #48 removes dependency-control-flow tests rather than preserving
+them as graph proofs; see the [ownership audit](docs/implementation/pr48-ownership-audit.md) and
 [the lane notes](tests/README.md#two-test-lanes-issue-39) for what each lane
 holds and why the cheap real submission witnesses stay in regression.
 

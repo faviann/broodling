@@ -1,5 +1,20 @@
 # Qualification entry-point safety and reproduction
 
+## PR #48 ownership correction (15 September 2026)
+
+The current #17 control and adversarial entrypoints and their controlled provider
+fixture are retired. They tested Zeroshot control-flow/response mechanics rather
+than a Broodling-owned integration boundary. No replacement graph analyzer or
+empty PASS record is provided. Use the original recorded Git tree for historical
+reproduction; the reviewed pre-audit PR tree is d2d34ae30a2e573e23a61379184b623c988944f5.
+Historical records, reports and hashes remain unchanged.
+
+The current #18 writer retains three explicitly scoped integration witnesses and
+can be invoked with an explicit fresh output path. See the
+[ownership audit](../docs/implementation/pr48-ownership-audit.md). The issue #36
+section below records the earlier safety change; its statements about #17's
+continued executable behavior describe that historical revision, not current code.
+
 ## Issue #36 decision (12 September 2026)
 
 The five entry points listed below are now inert on import. Path setup, fixture
@@ -96,11 +111,12 @@ FRESH_DIR="$(mktemp -d)"
 # The legacy guard is a negative control: expect exit 1.
 "$SDK_PYTHON" qualification/v1-p2/issue14_evidence.py --output "$FRESH_DIR/issue14.json"
 
-"$SDK_PYTHON" qualification/v1-p3/issue17_adversarial.py
-# This command still writes /dev/shm/issue17_adversarial_results.json.
+"$SDK_PYTHON" qualification/v1-p3/issue18_evidence.py --output "$FRESH_DIR/issue18.json"
+# Choose a fresh explicit output; never overwrite retained historical records.
 ```
 
-These commands intentionally launch the original campaigns on current code.
+These commands intentionally launch the supported current campaigns. The #18
+writer now uses the integration-only scope described above.
 The P4 scripts retain their existing verdict logic: failures or skipped tests
 cannot report `mechanicsPassed: true`; #22 also requires invocation/final source
 hashes to match. Fresh results are separate observations, not replacements for

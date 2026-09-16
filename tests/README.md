@@ -506,7 +506,7 @@ set; without the SDK its tests skip either way, and the skip message says which
 of the two is missing.
 
 `tests/zeroshot_lane.py` is the whole mechanism: one `unittest.skipUnless` built
-from an environment variable, applied as `@qualification_lane` to nine test
+from an environment variable, applied as `@qualification_lane` to seven test
 classes. An environment variable rather than a pytest marker because the suite is
 also documented to run under `unittest discover`, where markers do not exist —
 and `skipUnless` needs no plugin, conftest hook or configuration in either
@@ -531,9 +531,9 @@ sidecar built from `d090961`, so nothing skips):
 | Broodling regression (default) | 390 passed, 39 skipped | 2:40 |
 | Both lanes | 431 passed, 0 skipped | ~49 min, unchanged |
 
-The before/both rows were measured on the branch point; #43 has since net
-removed two identity cases, so the same runs report 429 today. The split itself
-accounts for the 39.
+The before/both rows are historical measurements at the split's branch point.
+Subsequent test changes, including the ownership audit below, changed collection
+and campaign counts; these rows do not describe current collection.
 
 56 tests required the real SDK and accounted for **2844.5s of 2937.3s — 96.8% of
 the runtime**; the other 356 cost 92.8s between them. Cost inside the real-SDK
@@ -548,14 +548,13 @@ than an all-or-nothing one:
 
 ## What is in the lane, and why
 
-Real Zeroshot execution whose cost is paid for a gate rather than for the next
-commit. Each entry keeps its full witness; only the moment it runs changed.
+The following integration/lifecycle witnesses are opt-in. The split originally
+changed only when they ran; the ownership audit below also removes engine-only
+assertions and retires the #17 campaign.
 
 | Module | Tests | Protects |
 | --- | --- | --- |
-| `test_assurance_graph.py` | 3 | G3-V1 actual graph negative/positive controls (#17) |
-| `test_evidence_graph.py` | 1 | G3-V1 graph-local mechanical evidence controls (#18) |
-| `test_assurance_public.py` | 1 | actual admitted P3 Attempts through the public coordinator |
+| `test_evidence_graph.py` | 1 | Broodling evidence/authority integration seams (#18) |
 | `test_final_assurance_capture.py` | 7 | #19 completed custody against the actual SDK path |
 | `test_final_assurance_public.py` | 4 | #19 current-run observation on the real graph |
 | `test_disposition_public.py` | 10 | G4-V1 no-effect disposition and finalization races |
@@ -563,10 +562,10 @@ commit. Each entry keeps its full witness; only the moment it runs changed.
 | `test_abandonment_public.py` | 6 | stop/cessation/retirement windows on the pinned SDK |
 | `test_stop_protocol_compatibility.py` | 1 | published #21 protocol can still cease and retire |
 
-G3-V1 requires *actual* graph controls and G4-V1 requires a real-provider
-no-effect vertical slice, so none of these was replaced by a double. The gate
-still has the witness it asks for; a developer no longer pays for it on every
-run.
+The ownership audit below supersedes the rule that every historical gate
+witness must remain an executable test. Actual Broodling integration and lifecycle
+witnesses remain; dependency-control-flow assertions do not. Historical gate
+records retain their original meaning.
 
 ## What stayed in regression, and why
 
@@ -609,9 +608,9 @@ against a controlled double, so the default lane loses no assertion:
   of concurrent abandoners is already covered without the SDK by
   `test_abandonment_foundation.py::test_concurrent_abandoners_converge`.
 
-Neither was deleted. A dependency-behaviour witness is worth keeping where it
-records an assumption Broodling relies on — it is worth keeping *out* of the
-per-commit loop.
+These two tests still accompany existing production behavior; they are not a
+precedent for preserving dependency conformance tests. The terminal-observation
+restriction is explicitly flagged for production redesign in the PR #48 audit.
 
 ## What the default lane still covers with doubles
 
@@ -624,3 +623,117 @@ interpretation are all held by controlled tests that were already there:
 (18) for the submission contract, plus the abandonment, disposition, retry,
 custody, final-material and containment foundations. `test_containment.py` keeps
 real process witnesses without needing the SDK at all.
+
+# Minimal real-Zeroshot witnesses (issue #45)
+
+The 15 September PR #48 ownership re-audit supersedes the earlier strategy of
+replacing runtime permutations with graph-structure proofs. **First identify a
+Broodling requirement or integration assumption.** Authorship, inspectability and
+historical qualification coverage do not establish ownership. Delete assertions
+of Zeroshot internals rather than moving them to a cheaper simulated layer.
+
+The [ownership audit](../docs/implementation/pr48-ownership-audit.md) records the
+boundary, the justified tests, deliberately removed claims, over-specified #45
+and G3/G4 requirements, and production design that still conflicts with the target.
+
+## Current coverage
+
+Seven tests in test_assurance_policy.py check role/runtime correspondence,
+mutation capability, repair/reviewer input isolation, designated authority writers,
+immutable admission/private-diagnostic boundaries, and the fresh-session/evidence
+configuration. They enumerate declarations, not possible execution paths.
+Submission/profile, evidence collection, terminal interpretation, custody,
+disposition, abandonment/replacement and no-effect tests retain their own coverage.
+
+The real evidence campaign retains only these integration cases:
+
+| Case | Broodling integration claim |
+| --- | --- |
+| valid | Frozen invocation runs with the custom evidence leaf and returns complete evidence/rationale |
+| repair-renewed | Finding/directive isolation and repaired evidence bytes survive the actual handoffs into the terminal result |
+| timeout-descendant | A child created by Broodling's custom evidence collector is actually present, then absent after runtime cancellation |
+
+The first two use the product graph/runtime unchanged. The last declares its
+5,000 ms evidence-node timeout in the record instead of using the 300,000 ms
+product timeout. It protects the custom subprocess boundary, not generic engine
+timer behavior. No case asserts an exact transcript, route placement, branch
+precedence, per-node failure matrix or loop iteration count.
+
+`wrong-population` and `missing-initial` were reconsidered after the ownership
+audit and removed. The former depended on a controlled assessor judgment plus
+Zeroshot routing; the latter depended on Zeroshot routing the collector's
+missing signal. Direct tests already hold the Broodling-owned halves: frozen
+population stays distinct from opaque candidate bytes, the real collector emits
+`missing` for absent material, and failed/incomplete terminal results cannot
+create custody or disposition. Complete runs added no distinct handoff at either
+the admitted-invocation or terminal-result boundary.
+
+The material-fidelity tests stop at the real collector's output. Mismatched raw
+payloads remain opaque data beside frozen metadata; those tests do not establish
+semantic rejection, assessor behavior or SDK transport.
+
+## Deleted, not replaced
+
+The 522-line test_assurance_graph_structure.py and eight-run #17 campaign are
+removed, along with their model fixture and control/adversarial entrypoints.
+This removes per-executable guards, routes_authored_after, sink/branch/loop/error
+proofs, repeated-label and sticky-exhaustion traces, response-defect matrices and
+generic hangs. Policy bindings survive in the seven tests above; engine claims
+have no replacement. No interpreter, analyzer or mutation framework is added.
+
+Historical #17/#18/W-level evidence JSON and reports remain unchanged. To reproduce
+an older campaign, use its recorded Git tree; the reviewed pre-audit PR tree is
+d2d34ae30a2e573e23a61379184b623c988944f5. A deleted entrypoint does not emit an empty
+PASS or silently rerun another campaign. Current #18 records describe only the
+three cases and checks that actually ran.
+
+## Counts and measurement
+
+| Assurance/evidence opt-in runs | Before #45 | Reviewed PR #48 | After ownership audit |
+| --- | ---: | ---: | ---: |
+| #17 assurance campaign | 38 | 8 | 0 |
+| #18 evidence integration | 12 | 5 | 3 |
+| separate admitted submissions | 2 | 0 | 0 |
+| Total | 52 | 13 | 3 |
+
+These counts exclude other lifecycle/custody campaigns. The standalone #18
+record writer runs the same three cases when invoked separately; do not add its
+counts to the pytest alternative as though they were distinct requirements.
+
+Previously recorded timings were 798.2 seconds for the two original campaign
+modules and 238.7 seconds for the reviewed 13-run PR (133.9 assurance, 104.4
+evidence). These are historical samples, not fresh measurements of this revision.
+Host variation prevents interpreting a small timing difference as a regression.
+
+## Remaining architectural mismatch
+
+The product still observes live mutation/final occurrences in observe_current and
+uses those references for final custody. Its tests remain while that production
+behavior exists. The audit explicitly proposes replacing this with the trusted
+terminal-result/artifact boundary, not deleting current lifecycle safeguards
+without changing their consumer. This PR narrows test ownership; it does not
+complete the production architecture migration or requalify all G3/G4 obligations.
+
+## Verification of the ownership correction (16 September 2026)
+
+Qualified workstation profile: CPython 3.13.5, SDK 0.1.0.dev0 and sidecar/source
+hashes accepted by assert_qualified_integration. Production imports resolved to
+the isolated PR worktree, not the shared checkout.
+
+The entire default regression selection was run in two disjoint groups:
+
+| Command selection | Result | Wall clock |
+| --- | --- | ---: |
+| pytest tests --ignore=tests/test_submission.py --ignore=tests/test_submission_crashes.py | 365 passed, 35 expected opt-in skips; 327 subtests passed | 103.94s |
+| pytest tests/test_submission.py tests/test_submission_crashes.py | 35 passed; 23 subtests passed | 64.52s |
+| BROODLING_ZEROSHOT_LANE=1 pytest tests/test_evidence_graph.py | All three real-SDK cases; 1 test and 12 subtests passed; no skips | 80.09s |
+
+Aggregate default selection: 400 passed, 35 expected skips, 350 subtests passed.
+Focused policy, evidence, terminal-observation, custody-completeness and entrypoint
+coverage also passed (40 tests, 100 subtests, 21.52s). Changed Python files pass
+Ruff checks; git diff --check is clean.
+
+The full opt-in custody/disposition/replacement/abandonment campaigns and actual
+provider semantic qualification were not rerun. Their production code, graph,
+runtime/profile pins and historical evidence are unchanged. These results do not
+claim a new G3/G4 gate pass or completion of the terminal-only production redesign.
