@@ -9,7 +9,7 @@ empty PASS record is provided. Use the original recorded Git tree for historical
 reproduction; the reviewed pre-audit PR tree is d2d34ae30a2e573e23a61379184b623c988944f5.
 Historical records, reports and hashes remain unchanged.
 
-The current #18 writer retains five explicitly scoped integration witnesses and
+The current #18 writer retains three explicitly scoped integration witnesses and
 can be invoked with an explicit fresh output path. See the
 [ownership audit](../docs/implementation/pr48-ownership-audit.md). The issue #36
 section below records the earlier safety change; its statements about #17's

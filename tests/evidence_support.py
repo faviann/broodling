@@ -25,8 +25,6 @@ LEAF = ROOT / "tests/fixtures/evidence-bin/codex"
 # mutation agents are controlled; the evidence leaf and submission path are real.
 SCENARIOS = (
     "valid",  # complete evidence survives the configured run/result seam
-    "wrong-population",  # available evidence is not itself semantic acceptance
-    "missing-initial",  # the custom leaf's missing-material result is not accepted
     "repair-renewed",  # actual repair handoff and renewed material in the result
     "timeout-descendant",  # cancellation across Broodling's custom subprocess boundary
 )
@@ -140,7 +138,6 @@ def run_case(scenario):
         executable.write_text(
             "#!/usr/bin/env python3\nimport os,sys\n"
             f"os.environ['BROODLING_EVIDENCE_TEST_STATE'] = {str(state)!r}\n"
-            f"os.environ['BROODLING_EVIDENCE_TEST_SCENARIO'] = {scenario!r}\n"
             f"os.execv({str(LEAF)!r}, [{str(LEAF)!r}, *sys.argv[1:]])\n"
         )
         executable.chmod(0o755)
@@ -252,17 +249,6 @@ def acceptance_checks(cases):
             adjudication["input"]["findingContent"]
             == initial["response"]["output"]["findingContent"]
             and "RAW_REJECTED_FINDING_CANARY" in adjudication["input"]["findingContent"]
-        ),
-        "available_evidence_alone_is_not_semantic_acceptance": (
-            not cases["wrong-population"]["result"]["succeeded"]
-            and cases["wrong-population"]["result"]["failure"] == "semantic_gap"
-            and events("wrong-population", "initial_review")[0]["input"]["evidence"]
-            == "valid"
-        ),
-        "missing_required_material_is_not_accepted": (
-            not cases["missing-initial"]["result"]["succeeded"]
-            and cases["missing-initial"]["result"]["failure"]
-            == "required_evidence_missing"
         ),
         "repaired_result_contains_renewed_evidence": (
             repaired["result"]["succeeded"]

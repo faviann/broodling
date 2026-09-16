@@ -1,9 +1,11 @@
 # PR #48: Broodling / Zeroshot ownership audit
 
-Date: 15 September 2026. Reviewed PR head: d2d34ae30a2e573e23a61379184b623c988944f5.
-Basis: the owner's instruction to audit ownership before preserving or replacing
-qualification assertions. This is a prospective test-ownership correction and a
-production-design assessment, not a retrospective change to G3/G4 evidence.
+Date: 16 September 2026. The initial audit reviewed PR head
+d2d34ae30a2e573e23a61379184b623c988944f5; the final witness reassessment reviewed
+b3aabc7d3e0e5680e0a925e41a6dae2da2442711. Basis: the owner's instruction to
+audit ownership before preserving or replacing qualification assertions. This is
+a prospective test-ownership correction and a production-design assessment, not
+a retrospective change to G3/G4 evidence.
 
 ## 1. Proposed ownership boundary
 
@@ -46,19 +48,23 @@ internal route used to produce them or independently re-judge model semantics.
 | Failure, missing material or stale/abandoned Attempt cannot authorize success/effects | Terminal adapter, custody, disposition, abandonment/replacement and no-effect tests |
 | Broodling's custom evidence collector does not leave its child alive when cancelled by the runtime | One timeout-descendant integration case, with a witnessed live child and no survivor |
 
-The retained real campaign has five cases: valid, wrong-population,
-missing-initial, repair-renewed and timeout-descendant. The first four use the
-unchanged product graph/runtime/coordinator and the actual deterministic evidence
-leaf; semantic and mutation agents are controlled. The last shortens only the
-evidence node's timeout and records that deviation. It validates the custom
+The retained real campaign has three cases: valid, repair-renewed and
+timeout-descendant. The first two use the unchanged product
+graph/runtime/coordinator and the actual deterministic evidence leaf; semantic
+and mutation agents are controlled. The last shortens only the evidence node's
+timeout and records that deviation. It validates the custom
 collector/namespace/child boundary, not Zeroshot's general timer implementation.
 
-wrong-population distinguishes available material from a semantic-acceptance
-result in this configured integration. It does not establish that a real model
-reliably recognizes every semantic mismatch. The fast material-fidelity tests
-establish collector output and frozen metadata only, not transport to an assessor
-or correctness of semantic judgment. They are not substitute semantic verdicts
-for the retired six-dimension model-fixture matrix.
+The final reassessment removed `wrong-population` and `missing-initial`.
+`wrong-population` observed a controlled assessor's semantic judgment and
+Zeroshot's route to a failed result. Broodling's owned claims are already direct:
+the collector keeps the Contract's frozen population distinct from opaque
+candidate bytes, and failed terminal results cannot authorize custody or
+disposition. `missing-initial` observed Zeroshot routing the custom leaf's
+`missing` signal. The leaf's actual missing-material response is exercised
+directly, while the terminal/custody/disposition boundaries independently refuse
+failure and incomplete material. Neither complete run protected an additional
+Broodling-owned handoff.
 
 ## 3. Removed tests and reconsidered requirements
 
@@ -83,6 +89,10 @@ for the retired six-dimension model-fixture matrix.
 - Exact model transcript sequences and assertions that a failure happens before
   a particular review/final node in the evidence campaign. The assertions now
   concern configured handoffs, terminal outcomes and returned material.
+- `wrong-population` and `missing-initial` complete runs. Their remaining claims
+  split cleanly into direct collector/configuration checks at the beginning and
+  terminal/custody/disposition refusal checks at the end; the execution between
+  those boundaries belongs to Zeroshot.
 - Exact timeout/attempt counts, instruction marker prefixes, diagnostic schema
   option flags and global forbidden-word scans from the new structural suite.
   Keep such checks only when an independent configuration contract requires them,
@@ -147,7 +157,7 @@ seam is not a scheduler or an excuse for supervising Zeroshot's whole run.
 ## 5. Minimal PR #48 change
 
 Delete the structural proof suite and #17 engine campaign/fixture/entrypoints;
-keep seven small policy/configuration tests and the five named real integration
+keep seven small policy/configuration tests and the three named real integration
 cases. Remove execution-order assertions from those cases and check terminal
 material instead. Correct evidence-fidelity claims and current coverage docs.
 Do not rewrite historical reports or add a new analyzer/canary framework.
@@ -160,8 +170,8 @@ it is a coordinated terminal-contract/custody/lifecycle change; deleting those
 safety tests alone would hide a real mismatch rather than resolve it.
 
 The pre-#45 lane made 52 runs (38 assurance, 12 evidence, 2 product submissions).
-Reviewed PR head made 13 (8 assurance, 5 evidence). This revision makes 5, all in
+Reviewed PR head made 13 (8 assurance, 5 evidence). This revision makes 3, all in
 the evidence integration campaign. Running the standalone #18 writer separately
-makes the same five runs again; it is a record-producing alternative, not an
+makes the same three runs again; it is a record-producing alternative, not an
 additional required campaign. The rest of the opt-in lifecycle/custody lane is
 outside this count. Current verification is recorded in tests/README.md.

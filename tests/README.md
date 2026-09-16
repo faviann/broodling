@@ -650,16 +650,23 @@ The real evidence campaign retains only these integration cases:
 | Case | Broodling integration claim |
 | --- | --- |
 | valid | Frozen invocation runs with the custom evidence leaf and returns complete evidence/rationale |
-| wrong-population | Availability alone does not become acceptance at the configured result seam; controlled semantics, not broad model reliability |
-| missing-initial | Actual missing material from the custom leaf produces non-success |
 | repair-renewed | Finding/directive isolation and repaired evidence bytes survive the actual handoffs into the terminal result |
 | timeout-descendant | A child created by Broodling's custom evidence collector is actually present, then absent after runtime cancellation |
 
-The first four use the product graph/runtime unchanged. The last declares its
+The first two use the product graph/runtime unchanged. The last declares its
 5,000 ms evidence-node timeout in the record instead of using the 300,000 ms
 product timeout. It protects the custom subprocess boundary, not generic engine
 timer behavior. No case asserts an exact transcript, route placement, branch
 precedence, per-node failure matrix or loop iteration count.
+
+`wrong-population` and `missing-initial` were reconsidered after the ownership
+audit and removed. The former depended on a controlled assessor judgment plus
+Zeroshot routing; the latter depended on Zeroshot routing the collector's
+missing signal. Direct tests already hold the Broodling-owned halves: frozen
+population stays distinct from opaque candidate bytes, the real collector emits
+`missing` for absent material, and failed/incomplete terminal results cannot
+create custody or disposition. Complete runs added no distinct handoff at either
+the admitted-invocation or terminal-result boundary.
 
 The material-fidelity tests stop at the real collector's output. Mismatched raw
 payloads remain opaque data beside frozen metadata; those tests do not establish
@@ -678,19 +685,19 @@ Historical #17/#18/W-level evidence JSON and reports remain unchanged. To reprod
 an older campaign, use its recorded Git tree; the reviewed pre-audit PR tree is
 d2d34ae30a2e573e23a61379184b623c988944f5. A deleted entrypoint does not emit an empty
 PASS or silently rerun another campaign. Current #18 records describe only the
-five cases and checks that actually ran.
+three cases and checks that actually ran.
 
 ## Counts and measurement
 
 | Assurance/evidence opt-in runs | Before #45 | Reviewed PR #48 | After ownership audit |
 | --- | ---: | ---: | ---: |
 | #17 assurance campaign | 38 | 8 | 0 |
-| #18 evidence integration | 12 | 5 | 5 |
+| #18 evidence integration | 12 | 5 | 3 |
 | separate admitted submissions | 2 | 0 | 0 |
-| Total | 52 | 13 | 5 |
+| Total | 52 | 13 | 3 |
 
 These counts exclude other lifecycle/custody campaigns. The standalone #18
-record writer runs the same five cases when invoked separately; do not add its
+record writer runs the same three cases when invoked separately; do not add its
 counts to the pytest alternative as though they were distinct requirements.
 
 Previously recorded timings were 798.2 seconds for the two original campaign
@@ -707,7 +714,7 @@ terminal-result/artifact boundary, not deleting current lifecycle safeguards
 without changing their consumer. This PR narrows test ownership; it does not
 complete the production architecture migration or requalify all G3/G4 obligations.
 
-## Verification of the ownership correction (15 September 2026)
+## Verification of the ownership correction (16 September 2026)
 
 Qualified workstation profile: CPython 3.13.5, SDK 0.1.0.dev0 and sidecar/source
 hashes accepted by assert_qualified_integration. Production imports resolved to
@@ -717,14 +724,14 @@ The entire default regression selection was run in two disjoint groups:
 
 | Command selection | Result | Wall clock |
 | --- | --- | ---: |
-| pytest tests --ignore=tests/test_submission.py --ignore=tests/test_submission_crashes.py | 365 passed, 35 expected opt-in skips; 327 subtests passed | 99.57s |
-| pytest tests/test_submission.py tests/test_submission_crashes.py | 35 passed; 23 subtests passed | 68.57s |
-| BROODLING_ZEROSHOT_LANE=1 pytest tests/test_evidence_graph.py | All five real-SDK cases; 1 test and 14 subtests passed; no skips | 114.02s |
+| pytest tests --ignore=tests/test_submission.py --ignore=tests/test_submission_crashes.py | 365 passed, 35 expected opt-in skips; 327 subtests passed | 103.94s |
+| pytest tests/test_submission.py tests/test_submission_crashes.py | 35 passed; 23 subtests passed | 64.52s |
+| BROODLING_ZEROSHOT_LANE=1 pytest tests/test_evidence_graph.py | All three real-SDK cases; 1 test and 12 subtests passed; no skips | 80.09s |
 
 Aggregate default selection: 400 passed, 35 expected skips, 350 subtests passed.
-The five-case campaign call itself took 113.62s. Earlier focused policy/evidence/
-submission/entrypoint coverage also passed (35 tests, 68 subtests, 21.07s).
-Changed Python files pass Ruff checks; git diff --check is clean.
+Focused policy, evidence, terminal-observation, custody-completeness and entrypoint
+coverage also passed (40 tests, 100 subtests, 21.52s). Changed Python files pass
+Ruff checks; git diff --check is clean.
 
 The full opt-in custody/disposition/replacement/abandonment campaigns and actual
 provider semantic qualification were not rerun. Their production code, graph,

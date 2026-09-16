@@ -1,6 +1,6 @@
 """Product submission, evidence/authority handoffs and terminal artifacts.
 
-These five real-SDK cases validate Broodling's integration seams. They do not
+These three real-SDK cases validate Broodling's integration seams. They do not
 assert route placement, branch ordering, loop semantics or execution traces.
 """
 

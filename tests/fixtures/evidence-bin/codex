@@ -52,14 +52,11 @@ def main():
     )
     state = Path(os.environ["BROODLING_EVIDENCE_TEST_STATE"])
     state.mkdir(parents=True, exist_ok=True)
-    scenario = os.environ["BROODLING_EVIDENCE_TEST_SCENARIO"]
     candidate = Path("candidate.json")
     if node == "implement":
         raw = json.loads(Path("desired.json").read_text())
         raw["generationMaterial"] = "AFTER_IMPLEMENT"
         candidate.write_text(json.dumps(raw))
-        if scenario == "missing-initial":
-            candidate.unlink()
         response = None
     elif node == "repair":
         raw = json.loads(candidate.read_text())
