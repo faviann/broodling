@@ -95,10 +95,19 @@ async with Client(target=target, environment=environment) as client:
     )
     # Persist run.id against the already-admitted Attempt.
 
-async with Client(target=target, environment=environment) as client:
+# Reconnection does not reconstruct submission policy or the old workspace.
+reconnect_target = LocalTarget(state_dir=admitted["target"]["stateDir"])
+async with Client(target=reconnect_target, environment={}) as client:
     result = await client.get_run(correlated_run_id).wait()
     # Recheck current-Attempt authority before applying lifecycle decisions.
 ```
+
+For DirectTarget runs, the corresponding reconnect target is
+`DirectTarget(admitted["target"]["deliveryTargetOrigin"])`. Observation and
+force-stop need that persisted origin and run ID, not the submission workspace,
+runtime, provider environment, or delivery credential. Broodling still requires
+the complete frozen selection and current dispatch authority before an initial
+submission or acknowledgement-loss replay.
 
 Zeroshot expands the preset and validates before starting a controller. Exact
 duplicate submissions return the existing run; changed content under the same

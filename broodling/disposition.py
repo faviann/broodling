@@ -62,10 +62,10 @@ class WorkUnitDispositionCoordinator:
         submitted = self.submission._required(attempt_id)
         if submitted.state != "correlated":
             raise SubmissionNotReady("completion requires an already-correlated run")
-        self.submission._target(submitted)
-        self.submission._source(attempt, assignment, require_b1=False)
         request = json.loads(submitted.request_json)
-        if request != self.submission._request(attempt, assignment):
+        if request != self.submission._request(
+            attempt, assignment, frozen_execution=request
+        ):
             raise SubmissionConflict(
                 "result is not bound to the admitted workflow invocation"
             )

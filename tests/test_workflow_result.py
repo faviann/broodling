@@ -90,6 +90,22 @@ class ResultTests(SubmissionCase):
             self.assertEqual(asyncio.run(disposition.finalize(self.attempt_id)), record)
         self.assertEqual(disposition.justification(self.attempt_id), record.result)
 
+    def test_correlated_pr_completes_after_current_execution_config_is_unavailable(self):
+        from broodling.zeroshot_sdk import ZeroshotSubmitter
+
+        self.path.rename(self.path.with_name("original-workspace-no-longer-available"))
+        self.restart()
+        reconnected = ZeroshotSubmitter(self.root / "unavailable-current-runtime")
+        disposition = WorkUnitDispositionCoordinator(self.store, reconnected)
+        with patch.object(
+            reconnected, "wait", AsyncMock(return_value=self.result)
+        ) as wait:
+            record = asyncio.run(disposition.finalize(self.attempt_id))
+        self.assertEqual(record.outcome, "SUCCEEDED")
+        wait.assert_awaited_once_with(
+            json.loads(self.submitted.request_json), self.submitted.run_id
+        )
+
     def test_request_freezes_the_contract_and_selects_authorized_native_delivery(
         self,
     ):

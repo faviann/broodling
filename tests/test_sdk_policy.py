@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from submission_support import SubmissionCase
 
@@ -75,7 +75,7 @@ class SdkPolicyTests(SubmissionCase):
                 self.adapter.submit(request)
             client.assert_not_called()
 
-    def test_submit_wait_and_stop_reject_foreign_targets_or_unsupported_workflows(self):
+    def test_submit_rejects_foreign_targets_or_unsupported_workflows(self):
         selected = self.request()
         requests = []
         for preset in (
@@ -91,19 +91,86 @@ class SdkPolicyTests(SubmissionCase):
         legacy["graph"] = {"historical": "custom-graph"}
         requests.append(legacy)
         for request in requests:
-            for operation in (
-                lambda request=request: self.adapter.submit(request),
-                lambda request=request: asyncio.run(
-                    self.adapter.wait(request, "known-run")
+            with self.subTest(request=request), patch("zeroshot.Client") as client:
+                with self.assertRaises(UnsupportedRuntime):
+                    self.adapter.submit(request)
+                client.assert_not_called()
+
+    def test_local_reconnect_uses_only_the_persisted_state_locator(self):
+        from zeroshot import LocalTarget
+
+        request = self.request()
+        run = SimpleNamespace(
+            wait=AsyncMock(return_value="result"),
+            force_stop=AsyncMock(return_value="stopped"),
+        )
+        client = MagicMock()
+        client.get_run.return_value = run
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=None)
+        reconnected = ZeroshotSubmitter(self.root / "different-current-state")
+        with patch("zeroshot.Client", return_value=client) as construct:
+            self.assertEqual(
+                asyncio.run(reconnected.wait(request, "known-run")), "result"
+            )
+            self.assertEqual(
+                asyncio.run(reconnected.stop_known(request, "known-run")), "stopped"
+            )
+        construct.assert_has_calls(
+            [
+                call(
+                    target=LocalTarget(state_dir=request["target"]["stateDir"]),
+                    environment={},
                 ),
-                lambda request=request: asyncio.run(
-                    self.adapter.stop_known(request, "known-run")
+                call(
+                    target=LocalTarget(state_dir=request["target"]["stateDir"]),
+                    environment={},
                 ),
-            ):
-                with self.subTest(request=request), patch("zeroshot.Client") as client:
-                    with self.assertRaises(UnsupportedRuntime):
-                        operation()
-                    client.assert_not_called()
+            ],
+        )
+
+    def test_direct_reconnect_uses_only_the_persisted_origin(self):
+        from zeroshot import DirectTarget
+
+        submitted = ZeroshotSubmitter(
+            self.runtime_state,
+            delivery_target_origin="http://127.0.0.1:8123",
+            github_token="dispatch-only-token",
+        )
+        request = self.request()
+        request["target"] = submitted.target
+        request["preset"] = {"name": "software-change", "delivery": "pull_request"}
+        request["runtime"] = submitted.runtime_for("pull_request")
+        run = SimpleNamespace(
+            wait=AsyncMock(return_value="result"),
+            force_stop=AsyncMock(return_value="stopped"),
+        )
+        client = MagicMock()
+        client.get_run.return_value = run
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=None)
+        reconnected = ZeroshotSubmitter(self.root / "different-current-state")
+        with patch("zeroshot.Client", return_value=client) as construct:
+            self.assertEqual(
+                asyncio.run(reconnected.wait(request, "known-run")), "result"
+            )
+            self.assertEqual(
+                asyncio.run(reconnected.stop_known(request, "known-run")), "stopped"
+            )
+        target = DirectTarget("http://127.0.0.1:8123")
+        construct.assert_has_calls(
+            [
+                call(target=target, environment={}),
+                call(target=target, environment={}),
+            ],
+        )
+
+    def test_new_local_dispatch_requires_the_current_execution_profile(self):
+        adapter = ZeroshotSubmitter(self.runtime_state)
+        request = self.request()
+        request["target"] = adapter.target
+        with self.assertRaisesRegex(UnsupportedRuntime, "execution requires"):
+            adapter.validate_dispatch(self.path, request)
 
     def test_native_state_cannot_overlap_candidate_or_shared_git(self):
         for state in (

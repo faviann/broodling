@@ -140,6 +140,16 @@ stable accepted result. Broodling retains the whole receipt without re-reading
 the mutable worktree. Native PR delivery owns commit, push, PR creation/update,
 repair and receipt validation.
 
+After durable correlation, Broodling reconnects from the locator already frozen
+in that invocation: LocalTarget uses the canonical native state directory and
+DirectTarget uses the persisted target origin. Waiting and force-stop do not
+reconstruct or revalidate the dispatch-time workspace, Codex profile, runtime,
+provider environment, target configuration, or `GH_TOKEN`. Those remain strict
+requirements for new dispatch and acknowledgement-loss replay only. Completion
+still rechecks current Attempt authority, admitted Contract and delivery
+authority, the immutable Attempt/run/invocation binding, and the native delivery
+receipt.
+
 For no-effect delivery, Zeroshot 10.3 succeeds with `output=None`. Broodling does
 not turn that mutable workspace into a completed result: final disposition fails
 closed with the explicit local-result capability gap. A native failure abandons

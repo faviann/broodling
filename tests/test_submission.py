@@ -271,6 +271,27 @@ class SubmissionControls(SubmissionCase):
         with self.assertRaises(SubmissionConflict):
             other.reconcile(self.attempt_id)
 
+    def test_correlated_record_does_not_revalidate_current_execution_target(self):
+        with patch.object(self.adapter, "submit", return_value="r-one"):
+            correlated = self.submit()
+        other = SubmissionCoordinator(
+            self.store, ZeroshotSubmitter(self.root / "unavailable-current-runtime")
+        )
+        self.assertEqual(other.reconcile(self.attempt_id), correlated)
+
+    def test_dispatched_replay_requires_the_current_local_execution_profile(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        self.adapter.codex_profile = None
+        with patch.object(self.adapter, "submit") as native:
+            with self.assertRaisesRegex(UnsupportedRuntime, "execution requires"):
+                self.coordinator.reconcile(self.attempt_id)
+            native.assert_not_called()
+        self.assertEqual(self.coordinator.record(self.attempt_id).state, "dispatched")
+
     def test_source_ownership_change_is_not_excused_by_head_drift(self):
         for change in ("origin", "branch", "marker", "repository"):
             with self.subTest(change=change):

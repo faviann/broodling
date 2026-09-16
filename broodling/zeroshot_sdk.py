@@ -159,7 +159,7 @@ class ZeroshotSubmitter:
                 "Attempt source does not match the authorized pull-request repository"
             )
 
-    def _client(self, request: dict):
+    def _submission_client(self, request: dict):
         if request.get("target") != self.target:
             raise UnsupportedRuntime("runtime target differs from persisted request")
         preset = request.get("preset")
@@ -197,6 +197,34 @@ class ZeroshotSubmitter:
             environment=environment,
         )
 
+    @staticmethod
+    def _correlated_client(request: dict):
+        """Address one persisted run without reconstructing its execution policy."""
+        target = request.get("target")
+        if not isinstance(target, dict):
+            raise UnsupportedRuntime("persisted run target is missing")
+        if target.get("sdkVersion") != ZEROSHOT_SDK_VERSION:
+            raise UnsupportedRuntime(
+                "persisted run requires a different Zeroshot SDK version"
+            )
+        assert_supported_integration()
+        from zeroshot import Client, DirectTarget, LocalTarget
+
+        origin = target.get("deliveryTargetOrigin")
+        if origin is not None:
+            if not isinstance(origin, str) or not origin.strip():
+                raise UnsupportedRuntime("persisted direct target origin is invalid")
+            locator = DirectTarget(origin)
+        else:
+            state_value = target.get("stateDir")
+            if not isinstance(state_value, str) or not state_value:
+                raise UnsupportedRuntime("persisted local state directory is missing")
+            state = Path(state_value)
+            if not state.is_absolute() or state.resolve() != state:
+                raise UnsupportedRuntime("native state directory must remain canonical")
+            locator = LocalTarget(state_dir=state_value)
+        return Client(target=locator, environment={})
+
     def submit(self, request: dict) -> str:
         return asyncio.run(self._submit(request))
 
@@ -205,7 +233,7 @@ class ZeroshotSubmitter:
         from zeroshot.run_errors import SubmissionConflictError
 
         try:
-            async with self._client(request) as client:
+            async with self._submission_client(request) as client:
                 delivery = request["preset"]["delivery"]
                 source = request.get("delivery") if delivery == "pull_request" else {}
                 options = {}
@@ -232,10 +260,10 @@ class ZeroshotSubmitter:
 
     async def wait(self, request: dict, run_id: str):
         """Return the eventual result, including an already-completed run."""
-        async with self._client(request) as client:
+        async with self._correlated_client(request) as client:
             return await client.get_run(run_id).wait()
 
     async def stop_known(self, request: dict, run_id: str):
         """Request terminalization; RunResult is not a physical cleanup receipt."""
-        async with self._client(request) as client:
+        async with self._correlated_client(request) as client:
             return await client.get_run(run_id).force_stop()

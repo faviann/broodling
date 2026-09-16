@@ -66,7 +66,9 @@ class SubmissionCoordinator:
         with self.store._write() as connection:
             yield connection
 
-    def _request(self, attempt, assignment) -> dict:
+    def _request(
+        self, attempt, assignment, *, frozen_execution: dict | None = None
+    ) -> dict:
         revision = self.store.get_contract_revision(attempt.contract_revision_id)
         delivery = authorization(revision.contract)
         work_unit = self.store.get_work_unit(attempt.work_unit_id)
@@ -106,14 +108,26 @@ class SubmissionCoordinator:
             "title": f"Broodling Attempt {attempt.attempt_id}",
             "task": task,
             "preset": {"name": "software-change", "delivery": delivery.mode},
-            "runtime": self.submitter.runtime_for(delivery.mode),
+            "runtime": (
+                self.submitter.runtime_for(delivery.mode)
+                if frozen_execution is None
+                else frozen_execution["runtime"]
+            ),
             "workspace": assignment.worktree_path,
             "repository": attempt.b1_repository,
             "branch": assignment.branch,
             "startingCommit": attempt.b1_commit_oid,
             "materialSha256": attempt.b1_material_sha256,
-            "originUrl": git.origin_url(assignment.path),
-            "target": self.submitter.target,
+            "originUrl": (
+                git.origin_url(assignment.path)
+                if frozen_execution is None
+                else frozen_execution["originUrl"]
+            ),
+            "target": (
+                self.submitter.target
+                if frozen_execution is None
+                else frozen_execution["target"]
+            ),
         }
         if delivery.mode == PULL_REQUEST:
             request["delivery"] = {
@@ -154,6 +168,8 @@ class SubmissionCoordinator:
         with self._write() as connection:
             attempt, assignment = self._current(attempt_id)
             record = self._required(attempt_id)
+            if record.state == "correlated":
+                return record
             self._target(record)
             if record.state == "prepared":
                 self.store._validate_retry_target(attempt_id, self.submitter.target)
@@ -168,8 +184,6 @@ class SubmissionCoordinator:
                 )
 
             record = self._required(attempt_id)
-            if record.state == "correlated":
-                return record
             if record.state == "blocked":
                 raise SubmissionConflict(record.error_detail)
             self._source(attempt, assignment, require_b1=False)
