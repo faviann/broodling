@@ -41,13 +41,12 @@ class AttemptSubmission:
 
 
 class SubmissionCoordinator:
-    """Serialize dispatch/correlation using the Broodling store's write boundary.
+    """Persist dispatch intent, call Zeroshot, then durably correlate its run.
 
-    The durable prepared -> dispatched transition precedes the external call.
-    Transport errors leave dispatched intact, including process death. The
-    subsequent call and correlation run under BEGIN IMMEDIATE; concurrent callers
-    reread the winner's row, and a killed caller releases SQLite's lock. This is
-    intentionally a bounded single-host P2 operation, not a scheduler or lease.
+    No SQLite write transaction spans the external call. Concurrent callers may
+    therefore submit the same frozen request; Zeroshot's submission key is the
+    duplicate-prevention boundary and every caller converges on its one run. A
+    transport failure leaves ``dispatched`` intact for the same idempotent replay.
     """
 
     def __init__(self, store: BroodlingStore, submitter: ZeroshotSubmitter) -> None:
@@ -142,48 +141,85 @@ class SubmissionCoordinator:
                     "UPDATE attempt_submissions SET state = 'dispatched' WHERE attempt_id = ?",
                     (attempt_id,),
                 )
-        conflict = None
-        with self._write() as connection:
-            attempt, assignment = self._current(attempt_id)
+
             record = self._required(attempt_id)
-            self._target(record)
             if record.state == "correlated":
                 return record
             if record.state == "blocked":
                 raise SubmissionConflict(record.error_detail)
             self._source(attempt, assignment, require_b1=False)
             self._origin(record, assignment)
-            try:
-                run_id = self.submitter.submit(json.loads(record.request_json))
-            except SubmissionConflict as error:
-                # A conflict alone is not acceptance of a changed request.
-                # Recheck ownership after the call, since the accepted run can
-                # advance HEAD while the sidecar resolves the replay source.
+            request = json.loads(record.request_json)
+
+        # Zeroshot owns duplicate prevention for this immutable submission key.
+        # Keeping this call outside BEGIN IMMEDIATE lets unrelated lifecycle
+        # writes proceed while native source resolution or startup is slow.
+        conflict = None
+        try:
+            run_id = self.submitter.submit(request)
+        except SubmissionConflict as error:
+            conflict = error
+
+        stale = False
+        with self._write() as connection:
+            record = self._required(attempt_id)
+            self._target(record)
+            if record.state == "correlated":
+                if conflict is None and run_id != record.run_id:
+                    raise SubmissionConflict(
+                        "concurrent submission returned a different run identity"
+                    )
+                if (
+                    conflict is not None
+                    and conflict.existing_run_id.strip()
+                    and conflict.existing_run_id != record.run_id
+                ):
+                    raise SubmissionConflict(
+                        "concurrent submission conflict named a different run identity"
+                    )
+                conflict = None
+                settled = record
+            elif record.state == "blocked":
+                raise SubmissionConflict(record.error_detail)
+            else:
+                attempt, assignment = self._admitted(attempt_id)
                 drifted = self._source(attempt, assignment, require_b1=False)
                 self._origin(record, assignment)
-                if drifted and error.existing_run_id.strip():
-                    run_id = error.existing_run_id
-                else:
-                    conflict = error
+                if conflict is not None:
+                    # A conflict alone is not acceptance of a changed request.
+                    # Recheck ownership after the call, since the accepted run can
+                    # advance HEAD while the sidecar resolves the replay source.
+                    if drifted and conflict.existing_run_id.strip():
+                        run_id = conflict.existing_run_id
+                        conflict = None
+                    else:
+                        connection.execute(
+                            "UPDATE attempt_submissions SET state = 'blocked', error_detail = ? "
+                            "WHERE attempt_id = ?",
+                            (str(conflict), attempt_id),
+                        )
+                if conflict is None:
+                    if not isinstance(run_id, str) or not run_id.strip():
+                        raise SubmissionConflict(
+                            "submission returned no public run identity"
+                        )
                     connection.execute(
-                        "UPDATE attempt_submissions SET state = 'blocked', error_detail = ? "
-                        "WHERE attempt_id = ?",
-                        (str(error), attempt_id),
+                        "UPDATE attempt_submissions SET state = 'correlated', zeroshot_run_id = ? "
+                        "WHERE attempt_id = ? AND state = 'dispatched'",
+                        (run_id, attempt_id),
                     )
-            if conflict is None:
-                if not isinstance(run_id, str) or not run_id.strip():
-                    raise SubmissionConflict(
-                        "submission returned no public run identity"
-                    )
-                connection.execute(
-                    "UPDATE attempt_submissions SET state = 'correlated', zeroshot_run_id = ? "
-                    "WHERE attempt_id = ? AND state = 'dispatched'",
-                    (run_id, attempt_id),
-                )
-            settled = self._required(attempt_id)
+                settled = self._required(attempt_id)
+            attempt = self.store.get_attempt(attempt_id)
+            stale = (
+                not attempt.is_current or self.store.abandonment(attempt_id) is not None
+            )
         # Commit a genuine public conflict before reporting its refusal.
         if conflict is not None:
             raise conflict
+        if stale:
+            raise StaleAttempt(
+                f"{attempt_id} was abandoned while its Zeroshot run was being correlated"
+            )
         return settled
 
     def _required(self, attempt_id: str) -> AttemptSubmission:
@@ -213,6 +249,12 @@ class SubmissionCoordinator:
             or current.attempt_id != attempt_id
         ):
             raise StaleAttempt(f"{attempt_id} is not the durable current Attempt")
+        admitted, assignment = self._admitted(attempt_id)
+        return admitted, assignment
+
+    def _admitted(self, attempt_id: str):
+        """Reload immutable admission/ownership without granting current authority."""
+        attempt = self.store.get_attempt(attempt_id)
         self.store.get_contract_revision(attempt.contract_revision_id)
         if not self.store.is_admitted(attempt.contract_revision_id):
             raise SubmissionNotReady("Attempt Contract is not admitted")

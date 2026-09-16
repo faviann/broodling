@@ -9,6 +9,7 @@ from unittest.mock import patch
 from submission_support import RealSubmissionCase, SubmissionCase
 from support import git, move_head, work_reference
 
+from broodling import BroodlingStore, SourceSubmission
 from broodling.errors import (
     StaleAttempt,
     SubmissionConflict,
@@ -20,9 +21,7 @@ from broodling.zeroshot_sdk import ZeroshotSubmitter
 
 
 class SubmissionControls(SubmissionCase):
-    def test_abandonment_serializes_with_external_submission_acknowledgment(self):
-        from broodling import BroodlingStore
-
+    def test_abandonment_does_not_wait_for_external_submission_acknowledgment(self):
         entered, release, abandoning = Event(), Event(), Event()
 
         def accept(request):
@@ -51,12 +50,12 @@ class SubmissionControls(SubmissionCase):
                 self.assertTrue(entered.wait(5))
                 abandoned = pool.submit(abandon)
                 self.assertTrue(abandoning.wait(5))
-                self.assertFalse(abandoned.done())
-                self.assertIsNone(self.store.abandonment(self.attempt_id))
+                abandoned.result(5)
+                self.assertIsNotNone(self.store.abandonment(self.attempt_id))
             finally:
                 release.set()
-            self.assertEqual(submitted.result(5).run_id, "original-run")
-            abandoned.result(5)
+            with self.assertRaises(StaleAttempt):
+                submitted.result(5)
             native.assert_called_once()
         self.assertFalse(self.store.get_attempt(self.attempt_id).is_current)
         with patch.object(self.adapter, "submit") as native:
@@ -65,6 +64,124 @@ class SubmissionControls(SubmissionCase):
             native.assert_not_called()
         self.assertEqual(
             self.coordinator.record(self.attempt_id).run_id, "original-run"
+        )
+
+    def test_slow_submission_does_not_block_an_independent_work_unit(self):
+        second_work = self.store.resolve_work_unit(work_reference(issue=13))
+        second_source = self.store.entitle_source(
+            second_work.work_unit_id,
+            SourceSubmission(
+                kind="primary_issue",
+                locator=second_work.issue_locator,
+                content=b"Independent work unit.\n",
+                media_type="text/markdown; charset=utf-8",
+                retrieved_at="2026-09-16T00:00:00+00:00",
+            ),
+        )
+        second_revision = self.store.record_contract_revision(
+            self.contract(second_work, second_source)
+        )
+        self.store.admit(second_revision.contract_revision_id)
+        second_attempt = (
+            self.provisioner()
+            .admit_and_provision(second_revision.contract_revision_id, self.repository)
+            .attempt
+        )
+        entered, release = Event(), Event()
+
+        def accept(request):
+            if self.attempt_id in request["title"]:
+                entered.set()
+                if not release.wait(5):
+                    raise RuntimeError("test did not release the first submission")
+                return "run-one"
+            return "run-two"
+
+        def submit(attempt_id):
+            with BroodlingStore.open(self.store_path) as store:
+                return SubmissionCoordinator(store, self.adapter).submit(attempt_id)
+
+        with (
+            patch.object(self.adapter, "submit", side_effect=accept),
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            first = pool.submit(submit, self.attempt_id)
+            self.assertTrue(entered.wait(5))
+            second = pool.submit(submit, second_attempt.attempt_id)
+            self.assertEqual(second.result(5).run_id, "run-two")
+            self.assertFalse(first.done())
+            release.set()
+            self.assertEqual(first.result(5).run_id, "run-one")
+
+    def test_concurrent_same_attempt_submissions_delegate_deduplication_to_zeroshot(
+        self,
+    ):
+        entered, release = Event(), Event()
+        calls = []
+
+        def accept(request):
+            calls.append(request["submissionKey"])
+            if len(calls) == 2:
+                entered.set()
+            if not release.wait(5):
+                raise RuntimeError("test did not release concurrent submissions")
+            return "one-native-run"
+
+        def submit():
+            with BroodlingStore.open(self.store_path) as store:
+                return SubmissionCoordinator(store, self.adapter).submit(
+                    self.attempt_id
+                )
+
+        with (
+            patch.object(self.adapter, "submit", side_effect=accept),
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            callers = [pool.submit(submit) for _ in range(2)]
+            self.assertTrue(entered.wait(5))
+            release.set()
+            results = [caller.result(5) for caller in callers]
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(set(calls)), 1)
+        self.assertEqual({result.run_id for result in results}, {"one-native-run"})
+        self.assertEqual(self.coordinator.record(self.attempt_id), results[0])
+
+    def test_concurrent_different_run_id_fails_closed(self):
+        entered, release = Event(), Event()
+        calls = []
+
+        def broken_idempotency(_request):
+            calls.append(len(calls) + 1)
+            if len(calls) == 2:
+                entered.set()
+            if not release.wait(5):
+                raise RuntimeError("test did not release concurrent submissions")
+            return f"run-{calls.pop()}"
+
+        def submit():
+            with BroodlingStore.open(self.store_path) as store:
+                return SubmissionCoordinator(store, self.adapter).submit(
+                    self.attempt_id
+                )
+
+        with (
+            patch.object(self.adapter, "submit", side_effect=broken_idempotency),
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            callers = [pool.submit(submit) for _ in range(2)]
+            self.assertTrue(entered.wait(5))
+            release.set()
+            outcomes = []
+            for caller in callers:
+                try:
+                    outcomes.append(caller.result(5))
+                except SubmissionConflict as error:
+                    outcomes.append(error)
+        self.assertEqual(
+            sum(isinstance(outcome, SubmissionConflict) for outcome in outcomes), 1
+        )
+        self.assertIn(
+            self.coordinator.record(self.attempt_id).run_id, {"run-1", "run-2"}
         )
 
     def test_abandonment_fences_prepared_and_ambiguous_dispatch_without_sdk_replay(

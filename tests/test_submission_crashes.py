@@ -89,10 +89,16 @@ class SubmissionCrashTests(RealSubmissionCase):
         results = [self.collect(child, 0) for child in children]
         correlated = [events[-1]["correlatedRunId"] for events in results]
         self.assertEqual(len(set(correlated)), 1)
-        # SQLite serializes the actual SDK call as well as the winning write.
-        self.assertEqual(
-            sum("publicRunId" in event for events in results for event in events), 1
-        )
+        # Calls are deliberately not serialized by SQLite. Native submission-key
+        # idempotency makes every acknowledgment name the same run.
+        public = [
+            event["publicRunId"]
+            for events in results
+            for event in events
+            if "publicRunId" in event
+        ]
+        self.assertTrue(public)
+        self.assertEqual(set(public), {correlated[0]})
         self.assert_single(correlated[0])
         return correlated[0]
 

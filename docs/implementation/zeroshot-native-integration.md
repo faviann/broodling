@@ -83,7 +83,8 @@ does not represent or configure.
 
 Broodling still uses locks and durable transitions for its own SQLite/Git
 administrative operations. Those serialize admission, provisioning, correlation,
-and safe undispatched retirement; they do not supervise Zeroshot execution.
+and safe undispatched retirement writes; they do not serialize the external
+Zeroshot submission call or supervise execution.
 
 ## Invocation and result
 
@@ -98,12 +99,23 @@ its immutable Contract. Required effects, unsupported external obligations,
 effect-dependent evidence, and unsatisfied prerequisites still fail closed;
 removing the proof-plan gates does not waive those domain restrictions.
 
-Broodling durably marks dispatch before the external call and stores the returned
-run ID. Reconciliation repeats only the identical recorded invocation. A typed
-native conflict can recover the existing run ID only for the narrow case of an
-already-dispatched request whose owned source assignment still matches and whose
-HEAD has changed from B1. Other source/configuration conflicts fail closed.
-There is no ledger scan, execution discovery, or runtime replay algorithm.
+Broodling durably marks dispatch before the external call, releases its SQLite
+writer, then stores the returned run ID in a second short transaction.
+Independent Work Units and lifecycle writes therefore remain concurrent with a
+slow native submission. Concurrent callers for one Attempt may both cross the
+SDK seam with the exact persisted request; Zeroshot's submission-key idempotency
+is the duplicate-prevention boundary, and Broodling requires every response to
+converge on one run ID. Reconciliation repeats only the identical invocation. A
+typed native conflict can recover the existing run ID only for the narrow case
+of an already-dispatched request whose owned source assignment still matches and
+whose HEAD has changed from B1. Other source/configuration conflicts fail closed.
+There is no lease, ledger scan, execution discovery, or runtime replay algorithm.
+
+Abandonment may commit while submission is in flight. If Zeroshot subsequently
+acknowledges a run, Broodling retains that factual Attempt-to-run correlation but
+reports that current authority was lost; abandonment still prevents disposition.
+If acknowledgement was lost before abandonment, Broodling does not replay after
+authority is gone. The unresolved dispatched Attempt remains quarantined.
 
 Finalization waits through the public SDK. A successful result must name the
 correlated run; the Attempt must remain current and bound to the unchanged
