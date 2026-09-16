@@ -1,4 +1,4 @@
-"""The product launcher retains the qualified sidecar/provider boundary."""
+"""The launcher supplies explicit domain policy without supervising execution."""
 
 import json
 import os
@@ -10,9 +10,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from support import durable_test_root, git, make_repository
+from support import durable_test_root, make_repository
 
-from broodling.codex_profile import LAUNCHER, QualifiedCodexProfile
+from broodling.codex_profile import LAUNCHER, OPERATING_ENVIRONMENT, CodexProfile
 from broodling.errors import UnsupportedRuntime
 
 
@@ -41,63 +41,19 @@ class CodexProfileTests(unittest.TestCase):
             "'home': os.environ['HOME'], 'codexHome': os.environ['CODEX_HOME']}))\n"
         )
         self.executable.chmod(0o755)
-        self.profile = QualifiedCodexProfile(
-            self.executable, self.home, self.codex_home
-        )
+        self.profile = CodexProfile(self.executable, self.home, self.codex_home)
 
-    def test_existing_qualified_paths_validate_without_provisioning(self):
+    def test_existing_configured_paths_validate_without_provisioning(self):
         self.profile.validate(self.workspace, path=os.defpath)
         self.assertEqual(list(self.home.iterdir()), [])
         self.assertEqual(
             [path.name for path in self.codex_home.iterdir()], ["auth.json"]
         )
 
-    def test_canonical_shared_git_under_tmp_is_rejected_before_provider_probe(self):
-        source = self.root / "unsafe-source"
-        make_repository(source)
-        linked = self.durable / "linked"
-        git(source, "worktree", "add", "-b", "unsafe", str(linked))
-        self.executable.write_text(
-            "#!/bin/sh\ntouch " + str(self.root / "invoked") + "\n"
-        )
-        with self.assertRaisesRegex(
-            UnsupportedRuntime, "shared Git directory.*writable /tmp"
-        ):
-            self.profile.validate(linked, path=os.defpath)
-        self.assertFalse((self.root / "invoked").exists())
-
-    def test_symlink_spelling_cannot_hide_unsafe_common_directory(self):
-        source = self.root / "unsafe-source"
-        make_repository(source)
-        alias = self.durable / "source-alias"
-        alias.symlink_to(source, target_is_directory=True)
-        linked = self.durable / "linked"
-        git(alias, "worktree", "add", "-b", "unsafe", str(linked))
-        with self.assertRaisesRegex(
-            UnsupportedRuntime, "shared Git directory.*writable /tmp"
-        ):
-            self.profile.validate(linked, path=os.defpath)
-
-    def test_separate_git_directory_under_tmp_is_rejected(self):
-        separate = self.root / "shared-git"
-        checkout = self.durable / "separate-checkout"
-        checkout.mkdir()
-        git(checkout, "init", "--separate-git-dir", str(separate))
-        with self.assertRaisesRegex(
-            UnsupportedRuntime, "shared Git directory.*writable /tmp"
-        ):
-            self.profile.validate(checkout, path=os.defpath)
-
-    def test_missing_git_resolution_fails_closed(self):
-        missing = self.durable / "not-a-repository"
-        missing.mkdir()
-        with self.assertRaisesRegex(UnsupportedRuntime, "could not be resolved"):
-            self.profile.validate(missing, path=os.defpath)
-
     def test_ambient_tmpdir_is_not_a_declared_provider_scratch_root(self):
         with patch.dict(os.environ, {"TMPDIR": str(self.durable)}):
             self.profile.validate(self.workspace, path=os.defpath)
-        self.assertNotIn("TMPDIR", self.profile.environment(os.defpath))
+        self.assertEqual(self.profile.environment(os.defpath)["TMPDIR"], "")
 
     def test_profile_request_identity_contains_no_authentication_bytes(self):
         identity = self.profile.identity()
@@ -111,7 +67,7 @@ class CodexProfileTests(unittest.TestCase):
                 "BROODLING_REAL_CODEX",
                 "BROODLING_PROFILE_HOME",
                 "BROODLING_ISOLATED_CODEX_HOME",
-                "BROODLING_EVIDENCE_LEAF",
+                *OPERATING_ENVIRONMENT,
             },
         )
         self.assertEqual(environment["PATH"].split(os.pathsep)[0], str(LAUNCHER.parent))
@@ -128,9 +84,9 @@ class CodexProfileTests(unittest.TestCase):
                 self.subTest(home=bad_home, codex_home=bad_codex_home),
                 self.assertRaises(UnsupportedRuntime),
             ):
-                QualifiedCodexProfile(
-                    self.executable, bad_home, bad_codex_home
-                ).validate(self.workspace, path=os.defpath)
+                CodexProfile(self.executable, bad_home, bad_codex_home).validate(
+                    self.workspace, path=os.defpath
+                )
 
     def test_ambient_settings_and_non_auth_material_fail_initial_validation(self):
         for target in (self.home, self.codex_home):
@@ -141,13 +97,13 @@ class CodexProfileTests(unittest.TestCase):
                     self.profile.validate(self.workspace, path=os.defpath)
                 material.unlink()
 
-    def test_nonqualified_cli_version_is_refused(self):
+    def test_unsupported_cli_version_is_refused(self):
         self.executable.write_text("#!/bin/sh\nprintf 'codex-cli other-version\\n'\n")
         with self.assertRaises(UnsupportedRuntime):
             self.profile.validate(self.workspace, path=os.defpath)
 
-    def test_candidate_cannot_own_trusted_launcher_or_evidence_leaf(self):
-        for name in ("LAUNCHER", "EVIDENCE_LEAF"):
+    def test_candidate_cannot_own_trusted_launcher_(self):
+        for name in ("LAUNCHER",):
             with (
                 self.subTest(name=name),
                 patch(f"broodling.codex_profile.{name}", self.workspace / "trusted.py"),
@@ -178,6 +134,8 @@ class CodexProfileTests(unittest.TestCase):
                     "--config",
                     "sandbox_workspace_write.network_access=true",
                     "--config",
+                    "features.apps=true",
+                    "--config",
                     'approval_policy="never"',
                     "-c",
                     "sandbox_workspace_write.network_access=true",
@@ -187,15 +145,12 @@ class CodexProfileTests(unittest.TestCase):
                     "-",
                 ]
                 environment = self.profile.environment(os.defpath)
-                # The native runtime supplies this only to evidence nodes.
-                environment.pop("BROODLING_EVIDENCE_LEAF")
                 environment.update(
                     {"HOME": "/ambient-home", "CODEX_HOME": "/ambient-codex"}
                 )
                 result = subprocess.run(
                     [
                         sys.executable,
-                        str(Path(__file__).with_name("containment_launch_child.py")),
                         str(LAUNCHER),
                         *original,
                     ],
@@ -218,19 +173,93 @@ class CodexProfileTests(unittest.TestCase):
                         "exec",
                         "--ignore-user-config",
                         "--ignore-rules",
-                        "--ephemeral",
                         "--config",
                         "sandbox_workspace_write.network_access=false",
-                        "--sandbox",
-                        sandbox,
+                        "--config",
+                        "sandbox_workspace_write.exclude_slash_tmp=true",
+                        "--config",
+                        'web_search="disabled"',
                         "--config",
                         'approval_policy="never"',
+                        "--config",
+                        "features.apps=false",
+                        "--config",
+                        "features.plugins=false",
+                        "--config",
+                        "features.hooks=false",
+                        "--config",
+                        "notify=[]",
+                        "--sandbox",
+                        sandbox,
                         "--model",
                         "gpt-5.6-sol",
                         "--json",
                         "-",
                     ],
                 )
+
+    def test_native_unset_or_bypass_defaults_still_get_workspace_sandbox(self):
+        for permission in ([], ["--dangerously-bypass-approvals-and-sandbox"]):
+            with self.subTest(permission=permission):
+                result = subprocess.run(
+                    [str(LAUNCHER), "exec", *permission, "--json", "-"],
+                    input="frozen task",
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                    env=self.profile.environment(os.defpath),
+                    cwd=self.workspace,
+                )
+                observed = json.loads(result.stdout)
+                args = observed["argv"]
+                self.assertEqual(args[args.index("--sandbox") + 1], "workspace-write")
+                self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", args)
+                self.assertIn('approval_policy="never"', args)
+                self.assertIn('web_search="disabled"', args)
+                self.assertIn("sandbox_workspace_write.exclude_slash_tmp=true", args)
+                self.assertEqual(observed["stdin"], "frozen task")
+
+    def test_native_config_probe_is_unavailable_without_loading_host_configuration(
+        self,
+    ):
+        result = subprocess.run(
+            [str(LAUNCHER), "app-server"],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=self.profile.environment(os.defpath),
+            cwd=self.workspace,
+        )
+        self.assertEqual(result.returncode, 78)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("explicit execution policy", result.stderr)
+
+    def test_native_same_execution_resume_keeps_session_persistence(self):
+        result = subprocess.run(
+            [str(LAUNCHER), "exec", "--json", "resume", "native-thread", "-"],
+            input="native correction",
+            text=True,
+            capture_output=True,
+            check=True,
+            env=self.profile.environment(os.defpath),
+            cwd=self.workspace,
+        )
+        observed = json.loads(result.stdout)
+        self.assertEqual(observed["argv"][-3:], ["resume", "native-thread", "-"])
+        self.assertNotIn("--ephemeral", observed["argv"])
+        self.assertEqual(observed["stdin"], "native correction")
+
+    def test_rebinding_provider_paths_cannot_change_the_admitted_target(self):
+        moved = self.workspace / "provider-home"
+        self.home.rename(self.root / "original-home")
+        moved.mkdir()
+        self.home.symlink_to(moved, target_is_directory=True)
+        for operation in (
+            self.profile.identity,
+            lambda: self.profile.validate(self.workspace, path=os.defpath),
+        ):
+            with self.assertRaisesRegex(UnsupportedRuntime, "canonical"):
+                operation()
 
     def test_launcher_requires_explicit_paths(self):
         result = subprocess.run(

@@ -19,14 +19,14 @@ class RetryCoordinator:
     ) -> None:
         if provisioner.store is not store:
             raise ValueError("retry provisioning must use the same store")
-        submitter.require_assurance_profile()
+        submitter.require_execution_profile()
         self.store = store
         self.provisioner = provisioner
         self.submitter = submitter
         self.submission = SubmissionCoordinator(store, submitter)
 
     def allocate(self, predecessor_id: str, retry_id: str) -> AttemptRecord:
-        """Commit explicit identity, original B1 and fresh target before host work."""
+        """Commit explicit identity, original B1 and chosen target before host work."""
         return self.store.admit_retry(
             predecessor_id,
             retry_id,
@@ -42,13 +42,13 @@ class RetryCoordinator:
             return previous
         # Provision uses only this committed Attempt's exact recorded B1.
         self.provisioner.provision(attempt.attempt_id)
-        return self.submission.prepare_assurance(attempt.attempt_id)
+        return self.submission.prepare(attempt.attempt_id)
 
     def retry(self, predecessor_id: str, retry_id: str) -> AttemptSubmission:
         """Continue administrative setup or correlate this same replacement run.
 
         A dispatched request goes straight to the existing correlation boundary;
-        its graph-authorized mutation never triggers B1 restoration or a new run.
+        its candidate changes never trigger B1 restoration or a new run.
         """
         prepared = self.prepare(predecessor_id, retry_id)
         return self.submission.reconcile(prepared.attempt_id)

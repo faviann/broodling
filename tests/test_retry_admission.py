@@ -17,7 +17,7 @@ from broodling import (
     AttemptConflict,
     BroodlingStore,
 )
-from broodling.codex_profile import QualifiedCodexProfile
+from broodling.codex_profile import CodexProfile
 from broodling.errors import SourceAttributionError, StaleAttempt
 from broodling.zeroshot_sdk import ZeroshotSubmitter
 
@@ -39,7 +39,7 @@ class RetryAdmissionTests(SubmissionCase):
         (auth / "auth.json").write_text("{}")
         return ZeroshotSubmitter(
             self.root / (label + "-runtime"),
-            codex_profile=QualifiedCodexProfile(self.executable, home, auth),
+            codex_profile=CodexProfile(self.executable, home, auth),
         ).target
 
     def attempt_count(self):
@@ -226,21 +226,24 @@ class RetryAdmissionTests(SubmissionCase):
             with self.assertRaises(sqlite3.IntegrityError):
                 self.store.connection.execute(statement)
 
-    def test_first_dispatch_rechecks_profile_and_rejects_changed_target(self):
-        from broodling.errors import UnsupportedRuntime
-
+    def test_replacement_retains_its_selected_target(self):
         self.retire()
         replacement = self.retry()
         with self.store._write():
-            self.store._validate_retry_profile(replacement.attempt_id, self.target)
+            self.store._validate_retry_target(replacement.attempt_id, self.target)
         with self.assertRaises(AttemptConflict):
-            self.store._validate_retry_profile(replacement.attempt_id, {})
-        profile_home = self.target["codexProfile"]["profileHome"]
-        (Path(profile_home) / "old-session-canary").write_text("old provider context")
-        with self.assertRaises(UnsupportedRuntime):
-            self.store._validate_retry_profile(replacement.attempt_id, self.target)
-        # Administrative identity remains convergent despite later host drift.
+            self.store._validate_retry_target(replacement.attempt_id, {})
         self.assertEqual(self.retry(), replacement)
+
+    def test_undispatched_predecessor_needs_no_new_provider_homes(self):
+        self.prepare()
+        self.retire()
+        replacement = self.retry(target=self.adapter.target)
+        self.provisioner().provision(replacement.attempt_id)
+        with patch.object(self.adapter, "submit", return_value="native-retry-run"):
+            submitted = self.coordinator.submit(replacement.attempt_id)
+        self.assertEqual(submitted.run_id, "native-retry-run")
+        self.assertEqual(self.store.retry("request-1").target, self.adapter.target)
 
     def test_missing_attribution_set_fails_before_allocation(self):
         self.retire()

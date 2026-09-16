@@ -56,6 +56,7 @@ from .schema import (
     ABANDONMENT_SQL,
     ASSURANCE_SQL,
     DISPOSITION_SQL,
+    RESULT_MIGRATION_SQL,
     RETIREMENT_SQL,
     RETRY_SQL,
     SCHEMA_SHA256,
@@ -68,6 +69,7 @@ from .schema import (
     V5_SCHEMA_SHA256,
     V6_SCHEMA_SHA256,
     V7_SCHEMA_SHA256,
+    V8_SCHEMA_SHA256,
 )
 from .starting_state import StartingState, admitted_material_digest
 from .workspace import (
@@ -356,6 +358,7 @@ class BroodlingStore:
             for version, (digest, sql) in migrations.items()
         }
         migrations["7"] = (V7_SCHEMA_SHA256, DISPOSITION_SQL)
+        migrations["8"] = (V8_SCHEMA_SHA256, RESULT_MIGRATION_SQL)
         if meta.get("schema_version") in migrations:
             # Acquire before rereading: concurrent openers must migrate once.
             with self._write() as connection:
@@ -1003,7 +1006,6 @@ class BroodlingStore:
                 raise AttemptAdmissionError(
                     "retry workspace root must be outside the source repository"
                 )
-            self._check_retry_profile(target)
             state = StartingState(
                 predecessor.b1_repository,
                 predecessor.b1_commit_oid,
@@ -1045,57 +1047,13 @@ class BroodlingStore:
             )
             return self.get_attempt(attempt_id)
 
-    def _check_retry_profile(
-        self, target: dict[str, Any], *, exclude_attempt_id: str | None = None
-    ) -> None:
-        from .codex_profile import assert_fresh_retry_profile
-
-        historical_targets = [
-            json.loads(row["request_json"])["target"]
-            for row in self._connection.execute("SELECT * FROM attempt_submissions")
-            if row["attempt_id"] != exclude_attempt_id
-        ]
-        historical_targets.extend(
-            json.loads(row["target_json"])
-            for row in self._connection.execute("SELECT * FROM attempt_retries")
-            if row["attempt_id"] != exclude_attempt_id
-        )
-        protected_paths = [self.path]
-        for row in self._connection.execute("SELECT * FROM worktree_assignments"):
-            protected_paths.extend(
-                (Path(row["worktree_path"]).parent, Path(row["repository"]))
-            )
-        assert_fresh_retry_profile(target, historical_targets, protected_paths)
-
-    def _check_retry_home_reservations(
-        self,
-        attempt_id: str | None,
-        target: dict[str, Any],
-        *,
-        write_paths: tuple[Path, ...] = (),
-    ) -> None:
-        from .codex_profile import assert_retry_homes_available
-
-        reservations = [
-            json.loads(row["target_json"])
-            for row in self._connection.execute(
-                "SELECT target_json FROM attempt_retries WHERE attempt_id IS NOT ?",
-                (attempt_id,),
-            )
-        ]
-        assert_retry_homes_available(target, reservations, write_paths)
-
-    def _validate_retry_profile(self, attempt_id: str, target: dict[str, Any]) -> None:
-        """Recheck the reserved target before first dispatch in caller's transaction."""
-        self._check_retry_home_reservations(attempt_id, target)
+    def _validate_retry_target(self, attempt_id: str, target: dict[str, Any]) -> None:
+        """A replacement retains the target selected with its immutable identity."""
         retry = self.retry_for_attempt(attempt_id)
-        if retry is None:
-            return
-        if retry.target != target:
+        if retry is not None and retry.target != target:
             raise AttemptConflict(
                 "replacement target differs from its durable retry request"
             )
-        self._check_retry_profile(target, exclude_attempt_id=attempt_id)
 
     def _validate_retry_material(self, predecessor: AttemptRecord) -> None:
         # The binary object reader ignores replacement refs and accepts only an
@@ -1251,9 +1209,6 @@ class BroodlingStore:
         starting_state: StartingState,
         allocation: WorktreeAllocation,
     ) -> None:
-        self._check_retry_home_reservations(
-            None, {}, write_paths=(allocation.enclosure,)
-        )
         try:
             self._connection.execute(
                 """

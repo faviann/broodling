@@ -1,26 +1,24 @@
-# Issue #14 P2 fixtures
+# Controlled native-workflow provider
 
-`submission_support.py` supplies an opaque, caller-owned GraphSpec with a single
-`succeed` root and a RuntimePlan with no executable nodes. Tests exercise real
-SDK encoding/preflight, sidecar admission, submission replay and conflicts, with
-no provider, delivery or assurance graph.
+`software-change-codex` is a deterministic executable implementing the small
+Codex JSON-lines protocol needed by these integration tests. The official
+Python SDK and bundled Rust engine run the standard `software-change` preset;
+only the provider is replaced.
 
-The stronger post-acceptance crash witness uses a two-child sequence: one
-mutating `step`, then `succeed`. `mutator-bin/codex` is a deterministic executable
-implementing just the Codex JSON-lines protocol needed by that step; it calls no
-provider. It waits for a filesystem gate, edits README.md and makes a local
-candidate commit on the Attempt's disposable branch. The parent opens the gate
-only after the Broodling child dies with `os._exit(97)`, before correlation. The
-run therefore advances its own worktree after the caller process is gone.
+The fixture returns an empty worker response and accepted read-only verifier
+responses. When the frozen task contains `BROODLING_TEST_WRITE`, its worker
+writes known candidate bytes to `README.md`. It makes no provider calls, uses
+no real credentials, and performs no delivery. Its responses let tests exercise
+Broodling submission/correlation, completed-result consumption, and selected
+candidate retention through the public native seam.
 
-That local candidate commit exercises resolved-source drift, not commit-as-
-delivery. The fixture neither invokes GitDelivery nor pushes; it grants no
-external effect capability. PATH selects this executable explicitly and is part
-of the persisted request identity. This is not the W3 assurance graph and proves
-no assurance or final-result semantics.
+This is deliberately not an independent implementation of review, repair, or
+graph semantics. Tests do not inspect Zeroshot's private ledger or demand a
+specific execution trace. A successful fixture run does not qualify real-provider
+quality, sandbox strength, or physical cessation.
 
-Tests use Git reads and fixture markers to synchronize the mutation. They never
-call runtime status/history APIs or read private Zeroshot state. `/dev/shm` holds
-only disposable test controller sockets/state; Attempt worktrees still live under
-the qualified durable root. Production must retain the same runtime state across
-replay; these fixtures remove their own resources after testing.
+Fixture runtime state/sockets are disposable and use `/dev/shm`; candidate
+worktrees use the durable test root. Historical custom-graph/evidence/supervisor
+fixtures were removed with those Broodling responsibilities. Their recorded
+qualification evidence remains in [qualification](../../qualification/README.md)
+at its original version.

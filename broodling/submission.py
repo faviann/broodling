@@ -1,7 +1,7 @@
 """Durable Attempt-to-run correlation through the public submission contract.
 
 Only an already-dispatched, byte-identical request may reconcile source drift.
-On the qualified exclusive-writer profile that drift belongs to this Attempt's
+On the exclusive-writer profile that drift belongs to this Attempt's
 run. The public conflict then identifies the run already bound to its key. It
 is correlation evidence, never execution success or authority to submit anew.
 """
@@ -23,7 +23,7 @@ from .errors import (
 )
 from .starting_state import admitted_material_digest
 from .store import BroodlingStore
-from .zeroshot_sdk import ZeroshotSubmitter, assert_no_effect_runtime, canonical_request
+from .zeroshot_sdk import ZeroshotSubmitter, canonical_request
 
 
 @dataclass(frozen=True)
@@ -66,58 +66,47 @@ class SubmissionCoordinator:
         with self.store._write() as connection:
             yield connection
 
-    def prepare(
-        self,
-        attempt_id: str,
-        *,
-        graph: dict,
-        runtime: dict,
-        initial_input=None,
-        title: str = "Broodling V1-P2 Attempt",
-    ) -> AttemptSubmission:
-        assert_no_effect_runtime(runtime)
-        with self._write() as connection:
-            attempt, assignment = self._current(attempt_id)
-            self.store._check_retry_home_reservations(attempt_id, self.submitter.target)
-            if self.store.retry_for_attempt(attempt_id) is not None:
-                from .assurance_graph import (
-                    assurance_graph,
-                    assurance_runtime,
-                    initial_state,
-                )
-
-                revision = self.store.get_contract_revision(
-                    attempt.contract_revision_id
-                )
-                if (
-                    graph != assurance_graph()
-                    or runtime != assurance_runtime()
-                    or initial_input
-                    != initial_state(
-                        revision.canonical_bytes.decode("utf-8"),
-                        attempt.b1_commit_oid,
-                        self.store.frozen_instructions(attempt_id),
-                    )
-                ):
-                    raise SubmissionConflict(
-                        "replacement requires fresh product Contract/B1 inputs"
-                    )
-            request = canonical_request(
+    def _request(self, attempt, assignment) -> dict:
+        revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        task = (
+            "Complete this admitted software-development Work Unit. The frozen Contract "
+            "and entitled source material below govern scope and acceptance. Candidate edits "
+            "cannot amend that authority. Implement the criteria and run the declared/relevant "
+            "checks; independently verify the actual outcome. Do not publish, push, create a PR, "
+            "merge, change issues, deploy, or perform other authoritative external effects. "
+            "The required-effect set is empty. Keep changes in this assigned worktree.\n\n"
+            + canonical_request(
                 {
-                    "submissionKey": f"broodling:v1:{attempt_id}",
-                    "title": title,
-                    "graph": graph,
-                    "runtime": runtime,
-                    "initialInput": initial_input,
-                    "workspace": assignment.worktree_path,
-                    "repository": attempt.b1_repository,
-                    "branch": assignment.branch,
-                    "startingCommit": attempt.b1_commit_oid,
-                    "materialSha256": attempt.b1_material_sha256,
-                    "originUrl": git.origin_url(assignment.path),
-                    "target": self.submitter.target,
+                    "contract": json.loads(revision.canonical_bytes),
+                    "admittedInstructions": self.store.frozen_instructions(
+                        attempt.attempt_id
+                    ),
+                    "comparisonBase": attempt.b1_commit_oid,
                 }
             )
+        )
+        return {
+            "submissionKey": f"broodling:v1:{attempt.attempt_id}",
+            "title": f"Broodling Attempt {attempt.attempt_id}",
+            "task": task,
+            "preset": {"name": "software-change", "delivery": "none"},
+            "runtime": self.submitter.runtime,
+            "workspace": assignment.worktree_path,
+            "repository": attempt.b1_repository,
+            "branch": assignment.branch,
+            "startingCommit": attempt.b1_commit_oid,
+            "materialSha256": attempt.b1_material_sha256,
+            "originUrl": git.origin_url(assignment.path),
+            "target": self.submitter.target,
+        }
+
+    def prepare(self, attempt_id: str) -> AttemptSubmission:
+        """Freeze the standard workflow invocation from admitted facts only."""
+        self.submitter.require_execution_profile()
+        with self._write() as connection:
+            attempt, assignment = self._current(attempt_id)
+            self.store._validate_retry_target(attempt_id, self.submitter.target)
+            request = canonical_request(self._request(attempt, assignment))
             previous = self.record(attempt_id)
             if previous is not None:
                 if previous.request_json != request:
@@ -133,42 +122,8 @@ class SubmissionCoordinator:
             )
             return self.record(attempt_id)
 
-    def submit(self, attempt_id: str, **request) -> AttemptSubmission:
-        self.prepare(attempt_id, **request)
-        return self.reconcile(attempt_id)
-
-    def prepare_assurance(self, attempt_id: str) -> AttemptSubmission:
-        """Freeze the product protocol and the Attempt's admitted Contract.
-
-        This path accepts no caller graph, runtime, or initialized assurance
-        state. The ordinary P2 request boundary still enforces the same durable
-        identity and rejects a different protocol already frozen for the Attempt.
-        """
-        from .assurance_graph import assurance_graph, assurance_runtime, initial_state
-        from .contract import validate_mechanical_evidence
-
-        self.submitter.require_assurance_profile()
-        attempt = self.store.get_attempt(attempt_id)
-        revision = self.store.get_contract_revision(attempt.contract_revision_id)
-        try:
-            validate_mechanical_evidence(revision.contract)
-        except ValueError as error:
-            raise SubmissionNotReady(str(error)) from error
-        return self.prepare(
-            attempt_id,
-            graph=assurance_graph(),
-            runtime=assurance_runtime(),
-            initial_input=initial_state(
-                revision.canonical_bytes.decode("utf-8"),
-                attempt.b1_commit_oid,
-                self.store.frozen_instructions(attempt_id),
-            ),
-            title="Broodling V1 assurance Attempt",
-        )
-
-    def submit_assurance(self, attempt_id: str) -> AttemptSubmission:
-        """Submit the product graph using the existing one-run correlation."""
-        self.prepare_assurance(attempt_id)
+    def submit(self, attempt_id: str) -> AttemptSubmission:
+        self.prepare(attempt_id)
         return self.reconcile(attempt_id)
 
     def reconcile(self, attempt_id: str) -> AttemptSubmission:
@@ -179,7 +134,7 @@ class SubmissionCoordinator:
             record = self._required(attempt_id)
             self._target(record)
             if record.state == "prepared":
-                self.store._validate_retry_profile(attempt_id, self.submitter.target)
+                self.store._validate_retry_target(attempt_id, self.submitter.target)
                 self._source(attempt, assignment, require_b1=True)
                 self._origin(record, assignment)
                 self.submitter.validate_first_dispatch(assignment.path)

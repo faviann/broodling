@@ -1,7 +1,5 @@
 """Entry-point safety only; these checks never run qualification campaigns."""
 
-import hashlib
-import json
 import subprocess
 import sys
 import tempfile
@@ -71,10 +69,6 @@ def campaign(runner, suite):
     )
 with contextlib.ExitStack() as stack:
     stack.enter_context(patch.object(unittest.TextTestRunner, "run", campaign))
-    if outcome != "forbid":
-        sys.path.insert(0, str(Path(script).resolve().parents[2]))
-        stack.enter_context(patch("broodling.zeroshot_sdk.installed_integration",
-            return_value={"testDouble": "entrypoint check, not qualification"}))
     runpy.run_path(script, run_name="__main__")
 """
 
@@ -143,36 +137,3 @@ class QualificationEntrypointTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn("output", result.stdout)
-
-    def test_intentional_lifecycle_execution_retains_results_and_source_identity(self):
-        with tempfile.TemporaryDirectory() as directory:
-            for script in LIFECYCLES:
-                for outcome in ("success", "failure", "skipped"):
-                    with self.subTest(script=script, outcome=outcome):
-                        output = Path(directory) / f"{Path(script).stem}-{outcome}.json"
-                        result = self.probe(
-                            LIFECYCLE_PROBE, script, outcome, output, cwd=directory
-                        )
-                        self.assertEqual(
-                            result.returncode,
-                            0 if outcome == "success" else 1,
-                            result.stderr,
-                        )
-                        self.assertEqual(result.stdout, "campaign\n")
-                        record = json.loads(output.read_text())
-                        self.assertEqual(
-                            record["mechanicsPassed"], outcome == "success"
-                        )
-                        self.assertGreater(record["testsRun"], 0)
-                        self.assertIn("testDouble", record["integration"])
-                        if script.endswith("issue22_lifecycle.py"):
-                            self.assertEqual(
-                                record["sourceSha256"][script],
-                                hashlib.sha256(
-                                    (ROOT / script).read_bytes()
-                                ).hexdigest(),
-                            )
-                            self.assertEqual(
-                                record["sourceSha256"], record["finalSourceSha256"]
-                            )
-                            self.assertTrue(record["sourceHashesUnchangedThroughout"])

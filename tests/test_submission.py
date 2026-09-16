@@ -1,4 +1,4 @@
-"""Product correlation controls, including the exact G2 mutation crash window."""
+"""Immutable product correlation across lost acknowledgements and source drift."""
 
 import json
 import sqlite3
@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 from unittest.mock import patch
 
-from submission_support import REQUEST, RealSubmissionCase, SubmissionCase
+from submission_support import RealSubmissionCase, SubmissionCase
 from support import git, move_head, work_reference
 
 from broodling.errors import (
@@ -34,7 +34,7 @@ class SubmissionControls(SubmissionCase):
         def submit():
             with BroodlingStore.open(self.store_path) as store:
                 return SubmissionCoordinator(store, self.adapter).submit(
-                    self.attempt_id, **REQUEST
+                    self.attempt_id
                 )
 
         def abandon():
@@ -139,7 +139,7 @@ class SubmissionControls(SubmissionCase):
         original = self.coordinator.record(self.attempt_id)
         move_head(self.path)
         with patch.object(self.adapter, "submit") as native:
-            with self.assertRaises(SubmissionConflict):
+            with self.assertRaises(TypeError):
                 self.submit(title="competing request")
             native.assert_not_called()
         self.assertEqual(self.coordinator.record(self.attempt_id), original)
@@ -358,49 +358,6 @@ class PublicSubmissionTests(RealSubmissionCase):
         self.assertEqual(self.coordinator.record(self.attempt_id), row)
 
 
-class QualifiedAdapterTests(SubmissionCase):
-    def test_unqualified_build_is_refused_before_dispatch(self):
-        from broodling.errors import UnsupportedRuntime
-        from broodling.profile import QUALIFIED_ZEROSHOT_BOUNDARY
-        from broodling.zeroshot_sdk import (
-            QUALIFIED_SDK_SOURCE_SHA256,
-            assert_qualified_integration,
-        )
-
-        correct = {
-            "sdkVersion": "0.1.0.dev0",
-            "sdkSourceSha256": QUALIFIED_SDK_SOURCE_SHA256,
-            "sidecarSha256": QUALIFIED_ZEROSHOT_BOUNDARY["sidecarSha256"],
-        }
-        for field in correct:
-            with (
-                self.subTest(field=field),
-                patch(
-                    "broodling.zeroshot_sdk.installed_integration",
-                    return_value=correct | {field: "different"},
-                ),
-                self.assertRaises(UnsupportedRuntime),
-            ):
-                assert_qualified_integration()
-
-    def test_no_delivery_or_ambient_credentials(self):
-        from broodling.errors import UnsupportedRuntime
-
-        with patch.dict(
-            "os.environ",
-            {
-                "GH_TOKEN": "canary",
-                "GITHUB_TOKEN": "canary",
-                "OPENAI_API_KEY": "canary",
-            },
-        ):
-            adapter = ZeroshotSubmitter(self.runtime_state)
-        self.assertEqual(set(adapter.target["environment"]), {"PATH"})
-        with self.assertRaises(UnsupportedRuntime):
-            self.submit(runtime={"nodes": {"deliver": {"kind": "git_delivery"}}})
-        self.assertIsNone(self.coordinator.record(self.attempt_id))
-
-
 class PublicSourceConflictTests(RealSubmissionCase):
     def test_true_conflicting_source_at_public_boundary_blocks(self):
         original = self.prepare()
@@ -469,7 +426,7 @@ class AdditionalSubmissionControls(SubmissionCase):
             patch.object(self.adapter, "submit", return_value=first_id),
             self.assertRaises(sqlite3.IntegrityError),
         ):
-            self.coordinator.submit(attempt.attempt_id, **REQUEST)
+            self.coordinator.submit(attempt.attempt_id)
         self.assertEqual(self.coordinator.record(self.attempt_id).run_id, first_id)
         self.assertIsNone(self.coordinator.record(attempt.attempt_id).run_id)
 

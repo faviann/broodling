@@ -1,10 +1,23 @@
 #!/usr/bin/env python3
-"""Apply the qualified Codex settings inside Attempt PID containment."""
+"""Apply Broodling's no-effect/context policy, then exec the configured CLI.
+
+Zeroshot launches and owns this process; there is no process supervision here.
+"""
 
 import os
-import runpy
 import sys
-from pathlib import Path
+
+POLICY = {
+    "sandbox_workspace_write.network_access": "false",
+    "sandbox_workspace_write.exclude_slash_tmp": "true",
+    "web_search": '"disabled"',
+    "approval_policy": '"never"',
+    # These capabilities can execute outside the command sandbox.
+    "features.apps": "false",
+    "features.plugins": "false",
+    "features.hooks": "false",
+    "notify": "[]",
+}
 
 
 def main() -> int:
@@ -14,28 +27,36 @@ def main() -> int:
         "BROODLING_ISOLATED_CODEX_HOME",
     )
     if any(not os.environ.get(name) for name in required):
-        print("Broodling qualified Codex profile paths are required", file=sys.stderr)
+        print("Broodling Codex profile paths are required", file=sys.stderr)
         return 78
-    containment = runpy.run_path(
-        str(Path(__file__).resolve().parents[1] / "containment.py")
-    )
-    # This fixed flag is bound only to the two evidence occurrences by the
-    # admitted runtime's declared connection. Prompt text never selects a role.
-    if os.environ.get("BROODLING_EVIDENCE_LEAF"):
-        leaf = Path(__file__).resolve().parents[1] / "mechanical_evidence.py"
-        return containment["enclose"](
-            [sys.executable, str(leaf), *sys.argv[1:]], os.environ.copy(), Path.cwd()
-        )
     arguments = sys.argv[1:]
+    if arguments and arguments[0] == "app-server":
+        # Local configuration discovery is irrelevant to this explicit policy.
+        # Zeroshot supports an unavailable probe and still owns the execution.
+        print("Broodling supplies explicit execution policy", file=sys.stderr)
+        return 78
     filtered = []
+    sandbox = "workspace-write"
     index = 0
     while index < len(arguments):
+        if arguments[index] in {
+            "--dangerously-bypass-approvals-and-sandbox",
+            "--full-auto",
+            "--search",
+        }:
+            index += 1
+            continue
+        if arguments[index] == "--sandbox" and index + 1 < len(arguments):
+            sandbox = arguments[index + 1]
+            if sandbox not in {"read-only", "workspace-write"}:
+                print("unsupported Codex sandbox policy", file=sys.stderr)
+                return 78
+            index += 2
+            continue
         if (
             arguments[index] in {"--config", "-c"}
             and index + 1 < len(arguments)
-            and arguments[index + 1].startswith(
-                "sandbox_workspace_write.network_access="
-            )
+            and arguments[index + 1].partition("=")[0] in {*POLICY, "sandbox_mode"}
         ):
             index += 2
             continue
@@ -45,15 +66,19 @@ def main() -> int:
         filtered[1:1] = [
             "--ignore-user-config",
             "--ignore-rules",
-            "--ephemeral",
-            "--config",
-            "sandbox_workspace_write.network_access=false",
+            *(
+                arg
+                for key, value in POLICY.items()
+                for arg in ("--config", f"{key}={value}")
+            ),
+            "--sandbox",
+            sandbox,
         ]
     environment = os.environ.copy()
     environment["HOME"] = environment["BROODLING_PROFILE_HOME"]
     environment["CODEX_HOME"] = environment["BROODLING_ISOLATED_CODEX_HOME"]
     executable = environment["BROODLING_REAL_CODEX"]
-    return containment["enclose"]([executable, *filtered], environment, Path.cwd())
+    os.execve(executable, [executable, *filtered], environment)
 
 
 if __name__ == "__main__":

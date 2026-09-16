@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from crash_child import crash_when
 
 from broodling import AttemptProvisioner, BroodlingStore, RetryCoordinator, git
-from broodling.codex_profile import QualifiedCodexProfile
+from broodling.codex_profile import CodexProfile
 from broodling.zeroshot_sdk import ZeroshotSubmitter
 
 store_path, workspace_root, predecessor, config_path, mode = sys.argv[1:6]
@@ -19,7 +19,7 @@ profile = config["codexProfile"]
 store = BroodlingStore.open(store_path)
 adapter = ZeroshotSubmitter(
     config["stateDir"],
-    codex_profile=QualifiedCodexProfile(
+    codex_profile=CodexProfile(
         profile["realCodex"], profile["profileHome"], profile["isolatedCodexHome"]
     ),
 )

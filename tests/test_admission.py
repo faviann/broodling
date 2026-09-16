@@ -5,6 +5,8 @@ from __future__ import annotations
 import sqlite3
 import unittest
 
+from support import StoreTestCase, criterion
+
 from broodling import (
     ADMITTED,
     REJECTED,
@@ -16,10 +18,23 @@ from broodling import (
     assess,
 )
 from broodling import closability as codes
-from support import StoreTestCase, criterion
 
 
 class ValidNoEffectAdmissionTests(StoreTestCase):
+    def test_acceptance_criterion_needs_no_predeclared_validation_plan(self) -> None:
+        work_unit, source = self.admitted_work_unit()
+        required = Criterion("c1", "Repeated submissions retain one Work Unit.")
+        contract = self.contract(work_unit, source, criteria=(required,))
+        revision = self.store.record_contract_revision(contract)
+
+        decision = self.store.admit(revision.contract_revision_id)
+
+        self.assertEqual(decision.outcome, ADMITTED)
+        self.assertEqual(decision.findings, ())
+        restored = self.reopen().get_contract_revision(revision.contract_revision_id)
+        self.assertEqual(restored.contract.criteria, (required,))
+        self.assertEqual(restored.canonical_bytes, contract.canonical_bytes())
+
     def test_a_no_effect_contract_is_admitted(self) -> None:
         _, _, contract = self.admissible_contract()
         revision = self.store.record_contract_revision(contract)
@@ -38,18 +53,9 @@ class ValidNoEffectAdmissionTests(StoreTestCase):
         self.assertTrue(configuration["runtime"]["python"].startswith("3.13"))
         self.assertEqual(configuration["requiredEffects"], [])
         boundary = configuration["zeroshotBoundary"]
-        self.assertEqual(
-            boundary["zeroshotRevision"], "d0909615d6ba3c179b58bce15a059f40400ec995"
-        )
-        self.assertEqual(
-            boundary["wheelSha256"],
-            "16bc7919f913ccc00853b5a917bc164800c5b44d3b4c4c99f2131d09f9ebeebb",
-        )
-        self.assertEqual(
-            boundary["sidecarSha256"],
-            "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86",
-        )
-        self.assertEqual(boundary["gateVerdict"], "G1-V1 PASS")
+        self.assertEqual(boundary["engine"], "10.3.0")
+        self.assertEqual(boundary["sdk"], "the-open-engine-zeroshot 10.3.0.post1")
+        self.assertNotIn("gateVerdict", boundary)
 
     def test_admission_creates_no_attempt_worktree_or_run(self) -> None:
         _, _, contract = self.admissible_contract()
@@ -190,51 +196,6 @@ class ClosabilityRejectionTests(StoreTestCase):
         contract = self.contract(work_unit, source, **overrides)
         revision = self.store.record_contract_revision(contract)
         return self.store.admit(revision.contract_revision_id)
-
-    def test_a_missing_finite_population_is_rejected(self) -> None:
-        for population in (
-            EvidencePopulation(kind="unbounded"),
-            EvidencePopulation(kind="enumerated", members=()),
-            EvidencePopulation(kind="declared_surface", surface="   "),
-        ):
-            with self.subTest(population=population.kind):
-                decision = self.decide(
-                    criteria=(criterion(evidence_population=population),)
-                )
-                self.assertEqual(decision.outcome, REJECTED)
-                self.assertIn(
-                    codes.MISSING_EVIDENCE_POPULATION,
-                    {finding.code for finding in decision.findings},
-                )
-
-    def test_a_declared_validation_surface_is_a_usable_population(self) -> None:
-        decision = self.decide(
-            criteria=(
-                criterion(
-                    evidence_population=EvidencePopulation(
-                        kind="declared_surface",
-                        surface="every public method of broodling.store.BroodlingStore",
-                    )
-                ),
-            )
-        )
-        self.assertEqual(decision.outcome, ADMITTED)
-
-    def test_a_missing_seam_action_or_falsifier_is_rejected(self) -> None:
-        for field, code in (
-            ("validation_seam", codes.MISSING_VALIDATION_SEAM),
-            ("validation_action", codes.MISSING_VALIDATION_ACTION),
-            ("falsifying_observation", codes.MISSING_FALSIFYING_OBSERVATION),
-        ):
-            with self.subTest(field=field):
-                decision = self.decide(criteria=(criterion(**{field: ""}),))
-                self.assertEqual(decision.outcome, REJECTED)
-                self.assertEqual(
-                    [finding.code for finding in decision.findings], [code]
-                )
-                self.assertEqual(
-                    decision.preserved_obligations, (criterion().statement,)
-                )
 
     def test_a_contract_with_no_criterion_is_rejected(self) -> None:
         decision = self.decide(criteria=())

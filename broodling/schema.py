@@ -5,9 +5,10 @@ snapshots, immutable Contract revisions, admission decisions, and the immutable
 Attempt/B1/worktree-ownership records that admission allocates. It is
 deliberately *not* a Zeroshot RunLedger mirror — there is no table for runs, node
 occurrences, provider sessions, candidate seals, effect intents/receipts or
-completed-occurrence projections. One final_assurance row retains only completed
-P3 custody for an Attempt. One immutable disposition references that custody,
-and a durable start marker forbids interrupted finalization recovery. Immutable
+completed-occurrence projections. One final_assurance row retains a successful
+run's identity and optional selected material (or historical evidence). One
+immutable disposition references that custody,
+without tracking the lifetime of callers waiting for results. Immutable
 abandonment removes current authority without asserting runtime cessation.
 
 Immutability is enforced in the database, not only in Python: append-only tables
@@ -22,7 +23,8 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
+V8_SCHEMA_SHA256 = "0f1935c42baada28b56ad626bbd5c416118d98c9911fcf5949c58aa26127abf6"
 V7_SCHEMA_SHA256 = "3aa00171fa58a56034c501433606eefb49d89f382393327728fbe6265a07b603"
 V6_SCHEMA_SHA256 = "f0177a07384d8546a9d8f7971015e1b0d2a399215557882b9b2f10c2fe6fd195"
 V5_SCHEMA_SHA256 = "8dfd3296120e6d859a77a4cb1141c3cca73dbe09836372791d36cafa91c8d1d5"
@@ -35,7 +37,6 @@ V2_SCHEMA_SHA256 = "bbd7b68bdc66e6bc626f6f5d556e0efa3c9398476eb78b3f3ad75400ade2
 TABLES: tuple[str, ...] = (
     "admission_decisions",
     "attempt_abandonments",
-    "attempt_finalizations",
     "attempt_retirements",
     "attempt_retries",
     "attempt_submissions",
@@ -519,27 +520,6 @@ END;
 """
 
 DISPOSITION_SQL = """
-CREATE TABLE attempt_finalizations (
-    attempt_id TEXT PRIMARY KEY REFERENCES attempts (attempt_id),
-    started_at TEXT NOT NULL
-) STRICT;
-
-CREATE TRIGGER attempt_finalizations_current BEFORE INSERT ON attempt_finalizations
-WHEN NOT EXISTS (
-    SELECT 1 FROM attempts AS a
-    JOIN attempt_submissions AS s USING (attempt_id)
-    JOIN admission_decisions AS d USING (contract_revision_id)
-    WHERE a.attempt_id = NEW.attempt_id AND a.is_current = 1
-      AND s.state = 'correlated' AND d.outcome = 'admitted'
-      AND NOT EXISTS (SELECT 1 FROM final_assurance WHERE attempt_id = a.attempt_id)
-      AND d.work_unit_id = a.work_unit_id
-      AND NOT EXISTS (SELECT 1 FROM attempt_abandonments WHERE attempt_id = a.attempt_id)
-      AND NOT EXISTS (SELECT 1 FROM work_unit_dispositions WHERE work_unit_id = a.work_unit_id)
-)
-BEGIN
-    SELECT RAISE(ABORT, 'finalization requires current admitted correlated authority');
-END;
-
 CREATE TABLE work_unit_dispositions (
     work_unit_id TEXT PRIMARY KEY REFERENCES work_units (work_unit_id),
     contract_revision_id TEXT NOT NULL REFERENCES contract_revisions (contract_revision_id),
@@ -555,7 +535,6 @@ WHEN NOT EXISTS (
     JOIN admission_decisions AS d USING (contract_revision_id)
     JOIN attempt_submissions AS s USING (attempt_id)
     JOIN final_assurance AS f USING (attempt_id)
-    JOIN attempt_finalizations AS z USING (attempt_id)
     WHERE a.attempt_id = NEW.attempt_id AND a.is_current = 1
       AND a.work_unit_id = NEW.work_unit_id
       AND a.contract_revision_id = NEW.contract_revision_id
@@ -564,6 +543,7 @@ WHEN NOT EXISTS (
       AND f.zeroshot_run_id = s.zeroshot_run_id
       AND json_type(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects') = 'array'
       AND json_array_length(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects') = 0
+      AND json_extract(f.record_json, '$.format') = 'broodling.final-assurance/v2'
       AND json_extract(f.record_json, '$.attemptId') = a.attempt_id
       AND json_extract(f.record_json, '$.contractRevisionId') = a.contract_revision_id
       AND json_extract(f.record_json, '$.runId') = s.zeroshot_run_id
@@ -609,7 +589,6 @@ END;
 """
 
 for _table, _identity in (
-    ("attempt_finalizations", "attempt_id = NEW.attempt_id"),
     (
         "work_unit_dispositions",
         "work_unit_id = NEW.work_unit_id OR attempt_id = NEW.attempt_id",
@@ -643,3 +622,15 @@ SCHEMA_SQL += (
 #: Digest of the exact DDL this build initializes. Recorded in ``schema_meta`` so
 #: a store written by a different DDL text is detected on reopen.
 SCHEMA_SHA256 = hashlib.sha256(SCHEMA_SQL.encode("utf-8")).hexdigest()
+
+# v8's observer marker is no longer required. Old custody/dispositions remain
+# historical; the new insertion trigger requires the current custody format.
+RESULT_MIGRATION_SQL = (
+    "DROP TRIGGER work_unit_dispositions_bound;\n"
+    + DISPOSITION_SQL[
+        DISPOSITION_SQL.index(
+            "CREATE TRIGGER work_unit_dispositions_bound"
+        ) : DISPOSITION_SQL.index("CREATE TRIGGER attempt_abandonments_no_completed")
+    ]
+    + "DROP TABLE attempt_finalizations;\n"
+)

@@ -1,8 +1,8 @@
 """V1 Closability and admission decision.
 
 Closability asks whether this Contract can be carried to a definite outcome
-*inside the qualified V1 profile*: single-host, one Attempt owning one dedicated
-disposable worktree, read-only assurance, and no authoritative external effects.
+*inside the supported profile*: single-host, one Attempt owning one dedicated
+worktree, the native software-change workflow, and no authoritative external effects.
 
 Every refusal carries the obligation that caused it, verbatim. Admission never
 edits a Contract to make it admissible; an unsupported obligation is a
@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .contract import Contract, Criterion
+from .contract import Contract
 from .profile import SUPPORTED_HOST_ASSUMPTIONS
 
 # Rejection codes.
@@ -24,10 +24,6 @@ REQUIRED_EFFECT_PRESENT = "required_effect_present"
 UNSUPPORTED_EXTERNAL_OBLIGATION = "unsupported_external_obligation"
 UNRECOGNIZED_OBLIGATION_KIND = "unrecognized_obligation_kind"
 EFFECT_DEPENDENT_EVIDENCE = "effect_dependent_evidence"
-MISSING_EVIDENCE_POPULATION = "missing_finite_evidence_population"
-MISSING_VALIDATION_SEAM = "missing_validation_seam"
-MISSING_VALIDATION_ACTION = "missing_validation_action"
-MISSING_FALSIFYING_OBSERVATION = "missing_falsifying_observation"
 UNSATISFIED_PREREQUISITE = "unsatisfied_prerequisite"
 UNSUPPORTED_HOST_ASSUMPTION = "unsupported_host_assumption"
 
@@ -52,9 +48,6 @@ EXTERNAL_OBLIGATION_KINDS: frozenset[str] = frozenset(
         "external_effect",
     }
 )
-
-#: Evidence-population kinds that can bound a criterion.
-FINITE_POPULATION_KINDS: frozenset[str] = frozenset({"enumerated", "declared_surface"})
 
 ADMITTED = "admitted"
 REJECTED = "rejected"
@@ -96,17 +89,8 @@ class ClosabilityAssessment:
         }
 
 
-def _population_is_bounded(criterion: Criterion) -> bool:
-    population = criterion.evidence_population
-    if population.kind not in FINITE_POPULATION_KINDS:
-        return False
-    if population.kind == "enumerated":
-        return bool(population.members)
-    return bool(population.surface.strip())
-
-
 def assess(contract: Contract) -> ClosabilityAssessment:
-    """Assess one Contract against the qualified V1 profile.
+    """Assess one Contract against the supported no-effect workflow profile.
 
     Pure and deterministic: the same Contract always yields the same findings in
     the same order, so a re-decision can never quietly differ from the recorded
@@ -178,46 +162,6 @@ def assess(contract: Contract) -> ClosabilityAssessment:
 
     for criterion in contract.criteria:
         subject = f"criterion:{criterion.criterion_id}"
-        if not _population_is_bounded(criterion):
-            findings.append(
-                ClosabilityFinding(
-                    code=MISSING_EVIDENCE_POPULATION,
-                    subject=subject,
-                    preserved_obligation=criterion.statement,
-                    detail=(
-                        "criterion declares neither a finite evidence population nor "
-                        f"a validation surface (population kind "
-                        f"{criterion.evidence_population.kind!r})"
-                    ),
-                )
-            )
-        if not criterion.validation_seam.strip():
-            findings.append(
-                ClosabilityFinding(
-                    code=MISSING_VALIDATION_SEAM,
-                    subject=subject,
-                    preserved_obligation=criterion.statement,
-                    detail="criterion declares no available validation seam",
-                )
-            )
-        if not criterion.validation_action.strip():
-            findings.append(
-                ClosabilityFinding(
-                    code=MISSING_VALIDATION_ACTION,
-                    subject=subject,
-                    preserved_obligation=criterion.statement,
-                    detail="criterion declares no executable validation action",
-                )
-            )
-        if not criterion.falsifying_observation.strip():
-            findings.append(
-                ClosabilityFinding(
-                    code=MISSING_FALSIFYING_OBSERVATION,
-                    subject=subject,
-                    preserved_obligation=criterion.statement,
-                    detail="criterion declares no falsifying observation",
-                )
-            )
         for dependency in criterion.evidence_effect_dependencies:
             findings.append(
                 ClosabilityFinding(

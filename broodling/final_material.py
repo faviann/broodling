@@ -1,8 +1,8 @@
 """Collect only frozen, explicitly selected final candidate and B1 material.
 
-The caller establishes the admitted Attempt, B1 identity and graph's stable final
-interval. This collector establishes neither candidate applicability nor semantic
-sufficiency, and retains no undeclared repository material.
+The caller establishes the admitted Attempt and B1 identity and consumes native
+success. This collector retains selected bytes as read back afterward; it does
+not prove semantic sufficiency, an atomic snapshot, or writer cessation.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def collect_final_material(
     target bytes; symlink ancestors, directories and special files are refused.
     Git material comes from the immutable B1 object graph, never live HEAD.
     Permission errors and unavailable objects propagate rather than becoming
-    absence. Filesystem reads require the caller's existing stable interval.
+    absence. Each filesystem read retains the bytes observed after native success.
     """
     validate_final_assurance_materials(contract)
     materials = contract.final_assurance_materials

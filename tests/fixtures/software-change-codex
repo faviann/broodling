@@ -1,0 +1,43 @@
+#!/usr/bin/python3
+"""Controlled provider for the real standard-workflow integration seam."""
+
+import json
+import sys
+import uuid
+from pathlib import Path
+
+if sys.argv[1:] == ["--version"]:
+    print("codex-cli 0.153.4")
+    raise SystemExit(0)
+prompt = sys.stdin.read()
+readonly = sys.argv[sys.argv.index("--sandbox") + 1] == "read-only"
+if readonly:
+    response = {
+        "output": None,
+        "signals": {"verdict": "accepted"},
+        "diagnostic": {"message": "Controlled acceptance for the SDK seam test."},
+    }
+else:
+    if "BROODLING_TEST_WRITE" in prompt:
+        Path("README.md").write_text("candidate from the native workflow\n")
+    response = None
+for event in (
+    {"type": "thread.started", "thread_id": str(uuid.uuid4())},
+    {"type": "turn.started"},
+    {
+        "type": "item.completed",
+        "item": {
+            "type": "agent_message",
+            "text": json.dumps({"response": response}),
+        },
+    },
+    {
+        "type": "turn.completed",
+        "usage": {
+            "input_tokens": 1,
+            "cached_input_tokens": 0,
+            "output_tokens": 1,
+        },
+    },
+):
+    print(json.dumps(event), flush=True)

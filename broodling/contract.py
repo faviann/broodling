@@ -40,12 +40,7 @@ class SourceAttribution:
 
 @dataclass(frozen=True, slots=True)
 class EvidencePopulation:
-    """The finite population, or declared validation surface, for a criterion.
-
-    ``kind`` is deliberately an open string: a Contract that declares an
-    unbounded population must be storable so that admission can reject it with
-    the declaration intact.
-    """
+    """Optional validation guidance, preserved without a boundedness admission gate."""
 
     kind: str
     members: tuple[str, ...] = ()
@@ -61,19 +56,11 @@ class EvidencePopulation:
 
 @dataclass(frozen=True, slots=True)
 class MechanicalEvidence:
-    """One explicitly admitted local check and its required raw material.
+    """A frozen check declaration supplied to Zeroshot as task context.
 
-    ``argv`` is executed literally, without shell-string interpretation. Its
-    executable is an absolute path. ``cwd`` and each required material are
-    normalized worktree-relative paths; material paths are relative to the
-    worktree root, independently of ``cwd``. Standard output, standard error
-    and the exit status are always mechanical observations. Required material
-    consists of the exact bytes of existing files, not paths inferred from a
-    criterion's free-form population or validation descriptions.
-
-    This declaration confers no semantic sufficiency or acceptance judgment.
-    Unsupported declarations remain representable, but P3 preparation refuses
-    them before any check runs.
+    Retained for Contract compatibility. Broodling does not execute the argv or
+    construct an independent evidence record; the standard native workflow owns
+    implementation and verification.
     """
 
     argv: tuple[str, ...]
@@ -112,11 +99,11 @@ class FinalAssuranceMaterial:
 
 @dataclass(frozen=True, slots=True)
 class Criterion:
-    """One Contract criterion and its V1 Closability fields."""
+    """A required outcome with optional validation guidance for Zeroshot."""
 
     criterion_id: str
     statement: str
-    evidence_population: EvidencePopulation
+    evidence_population: EvidencePopulation | None = None
     validation_seam: str = ""
     validation_action: str = ""
     falsifying_observation: str = ""
@@ -127,12 +114,13 @@ class Criterion:
         result = {
             "criterionId": self.criterion_id,
             "statement": self.statement,
-            "evidencePopulation": self.evidence_population.to_mapping(),
             "validationSeam": self.validation_seam,
             "validationAction": self.validation_action,
             "falsifyingObservation": self.falsifying_observation,
             "evidenceEffectDependencies": list(self.evidence_effect_dependencies),
         }
+        if self.evidence_population is not None:
+            result["evidencePopulation"] = self.evidence_population.to_mapping()
         # Absence preserves the exact bytes and meaning of historical revisions.
         if self.mechanical_evidence is not None:
             result["mechanicalEvidence"] = self.mechanical_evidence.to_mapping()
@@ -273,10 +261,14 @@ def contract_from_mapping(mapping: dict[str, Any]) -> Contract:
             Criterion(
                 criterion_id=item["criterionId"],
                 statement=item["statement"],
-                evidence_population=EvidencePopulation(
-                    kind=item["evidencePopulation"]["kind"],
-                    members=tuple(item["evidencePopulation"]["members"]),
-                    surface=item["evidencePopulation"]["surface"],
+                evidence_population=(
+                    EvidencePopulation(
+                        kind=item["evidencePopulation"]["kind"],
+                        members=tuple(item["evidencePopulation"]["members"]),
+                        surface=item["evidencePopulation"]["surface"],
+                    )
+                    if "evidencePopulation" in item
+                    else None
                 ),
                 validation_seam=item["validationSeam"],
                 validation_action=item["validationAction"],
@@ -388,41 +380,3 @@ def _relative_path(value: Any, *, directory: bool = False) -> bool:
         and str(path) == value
         and (directory or value != ".")
     )
-
-
-def validate_mechanical_evidence(contract: Contract) -> None:
-    """Require explicit supported evidence inputs for P3, without changing P2.
-
-    No validation action, seam or population string supplies execution semantics.
-    Filesystem containment and availability are checked by the evidence leaf at
-    the current graph occurrence; this check only validates the frozen shape.
-    """
-
-    if not contract.criteria:
-        raise ValueError("runnable assurance requires at least one criterion")
-    for criterion in contract.criteria:
-        prefix = f"criterion {criterion.criterion_id!r} mechanical evidence"
-        declaration = criterion.mechanical_evidence
-        if not isinstance(declaration, MechanicalEvidence):
-            raise ValueError(f"{prefix} requires an explicit declaration")  # noqa: TRY004
-        if (
-            not isinstance(declaration.argv, tuple)
-            or not declaration.argv
-            or any(
-                not isinstance(arg, str) or "\x00" in arg for arg in declaration.argv
-            )
-            or not PurePosixPath(declaration.argv[0]).is_absolute()
-        ):
-            raise ValueError(
-                f"{prefix} requires literal argv with an absolute executable"
-            )
-        if not _relative_path(declaration.cwd, directory=True):
-            raise ValueError(
-                f"{prefix} cwd must be a normalized worktree-relative path"
-            )
-        if not isinstance(declaration.materials, tuple) or any(
-            not _relative_path(path) for path in declaration.materials
-        ):
-            raise ValueError(
-                f"{prefix} materials must be normalized worktree-relative files"
-            )

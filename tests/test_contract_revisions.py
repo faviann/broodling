@@ -6,16 +6,19 @@ import json
 import sqlite3
 import unittest
 
+from support import ISSUE_BODY, StoreTestCase, criterion
+
 from broodling import (
     Contract,
     ContractImmutabilityError,
+    Criterion,
     EvidencePopulation,
     Obligation,
     RequiredEffect,
     SourceAttribution,
     SourceSubmission,
 )
-from support import ISSUE_BODY, StoreTestCase, criterion
+from broodling.contract import contract_from_mapping
 
 
 class RevisionRecordingTests(StoreTestCase):
@@ -193,27 +196,47 @@ class ObligationPreservationTests(StoreTestCase):
         self.assertEqual(stored["requiredEffects"][0]["statement"], statement)
         self.assertEqual(revision.contract.required_effects[0].statement, statement)
 
-    def test_an_unbounded_population_is_representable_so_it_can_be_refused(
+    def test_supplied_validation_guidance_is_preserved_without_admission_gates(
         self,
     ) -> None:
         work_unit, source = self.admitted_work_unit()
+        guidance = criterion(
+            statement="  Preserve this required outcome verbatim.\n",
+            evidence_population=EvidencePopulation(
+                kind="unbounded",
+                members=("second", "first"),
+                surface=" caller-selected surface\n",
+            ),
+            validation_seam="  caller-selected seam  ",
+            validation_action="python3 check.py --name 'a b'\n",
+            falsifying_observation="  caller-selected counterexample\n",
+        )
         contract = self.contract(
             work_unit,
             source,
-            criteria=(
-                criterion(
-                    evidence_population=EvidencePopulation(kind="unbounded"),
-                    validation_seam="",
-                ),
-            ),
+            criteria=(guidance,),
         )
         revision = self.store.record_contract_revision(contract)
+        self.assertTrue(self.store.admit(revision.contract_revision_id).admitted)
+        restored = self.reopen().get_contract_revision(revision.contract_revision_id)
+        self.assertEqual(restored.contract.criteria, (guidance,))
+        self.assertEqual(restored.canonical_bytes, contract.canonical_bytes())
         self.assertEqual(
-            revision.contract.criteria[0].evidence_population.kind, "unbounded"
+            json.loads(restored.canonical_bytes)["criteria"], [guidance.to_mapping()]
         )
 
 
 class ContractIdentityTests(unittest.TestCase):
+    def test_criteria_only_contract_roundtrips_without_a_dummy_population(self) -> None:
+        contract = Contract(
+            "wu-1", (), (Criterion("c1", "Meet this acceptance outcome."),)
+        )
+        mapping = json.loads(contract.canonical_bytes())
+        self.assertNotIn("evidencePopulation", mapping["criteria"][0])
+        restored = contract_from_mapping(mapping)
+        self.assertEqual(restored, contract)
+        self.assertEqual(restored.canonical_bytes(), contract.canonical_bytes())
+
     def test_canonical_bytes_are_stable_across_field_ordering(self) -> None:
         attribution = (SourceAttribution("src-a", "a" * 64),)
         first = Contract(

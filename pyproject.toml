@@ -5,20 +5,22 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "broodling"
 version = "0.1.0"
-description = "Broodling V1-P2 admission nucleus: Work Unit identity, source entitlement, immutable Contract revisions and no-effect admission."
+description = "One admitted Work Unit, executed by Zeroshot, with durable no-effect disposition."
 requires-python = ">=3.13"
-dependencies = []
+# Official stable Linux wheel; the advertised PyPI distribution is not yet
+# published as of 2026-09-16. This is the supported host profile.
+dependencies = [
+    "the-open-engine-zeroshot @ https://github.com/the-open-engine/zeroshot/releases/download/zeroshot-python-v10.3.0_1/the_open_engine_zeroshot-10.3.0.post1-py3-none-manylinux_2_17_x86_64.whl#sha256=f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9",
+]
 
 [project.optional-dependencies]
-# Test-only: the product package stays on the standard library. Hypothesis is
-# required to run the suite — the property/state-machine tests fail to import
+# Test-only: Hypothesis is required — the property/state-machine tests fail to import
 # without it rather than dropping their invariants. pytest-timeout is the
 # accidental-hang safety net configured below; the suite still runs under
 # `unittest discover`, only without that net.
 test = ["hypothesis>=6.100", "pytest-timeout>=2.4"]
 # On-demand test-suite review (issue #34): not needed to run the suite, and not
-# a quality gate. `[tool.mutmut]` below configures one bounded default slice;
-# `tests/README.md` says how to point it somewhere else and what it found.
+# a quality gate. `[tool.mutmut]` below configures one bounded default slice.
 mutation = ["mutmut>=3.8"]
 
 [tool.setuptools]
@@ -30,24 +32,16 @@ broodling = ["codex_bin/codex"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Accidental-hang safety net only (issue #32), not a product timing guarantee.
-# The timeout applies per setup/call/teardown phase. 1800s clears the longest
-# legitimate phase measured on the qualified profile — the #17 assurance-graph
-# control fixture at 615s of setup, then a 327s call — with room for a slower
-# host, while the rest of the suite finishes in ~105s total with no single test
-# over 5s. PR #48 has since retired the #17 engine campaign and narrowed #18
-# to integration seams (see tests/README.md). The generous safety margin stays.
-# The signal method raises inside the stuck test, so unittest teardown, `finally` cleanup
-# and the traceback of the stuck boundary survive; the thread method would
-# os._exit the run and leave the fixtures' children behind.
-timeout = 1800
+# Accidental-hang safety net, not a product timing guarantee. Signal delivery
+# preserves teardown and tracebacks instead of abruptly terminating the runner.
+timeout = 180
 timeout_method = "signal"
 
 # Optional test-suite review tool (issue #34). Not wired into any test run or
 # CI job: it is invoked by hand, and no mutation score is a target. The default
 # slice is one seconds-fast campaign — identity canonicalization against the two
-# modules that claim it — because #34 asks that expensive provider, containment,
-# crash and qualification tests not be mutated by default. Widening it is a
+# modules that claim it. Native integration and crash tests are not mutated by
+# default. Widening it is a
 # deliberate edit of the two keys below, not a hidden cost of running the suite.
 [tool.mutmut]
 source_paths = ["broodling/identity.py"]
