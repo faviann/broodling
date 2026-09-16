@@ -3,17 +3,19 @@
 import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from threading import Event
 from unittest.mock import patch
 
-from submission_support import RealSubmissionCase, SubmissionCase
+from submission_support import RealSubmissionCase, SubmissionCase, configured_adapter
 from support import git, move_head, work_reference
 
-from broodling import BroodlingStore, SourceSubmission
+from broodling import BroodlingStore, RequiredEffect, SourceSubmission
 from broodling.errors import (
     StaleAttempt,
     SubmissionConflict,
     SubmissionNotReady,
+    UnsupportedRuntime,
     WorktreeOwnershipConflict,
 )
 from broodling.submission import SubmissionCoordinator
@@ -395,6 +397,71 @@ class SubmissionControls(SubmissionCase):
                         with self.assertRaises(StaleAttempt):
                             action()
                     native.assert_not_called()
+
+
+class PullRequestSubmissionControls(SubmissionCase):
+    def contract(self, work_unit, source, **overrides):
+        return replace(
+            super().contract(work_unit, source, **overrides),
+            required_effects=(
+                RequiredEffect("deliver", "Open the PR.", "pull_request", "main"),
+            ),
+            host_assumptions=("single_host", "one_attempt_one_dedicated_worktree"),
+        )
+
+    def new_adapter(self):
+        return configured_adapter(
+            self.runtime_state,
+            self.root,
+            delivery_target_origin="http://127.0.0.1:8123",
+            github_token="token",
+        )
+
+    def test_acknowledgement_loss_recovers_without_local_worktree_drift(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        # DirectTarget resolves the same explicit repository/branch/revision, so
+        # Zeroshot's exact idempotent replay returns the original run normally;
+        # unlike LocalTarget, no local HEAD drift is needed to recover it.
+        with patch.object(self.adapter, "submit", return_value="remote-run"):
+            recovered = self.coordinator.reconcile(self.attempt_id)
+        self.assertEqual(recovered.run_id, "remote-run")
+        self.assertEqual(recovered.state, "correlated")
+
+    def test_dispatched_replay_requires_a_current_delivery_credential(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        self.adapter.github_token = None
+        with patch.object(self.adapter, "submit") as native:
+            with self.assertRaisesRegex(UnsupportedRuntime, "GH_TOKEN"):
+                self.coordinator.reconcile(self.attempt_id)
+            native.assert_not_called()
+        self.assertEqual(self.coordinator.record(self.attempt_id).state, "dispatched")
+
+    def test_direct_target_true_conflict_is_not_mistaken_for_ack_recovery(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        with (
+            patch.object(
+                self.adapter,
+                "submit",
+                side_effect=SubmissionConflict(
+                    "different submission", existing_run_id="foreign-run"
+                ),
+            ),
+            self.assertRaises(SubmissionConflict),
+        ):
+            self.coordinator.reconcile(self.attempt_id)
+        self.assertEqual(self.coordinator.record(self.attempt_id).state, "blocked")
 
 
 class PublicSubmissionTests(RealSubmissionCase):

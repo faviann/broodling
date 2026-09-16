@@ -57,7 +57,7 @@ class SdkPolicyTests(SubmissionCase):
                 self.subTest(name=name),
                 self.assertRaisesRegex(UnsupportedRuntime, "policy/environment"),
             ):
-                self.adapter.validate_first_dispatch(self.path)
+                self.adapter.validate_dispatch(self.path)
         self.adapter.target["environment"] = original
 
     def test_runtime_is_a_fixed_selection_not_an_alternate_harness_seam(self):
@@ -117,7 +117,7 @@ class SdkPolicyTests(SubmissionCase):
                 self.subTest(state=state),
                 self.assertRaisesRegex(UnsupportedRuntime, "separate"),
             ):
-                adapter.validate_first_dispatch(self.path)
+                adapter.validate_dispatch(self.path)
 
     def test_state_directory_rebinding_is_rejected_before_dispatch_wait_or_stop(self):
         parent = self.root / "native-parent"
@@ -129,7 +129,7 @@ class SdkPolicyTests(SubmissionCase):
         parent.rename(other)
         parent.symlink_to(other, target_is_directory=True)
         for operation in (
-            lambda: adapter.validate_first_dispatch(self.path),
+            lambda: adapter.validate_dispatch(self.path),
             lambda: asyncio.run(adapter.wait(request, "known-run")),
             lambda: asyncio.run(adapter.stop_known(request, "known-run")),
         ):
@@ -174,3 +174,92 @@ class SdkPolicyTests(SubmissionCase):
         run.force_stop.assert_awaited_once_with()
         self.assertEqual(client.get_run.call_args_list[0].args, (run.id,))
         self.assertEqual(client.get_run.call_args_list[1].args, (run.id,))
+
+    def test_pr_delivery_uses_direct_target_and_keeps_token_out_of_agents(self):
+        from zeroshot import DirectTarget, Preset, UniformRuntime
+
+        adapter = ZeroshotSubmitter(
+            self.runtime_state,
+            delivery_target_origin="http://127.0.0.1:8123",
+            github_token="secret-delivery-token",
+        )
+        request = self.request()
+        request["target"] = adapter.target
+        request["preset"] = {"name": "software-change", "delivery": "pull_request"}
+        request["runtime"] = adapter.runtime_for("pull_request")
+        request["delivery"] = {
+            "repository": "faviann/broodling",
+            "targetBranch": "main",
+            "baseRevision": self.attempt.b1_commit_oid,
+        }
+        adapter.validate_dispatch(self.path, request)
+        run = SimpleNamespace(id="delivered-run")
+        client = MagicMock()
+        client.submit = AsyncMock(return_value=run)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=None)
+        with patch("zeroshot.Client", return_value=client) as construct:
+            self.assertEqual(adapter.submit(request), run.id)
+        construct.assert_called_once_with(
+            target=DirectTarget(
+                "http://127.0.0.1:8123", workspace=request["workspace"]
+            ),
+            environment=request["target"]["environment"]
+            | {"GH_TOKEN": "secret-delivery-token"},
+        )
+        client.submit.assert_awaited_once_with(
+            request["task"],
+            title=request["title"],
+            preset=Preset("software-change", delivery="pull_request"),
+            runtime=UniformRuntime(**request["runtime"]),
+            submission_key=request["submissionKey"],
+            repository="faviann/broodling",
+            branch="main",
+            revision=self.attempt.b1_commit_oid,
+        )
+        self.assertNotIn("connections", request["runtime"])
+        self.assertNotIn("secret-delivery-token", json.dumps(request))
+
+    def test_pr_delivery_requires_current_credential_before_dispatch(self):
+        adapter = ZeroshotSubmitter(
+            self.runtime_state,
+            delivery_target_origin="http://127.0.0.1:8123",
+        )
+        request = self.request()
+        request["target"] = adapter.target
+        request["preset"] = {"name": "software-change", "delivery": "pull_request"}
+        request["runtime"] = adapter.runtime_for("pull_request")
+        request["delivery"] = {
+            "repository": "faviann/broodling",
+            "targetBranch": "main",
+            "baseRevision": self.attempt.b1_commit_oid,
+        }
+        with self.assertRaisesRegex(UnsupportedRuntime, "GH_TOKEN"):
+            adapter.validate_dispatch(self.path, request)
+
+    def test_pr_delivery_refuses_an_invalid_branch_or_foreign_repository(self):
+        adapter = ZeroshotSubmitter(
+            self.runtime_state,
+            delivery_target_origin="http://127.0.0.1:8123",
+            github_token="token",
+        )
+        request = self.request()
+        request["target"] = adapter.target
+        request["preset"] = {"name": "software-change", "delivery": "pull_request"}
+        request["runtime"] = adapter.runtime_for("pull_request")
+        request["delivery"] = {
+            "repository": "faviann/broodling",
+            "targetBranch": "main",
+            "baseRevision": self.attempt.b1_commit_oid,
+        }
+        for field, value, message in (
+            ("targetBranch", "bad..branch", "target branch"),
+            ("repository", "other/project", "repository"),
+        ):
+            changed = copy.deepcopy(request)
+            changed["delivery"][field] = value
+            with (
+                self.subTest(field=field),
+                self.assertRaisesRegex(UnsupportedRuntime, message),
+            ):
+                adapter.validate_dispatch(self.path, changed)

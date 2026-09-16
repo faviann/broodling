@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from pathlib import PurePosixPath
 from typing import Any
 
 from .identity import digest
@@ -77,12 +76,11 @@ class MechanicalEvidence:
 
 @dataclass(frozen=True, slots=True)
 class FinalAssuranceMaterial:
-    """Exact repository-relative material selected for durable final custody.
+    """Historical repository-relative final-custody request.
 
-    Each selected state retains file bytes, symlink target bytes, or explicit
-    absence. This selects custody only; it establishes no in-run applicability
-    or semantic sufficiency. Unsupported shapes remain representable so custody
-    can refuse them without changing historical Contract meaning.
+    The current stable-result profile refuses new declarations because Zeroshot's
+    delivery receipt, not a Broodling worktree read, is the accepted result.
+    Keeping the type preserves exact historical Contract meaning.
     """
 
     path: str
@@ -147,20 +145,26 @@ class Obligation:
 class RequiredEffect:
     """An authoritative external effect the Contract requires.
 
-    V1's required-effect set is empty. A Contract that names one is rejected, not
-    admitted with the effect dropped.
+    A pull-request effect may name its exact target branch. Other effects remain
+    representable so admission can preserve and refuse them without weakening the
+    Contract.
     """
 
     effect_id: str
     statement: str
     kind: str
+    target_branch: str = ""
 
     def to_mapping(self) -> dict[str, Any]:
-        return {
+        result = {
             "effectId": self.effect_id,
             "statement": self.statement,
             "kind": self.kind,
         }
+        # Omission preserves the exact canonical form of historical Contracts.
+        if self.target_branch:
+            result["targetBranch"] = self.target_branch
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -295,7 +299,12 @@ def contract_from_mapping(mapping: dict[str, Any]) -> Contract:
             for item in mapping["prerequisites"]
         ),
         required_effects=tuple(
-            RequiredEffect(item["effectId"], item["statement"], item["kind"])
+            RequiredEffect(
+                item["effectId"],
+                item["statement"],
+                item["kind"],
+                item.get("targetBranch", ""),
+            )
             for item in mapping["requiredEffects"]
         ),
         host_assumptions=tuple(mapping["hostAssumptions"]),
@@ -330,31 +339,6 @@ def _final_materials_from_mapping(value: Any) -> tuple[FinalAssuranceMaterial, .
     return tuple(result)
 
 
-def validate_final_assurance_materials(contract: Contract) -> None:
-    """Require an explicit finite custody selection without inferring paths."""
-    declarations = contract.final_assurance_materials
-    if not isinstance(declarations, tuple) or not declarations:
-        raise ValueError("final assurance materials require an explicit declaration")
-    seen: set[str] = set()
-    for item in declarations:
-        if not isinstance(item, FinalAssuranceMaterial):
-            raise ValueError("unsupported final assurance material declaration")  # noqa: TRY004
-        if not _relative_path(item.path) or ".git" in PurePosixPath(item.path).parts:
-            raise ValueError(
-                "final assurance material must be a normalized repository-relative "
-                "path outside .git"
-            )
-        if item.path in seen:
-            raise ValueError("duplicate final assurance material path")
-        seen.add(item.path)
-        if (
-            type(item.final_candidate) is not bool
-            or type(item.comparison_base) is not bool
-            or not (item.final_candidate or item.comparison_base)
-        ):
-            raise ValueError("final assurance material requires a selected state")
-
-
 def _mechanical_from_mapping(mapping: Any) -> MechanicalEvidence:
     """Refuse malformed structured meaning instead of dropping unknown fields."""
 
@@ -367,16 +351,4 @@ def _mechanical_from_mapping(mapping: Any) -> MechanicalEvidence:
         raise ValueError("mechanicalEvidence argv and materials must be arrays")  # noqa: TRY004
     return MechanicalEvidence(
         tuple(mapping["argv"]), mapping["cwd"], tuple(mapping["materials"])
-    )
-
-
-def _relative_path(value: Any, *, directory: bool = False) -> bool:
-    if not isinstance(value, str) or not value or "\x00" in value:
-        return False
-    path = PurePosixPath(value)
-    return (
-        not path.is_absolute()
-        and ".." not in path.parts
-        and str(path) == value
-        and (directory or value != ".")
     )

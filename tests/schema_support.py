@@ -19,6 +19,7 @@ from broodling.schema import (
     V6_SCHEMA_SHA256,
     V7_SCHEMA_SHA256,
     V8_SCHEMA_SHA256,
+    V9_SCHEMA_SHA256,
 )
 
 
@@ -43,6 +44,14 @@ def published_schema(version):
             .joinpath("schema-v8-disposition.sql")
             .read_text(),
             V8_SCHEMA_SHA256,
+        ),
+        9: (
+            v7
+            + Path(__file__)
+            .with_name("fixtures")
+            .joinpath("schema-v9-disposition.sql")
+            .read_text(),
+            V9_SCHEMA_SHA256,
         ),
     }[version]
     # A product edit to any old DDL must not silently change the fixture.

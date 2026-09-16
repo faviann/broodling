@@ -6,7 +6,7 @@ worktrees, holds the durable facts V1-P2 is responsible for:
 1. stable Work Unit identity for one repository + one primary issue;
 2. explicitly entitled source snapshots, with their exact bytes;
 3. immutable Contract revisions;
-4. the V1 no-effect Closability/admission decision for each revision; and
+4. the V1 conditional-delivery Closability/admission decision for each revision; and
 5. the immutable Attempt bindings — one admitted Contract revision, one B1, one
    exclusively owned worktree path and branch; and
 6. irreversible abandonment, removing current authority without claiming cessation.
@@ -55,6 +55,7 @@ from .profile import assert_supported_runtime, product_configuration
 from .schema import (
     ABANDONMENT_SQL,
     ASSURANCE_SQL,
+    DELIVERY_RESULT_MIGRATION_SQL,
     DISPOSITION_SQL,
     RESULT_MIGRATION_SQL,
     RETIREMENT_SQL,
@@ -70,6 +71,7 @@ from .schema import (
     V6_SCHEMA_SHA256,
     V7_SCHEMA_SHA256,
     V8_SCHEMA_SHA256,
+    V9_SCHEMA_SHA256,
 )
 from .starting_state import StartingState, admitted_material_digest
 from .workspace import (
@@ -359,6 +361,7 @@ class BroodlingStore:
         }
         migrations["7"] = (V7_SCHEMA_SHA256, DISPOSITION_SQL)
         migrations["8"] = (V8_SCHEMA_SHA256, RESULT_MIGRATION_SQL)
+        migrations["9"] = (V9_SCHEMA_SHA256, DELIVERY_RESULT_MIGRATION_SQL)
         if meta.get("schema_version") in migrations:
             # Acquire before rereading: concurrent openers must migrate once.
             with self._write() as connection:
@@ -779,7 +782,10 @@ class BroodlingStore:
         if existing is not None:
             return self.get_admission_decision(revision_id)
 
-        assessment = closability.assess(revision.contract)
+        assessment = closability.assess(
+            revision.contract,
+            work_unit_host=self.get_work_unit(revision.work_unit_id).host,
+        )
         configuration = product_configuration()
         with self._write():
             self._connection.execute(

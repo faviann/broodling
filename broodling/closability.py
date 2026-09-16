@@ -2,7 +2,8 @@
 
 Closability asks whether this Contract can be carried to a definite outcome
 *inside the supported profile*: single-host, one Attempt owning one dedicated
-worktree, the native software-change workflow, and no authoritative external effects.
+worktree, the native software-change workflow, and at most one explicitly
+authorized pull-request delivery.
 
 Every refusal carries the obligation that caused it, verbatim. Admission never
 edits a Contract to make it admissible; an unsupported obligation is a
@@ -15,20 +16,23 @@ from dataclasses import dataclass
 from typing import Any
 
 from .contract import Contract
+from .delivery import PULL_REQUEST, authorization
 from .profile import SUPPORTED_HOST_ASSUMPTIONS
 
 # Rejection codes.
 NO_CRITERIA = "no_criteria"
 NO_SOURCE_ATTRIBUTION = "no_entitled_source_attribution"
-REQUIRED_EFFECT_PRESENT = "required_effect_present"
+UNSUPPORTED_REQUIRED_EFFECT = "unsupported_required_effect"
+UNSUPPORTED_DELIVERY_HOST = "unsupported_delivery_host"
 UNSUPPORTED_EXTERNAL_OBLIGATION = "unsupported_external_obligation"
 UNRECOGNIZED_OBLIGATION_KIND = "unrecognized_obligation_kind"
 EFFECT_DEPENDENT_EVIDENCE = "effect_dependent_evidence"
+UNSUPPORTED_FINAL_MATERIAL_SELECTION = "unsupported_final_material_selection"
 UNSATISFIED_PREREQUISITE = "unsatisfied_prerequisite"
 UNSUPPORTED_HOST_ASSUMPTION = "unsupported_host_assumption"
 
 #: Obligation kinds a V1 Contract may carry. Everything else is either an
-#: external/publication obligation V1 cannot execute or an unrecognized kind;
+#: external/publication obligation the profile cannot execute or an unrecognized kind;
 #: both fail closed.
 SUPPORTED_OBLIGATION_KINDS: frozenset[str] = frozenset(
     {"candidate_change", "local_validation"}
@@ -89,8 +93,8 @@ class ClosabilityAssessment:
         }
 
 
-def assess(contract: Contract) -> ClosabilityAssessment:
-    """Assess one Contract against the supported no-effect workflow profile.
+def assess(contract: Contract, *, work_unit_host: str) -> ClosabilityAssessment:
+    """Assess one Contract against the supported conditional-delivery profile.
 
     Pure and deterministic: the same Contract always yields the same findings in
     the same order, so a re-decision can never quietly differ from the recorded
@@ -109,15 +113,37 @@ def assess(contract: Contract) -> ClosabilityAssessment:
             )
         )
 
-    for effect in contract.required_effects:
+    try:
+        delivery = authorization(contract)
+    except ValueError:
+        delivery = None
+        for effect in contract.required_effects:
+            findings.append(
+                ClosabilityFinding(
+                    code=UNSUPPORTED_REQUIRED_EFFECT,
+                    subject=f"requiredEffect:{effect.effect_id}",
+                    preserved_obligation=effect.statement,
+                    detail=(
+                        "the supported result deliveries are no effect, or exactly "
+                        "one pull_request effect naming a target branch; effect "
+                        f"{effect.kind!r} is preserved, not widened or waived"
+                    ),
+                )
+            )
+
+    if (
+        delivery is not None
+        and delivery.mode == PULL_REQUEST
+        and work_unit_host != "github.com"
+    ):
         findings.append(
             ClosabilityFinding(
-                code=REQUIRED_EFFECT_PRESENT,
-                subject=f"requiredEffect:{effect.effect_id}",
-                preserved_obligation=effect.statement,
+                code=UNSUPPORTED_DELIVERY_HOST,
+                subject=f"workUnitHost:{work_unit_host}",
+                preserved_obligation=contract.required_effects[0].statement,
                 detail=(
-                    f"V1 executes no authoritative external effects; required effect "
-                    f"of kind {effect.kind!r} is unsupported and is preserved, not waived"
+                    "Zeroshot 10.3 pull-request delivery is GitHub-specific; "
+                    f"the Work Unit belongs to {work_unit_host!r}"
                 ),
             )
         )
@@ -160,6 +186,19 @@ def assess(contract: Contract) -> ClosabilityAssessment:
             )
         )
 
+    if contract.final_assurance_materials is not None:
+        findings.append(
+            ClosabilityFinding(
+                code=UNSUPPORTED_FINAL_MATERIAL_SELECTION,
+                subject="finalAssuranceMaterials",
+                preserved_obligation="retain selected final candidate material",
+                detail=(
+                    "the supported result is Zeroshot's immutable delivery receipt; "
+                    "Broodling does not reconstruct selected files from execution state"
+                ),
+            )
+        )
+
     for criterion in contract.criteria:
         subject = f"criterion:{criterion.criterion_id}"
         for dependency in criterion.evidence_effect_dependencies:
@@ -191,6 +230,23 @@ def assess(contract: Contract) -> ClosabilityAssessment:
         )
 
     for assumption in contract.host_assumptions:
+        if (
+            delivery is not None
+            and delivery.mode == PULL_REQUEST
+            and assumption in {"no_authoritative_effects", "local_filesystem_only"}
+        ):
+            findings.append(
+                ClosabilityFinding(
+                    code=UNSUPPORTED_HOST_ASSUMPTION,
+                    subject=f"hostAssumption:{assumption}",
+                    preserved_obligation=assumption,
+                    detail=(
+                        f"host/runtime assumption {assumption!r} contradicts the "
+                        "authorized pull-request delivery"
+                    ),
+                )
+            )
+            continue
         if assumption in SUPPORTED_HOST_ASSUMPTIONS:
             continue
         findings.append(

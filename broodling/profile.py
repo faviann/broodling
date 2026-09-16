@@ -16,15 +16,16 @@ MIN_SQLITE = (3, 37, 0)
 ZEROSHOT_VERSION = "10.3.0"
 ZEROSHOT_SDK_VERSION = "10.3.0.post1"
 ZEROSHOT_BOUNDARY: dict[str, str] = {
-    "integration": "official Python SDK LocalTarget with bundled native engine",
+    "integration": (
+        "official Python SDK LocalTarget/DirectTarget with bundled native engine"
+    ),
     "zeroshotRevision": "054ad3fd6c763b98d12f5b2e90830b97116561ad",
     "sdk": f"the-open-engine-zeroshot {ZEROSHOT_SDK_VERSION}",
     "engine": ZEROSHOT_VERSION,
 }
 
-#: The V1 required authoritative-effect set. Empty, not waived: a Contract that
-#: requires any authoritative effect is rejected rather than admitted with the
-#: effect ignored.
+#: No effect is implicitly granted. A Contract may separately authorize the one
+#: supported pull-request delivery; every other effect remains refused.
 V1_REQUIRED_EFFECTS: tuple[str, ...] = ()
 
 #: Host/runtime assumptions a Contract may rely on inside the current
@@ -74,5 +75,6 @@ def product_configuration() -> dict[str, object]:
         "runtime": runtime_versions(),
         "zeroshotBoundary": dict(ZEROSHOT_BOUNDARY),
         "requiredEffects": list(V1_REQUIRED_EFFECTS),
+        "supportedResultDeliveries": ["none", "pull_request"],
         "supportedHostAssumptions": sorted(SUPPORTED_HOST_ASSUMPTIONS),
     }

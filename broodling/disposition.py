@@ -1,12 +1,12 @@
-"""Commit Broodling's no-effect lifecycle decision from the admitted run result."""
+"""Commit Broodling's lifecycle decision from Zeroshot's stable result."""
 
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 
-from .errors import GitCommandError, SubmissionConflict, SubmissionNotReady
-from .final_material import collect_final_material
+from .delivery import NONE, PULL_REQUEST, authorization
+from .errors import SubmissionConflict, SubmissionNotReady
 from .store import BroodlingStore, _now
 from .submission import SubmissionCoordinator
 from .zeroshot_sdk import ZeroshotSubmitter, canonical_request
@@ -47,10 +47,17 @@ class WorkUnitDispositionCoordinator:
     def _bound(self, attempt_id):
         attempt = self.store.require_current_attempt(attempt_id)
         revision = self.store.get_contract_revision(attempt.contract_revision_id)
-        if json.loads(revision.canonical_bytes).get("requiredEffects") != []:
+        try:
+            declared = json.loads(revision.canonical_bytes).get("requiredEffects")
+            if not isinstance(declared, list) or not all(
+                isinstance(item, dict) for item in declared
+            ):
+                raise ValueError("invalid requiredEffects declaration")
+            delivery = authorization(revision.contract)
+        except (KeyError, TypeError, ValueError) as error:
             raise SubmissionNotReady(
-                "completion requires an explicit empty required-effect set"
-            )
+                "completion requires one supported frozen result delivery"
+            ) from error
         attempt, assignment = self.submission._current(attempt_id)
         submitted = self.submission._required(attempt_id)
         if submitted.state != "correlated":
@@ -62,7 +69,54 @@ class WorkUnitDispositionCoordinator:
             raise SubmissionConflict(
                 "result is not bound to the admitted workflow invocation"
             )
+        if request["preset"]["delivery"] != delivery.mode:
+            raise SubmissionConflict("result delivery differs from Contract authority")
         return attempt, assignment, revision, submitted, request
+
+    @staticmethod
+    def _accepted_receipt(request: dict, output) -> dict:
+        delivery = request["preset"]["delivery"]
+        if delivery == NONE:
+            raise SubmissionNotReady(
+                "Zeroshot 10.3 no-effect runs provide no stable accepted result; "
+                "local result handoff is an upstream capability gap"
+            )
+        if delivery != PULL_REQUEST or not isinstance(output, dict):
+            raise SubmissionConflict(
+                "successful run returned no authorized delivery receipt"
+            )
+        expected_fields = {
+            "version",
+            "mode",
+            "outcome",
+            "repository",
+            "targetBranch",
+            "headRevision",
+            "pullRequestId",
+        }
+        selected = request.get("delivery")
+        revision = output.get("headRevision")
+        review = output.get("pullRequestId")
+        if (
+            set(output) != expected_fields
+            or output.get("version") != "v1"
+            or output.get("mode") != "pr"
+            or output.get("outcome") != "opened"
+            or not isinstance(selected, dict)
+            or output.get("repository") != selected.get("repository")
+            or output.get("targetBranch") != selected.get("targetBranch")
+            or not isinstance(revision, str)
+            or len(revision) != 40
+            or any(character not in "0123456789abcdef" for character in revision)
+            or revision == selected.get("baseRevision")
+            or not isinstance(review, str)
+            or not review.isascii()
+            or not review.isdigit()
+        ):
+            raise SubmissionConflict(
+                "Zeroshot delivery receipt does not match frozen PR authority"
+            )
+        return output
 
     async def finalize(self, attempt_id: str) -> WorkUnitDisposition:
         existing = self.record(attempt_id)
@@ -79,13 +133,12 @@ class WorkUnitDispositionCoordinator:
             reason = f"Zeroshot run failed: {result.failure}"
             self.store.abandon_attempt(attempt_id, reason)
             raise SubmissionNotReady(reason)
+        receipt = self._accepted_receipt(request, result.output)
         with self.store._write() as connection:
             existing = self.record(attempt_id)
             if existing is not None:
                 return existing
-            attempt, assignment, revision, current, current_request = self._bound(
-                attempt_id
-            )
+            attempt, _, revision, current, current_request = self._bound(attempt_id)
             if (
                 current != submitted
                 or current_request != request
@@ -94,27 +147,15 @@ class WorkUnitDispositionCoordinator:
                 raise SubmissionConflict(
                     "result lost its immutable Attempt/run binding"
                 )
-            # The complete candidate stays in its owned worktree. If the frozen
-            # Contract also selected retained bytes, honor that post-run request.
-            selected = ()
-            if revision.contract.final_assurance_materials is not None:
-                try:
-                    selected = collect_final_material(
-                        revision.contract, assignment.path, attempt.b1_commit_oid
-                    )
-                except (OSError, ValueError, GitCommandError) as error:
-                    raise SubmissionNotReady(
-                        f"declared candidate material unavailable: {error}"
-                    ) from error
             payload = canonical_request(
                 {
-                    "format": "broodling.final-assurance/v2",
+                    "format": "broodling.final-assurance/v3",
                     "attemptId": attempt_id,
                     "contractRevisionId": revision.contract_revision_id,
                     "runId": result.run_id,
                     "workflow": request["preset"],
-                    "workspace": assignment.worktree_path,
-                    "selectedMaterial": selected,
+                    "acceptedRevision": receipt["headRevision"],
+                    "deliveryReceipt": receipt,
                 }
             )
             # Keep the existing custody table so old evidence remains readable.

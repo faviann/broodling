@@ -4,12 +4,13 @@ import dataclasses
 import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from unittest.mock import patch
 
 from schema_support import restore_published_schema
-from submission_support import SubmissionCase
+from submission_support import SubmissionCase, configured_adapter
 
-from broodling import BroodlingStore, SchemaVersionMismatch
+from broodling import BroodlingStore, RequiredEffect, SchemaVersionMismatch
 from broodling.disposition import WorkUnitDispositionCoordinator
 from broodling.errors import SubmissionNotReady
 from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION
@@ -187,6 +188,26 @@ class DispositionFoundationTests(SubmissionCase):
             )
         )
 
+    def test_exact_v9_migration_preserves_completed_historical_result(self):
+        self.correlate()
+        restore_published_schema(self.store, 9)
+        self.custody()
+        self.insert_disposition()
+        before = WorkUnitDispositionCoordinator(self.store, self.adapter).record(
+            self.attempt_id
+        )
+        self.restart()
+        self.assertEqual(
+            self.store.schema_meta()["schema_version"], str(SCHEMA_VERSION)
+        )
+        self.assertEqual(self.store.schema_meta()["schema_sha256"], SCHEMA_SHA256)
+        self.assertEqual(
+            WorkUnitDispositionCoordinator(self.store, self.adapter).record(
+                self.attempt_id
+            ),
+            before,
+        )
+
     def test_unknown_v7_definition_cannot_gain_disposition_tables(self):
         restore_published_schema(self.store, 7)
         self.store.connection.execute(
@@ -199,3 +220,74 @@ class DispositionFoundationTests(SubmissionCase):
                 "SELECT name FROM sqlite_schema WHERE name = 'work_unit_dispositions'"
             ).fetchone()
         )
+
+
+class StableReceiptDatabaseTests(SubmissionCase):
+    def contract(self, work_unit, source, **overrides):
+        return replace(
+            super().contract(work_unit, source, **overrides),
+            required_effects=(
+                RequiredEffect("deliver", "Open the PR.", "pull_request", "main"),
+            ),
+            host_assumptions=("single_host", "one_attempt_one_dedicated_worktree"),
+        )
+
+    def new_adapter(self):
+        return configured_adapter(
+            self.runtime_state,
+            self.root,
+            delivery_target_origin="http://127.0.0.1:8123",
+            github_token="token",
+        )
+
+    def setUp(self):
+        super().setUp()
+        with patch.object(self.adapter, "submit", return_value="run"):
+            self.submit()
+
+    def payload(self, **receipt_changes):
+        receipt = {
+            "version": "v1",
+            "mode": "pr",
+            "outcome": "opened",
+            "repository": "faviann/broodling",
+            "targetBranch": "main",
+            "headRevision": "b" * 40,
+            "pullRequestId": "50",
+        }
+        receipt.update(receipt_changes)
+        return {
+            "format": "broodling.final-assurance/v3",
+            "attemptId": self.attempt_id,
+            "contractRevisionId": self.attempt.contract_revision_id,
+            "runId": "run",
+            "workflow": {"name": "software-change", "delivery": "pull_request"},
+            "acceptedRevision": receipt["headRevision"],
+            "deliveryReceipt": receipt,
+        }
+
+    def insert_result(self, payload):
+        self.store.connection.execute(
+            "INSERT INTO final_assurance VALUES (?, 'run', ?)",
+            (self.attempt_id, json.dumps(payload)),
+        )
+        self.store.connection.execute(
+            "INSERT INTO work_unit_dispositions VALUES (?, ?, ?, 'SUCCEEDED', 'now')",
+            (
+                self.attempt.work_unit_id,
+                self.attempt.contract_revision_id,
+                self.attempt_id,
+            ),
+        )
+
+    def test_matching_native_receipt_can_complete_at_database_boundary(self):
+        self.insert_result(self.payload())
+        self.assertIsNotNone(
+            WorkUnitDispositionCoordinator(self.store, self.adapter).record(
+                self.attempt_id
+            )
+        )
+
+    def test_foreign_native_receipt_cannot_complete_at_database_boundary(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert_result(self.payload(repository="other/project"))

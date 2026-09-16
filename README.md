@@ -13,11 +13,13 @@ or independently re-prove the workflow's result.
 ## Current boundary
 
 Broodling owns immutable source/Contract admission, one current Attempt and its
-dedicated worktree, durable Attempt-to-run correlation, and the final no-effect
-disposition. It submits `Preset("software-change", delivery="none")` and consumes
-`Run.wait()`, including an already-completed run after reconnection. A successful
-native workflow is sufficient; no separate mechanical-evidence or adjudication
-record is required.
+dedicated worktree, durable Attempt-to-run correlation, and the final lifecycle
+decision. The frozen Work Unit selects delivery: an empty effect set submits
+`Preset("software-change", delivery="none")`; exactly one authorized
+`pull_request` effect naming its target branch submits native PR delivery. No
+other effect is inferred. Broodling consumes `Run.wait()`, including an
+already-completed run after reconnection, without a separate mechanical-evidence
+or adjudication record.
 
 A source-attributed Contract can be admitted with acceptance criteria alone.
 A finite evidence population, validation seam/action, and falsifying observation
@@ -30,9 +32,9 @@ matching **Python SDK 10.3.0.post1**. See the
 [current integration design](docs/implementation/zeroshot-native-integration.md)
 for the responsibility boundary, release sources, migration, and limitations.
 
-No authoritative effects are supported: a Contract requiring one is rejected.
-Delivery is disabled, and a small Codex launcher applies explicit sandbox/network
-policy, disables apps/plugins/hooks/notifications, excludes ambient Codex user
+No authoritative effect is implicit. Unsupported, mixed, or multiple effects are
+rejected. No-effect local runs use a small Codex launcher with explicit sandbox/network
+policy that disables apps/plugins/hooks/notifications, excludes ambient Codex user
 configuration and exec-policy rules, and uses isolated homes. Zeroshot still owns
 provider sessions, execution, and stop behavior. Its workflow can read current
 repository guidance; that context cannot
@@ -68,6 +70,7 @@ for reconnecting to the run.
 
 ```python
 import asyncio
+import os
 from pathlib import Path
 
 from broodling import (
@@ -95,6 +98,9 @@ def execute(admitted_revision_id: str):
                 Path("/srv/broodling/profile-home"),
                 Path("/srv/broodling/codex-auth"),
             ),
+            # Required only when this Contract authorizes pull_request delivery.
+            delivery_target_origin="https://zeroshot.example.internal",
+            github_token=os.environ.get("GH_TOKEN"),
         )
         SubmissionCoordinator(store, engine).submit(attempt.attempt_id)
         return asyncio.run(
@@ -102,10 +108,19 @@ def execute(admitted_revision_id: str):
         )
 ```
 
-The complete candidate stays in its owned worktree. A frozen
-`finalAssuranceMaterials` selection may additionally retain requested candidate
-and B1 bytes; this is result retention, not independent execution evidence.
-Cancelling a wait only detaches; waiting again can consume the same result.
+For an authorized PR, Zeroshot runs against the explicit repository, target
+branch, and B1 revision on the configured direct target. PR delivery is admitted
+only for a GitHub Work Unit. Its successful PR
+receipt is retained verbatim, and `headRevision` is the stable accepted result.
+The current token is checked on every initial or replayed dispatch and is neither
+persisted nor exposed to agent runtime bindings. Cancelling a wait only detaches;
+waiting again can consume the same result.
+
+For a no-effect Work Unit, Zeroshot 10.3 returns null and leaves only a mutable
+local worktree. Broodling may run that no-effect workflow, but it fails closed at
+final disposition because no stable accepted result exists. It does not silently
+open a PR, manufacture a post-run snapshot, or supervise writers. This is an
+explicit Zeroshot capability gap pending a supported local result delivery.
 
 ## Cleanup limitation
 

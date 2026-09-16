@@ -57,8 +57,9 @@ The standard public integration surface supports beginning/end participation:
 
 | Broodling operation | Supported Python surface |
 | --- | --- |
-| Bind the prepared Attempt workspace and runtime store | `LocalTarget(workspace, state_dir=...)` |
-| Select the standard workflow without delivery | `Preset("software-change", delivery="none")` |
+| Bind a no-effect Attempt workspace and runtime store | `LocalTarget(workspace, state_dir=...)` |
+| Bind an authorized PR to explicit remote source | `DirectTarget(origin)` plus repository/branch/revision submission selectors |
+| Select the frozen Work Unit delivery | `Preset("software-change", delivery="none"|"pull_request")` |
 | Specify admitted provider configuration | `UniformRuntime(harness=..., provider=..., model=..., ...)` |
 | Submit the immutable task and key | `Client.submit(task, title=..., preset=..., runtime=..., submission_key=...)` |
 | Consume an existing correlated run | `Client.get_run(run_id).wait()` |
@@ -115,8 +116,10 @@ The built-in `software-change` graph provides an implementation worker,
 independent acceptance/code review, repair, and ten bounded review iterations.
 With delivery disabled, successful output is JSON null. It supplies no separate
 Broodling criterion evidence, adjudication or final rationale. That is now the
-selected workflow contract: a correlated engine success is consumed as the
-workflow outcome, without manufacturing a stronger per-criterion assurance claim.
+selected execution outcome, but not a stable candidate identity, so Broodling
+10.3 refuses successful disposition rather than manufacturing a snapshot. An
+authorized PR run instead uses the stable native receipt described in the
+[result-handoff audit](zeroshot-result-handoff-audit.md).
 Source: [standard graph implementation](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_templates.rs).
 
 Native admission validates graph semantics, input, bindings and bounds. The

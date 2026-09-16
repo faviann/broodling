@@ -17,6 +17,7 @@ import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .errors import GitCommandError
 
@@ -290,3 +291,27 @@ def origin_url(worktree: Path) -> str | None:
     """Pin the source configuration consumed by the qualified local target."""
     value = _try(worktree, "config", "--get", "remote.origin.url")
     return None if value is None else value.strip()
+
+
+def github_repository(origin: str | None) -> str | None:
+    """Return an exact GitHub ``owner/repository`` identity from an origin URL."""
+    if not origin:
+        return None
+    parsed = urlparse(origin)
+    if parsed.scheme:
+        if (parsed.hostname or "").lower() != "github.com":
+            return None
+        path = parsed.path
+    else:
+        authority, separator, path = origin.partition(":")
+        if not separator or authority.rsplit("@", 1)[-1].lower() != "github.com":
+            return None
+    parts = path.strip("/").removesuffix(".git").split("/")
+    if len(parts) != 2 or not all(parts):
+        return None
+    return "/".join(parts)
+
+
+def valid_branch_name(repository: Path, branch: str) -> bool:
+    """Whether Git accepts the exact authorized target as a branch name."""
+    return _try(repository, "check-ref-format", "--branch", branch) is not None

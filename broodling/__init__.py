@@ -1,10 +1,10 @@
 """One admitted Work Unit, executed by Zeroshot.
 
 Broodling freezes domain authority and the invocation, correlates one Attempt
-with one native software-change run, and commits the no-effect lifecycle
-decision from its eventual result. Zeroshot owns execution, review, repair,
-sessions, observation and stopping. Dispatched worktrees remain quarantined
-when physical cessation cannot be established by the supported target.
+with one native software-change run, and commits a lifecycle decision only from
+an authorized stable Zeroshot result. Zeroshot owns execution, review, repair,
+delivery, sessions, observation and stopping. Dispatched worktrees remain
+quarantined when physical cessation cannot be established by the supported target.
 """
 
 from __future__ import annotations

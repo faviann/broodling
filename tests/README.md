@@ -32,28 +32,31 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
 ## What remains
 
 - Work Unit identity, entitled source snapshots, immutable Contract/Attempt
-  bindings, criteria-only/no-effect admission, and one current Attempt. A complete
+  bindings, criteria-only admission, exact PR/no-effect delivery selection, and one current Attempt. A complete
   validation plan is not an admission precondition; effect-dependent evidence and
   unsatisfied prerequisites remain refusals.
 - Exact original B1 provisioning and exclusive ownership of disposable
   worktrees, including Broodling's own concurrent-call/crash boundaries.
 - Immutable invocation preparation, durable dispatch/correlation, acknowledgement
-  loss, and refusal of conflicting target or source identities.
-- Successful, null-output native results; reopened completed runs; current-Attempt
-  authority; atomic result/disposition writes; repeatable detached waits; native
-  failure; and refusal of late success after abandonment.
-- Explicit local no-effect/user-configuration policy, optional selected-material
-  retention, and refusal of unsupported material reads.
+  loss (including unchanged-worktree DirectTarget replay), current PR credential
+  checks, and refusal of conflicting target, forge, or source identities.
+- Native PR receipt binding and stable `headRevision`; refusal to disposition a
+  null-output no-effect run; reopened completed runs; current-Attempt authority;
+  atomic result/disposition writes; repeatable detached waits; native failure;
+  and refusal of late success after abandonment.
+- Explicit local no-effect/user-configuration policy, direct-target PR source and
+  credential seams, and refusal of legacy selected-material requests.
 - Quarantine after dispatch: native terminal/stop labels never authorize worktree
   deletion or replacement. Never-dispatched retirement/retry still checks exact
   Broodling ownership.
 - Known SQLite schema migrations and preservation of historical records without
   treating old proof rows as new workflow results.
 
-`test_workflow_result.py` exercises the public standard-workflow seam against the
-released SDK and bundled native executable. The
+`test_workflow_result.py` exercises no-effect execution against the released SDK
+and bundled native executable, and PR receipt handling through the same public
+result interface. The
 [controlled Codex fixture](fixtures/README.md) substitutes only the provider.
-Tests assert the Broodling outcome and retained candidate/run binding, not
+Tests assert the Broodling outcome and native receipt/run binding, not
 Zeroshot's internal history.
 
 The two bounded Hypothesis modules remain narrowly focused:

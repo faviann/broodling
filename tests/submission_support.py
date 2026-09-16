@@ -14,14 +14,16 @@ from broodling.zeroshot_sdk import ZeroshotSubmitter
 LEAF = Path(__file__).parent / "fixtures" / "software-change-codex"
 
 
-def configured_adapter(state_dir, root):
+def configured_adapter(state_dir, root, **overrides):
     from broodling import CodexProfile
 
     home, auth = root / "submission-home", root / "submission-auth"
     home.mkdir(exist_ok=True)
     auth.mkdir(exist_ok=True)
     (auth / "auth.json").write_text("{}")
-    return ZeroshotSubmitter(state_dir, codex_profile=CodexProfile(LEAF, home, auth))
+    return ZeroshotSubmitter(
+        state_dir, codex_profile=CodexProfile(LEAF, home, auth), **overrides
+    )
 
 
 class SubmissionCase(AttemptTestCase):
@@ -43,8 +45,11 @@ class SubmissionCase(AttemptTestCase):
         # Only sockets/controller state use shm; the dedicated worktree is durable.
         self.runtime_state = Path(tempfile.mkdtemp(prefix="b14-", dir="/dev/shm"))
         self.addCleanup(shutil.rmtree, self.runtime_state, ignore_errors=True)
-        self.adapter = configured_adapter(self.runtime_state, self.root)
+        self.adapter = self.new_adapter()
         self.coordinator = SubmissionCoordinator(self.store, self.adapter)
+
+    def new_adapter(self):
+        return configured_adapter(self.runtime_state, self.root)
 
     def submit(self, **overrides):
         return self.coordinator.submit(self.attempt_id, **overrides)

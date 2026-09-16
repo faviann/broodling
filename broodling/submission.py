@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import git, workspace
+from .delivery import PULL_REQUEST, authorization
 from .errors import (
     StaleAttempt,
     SubmissionConflict,
@@ -67,13 +68,29 @@ class SubmissionCoordinator:
 
     def _request(self, attempt, assignment) -> dict:
         revision = self.store.get_contract_revision(attempt.contract_revision_id)
+        delivery = authorization(revision.contract)
+        work_unit = self.store.get_work_unit(attempt.work_unit_id)
+        if delivery.mode == PULL_REQUEST and work_unit.host != "github.com":
+            raise SubmissionNotReady(
+                "pull-request delivery requires a GitHub Work Unit"
+            )
+        effect_policy = (
+            "The required-effect set is empty. Keep changes in this assigned worktree."
+            if delivery.mode != PULL_REQUEST
+            else (
+                "The sole authorized external effect is Zeroshot's native pull-request "
+                "delivery. Do not publish, push, create or update a PR, merge, change "
+                "issues, deploy, or perform other authoritative effects yourself; the "
+                "native delivery node alone owns the authorized PR effect."
+            )
+        )
         task = (
             "Complete this admitted software-development Work Unit. The frozen Contract "
             "and entitled source material below govern scope and acceptance. Candidate edits "
             "cannot amend that authority. Implement the criteria and run the declared/relevant "
-            "checks; independently verify the actual outcome. Do not publish, push, create a PR, "
-            "merge, change issues, deploy, or perform other authoritative external effects. "
-            "The required-effect set is empty. Keep changes in this assigned worktree.\n\n"
+            "checks; independently verify the actual outcome. "
+            + effect_policy
+            + "\n\n"
             + canonical_request(
                 {
                     "contract": json.loads(revision.canonical_bytes),
@@ -84,12 +101,12 @@ class SubmissionCoordinator:
                 }
             )
         )
-        return {
+        request = {
             "submissionKey": f"broodling:v1:{attempt.attempt_id}",
             "title": f"Broodling Attempt {attempt.attempt_id}",
             "task": task,
-            "preset": {"name": "software-change", "delivery": "none"},
-            "runtime": self.submitter.runtime,
+            "preset": {"name": "software-change", "delivery": delivery.mode},
+            "runtime": self.submitter.runtime_for(delivery.mode),
             "workspace": assignment.worktree_path,
             "repository": attempt.b1_repository,
             "branch": assignment.branch,
@@ -98,10 +115,16 @@ class SubmissionCoordinator:
             "originUrl": git.origin_url(assignment.path),
             "target": self.submitter.target,
         }
+        if delivery.mode == PULL_REQUEST:
+            request["delivery"] = {
+                "repository": f"{work_unit.owner}/{work_unit.repository}",
+                "targetBranch": delivery.target_branch,
+                "baseRevision": attempt.b1_commit_oid,
+            }
+        return request
 
     def prepare(self, attempt_id: str) -> AttemptSubmission:
         """Freeze the standard workflow invocation from admitted facts only."""
-        self.submitter.require_execution_profile()
         with self._write() as connection:
             attempt, assignment = self._current(attempt_id)
             self.store._validate_retry_target(attempt_id, self.submitter.target)
@@ -136,7 +159,9 @@ class SubmissionCoordinator:
                 self.store._validate_retry_target(attempt_id, self.submitter.target)
                 self._source(attempt, assignment, require_b1=True)
                 self._origin(record, assignment)
-                self.submitter.validate_first_dispatch(assignment.path)
+                self.submitter.validate_dispatch(
+                    assignment.path, json.loads(record.request_json)
+                )
                 connection.execute(
                     "UPDATE attempt_submissions SET state = 'dispatched' WHERE attempt_id = ?",
                     (attempt_id,),
@@ -150,6 +175,11 @@ class SubmissionCoordinator:
             self._source(attempt, assignment, require_b1=False)
             self._origin(record, assignment)
             request = json.loads(record.request_json)
+
+        # Delivery credentials are intentionally not persisted. Recheck the
+        # current credential on every replay, including after a crash left the
+        # durable state at dispatched. This check does not hold SQLite's writer.
+        self.submitter.validate_dispatch(assignment.path, request)
 
         # Zeroshot owns duplicate prevention for this immutable submission key.
         # Keeping this call outside BEGIN IMMEDIATE lets unrelated lifecycle

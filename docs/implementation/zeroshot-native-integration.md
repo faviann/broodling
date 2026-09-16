@@ -4,14 +4,24 @@ Decision date: 16 September 2026. This is the current implementation boundary.
 It supersedes the custom execution/proof requirements and recovery capability
 claims in the v0.5 governing pair and V1-P3/V1-P4 implementation notes, without
 changing those historical documents or their qualification evidence. Immutable
-admission, source entitlement, current-Attempt authority, and no-effect admission
+admission, source entitlement, current-Attempt authority, and effect authorization
 remain product requirements.
 
 ## Decision
 
-Broodling prepares one immutable Work Unit/Attempt invocation, submits it to
-Zeroshot's standard `software-change` workflow with delivery disabled, consumes
-the eventual native result, and makes its own lifecycle decision.
+Broodling prepares one immutable Work Unit/Attempt invocation, selects native
+delivery from that Work Unit's frozen effect authority, submits it to Zeroshot's
+standard `software-change` workflow, consumes the eventual native result, and
+makes its own lifecycle decision.
+
+An empty effect set selects `delivery="none"`; it never acquires PR authority by
+configuration or fallback. Exactly one `pull_request` effect naming a target
+branch selects `delivery="pull_request"`. Every other, mixed, underspecified or
+multiple effect declaration is refused. Because LocalTarget binds delivery to
+the checked-out branch while Broodling uses a synthetic Attempt branch, authorized
+PR work uses a configured DirectTarget and passes the frozen repository, target
+branch and B1 revision through Zeroshot's supported source selectors. PR delivery
+is refused unless the Work Unit's frozen forge host is `github.com`.
 
 The product owner explicitly selected the standard workflow over Broodling's
 extra mechanical-evidence, separate-adjudication, and criterion-by-criterion
@@ -44,7 +54,7 @@ The [current source audit](zeroshot-current-source-audit.md) records release
 verification, supported APIs, and the source basis for the limitations below.
 The material capabilities are:
 
-- `Preset("software-change", delivery="none")` supplies implementation,
+- `Preset("software-change", delivery="none"|"pull_request")` supplies implementation,
   independent acceptance/code review, and bounded repair. Broodling chooses the
   preset; it neither authors nor interprets its graph.
 - `UniformRuntime` supplies the provider/model configuration and
@@ -73,12 +83,12 @@ does not represent or configure.
 
 | Broodling responsibility | Concrete outcome | Why native behavior alone is insufficient |
 | --- | --- | --- |
-| Entitled source snapshots, immutable Contract revision, and no-effect admission | Preserve the exact authorized task and reject unsupported effects without deleting obligations. | Zeroshot accepts a task; it does not know Broodling's source entitlement, Work Unit identity, or admission policy. |
+| Entitled source snapshots, immutable Contract revision, and exact delivery authorization | Preserve the exact authorized task and permit only its one declared result effect. | Zeroshot accepts a selected preset; it does not know whether this Work Unit authorized that delivery. |
 | One current Attempt, original B1, and exclusive worktree ownership | A result cannot complete another Attempt; host setup/deletion cannot target somebody else's checkout. | A `LocalTarget` uses a supplied workspace but does not own Broodling's Attempt authority, B1 policy, or disposal entitlement. |
 | Persisted invocation and Attempt-to-run correlation | A repeated call or lost acknowledgement refers to the same admitted work, never a newly invented invocation. | Native idempotency does not persist the caller's Work Unit/Attempt relationship. Local source resolution also includes current HEAD, which can change after accepted work starts. |
 | Explicit no-effect/user-configuration policy | Restrict supported tool/network settings and avoid inheriting ambient Codex user configuration or exec-policy escalation on the declared trusted-host profile. | The local worker defaults enable shell networking and resolve user configuration; the public runtime has no fields for these network/configuration policies. This does not exclude repository guidance or replace the managed-configuration host precondition below. |
-| Current-authority check and atomic successful-result/disposition retention | Only the still-authoritative Attempt can complete the no-effect Work Unit, with durable justification committed alongside that decision. | Zeroshot's run result does not mutate Broodling's lifecycle database or decide its effect policy. |
-| Optional frozen candidate/B1 material selection | Honor an admitted request to retain exact selected bytes or explicit absence for later inspection. | The no-delivery preset may succeed with null output and does not retain Broodling's selected file bytes in its result. This is an optional retention request, not independent acceptance evidence. |
+| Current-authority check and atomic stable-result/disposition retention | Only the still-authoritative Attempt can complete, and only from the delivery it authorized. | Zeroshot's run result does not mutate Broodling's lifecycle database or decide its effect policy. |
+| Fail closed when no stable result exists | A null no-effect result cannot be mislabeled as an immutable accepted candidate. | Zeroshot 10.3 has no local commit/artifact delivery; Broodling reports the gap instead of snapshotting or supervising. |
 | Refuse cleanup/retry without safety authority | Do not delete a workspace or start a replacement while an old writer might survive. | `LocalTarget` has no general public physical-cessation receipt, including after controller loss. Broodling declines the operation instead of adding a supervisor. |
 
 Broodling still uses locks and durable transitions for its own SQLite/Git
@@ -89,8 +99,8 @@ Zeroshot submission call or supervise execution.
 ## Invocation and result
 
 Preparation freezes the canonical Contract, exact entitled instruction snapshots,
-original comparison base B1, workspace/source identity, native preset/runtime,
-target configuration, and submission key. Callers cannot supply a replacement
+original comparison base B1, workspace/source identity, authorized delivery,
+native preset/runtime, target configuration, and submission key. Callers cannot supply a replacement
 graph or a different per-call task. A criterion may supply only its identity and
 acceptance statement. An evidence population, validation seam/action, and
 falsifying observation are optional task guidance, not Broodling-run evidence
@@ -109,6 +119,11 @@ converge on one run ID. Reconciliation repeats only the identical invocation. A
 typed native conflict can recover the existing run ID only for the narrow case
 of an already-dispatched request whose owned source assignment still matches and
 whose HEAD has changed from B1. Other source/configuration conflicts fail closed.
+DirectTarget replay uses the same explicit source triple, so an exact retry
+normally returns the existing run without local worktree drift. Because delivery
+credentials are intentionally absent from persisted requests, Broodling checks
+the current `GH_TOKEN` again before every initial or replayed PR dispatch, outside
+the SQLite writer transaction.
 There is no lease, ledger scan, execution discovery, or runtime replay algorithm.
 
 Abandonment may commit while submission is in flight. If Zeroshot subsequently
@@ -118,11 +133,18 @@ If acknowledgement was lost before abandonment, Broodling does not replay after
 authority is gone. The unresolved dispatched Attempt remains quarantined.
 
 Finalization waits through the public SDK. A successful result must name the
-correlated run; the Attempt must remain current and bound to the unchanged
-admitted invocation, and `requiredEffects` must be explicitly empty. Native
-success with `output=None` is valid. A native failure abandons the Attempt but
-does not grant cleanup authority. Explicit abandonment also prevents a later
-successful result from completing the Work Unit.
+correlated run, and the Attempt must remain current and bound to the unchanged
+admitted invocation. For PR delivery, the exact native v1/pr/opened receipt must
+match the frozen repository and target branch; its non-B1 `headRevision` is the
+stable accepted result. Broodling retains the whole receipt without re-reading
+the mutable worktree. Native PR delivery owns commit, push, PR creation/update,
+repair and receipt validation.
+
+For no-effect delivery, Zeroshot 10.3 succeeds with `output=None`. Broodling does
+not turn that mutable workspace into a completed result: final disposition fails
+closed with the explicit local-result capability gap. A native failure abandons
+the Attempt but does not grant cleanup authority. Explicit abandonment also
+prevents a later successful result from completing the Work Unit.
 
 Successful result retention and disposition commit together in one SQLite
 transaction. A failed write grants no partial completion; another call may
@@ -131,13 +153,22 @@ Attempt available for another wait. There is no live observer, completion-window
 marker, or finalization recovery protocol.
 
 The result record retains the Attempt, Contract revision, run identity, preset,
-workspace, and optional selected material. The complete candidate remains in its
-owned worktree. Selected final files are read back after native success; B1 files
-come from the admitted Git object. These are not an immutable candidate seal,
-an independent semantic proof, or evidence that escaped writers ceased. Host
-operators must not concurrently alter a candidate that they intend to inspect.
+accepted revision and entire Zeroshot delivery receipt. The old selected-material
+collector is removed: new Contracts that request it are refused rather than
+silently ignored, while historical records remain readable.
 
 ## Local policy and cleanup limitation
+
+The launcher policy below applies to `delivery="none"` LocalTarget execution.
+Authorized PR delivery uses the configured Zeroshot DirectTarget, whose operator
+owns its provider installation, authentication and sandbox profile. Broodling
+supplies `GH_TOKEN` only to the SDK process for the native delivery binding; the
+token is not persisted in the invocation and the agent runtime declares no token
+connection. The frozen Contract authorizes the PR effect, not general provider
+access or any additional effect. Configuring that endpoint is therefore a hard
+operator trust boundary: Broodling freezes its origin into the invocation and
+refuses a changed endpoint on replay, but it cannot qualify or constrain the
+remote target's installation from the local SDK.
 
 The small [Codex launcher](../../broodling/codex_bin/codex) applies explicit
 workspace-write worker/read-only verifier sandbox modes, strips sandbox/approval
@@ -225,7 +256,8 @@ The four historical proof-plan admission gates and their refusal tests were also
 removed; criteria-only admission now exercises the simpler supported boundary.
 
 The `final_assurance` storage name remains so historical records stay readable;
-new records are tagged `broodling.final-assurance/v2`. Schema migration preserves
+new stable delivery records are tagged `broodling.final-assurance/v3`. Schema v10
+migration preserves v9 stores created by earlier PR revisions as well as
 old admission/custody/disposition facts and completed retirements but removes the
 obsolete `attempt_finalizations` mechanism. An old proof record cannot authorize a new
 standard-workflow disposition. Old invocation configurations are not mechanically

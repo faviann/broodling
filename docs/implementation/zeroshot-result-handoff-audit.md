@@ -28,6 +28,19 @@ not itself be the result accepted by Zeroshot, and independently excluding a
 write between acceptance and capture would recreate the supervision problem
 this integration is meant to remove.
 
+The design consequence is conditional, not a blanket grant to deliver. The
+Work Unit's frozen authorization must select the native graph before submission:
+
+| Authorized Work Unit result/delivery | Zeroshot preset | Successful handoff |
+| --- | --- | --- |
+| Open or update a GitHub pull request | `Preset("software-change", delivery="pull_request")` | Retain and validate the returned PR receipt; use `headRevision` as the stable candidate identity |
+| No authoritative external effect | `Preset("software-change", delivery="none")` | No successful Broodling disposition on 10.3; do not manufacture a commit, snapshot, or PR |
+
+The second row is a known Zeroshot 10.3.0 capability gap when the Work Unit also
+needs a stable accepted local candidate. It should fail closed at the product
+boundary rather than silently widen authority or add result-capture machinery
+to Broodling.
+
 ## Public Python result and delivery surface
 
 The Python selector is:
@@ -65,6 +78,51 @@ The built-in catalog itself uses a closed `TemplateDelivery` enum containing
 only `None`, `PullRequest`, and `Merge`. Delivery is valid only for
 `software-change`, and either effectful mode adds a native Git-delivery binding
 requiring `GH_TOKEN`. Source: [built-in template catalog](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_templates/catalog.rs).
+
+## Exact conditional submission configuration
+
+The public Python value is `delivery="pull_request"`; `"pr"` is only the
+successful receipt's `mode` value and is not a valid SDK selector. Broodling
+should derive that selector from the frozen Work Unit authorization, not from a
+process-wide default. The SDK passes the selected preset unchanged to native
+template materialization. Sources: [Python preset and target types](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/sdks/python/src/zeroshot/runtime.py#L14-L68),
+[SDK native arguments](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/sdks/python/src/zeroshot/client.py#L360-L407).
+
+For Broodling's no-effect `LocalTarget(workspace=...)` integration, do not pass
+`repository`, `branch`, or `revision`: native rejects those overrides without a
+named target. That target therefore remains suitable only for the no-delivery
+workflow whose source is the assigned local worktree.
+
+For an authorized pull request, Broodling uses a named `DirectTarget` and passes
+the frozen `repository`, target `branch`, and B1 `revision`. This is not an
+execution workaround: those are the public source selectors supported by named
+targets. It avoids mutating Broodling's deliberately synthetic Attempt branch
+into the PR base, and lets Zeroshot own its checkout, workflow, commit, push, and
+receipt as one delivery operation.
+
+Only for `pull_request`, Broodling supplies `GH_TOKEN` through the SDK's
+environment value source. With an explicit `Client(environment=...)` mapping,
+that mapping is complete. The template adds `GH_TOKEN` only to its native
+Git-delivery binding; it is not named in the agent runtime's connections.
+Native requires a nonblank token of at most 4,096 bytes; absence is an
+authentication refusal.
+
+Sources: [local source snapshot](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_local.rs#L70-L135),
+[local delivery target binding](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_local.rs#L248-L269),
+[local override rejection](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_cli/parser/convert.rs#L359-L379),
+[SDK environment semantics](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/sdks/python/src/zeroshot/client.py#L91-L116),
+[template-owned credential binding](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_templates/catalog.rs#L57-L72),
+[delivery authorization](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_delivery/adapter.rs#L205-L225).
+
+Named `DirectTarget` or `HostedTarget` runs support `repository="owner/name"`,
+`branch="target-branch"`, and optionally an exact `revision` as submission
+arguments; otherwise Zeroshot resolves repository and branch from
+the invoking worktree. `GH_TOKEN` is also used for named-target source checkout.
+Broodling requires a named target for authorized PR work because its linked
+worktree is intentionally attached to a synthetic Attempt branch, not the
+authorized PR base. Named source arguments preserve that separation without
+branch manipulation or a second local checkout. Sources: [Python run options](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/sdks/python/src/zeroshot/client.py#L155-L204),
+[target source selection](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/docs/concepts/targets.md#L70-L101).
 
 ## What each standard workflow returns
 
@@ -153,6 +211,13 @@ valid `mergeRevision`. Source: [delivery review progression](https://github.com/
 - A stable `submission_key` plus an identical request returns the existing run;
   changed submission content under the same key is a conflict. It does not
   create a second delivery.
+- Delivery is part of the submitted graph, not a separately identified request.
+  Switching `none` to `pull_request` changes the graph and therefore the hashed
+  submission. An exact retry must reuse the same key and the same frozen
+  delivery authorization; an authorization change requires a newly admitted
+  Work Unit attempt/key (and re-execution), not a delivery upgrade of the old
+  no-effect run. Credential bytes are resolved runtime values rather than part
+  of the secret-free submitted identity.
 - `Client.get_run(run_id).wait()` can consume an already-terminal durable result
   from a later client. Cancelling or losing the waiter does not cancel the run.
 - During one live delivery execution, Zeroshot retries bounded transient GitHub
@@ -166,6 +231,8 @@ valid `mergeRevision`. Source: [delivery review progression](https://github.com/
 
 Sources: [SDK submit/wait implementation](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/sdks/python/src/zeroshot/client.py),
 [local duplicate/conflict handling](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_cli/local.rs),
+[submission digest](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_cloud/backend.rs#L192-L199),
+[exact replay/conflict check](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/v2_run_ledger/sqlite.rs#L338-L354),
 [delivery preflight and reconciliation](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_delivery/adapter/preflight.rs),
 [portable-controller reopen semantics](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_portable_controller/controller.rs).
 
@@ -178,22 +245,27 @@ it cannot turn `delivery="none"` into a Zeroshot-authored receipt.
 
 ## Fit for Broodling
 
-If authoritative GitHub effects remain outside Broodling's admitted effect set,
-10.3.0 has a concrete capability gap: **the standard workflow cannot hand back a
-stable, locally retained accepted candidate**. The clean thin-layer response is
-to fail closed rather than call a mutable worktree a stable result, and to seek
-a supported Zeroshot delivery such as `commit` or `local_snapshot` whose
-successful output includes the exact commit/tree OID. Such a mode should perform
-its final snapshot inside the accepted workflow, after all writers settle, and
-make that identity the graph's terminal output.
+For a no-effect Work Unit, 10.3.0 has a concrete capability gap: **the standard
+workflow cannot hand back a stable, locally retained accepted candidate**. The
+clean thin-layer response is to keep `delivery="none"` and fail closed if a
+stable candidate is also required. A future supported Zeroshot delivery such as
+`commit` or `local_snapshot` could close that gap if its successful output
+included the exact commit/tree OID and it performed its final snapshot inside
+the accepted workflow, after all writers settle.
 
-If opening a GitHub PR is an acceptable effect, `pull_request` is the simplest
-existing handoff. Broodling can treat the successful `RunResult.output` receipt
-as opaque Zeroshot authority and retain the entire receipt with the disposition;
-`headRevision` is then the stable accepted candidate identity. Broodling does
-not need to inspect execution history or prove worktree quiescence. `merge` is
-strictly more effectful and supplies an integrated revision, so it is appropriate
-only when merging is the actual product outcome.
+For a Work Unit explicitly authorized to open or update a GitHub PR,
+`pull_request` is the existing stable handoff. Broodling should require
+`succeeded is True`, validate the complete `RunResult.output` receipt against
+the authorized repository and target branch, retain that receipt with the
+disposition, and use `headRevision` as the candidate identity. Native already
+rejects unknown receipt fields, a wrong version/mode/outcome or target, an
+invalid PR ID or revision, a base-equal head, and any merge revision in PR mode.
+The terminal gate also requires delivery to be the last writer and all other
+writers to have settled before it began; otherwise it changes apparent graph
+success to `delivery_unconfirmed`. Broodling need not infer success from a
+worktree or logs. Sources: [native
+receipt validation](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_delivery/contract.rs#L65-L108),
+[terminal delivery gate](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_supervisor.rs#L386-L465).
 
 There is no basis in current source for using a private commit OID from
 `delivery="none"`: that workflow does not create or return one. Nor is there a
