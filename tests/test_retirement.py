@@ -18,7 +18,6 @@ from support import git
 from broodling import (
     AbandonmentCoordinator,
     CessationUnconfirmed,
-    containment,
     workspace,
 )
 from broodling.errors import StaleAttempt, WorktreeOwnershipConflict
@@ -97,24 +96,18 @@ class RetirementTests(SubmissionCase):
         self.assertFalse(self.store.get_attempt(self.attempt_id).is_current)
         self.assertTrue(self.path.exists())
 
-    def test_terminal_legacy_run_cannot_gain_new_containment_authority(self):
+    def test_terminal_result_cannot_authorize_physical_cleanup(self):
         with patch.object(self.adapter, "submit", return_value="legacy-run"):
             self.submit()
         with patch.object(self.adapter, "stop_known", AsyncMock()) as native:
-            with self.assertRaisesRegex(CessationUnconfirmed, "containment binding"):
+            with self.assertRaisesRegex(CessationUnconfirmed, "physical cessation"):
                 self.stop()
-            native.assert_not_called()
+            native.assert_awaited_once()
         self.assertIsNone(self.administrator.record(self.attempt_id))
 
-    def test_no_retirement_before_stop_or_when_containment_is_unknown(self):
+    def test_no_retirement_before_stop(self):
         with self.assertRaises(CessationUnconfirmed):
             self.administrator.retire(self.attempt_id)
-        with (
-            patch.object(containment, "confirm_ceased", return_value=False),
-            self.assertRaises(CessationUnconfirmed),
-        ):
-            self.stop()
-        self.assertIsNone(self.administrator.record(self.attempt_id))
         self.assertTrue(self.path.exists())
 
     def test_owned_removal_acknowledgment_loss_converges(self):

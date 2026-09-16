@@ -89,10 +89,16 @@ class SubmissionCrashTests(RealSubmissionCase):
         results = [self.collect(child, 0) for child in children]
         correlated = [events[-1]["correlatedRunId"] for events in results]
         self.assertEqual(len(set(correlated)), 1)
-        # SQLite serializes the actual SDK call as well as the winning write.
-        self.assertEqual(
-            sum("publicRunId" in event for events in results for event in events), 1
-        )
+        # Calls are deliberately not serialized by SQLite. Native submission-key
+        # idempotency makes every acknowledgment name the same run.
+        public = [
+            event["publicRunId"]
+            for events in results
+            for event in events
+            if "publicRunId" in event
+        ]
+        self.assertTrue(public)
+        self.assertEqual(set(public), {correlated[0]})
         self.assert_single(correlated[0])
         return correlated[0]
 
@@ -112,37 +118,3 @@ class SubmissionCrashTests(RealSubmissionCase):
             all(result[-1]["correlatedRunId"] == accepted for result in events)
         )
         self.assert_single(accepted)
-
-    def test_accepted_graph_mutates_after_broodling_process_dies(self):
-        import os
-        import time
-        from unittest.mock import patch
-
-        from support import git
-
-        from broodling.submission import SubmissionCoordinator
-        from broodling.zeroshot_sdk import ZeroshotSubmitter
-
-        fixture_bin = Path(__file__).parent / "fixtures" / "mutator-bin"
-        with patch.dict(os.environ, {"PATH": f"{fixture_bin}:{os.environ['PATH']}"}):
-            self.adapter = ZeroshotSubmitter(self.runtime_state)
-            self.coordinator = SubmissionCoordinator(self.store, self.adapter)
-            try:
-                events = self.collect(self.child("graph_accept"), 97)
-                accepted = events[0]["publicRunId"]
-                self.assertEqual(git(self.path, "rev-parse", "HEAD"), self.b1)
-                self.assertIsNone(self.coordinator.record(self.attempt_id).run_id)
-                original = self.coordinator.record(self.attempt_id)
-            finally:
-                (self.path.parent / "allow-mutation").touch()
-            deadline = time.monotonic() + 20
-            while not (self.path / "mutation-finished").exists():
-                self.assertLess(
-                    time.monotonic(), deadline, "accepted graph did not mutate"
-                )
-                time.sleep(0.02)
-            self.assertNotEqual(git(self.path, "rev-parse", "HEAD"), self.b1)
-            self.restart()
-            result = self.coordinator.reconcile(self.attempt_id)
-            self.assertEqual(result.request_json, original.request_json)
-            self.assert_single(accepted)

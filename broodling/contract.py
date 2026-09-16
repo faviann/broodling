@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from pathlib import PurePosixPath
 from typing import Any
 
 from .identity import digest
@@ -40,12 +39,7 @@ class SourceAttribution:
 
 @dataclass(frozen=True, slots=True)
 class EvidencePopulation:
-    """The finite population, or declared validation surface, for a criterion.
-
-    ``kind`` is deliberately an open string: a Contract that declares an
-    unbounded population must be storable so that admission can reject it with
-    the declaration intact.
-    """
+    """Optional validation guidance, preserved without a boundedness admission gate."""
 
     kind: str
     members: tuple[str, ...] = ()
@@ -61,19 +55,11 @@ class EvidencePopulation:
 
 @dataclass(frozen=True, slots=True)
 class MechanicalEvidence:
-    """One explicitly admitted local check and its required raw material.
+    """A frozen check declaration supplied to Zeroshot as task context.
 
-    ``argv`` is executed literally, without shell-string interpretation. Its
-    executable is an absolute path. ``cwd`` and each required material are
-    normalized worktree-relative paths; material paths are relative to the
-    worktree root, independently of ``cwd``. Standard output, standard error
-    and the exit status are always mechanical observations. Required material
-    consists of the exact bytes of existing files, not paths inferred from a
-    criterion's free-form population or validation descriptions.
-
-    This declaration confers no semantic sufficiency or acceptance judgment.
-    Unsupported declarations remain representable, but P3 preparation refuses
-    them before any check runs.
+    Retained for Contract compatibility. Broodling does not execute the argv or
+    construct an independent evidence record; the standard native workflow owns
+    implementation and verification.
     """
 
     argv: tuple[str, ...]
@@ -90,12 +76,11 @@ class MechanicalEvidence:
 
 @dataclass(frozen=True, slots=True)
 class FinalAssuranceMaterial:
-    """Exact repository-relative material selected for durable final custody.
+    """Historical repository-relative final-custody request.
 
-    Each selected state retains file bytes, symlink target bytes, or explicit
-    absence. This selects custody only; it establishes no in-run applicability
-    or semantic sufficiency. Unsupported shapes remain representable so custody
-    can refuse them without changing historical Contract meaning.
+    The current stable-result profile refuses new declarations because Zeroshot's
+    delivery receipt, not a Broodling worktree read, is the accepted result.
+    Keeping the type preserves exact historical Contract meaning.
     """
 
     path: str
@@ -112,11 +97,11 @@ class FinalAssuranceMaterial:
 
 @dataclass(frozen=True, slots=True)
 class Criterion:
-    """One Contract criterion and its V1 Closability fields."""
+    """A required outcome with optional validation guidance for Zeroshot."""
 
     criterion_id: str
     statement: str
-    evidence_population: EvidencePopulation
+    evidence_population: EvidencePopulation | None = None
     validation_seam: str = ""
     validation_action: str = ""
     falsifying_observation: str = ""
@@ -127,12 +112,13 @@ class Criterion:
         result = {
             "criterionId": self.criterion_id,
             "statement": self.statement,
-            "evidencePopulation": self.evidence_population.to_mapping(),
             "validationSeam": self.validation_seam,
             "validationAction": self.validation_action,
             "falsifyingObservation": self.falsifying_observation,
             "evidenceEffectDependencies": list(self.evidence_effect_dependencies),
         }
+        if self.evidence_population is not None:
+            result["evidencePopulation"] = self.evidence_population.to_mapping()
         # Absence preserves the exact bytes and meaning of historical revisions.
         if self.mechanical_evidence is not None:
             result["mechanicalEvidence"] = self.mechanical_evidence.to_mapping()
@@ -159,20 +145,26 @@ class Obligation:
 class RequiredEffect:
     """An authoritative external effect the Contract requires.
 
-    V1's required-effect set is empty. A Contract that names one is rejected, not
-    admitted with the effect dropped.
+    A pull-request effect may name its exact target branch. Other effects remain
+    representable so admission can preserve and refuse them without weakening the
+    Contract.
     """
 
     effect_id: str
     statement: str
     kind: str
+    target_branch: str = ""
 
     def to_mapping(self) -> dict[str, Any]:
-        return {
+        result = {
             "effectId": self.effect_id,
             "statement": self.statement,
             "kind": self.kind,
         }
+        # Omission preserves the exact canonical form of historical Contracts.
+        if self.target_branch:
+            result["targetBranch"] = self.target_branch
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -273,10 +265,14 @@ def contract_from_mapping(mapping: dict[str, Any]) -> Contract:
             Criterion(
                 criterion_id=item["criterionId"],
                 statement=item["statement"],
-                evidence_population=EvidencePopulation(
-                    kind=item["evidencePopulation"]["kind"],
-                    members=tuple(item["evidencePopulation"]["members"]),
-                    surface=item["evidencePopulation"]["surface"],
+                evidence_population=(
+                    EvidencePopulation(
+                        kind=item["evidencePopulation"]["kind"],
+                        members=tuple(item["evidencePopulation"]["members"]),
+                        surface=item["evidencePopulation"]["surface"],
+                    )
+                    if "evidencePopulation" in item
+                    else None
                 ),
                 validation_seam=item["validationSeam"],
                 validation_action=item["validationAction"],
@@ -303,7 +299,12 @@ def contract_from_mapping(mapping: dict[str, Any]) -> Contract:
             for item in mapping["prerequisites"]
         ),
         required_effects=tuple(
-            RequiredEffect(item["effectId"], item["statement"], item["kind"])
+            RequiredEffect(
+                item["effectId"],
+                item["statement"],
+                item["kind"],
+                item.get("targetBranch", ""),
+            )
             for item in mapping["requiredEffects"]
         ),
         host_assumptions=tuple(mapping["hostAssumptions"]),
@@ -338,31 +339,6 @@ def _final_materials_from_mapping(value: Any) -> tuple[FinalAssuranceMaterial, .
     return tuple(result)
 
 
-def validate_final_assurance_materials(contract: Contract) -> None:
-    """Require an explicit finite custody selection without inferring paths."""
-    declarations = contract.final_assurance_materials
-    if not isinstance(declarations, tuple) or not declarations:
-        raise ValueError("final assurance materials require an explicit declaration")
-    seen: set[str] = set()
-    for item in declarations:
-        if not isinstance(item, FinalAssuranceMaterial):
-            raise ValueError("unsupported final assurance material declaration")  # noqa: TRY004
-        if not _relative_path(item.path) or ".git" in PurePosixPath(item.path).parts:
-            raise ValueError(
-                "final assurance material must be a normalized repository-relative "
-                "path outside .git"
-            )
-        if item.path in seen:
-            raise ValueError("duplicate final assurance material path")
-        seen.add(item.path)
-        if (
-            type(item.final_candidate) is not bool
-            or type(item.comparison_base) is not bool
-            or not (item.final_candidate or item.comparison_base)
-        ):
-            raise ValueError("final assurance material requires a selected state")
-
-
 def _mechanical_from_mapping(mapping: Any) -> MechanicalEvidence:
     """Refuse malformed structured meaning instead of dropping unknown fields."""
 
@@ -376,53 +352,3 @@ def _mechanical_from_mapping(mapping: Any) -> MechanicalEvidence:
     return MechanicalEvidence(
         tuple(mapping["argv"]), mapping["cwd"], tuple(mapping["materials"])
     )
-
-
-def _relative_path(value: Any, *, directory: bool = False) -> bool:
-    if not isinstance(value, str) or not value or "\x00" in value:
-        return False
-    path = PurePosixPath(value)
-    return (
-        not path.is_absolute()
-        and ".." not in path.parts
-        and str(path) == value
-        and (directory or value != ".")
-    )
-
-
-def validate_mechanical_evidence(contract: Contract) -> None:
-    """Require explicit supported evidence inputs for P3, without changing P2.
-
-    No validation action, seam or population string supplies execution semantics.
-    Filesystem containment and availability are checked by the evidence leaf at
-    the current graph occurrence; this check only validates the frozen shape.
-    """
-
-    if not contract.criteria:
-        raise ValueError("runnable assurance requires at least one criterion")
-    for criterion in contract.criteria:
-        prefix = f"criterion {criterion.criterion_id!r} mechanical evidence"
-        declaration = criterion.mechanical_evidence
-        if not isinstance(declaration, MechanicalEvidence):
-            raise ValueError(f"{prefix} requires an explicit declaration")  # noqa: TRY004
-        if (
-            not isinstance(declaration.argv, tuple)
-            or not declaration.argv
-            or any(
-                not isinstance(arg, str) or "\x00" in arg for arg in declaration.argv
-            )
-            or not PurePosixPath(declaration.argv[0]).is_absolute()
-        ):
-            raise ValueError(
-                f"{prefix} requires literal argv with an absolute executable"
-            )
-        if not _relative_path(declaration.cwd, directory=True):
-            raise ValueError(
-                f"{prefix} cwd must be a normalized worktree-relative path"
-            )
-        if not isinstance(declaration.materials, tuple) or any(
-            not _relative_path(path) for path in declaration.materials
-        ):
-            raise ValueError(
-                f"{prefix} materials must be normalized worktree-relative files"
-            )

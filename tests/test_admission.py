@@ -5,6 +5,8 @@ from __future__ import annotations
 import sqlite3
 import unittest
 
+from support import ISSUE_BODY, StoreTestCase, criterion, work_reference
+
 from broodling import (
     ADMITTED,
     REJECTED,
@@ -13,13 +15,27 @@ from broodling import (
     Obligation,
     Prerequisite,
     RequiredEffect,
+    SourceSubmission,
     assess,
 )
 from broodling import closability as codes
-from support import StoreTestCase, criterion
 
 
 class ValidNoEffectAdmissionTests(StoreTestCase):
+    def test_acceptance_criterion_needs_no_predeclared_validation_plan(self) -> None:
+        work_unit, source = self.admitted_work_unit()
+        required = Criterion("c1", "Repeated submissions retain one Work Unit.")
+        contract = self.contract(work_unit, source, criteria=(required,))
+        revision = self.store.record_contract_revision(contract)
+
+        decision = self.store.admit(revision.contract_revision_id)
+
+        self.assertEqual(decision.outcome, ADMITTED)
+        self.assertEqual(decision.findings, ())
+        restored = self.reopen().get_contract_revision(revision.contract_revision_id)
+        self.assertEqual(restored.contract.criteria, (required,))
+        self.assertEqual(restored.canonical_bytes, contract.canonical_bytes())
+
     def test_a_no_effect_contract_is_admitted(self) -> None:
         _, _, contract = self.admissible_contract()
         revision = self.store.record_contract_revision(contract)
@@ -38,18 +54,9 @@ class ValidNoEffectAdmissionTests(StoreTestCase):
         self.assertTrue(configuration["runtime"]["python"].startswith("3.13"))
         self.assertEqual(configuration["requiredEffects"], [])
         boundary = configuration["zeroshotBoundary"]
-        self.assertEqual(
-            boundary["zeroshotRevision"], "d0909615d6ba3c179b58bce15a059f40400ec995"
-        )
-        self.assertEqual(
-            boundary["wheelSha256"],
-            "16bc7919f913ccc00853b5a917bc164800c5b44d3b4c4c99f2131d09f9ebeebb",
-        )
-        self.assertEqual(
-            boundary["sidecarSha256"],
-            "9481e60ddcab0762468f4182e8657570196555010918df5397f2dc20321f9b86",
-        )
-        self.assertEqual(boundary["gateVerdict"], "G1-V1 PASS")
+        self.assertEqual(boundary["engine"], "10.3.0")
+        self.assertEqual(boundary["sdk"], "the-open-engine-zeroshot 10.3.0.post1")
+        self.assertNotIn("gateVerdict", boundary)
 
     def test_admission_creates_no_attempt_worktree_or_run(self) -> None:
         _, _, contract = self.admissible_contract()
@@ -113,11 +120,51 @@ class EffectRejectionTests(StoreTestCase):
         revision = self.store.record_contract_revision(contract)
         return revision, self.store.admit(revision.contract_revision_id)
 
-    def test_any_required_authoritative_effect_is_rejected(self) -> None:
+    def test_one_exact_pull_request_delivery_is_admitted(self) -> None:
+        statement = "Open a pull request against main."
+        revision, decision = self.reject(
+            required_effects=(
+                RequiredEffect("e-pr", statement, "pull_request", "main"),
+            ),
+            host_assumptions=("single_host", "one_attempt_one_dedicated_worktree"),
+        )
+        self.assertEqual(decision.outcome, ADMITTED)
+        self.assertEqual(revision.contract.required_effects[0].target_branch, "main")
+
+    def test_pull_request_delivery_is_limited_to_github_work_units(self) -> None:
+        work_unit = self.store.resolve_work_unit(
+            work_reference(repository="https://gitlab.com/faviann/broodling")
+        )
+        source = self.store.entitle_source(
+            work_unit.work_unit_id,
+            SourceSubmission(
+                kind="primary_issue",
+                locator=work_unit.issue_locator,
+                content=ISSUE_BODY,
+                retrieved_at="2026-09-16T00:00:00+00:00",
+            ),
+        )
+        contract = self.contract(
+            work_unit,
+            source,
+            required_effects=(
+                RequiredEffect("deliver", "Open the PR.", "pull_request", "main"),
+            ),
+            host_assumptions=("single_host",),
+        )
+        revision = self.store.record_contract_revision(contract)
+        decision = self.store.admit(revision.contract_revision_id)
+        self.assertEqual(decision.outcome, REJECTED)
+        self.assertEqual(
+            [finding.code for finding in decision.findings],
+            [codes.UNSUPPORTED_DELIVERY_HOST],
+        )
+
+    def test_unsupported_or_underspecified_required_effect_is_rejected(self) -> None:
         effects = (
             ("commit_as_delivery", "Commit the fix as the delivered artifact."),
             ("push", "Push the branch to origin."),
-            ("pull_request", "Open a pull request for review."),
+            ("pull_request", "Open a pull request without naming its target."),
             ("merge", "Merge the pull request into main."),
             ("issue_mutation", "Close issue #12 with a summary comment."),
             ("deployment", "Deploy the built image to staging."),
@@ -131,7 +178,7 @@ class EffectRejectionTests(StoreTestCase):
                 self.assertEqual(decision.outcome, REJECTED)
                 self.assertEqual(
                     [finding.code for finding in decision.findings],
-                    [codes.REQUIRED_EFFECT_PRESENT],
+                    [codes.UNSUPPORTED_REQUIRED_EFFECT],
                 )
                 self.assertEqual(decision.preserved_obligations, (statement,))
 
@@ -151,6 +198,52 @@ class EffectRejectionTests(StoreTestCase):
         self.assertEqual(
             decision.preserved_obligations,
             ("The published release page shows the new version.",),
+        )
+
+    def test_multiple_pull_request_effects_do_not_widen_authority(self) -> None:
+        _, decision = self.reject(
+            required_effects=(
+                RequiredEffect("one", "Open one PR.", "pull_request", "main"),
+                RequiredEffect("two", "Open another PR.", "pull_request", "release"),
+            ),
+            host_assumptions=("single_host",),
+        )
+        self.assertEqual(decision.outcome, REJECTED)
+        self.assertEqual(
+            [finding.code for finding in decision.findings],
+            [codes.UNSUPPORTED_REQUIRED_EFFECT, codes.UNSUPPORTED_REQUIRED_EFFECT],
+        )
+
+    def test_pr_authority_cannot_coexist_with_no_effect_assumptions(self) -> None:
+        for assumption in ("no_authoritative_effects", "local_filesystem_only"):
+            with self.subTest(assumption=assumption):
+                _, decision = self.reject(
+                    required_effects=(
+                        RequiredEffect(
+                            "deliver-pr",
+                            "Open a pull request.",
+                            "pull_request",
+                            "main",
+                        ),
+                    ),
+                    host_assumptions=("single_host", assumption),
+                )
+                self.assertEqual(decision.outcome, REJECTED)
+                self.assertEqual(
+                    [finding.code for finding in decision.findings],
+                    [codes.UNSUPPORTED_HOST_ASSUMPTION],
+                )
+
+    def test_legacy_selected_material_request_is_not_silently_ignored(self) -> None:
+        from broodling import FinalAssuranceMaterial
+
+        _, decision = self.reject(
+            final_assurance_materials=(FinalAssuranceMaterial("README.md"),)
+        )
+        self.assertEqual(decision.outcome, REJECTED)
+        self.assertEqual(
+            [finding.code for finding in decision.findings],
+            [codes.UNSUPPORTED_FINAL_MATERIAL_SELECTION],
         )
 
     def test_external_and_publication_obligations_are_rejected(self) -> None:
@@ -190,51 +283,6 @@ class ClosabilityRejectionTests(StoreTestCase):
         contract = self.contract(work_unit, source, **overrides)
         revision = self.store.record_contract_revision(contract)
         return self.store.admit(revision.contract_revision_id)
-
-    def test_a_missing_finite_population_is_rejected(self) -> None:
-        for population in (
-            EvidencePopulation(kind="unbounded"),
-            EvidencePopulation(kind="enumerated", members=()),
-            EvidencePopulation(kind="declared_surface", surface="   "),
-        ):
-            with self.subTest(population=population.kind):
-                decision = self.decide(
-                    criteria=(criterion(evidence_population=population),)
-                )
-                self.assertEqual(decision.outcome, REJECTED)
-                self.assertIn(
-                    codes.MISSING_EVIDENCE_POPULATION,
-                    {finding.code for finding in decision.findings},
-                )
-
-    def test_a_declared_validation_surface_is_a_usable_population(self) -> None:
-        decision = self.decide(
-            criteria=(
-                criterion(
-                    evidence_population=EvidencePopulation(
-                        kind="declared_surface",
-                        surface="every public method of broodling.store.BroodlingStore",
-                    )
-                ),
-            )
-        )
-        self.assertEqual(decision.outcome, ADMITTED)
-
-    def test_a_missing_seam_action_or_falsifier_is_rejected(self) -> None:
-        for field, code in (
-            ("validation_seam", codes.MISSING_VALIDATION_SEAM),
-            ("validation_action", codes.MISSING_VALIDATION_ACTION),
-            ("falsifying_observation", codes.MISSING_FALSIFYING_OBSERVATION),
-        ):
-            with self.subTest(field=field):
-                decision = self.decide(criteria=(criterion(**{field: ""}),))
-                self.assertEqual(decision.outcome, REJECTED)
-                self.assertEqual(
-                    [finding.code for finding in decision.findings], [code]
-                )
-                self.assertEqual(
-                    decision.preserved_obligations, (criterion().statement,)
-                )
 
     def test_a_contract_with_no_criterion_is_rejected(self) -> None:
         decision = self.decide(criteria=())
@@ -317,7 +365,7 @@ class PreservationTests(StoreTestCase):
         self.assertEqual(
             {finding.code for finding in decision.findings},
             {
-                codes.REQUIRED_EFFECT_PRESENT,
+                codes.UNSUPPORTED_REQUIRED_EFFECT,
                 codes.UNSUPPORTED_EXTERNAL_OBLIGATION,
                 codes.EFFECT_DEPENDENT_EVIDENCE,
                 codes.UNSATISFIED_PREREQUISITE,
@@ -391,8 +439,8 @@ class DeterminismTests(unittest.TestCase):
             required_effects=(RequiredEffect("e1", "push", "push"),),
             host_assumptions=("multi_host",),
         )
-        first = assess(contract)
-        second = assess(contract)
+        first = assess(contract, work_unit_host="github.com")
+        second = assess(contract, work_unit_host="github.com")
         self.assertEqual(first, second)
         self.assertEqual(first.to_mapping(), second.to_mapping())
         self.assertFalse(first.admissible)

@@ -11,19 +11,19 @@ from support import AttemptTestCase, git
 from broodling.submission import SubmissionCoordinator
 from broodling.zeroshot_sdk import ZeroshotSubmitter
 
-GRAPH = {
-    "profile": "openengine.graph.full/v1",
-    "initialInput": {"kind": "null"},
-    "policy": {"policy": "policy.native-v2@1", "default": "deny"},
-    "root": {
-        "kind": "succeed",
-        "name": "inert",
-        "output": {"kind": "null"},
-        "bindings": [],
-    },
-}
-RUNTIME = {"harness": "codex", "provider": "openai", "size": "small", "nodes": {}}
-REQUEST = {"graph": GRAPH, "runtime": RUNTIME}
+LEAF = Path(__file__).parent / "fixtures" / "software-change-codex"
+
+
+def configured_adapter(state_dir, root, **overrides):
+    from broodling import CodexProfile
+
+    home, auth = root / "submission-home", root / "submission-auth"
+    home.mkdir(exist_ok=True)
+    auth.mkdir(exist_ok=True)
+    (auth / "auth.json").write_text("{}")
+    return ZeroshotSubmitter(
+        state_dir, codex_profile=CodexProfile(LEAF, home, auth), **overrides
+    )
 
 
 class SubmissionCase(AttemptTestCase):
@@ -45,14 +45,17 @@ class SubmissionCase(AttemptTestCase):
         # Only sockets/controller state use shm; the dedicated worktree is durable.
         self.runtime_state = Path(tempfile.mkdtemp(prefix="b14-", dir="/dev/shm"))
         self.addCleanup(shutil.rmtree, self.runtime_state, ignore_errors=True)
-        self.adapter = ZeroshotSubmitter(self.runtime_state)
+        self.adapter = self.new_adapter()
         self.coordinator = SubmissionCoordinator(self.store, self.adapter)
 
+    def new_adapter(self):
+        return configured_adapter(self.runtime_state, self.root)
+
     def submit(self, **overrides):
-        return self.coordinator.submit(self.attempt_id, **(REQUEST | overrides))
+        return self.coordinator.submit(self.attempt_id, **overrides)
 
     def prepare(self):
-        return self.coordinator.prepare(self.attempt_id, **REQUEST)
+        return self.coordinator.prepare(self.attempt_id)
 
     def assert_single(self, run_id):
         row = self.coordinator.record(self.attempt_id)
@@ -81,50 +84,5 @@ class SubmissionCase(AttemptTestCase):
 class RealSubmissionCase(SubmissionCase):
     def setUp(self):
         if importlib.util.find_spec("zeroshot") is None:
-            raise unittest.SkipTest("install the G1-V1 qualified SDK/sidecar")
+            raise unittest.SkipTest("install the release SDK/native engine")
         super().setUp()
-
-
-# A single caller-owned task, not the W3 assurance graph. The controlled leaf
-# changes the owned worktree only after the parent releases a filesystem gate.
-MUTATING_REQUEST = {
-    "graph": GRAPH
-    | {
-        "root": {
-            "kind": "step",
-            "name": "mutate",
-            "worker": "agent.broodling-p2-mutator@1",
-            "instructions": "BROODLING_P2_MUTATION",
-            "input": {"kind": "null"},
-            "output": {"kind": "null"},
-            "inputBindings": [],
-            "writeBindings": [],
-            "timeoutMs": 45000,
-            "attempts": 1,
-        }
-    },
-    "runtime": RUNTIME
-    | {
-        "nodes": {
-            "mutate": {
-                "kind": "agent",
-                "model": "broodling-p2-controlled",
-                "effort": "low",
-                "sessionScope": "execution",
-                "connections": {},
-            }
-        }
-    },
-}
-
-_MUTATION_STEP = MUTATING_REQUEST["graph"]["root"]
-_EMPTY_STATE = {"kind": "record", "fields": {}}
-MUTATING_REQUEST["initial_input"] = {}
-MUTATING_REQUEST["graph"]["initialInput"] = _EMPTY_STATE
-MUTATING_REQUEST["graph"]["root"] = {
-    "kind": "seq",
-    "name": "mutation_fixture",
-    "state": _EMPTY_STATE,
-    "children": [_MUTATION_STEP, GRAPH["root"]],
-    "promotedStatePaths": [],
-}

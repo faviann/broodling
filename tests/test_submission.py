@@ -1,18 +1,21 @@
-"""Product correlation controls, including the exact G2 mutation crash window."""
+"""Immutable product correlation across lost acknowledgements and source drift."""
 
 import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from threading import Event
 from unittest.mock import patch
 
-from submission_support import REQUEST, RealSubmissionCase, SubmissionCase
+from submission_support import RealSubmissionCase, SubmissionCase, configured_adapter
 from support import git, move_head, work_reference
 
+from broodling import BroodlingStore, RequiredEffect, SourceSubmission
 from broodling.errors import (
     StaleAttempt,
     SubmissionConflict,
     SubmissionNotReady,
+    UnsupportedRuntime,
     WorktreeOwnershipConflict,
 )
 from broodling.submission import SubmissionCoordinator
@@ -20,9 +23,7 @@ from broodling.zeroshot_sdk import ZeroshotSubmitter
 
 
 class SubmissionControls(SubmissionCase):
-    def test_abandonment_serializes_with_external_submission_acknowledgment(self):
-        from broodling import BroodlingStore
-
+    def test_abandonment_does_not_wait_for_external_submission_acknowledgment(self):
         entered, release, abandoning = Event(), Event(), Event()
 
         def accept(request):
@@ -34,7 +35,7 @@ class SubmissionControls(SubmissionCase):
         def submit():
             with BroodlingStore.open(self.store_path) as store:
                 return SubmissionCoordinator(store, self.adapter).submit(
-                    self.attempt_id, **REQUEST
+                    self.attempt_id
                 )
 
         def abandon():
@@ -51,12 +52,12 @@ class SubmissionControls(SubmissionCase):
                 self.assertTrue(entered.wait(5))
                 abandoned = pool.submit(abandon)
                 self.assertTrue(abandoning.wait(5))
-                self.assertFalse(abandoned.done())
-                self.assertIsNone(self.store.abandonment(self.attempt_id))
+                abandoned.result(5)
+                self.assertIsNotNone(self.store.abandonment(self.attempt_id))
             finally:
                 release.set()
-            self.assertEqual(submitted.result(5).run_id, "original-run")
-            abandoned.result(5)
+            with self.assertRaises(StaleAttempt):
+                submitted.result(5)
             native.assert_called_once()
         self.assertFalse(self.store.get_attempt(self.attempt_id).is_current)
         with patch.object(self.adapter, "submit") as native:
@@ -65,6 +66,124 @@ class SubmissionControls(SubmissionCase):
             native.assert_not_called()
         self.assertEqual(
             self.coordinator.record(self.attempt_id).run_id, "original-run"
+        )
+
+    def test_slow_submission_does_not_block_an_independent_work_unit(self):
+        second_work = self.store.resolve_work_unit(work_reference(issue=13))
+        second_source = self.store.entitle_source(
+            second_work.work_unit_id,
+            SourceSubmission(
+                kind="primary_issue",
+                locator=second_work.issue_locator,
+                content=b"Independent work unit.\n",
+                media_type="text/markdown; charset=utf-8",
+                retrieved_at="2026-09-16T00:00:00+00:00",
+            ),
+        )
+        second_revision = self.store.record_contract_revision(
+            self.contract(second_work, second_source)
+        )
+        self.store.admit(second_revision.contract_revision_id)
+        second_attempt = (
+            self.provisioner()
+            .admit_and_provision(second_revision.contract_revision_id, self.repository)
+            .attempt
+        )
+        entered, release = Event(), Event()
+
+        def accept(request):
+            if self.attempt_id in request["title"]:
+                entered.set()
+                if not release.wait(5):
+                    raise RuntimeError("test did not release the first submission")
+                return "run-one"
+            return "run-two"
+
+        def submit(attempt_id):
+            with BroodlingStore.open(self.store_path) as store:
+                return SubmissionCoordinator(store, self.adapter).submit(attempt_id)
+
+        with (
+            patch.object(self.adapter, "submit", side_effect=accept),
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            first = pool.submit(submit, self.attempt_id)
+            self.assertTrue(entered.wait(5))
+            second = pool.submit(submit, second_attempt.attempt_id)
+            self.assertEqual(second.result(5).run_id, "run-two")
+            self.assertFalse(first.done())
+            release.set()
+            self.assertEqual(first.result(5).run_id, "run-one")
+
+    def test_concurrent_same_attempt_submissions_delegate_deduplication_to_zeroshot(
+        self,
+    ):
+        entered, release = Event(), Event()
+        calls = []
+
+        def accept(request):
+            calls.append(request["submissionKey"])
+            if len(calls) == 2:
+                entered.set()
+            if not release.wait(5):
+                raise RuntimeError("test did not release concurrent submissions")
+            return "one-native-run"
+
+        def submit():
+            with BroodlingStore.open(self.store_path) as store:
+                return SubmissionCoordinator(store, self.adapter).submit(
+                    self.attempt_id
+                )
+
+        with (
+            patch.object(self.adapter, "submit", side_effect=accept),
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            callers = [pool.submit(submit) for _ in range(2)]
+            self.assertTrue(entered.wait(5))
+            release.set()
+            results = [caller.result(5) for caller in callers]
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(set(calls)), 1)
+        self.assertEqual({result.run_id for result in results}, {"one-native-run"})
+        self.assertEqual(self.coordinator.record(self.attempt_id), results[0])
+
+    def test_concurrent_different_run_id_fails_closed(self):
+        entered, release = Event(), Event()
+        calls = []
+
+        def broken_idempotency(_request):
+            calls.append(len(calls) + 1)
+            if len(calls) == 2:
+                entered.set()
+            if not release.wait(5):
+                raise RuntimeError("test did not release concurrent submissions")
+            return f"run-{calls.pop()}"
+
+        def submit():
+            with BroodlingStore.open(self.store_path) as store:
+                return SubmissionCoordinator(store, self.adapter).submit(
+                    self.attempt_id
+                )
+
+        with (
+            patch.object(self.adapter, "submit", side_effect=broken_idempotency),
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            callers = [pool.submit(submit) for _ in range(2)]
+            self.assertTrue(entered.wait(5))
+            release.set()
+            outcomes = []
+            for caller in callers:
+                try:
+                    outcomes.append(caller.result(5))
+                except SubmissionConflict as error:
+                    outcomes.append(error)
+        self.assertEqual(
+            sum(isinstance(outcome, SubmissionConflict) for outcome in outcomes), 1
+        )
+        self.assertIn(
+            self.coordinator.record(self.attempt_id).run_id, {"run-1", "run-2"}
         )
 
     def test_abandonment_fences_prepared_and_ambiguous_dispatch_without_sdk_replay(
@@ -139,7 +258,7 @@ class SubmissionControls(SubmissionCase):
         original = self.coordinator.record(self.attempt_id)
         move_head(self.path)
         with patch.object(self.adapter, "submit") as native:
-            with self.assertRaises(SubmissionConflict):
+            with self.assertRaises(TypeError):
                 self.submit(title="competing request")
             native.assert_not_called()
         self.assertEqual(self.coordinator.record(self.attempt_id), original)
@@ -151,6 +270,27 @@ class SubmissionControls(SubmissionCase):
         )
         with self.assertRaises(SubmissionConflict):
             other.reconcile(self.attempt_id)
+
+    def test_correlated_record_does_not_revalidate_current_execution_target(self):
+        with patch.object(self.adapter, "submit", return_value="r-one"):
+            correlated = self.submit()
+        other = SubmissionCoordinator(
+            self.store, ZeroshotSubmitter(self.root / "unavailable-current-runtime")
+        )
+        self.assertEqual(other.reconcile(self.attempt_id), correlated)
+
+    def test_dispatched_replay_requires_the_current_local_execution_profile(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        self.adapter.codex_profile = None
+        with patch.object(self.adapter, "submit") as native:
+            with self.assertRaisesRegex(UnsupportedRuntime, "execution requires"):
+                self.coordinator.reconcile(self.attempt_id)
+            native.assert_not_called()
+        self.assertEqual(self.coordinator.record(self.attempt_id).state, "dispatched")
 
     def test_source_ownership_change_is_not_excused_by_head_drift(self):
         for change in ("origin", "branch", "marker", "repository"):
@@ -280,6 +420,71 @@ class SubmissionControls(SubmissionCase):
                     native.assert_not_called()
 
 
+class PullRequestSubmissionControls(SubmissionCase):
+    def contract(self, work_unit, source, **overrides):
+        return replace(
+            super().contract(work_unit, source, **overrides),
+            required_effects=(
+                RequiredEffect("deliver", "Open the PR.", "pull_request", "main"),
+            ),
+            host_assumptions=("single_host", "one_attempt_one_dedicated_worktree"),
+        )
+
+    def new_adapter(self):
+        return configured_adapter(
+            self.runtime_state,
+            self.root,
+            delivery_target_origin="http://127.0.0.1:8123",
+            github_token="token",
+        )
+
+    def test_acknowledgement_loss_recovers_without_local_worktree_drift(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        # DirectTarget resolves the same explicit repository/branch/revision, so
+        # Zeroshot's exact idempotent replay returns the original run normally;
+        # unlike LocalTarget, no local HEAD drift is needed to recover it.
+        with patch.object(self.adapter, "submit", return_value="remote-run"):
+            recovered = self.coordinator.reconcile(self.attempt_id)
+        self.assertEqual(recovered.run_id, "remote-run")
+        self.assertEqual(recovered.state, "correlated")
+
+    def test_dispatched_replay_requires_a_current_delivery_credential(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        self.adapter.github_token = None
+        with patch.object(self.adapter, "submit") as native:
+            with self.assertRaisesRegex(UnsupportedRuntime, "GH_TOKEN"):
+                self.coordinator.reconcile(self.attempt_id)
+            native.assert_not_called()
+        self.assertEqual(self.coordinator.record(self.attempt_id).state, "dispatched")
+
+    def test_direct_target_true_conflict_is_not_mistaken_for_ack_recovery(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        with (
+            patch.object(
+                self.adapter,
+                "submit",
+                side_effect=SubmissionConflict(
+                    "different submission", existing_run_id="foreign-run"
+                ),
+            ),
+            self.assertRaises(SubmissionConflict),
+        ):
+            self.coordinator.reconcile(self.attempt_id)
+        self.assertEqual(self.coordinator.record(self.attempt_id).state, "blocked")
+
+
 class PublicSubmissionTests(RealSubmissionCase):
     def lose_ack(self):
         native = self.adapter.submit
@@ -358,49 +563,6 @@ class PublicSubmissionTests(RealSubmissionCase):
         self.assertEqual(self.coordinator.record(self.attempt_id), row)
 
 
-class QualifiedAdapterTests(SubmissionCase):
-    def test_unqualified_build_is_refused_before_dispatch(self):
-        from broodling.errors import UnsupportedRuntime
-        from broodling.profile import QUALIFIED_ZEROSHOT_BOUNDARY
-        from broodling.zeroshot_sdk import (
-            QUALIFIED_SDK_SOURCE_SHA256,
-            assert_qualified_integration,
-        )
-
-        correct = {
-            "sdkVersion": "0.1.0.dev0",
-            "sdkSourceSha256": QUALIFIED_SDK_SOURCE_SHA256,
-            "sidecarSha256": QUALIFIED_ZEROSHOT_BOUNDARY["sidecarSha256"],
-        }
-        for field in correct:
-            with (
-                self.subTest(field=field),
-                patch(
-                    "broodling.zeroshot_sdk.installed_integration",
-                    return_value=correct | {field: "different"},
-                ),
-                self.assertRaises(UnsupportedRuntime),
-            ):
-                assert_qualified_integration()
-
-    def test_no_delivery_or_ambient_credentials(self):
-        from broodling.errors import UnsupportedRuntime
-
-        with patch.dict(
-            "os.environ",
-            {
-                "GH_TOKEN": "canary",
-                "GITHUB_TOKEN": "canary",
-                "OPENAI_API_KEY": "canary",
-            },
-        ):
-            adapter = ZeroshotSubmitter(self.runtime_state)
-        self.assertEqual(set(adapter.target["environment"]), {"PATH"})
-        with self.assertRaises(UnsupportedRuntime):
-            self.submit(runtime={"nodes": {"deliver": {"kind": "git_delivery"}}})
-        self.assertIsNone(self.coordinator.record(self.attempt_id))
-
-
 class PublicSourceConflictTests(RealSubmissionCase):
     def test_true_conflicting_source_at_public_boundary_blocks(self):
         original = self.prepare()
@@ -469,7 +631,7 @@ class AdditionalSubmissionControls(SubmissionCase):
             patch.object(self.adapter, "submit", return_value=first_id),
             self.assertRaises(sqlite3.IntegrityError),
         ):
-            self.coordinator.submit(attempt.attempt_id, **REQUEST)
+            self.coordinator.submit(attempt.attempt_id)
         self.assertEqual(self.coordinator.record(self.attempt_id).run_id, first_id)
         self.assertIsNone(self.coordinator.record(attempt.attempt_id).run_id)
 

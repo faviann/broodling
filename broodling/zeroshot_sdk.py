@@ -1,337 +1,269 @@
-"""Qualified public submission and normal current-run observation boundary."""
+"""Submit one immutable invocation and consume Zeroshot's public result.
+
+Graph admission, execution, observation/reconnection, sessions and cancellation
+belong to the SDK and native engine. No execution history is reconstructed here.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import importlib.metadata
 import json
 import os
-from contextlib import aclosing
-from dataclasses import dataclass
 from pathlib import Path
 
-from .codex_profile import QualifiedCodexProfile
+from .codex_profile import OPERATING_ENVIRONMENT, CodexProfile
 from .errors import SubmissionConflict, UnsupportedRuntime
-from .profile import QUALIFIED_ZEROSHOT_BOUNDARY
-
-QUALIFIED_SDK_SOURCE_SHA256 = (
-    "0263b63cb6c6991703f699919ea974ba502da23e3a14ab7d5ab8c5d5ac3b256e"
-)
-
-
-@dataclass(frozen=True, slots=True)
-class CurrentRunObservation:
-    """Ephemeral final result and its observed structural occurrence references."""
-
-    run_id: str
-    final_node: str
-    final_execution_id: str
-    mutation_node: str
-    mutation_execution_id: str
-    output: object
-
-
-@dataclass(frozen=True, slots=True)
-class TerminalRunObservation:
-    """Runtime diagnostics only; neither writer cessation nor product success.
-
-    In particular, ``runtime_lost`` can coexist with surviving provider children
-    on the pinned local profile. No semantic output is recovered by stopping.
-    """
-
-    run_id: str
-    runtime_succeeded: bool
-    failure: str | None
+from .profile import ZEROSHOT_SDK_VERSION
 
 
 def canonical_request(value: dict) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
-def assert_no_effect_runtime(runtime: dict) -> None:
-    for binding in runtime.get("nodes", {}).values():
-        if binding.get("kind") == "git_delivery":
-            raise UnsupportedRuntime("V1 does not admit GitDelivery")
-
-
-def installed_integration() -> dict[str, str]:
-    # Package resource resolution only; never controller state or RunLedger.
-    import zeroshot
-    from zeroshot._binary import resolve_binary
-
-    binary = Path(resolve_binary())
-    root = Path(zeroshot.__file__).parent
-    source = hashlib.sha256()
-    for path in sorted(root.rglob("*.py")):
-        source.update(path.relative_to(root).as_posix().encode() + b"\0")
-        source.update(path.read_bytes() + b"\0")
-    return {
-        "sdkVersion": importlib.metadata.version("zeroshot-rust"),
-        "sidecarSha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
-        "sdkSourceSha256": source.hexdigest(),
-    }
-
-
-def assert_qualified_integration() -> dict[str, str]:
-    installed = installed_integration()
-    expected = QUALIFIED_ZEROSHOT_BOUNDARY
-    if (
-        installed["sdkVersion"] != "0.1.0.dev0"
-        or installed["sdkSourceSha256"] != QUALIFIED_SDK_SOURCE_SHA256
-        or installed["sidecarSha256"] != expected["sidecarSha256"]
-    ):
-        raise UnsupportedRuntime("SDK/sidecar differs from the G1-V1 qualified build")
-    return installed
+def assert_supported_integration() -> None:
+    if importlib.metadata.version("the-open-engine-zeroshot") != ZEROSHOT_SDK_VERSION:
+        raise UnsupportedRuntime(f"Zeroshot SDK {ZEROSHOT_SDK_VERSION} is required")
+    if os.environ.get("ZEROSHOT_PYTHON_NATIVE_BINARY"):
+        raise UnsupportedRuntime("use the release SDK's bundled native executable")
 
 
 class ZeroshotSubmitter:
-    """Submit or observe one already-correlated current product run.
-
-    The target and complete environment are persisted as request identity, so a
-    restart cannot silently switch runtime stores or bootstrap configuration.
-    No credentials are inherited. Caller-supplied graphs remain opaque; their
-    no-effect execution/containment profile remains the caller's responsibility.
-    """
-
     def __init__(
         self,
         state_dir: Path | str,
         *,
-        codex_profile: QualifiedCodexProfile | None = None,
+        codex_profile: CodexProfile | None = None,
+        delivery_target_origin: str | None = None,
+        github_token: str | None = None,
     ) -> None:
         self.codex_profile = codex_profile
+        self.github_token = github_token
+        self._tool_path = os.environ.get("PATH", "")
+        # Client inherits these operating variables even with an explicit
+        # environment. Freeze/clear them so ambient homes/config cannot leak in.
+        environment = dict(OPERATING_ENVIRONMENT)
+        environment["PATH"] = self._tool_path
         self.target = {
             "stateDir": str(Path(state_dir).expanduser().resolve()),
-            "environment": {"PATH": os.environ.get("PATH", "")},
+            "environment": environment,
+            "sdkVersion": ZEROSHOT_SDK_VERSION,
         }
         if codex_profile is not None:
-            self.target["environment"] = codex_profile.environment(
-                os.environ.get("PATH", "")
-            )
+            environment.update(codex_profile.environment(self._tool_path))
             self.target["codexProfile"] = codex_profile.identity()
+        if delivery_target_origin is not None:
+            self.target["deliveryTargetOrigin"] = delivery_target_origin
+            self.target["deliveryCredential"] = "GH_TOKEN"
 
-    def require_assurance_profile(self) -> None:
+    @property
+    def runtime(self) -> dict:
+        """The supported provider selection, not a caller-authored execution plan."""
+        return {
+            "harness": "codex",
+            "provider": "openai",
+            "model": "gpt-5.6-sol",
+            "effort": "low",
+            "size": "small",
+            "session_scope": "execution",
+            "connections": {
+                "profile": [
+                    "BROODLING_REAL_CODEX",
+                    "BROODLING_PROFILE_HOME",
+                    "BROODLING_ISOLATED_CODEX_HOME",
+                ]
+            },
+        }
+
+    def runtime_for(self, delivery: str) -> dict:
+        if delivery == "none":
+            return self.runtime
+        if delivery == "pull_request":
+            # The named target owns its provider installation and authentication.
+            # GH_TOKEN is template-owned delivery authority, never an agent binding.
+            return {
+                "harness": "codex",
+                "provider": "openai",
+                "model": "gpt-5.6-sol",
+                "effort": "low",
+                "size": "small",
+                "session_scope": "execution",
+            }
+        raise UnsupportedRuntime(f"unsupported delivery mode {delivery!r}")
+
+    def require_execution_profile(self) -> None:
         if self.codex_profile is None:
-            raise UnsupportedRuntime(
-                "product assurance requires the qualified Codex profile"
-            )
+            raise UnsupportedRuntime("execution requires the no-effect Codex profile")
 
-    def _profile_identity(self) -> None:
-        if (
-            self.codex_profile is not None
-            and self.codex_profile.identity() != self.target["codexProfile"]
+    def _validate_policy(self, delivery: str = "none") -> None:
+        if self.target.get("sdkVersion") != ZEROSHOT_SDK_VERSION:
+            raise UnsupportedRuntime(
+                "provider policy/environment differs from the configured profile"
+            )
+        if delivery == "none":
+            self.require_execution_profile()
+            if self.codex_profile.identity() != self.target.get(
+                "codexProfile"
+            ) or self.codex_profile.environment(self._tool_path) != self.target.get(
+                "environment"
+            ):
+                raise UnsupportedRuntime(
+                    "provider policy/environment differs from the configured no-effect profile"
+                )
+        elif delivery == "pull_request":
+            if not str(self.target.get("deliveryTargetOrigin", "")).strip():
+                raise UnsupportedRuntime(
+                    "pull-request delivery requires a configured Zeroshot direct target"
+                )
+        else:
+            raise UnsupportedRuntime(f"unsupported delivery mode {delivery!r}")
+        state = Path(self.target["stateDir"])
+        if not state.is_absolute() or state.resolve() != state:
+            raise UnsupportedRuntime("native state directory must remain canonical")
+
+    def validate_dispatch(self, workspace: Path, request: dict | None = None) -> None:
+        from . import git
+
+        if request is None:
+            request = {"preset": {"delivery": "none"}}
+        delivery = request["preset"]["delivery"]
+        self._validate_policy(delivery)
+        state = Path(self.target["stateDir"])
+        protected = (workspace.resolve(), git.common_directory(workspace))
+        if state.resolve() != state or any(
+            state.is_relative_to(path) or path.is_relative_to(state)
+            for path in protected
         ):
             raise UnsupportedRuntime(
-                "qualified launcher changed after target configuration"
+                "native state directory must be canonical and separate from candidate/shared Git"
             )
-
-    def validate_first_dispatch(self, workspace: Path) -> None:
-        if self.codex_profile is not None:
-            self._profile_identity()
+        if delivery == "none":
             self.codex_profile.validate(
                 workspace, path=self.target["environment"]["PATH"]
             )
+            return
+        token = self.github_token
+        if not isinstance(token, str) or not token.strip() or len(token) > 4096:
+            raise UnsupportedRuntime(
+                "pull-request delivery requires a current nonempty GH_TOKEN"
+            )
+        selected = request.get("delivery")
+        if not isinstance(selected, dict):
+            raise UnsupportedRuntime("pull-request delivery identity is missing")
+        if not git.valid_branch_name(workspace, selected.get("targetBranch", "")):
+            raise UnsupportedRuntime("authorized pull-request target branch is invalid")
+        if git.github_repository(git.origin_url(workspace)) != selected.get(
+            "repository"
+        ):
+            raise UnsupportedRuntime(
+                "Attempt source does not match the authorized pull-request repository"
+            )
+
+    def _submission_client(self, request: dict):
+        if request.get("target") != self.target:
+            raise UnsupportedRuntime("runtime target differs from persisted request")
+        preset = request.get("preset")
+        if not isinstance(preset, dict):
+            raise UnsupportedRuntime("workflow preset is missing")
+        delivery = preset.get("delivery")
+        self._validate_policy(delivery)
+        if preset.get("name") != "software-change" or delivery not in {
+            "none",
+            "pull_request",
+        }:
+            raise UnsupportedRuntime(
+                "only supported software-change delivery modes may run"
+            )
+        if request.get("runtime") != self.runtime_for(delivery):
+            raise UnsupportedRuntime(
+                "workflow runtime differs from the supported delivery profile"
+            )
+        assert_supported_integration()
+        from zeroshot import Client, DirectTarget, LocalTarget
+
+        environment = dict(request["target"]["environment"])
+        if delivery == "pull_request" and self.github_token is not None:
+            environment["GH_TOKEN"] = self.github_token
+        target = (
+            LocalTarget(request["workspace"], state_dir=request["target"]["stateDir"])
+            if delivery == "none"
+            else DirectTarget(
+                request["target"]["deliveryTargetOrigin"],
+                workspace=request["workspace"],
+            )
+        )
+        return Client(
+            target=target,
+            environment=environment,
+        )
+
+    @staticmethod
+    def _correlated_client(request: dict):
+        """Address one persisted run without reconstructing its execution policy."""
+        target = request.get("target")
+        if not isinstance(target, dict):
+            raise UnsupportedRuntime("persisted run target is missing")
+        if target.get("sdkVersion") != ZEROSHOT_SDK_VERSION:
+            raise UnsupportedRuntime(
+                "persisted run requires a different Zeroshot SDK version"
+            )
+        assert_supported_integration()
+        from zeroshot import Client, DirectTarget, LocalTarget
+
+        origin = target.get("deliveryTargetOrigin")
+        if origin is not None:
+            if not isinstance(origin, str) or not origin.strip():
+                raise UnsupportedRuntime("persisted direct target origin is invalid")
+            locator = DirectTarget(origin)
+        else:
+            state_value = target.get("stateDir")
+            if not isinstance(state_value, str) or not state_value:
+                raise UnsupportedRuntime("persisted local state directory is missing")
+            state = Path(state_value)
+            if not state.is_absolute() or state.resolve() != state:
+                raise UnsupportedRuntime("native state directory must remain canonical")
+            locator = LocalTarget(state_dir=state_value)
+        return Client(target=locator, environment={})
 
     def submit(self, request: dict) -> str:
-        assert_no_effect_runtime(request["runtime"])
-        if self.codex_profile is None:
-            if set(request["target"]["environment"]) != {"PATH"}:
-                raise UnsupportedRuntime("P2 passes only PATH to the sidecar")
-        elif request["target"] != self.target:
-            raise UnsupportedRuntime(
-                "qualified provider profile differs from persisted target"
-            )
-        self._profile_identity()
-        assert_qualified_integration()
         return asyncio.run(self._submit(request))
 
-    async def stop_known(self, request: dict, run_id: str) -> TerminalRunObservation:
-        """Stop one already-correlated run after durable abandonment.
-
-        The caller owns the persisted request/run binding and must make the
-        Attempt ineligible before entering this boundary. This operation cannot
-        discover a missing run ID, dispatch work, or authorize retirement. SDK
-        errors, including inaccessible runtime state, propagate without a fact.
-        Repeating the call observes Zeroshot's existing terminal result.
-        """
-        if request["target"] != self.target:
-            raise UnsupportedRuntime("stop target differs from persisted target")
-        self._profile_identity()
-        if not isinstance(run_id, str) or not run_id.strip():
-            raise UnsupportedRuntime("stop requires an already-correlated run ID")
-        assert_qualified_integration()
-
-        from zeroshot import Client, LocalTarget
-
-        async with Client(
-            target=LocalTarget(
-                request["workspace"], state_dir=request["target"]["stateDir"]
-            ),
-            environment=request["target"]["environment"],
-        ) as client:
-            run = client.get_run(run_id)
-            result = await run.force_stop()
-            status = await run.status()
-        if (
-            result.run_id != run_id
-            or status.run_id != run_id
-            or status.phase != "finished"
-            or status.active_executions
-            or status.result is None
-            or status.result.run_id != run_id
-            or status.result.succeeded != result.succeeded
-            or status.result.failure != result.failure
-        ):
-            raise UnsupportedRuntime("stop lacks a consistent terminal observation")
-        return TerminalRunObservation(run_id, result.succeeded, result.failure)
-
-    async def observe_current(
-        self, request: dict, run_id: str
-    ) -> CurrentRunObservation:
-        """Observe forward from current status, without history or reconnection.
-
-        The caller establishes current Attempt ownership and that ``run_id`` is
-        its already-correlated immutable request. This method checks the admitted
-        product protocol, then retains only the latest mutation and final assessor
-        references in memory. A missed occurrence or interrupted stream cannot be
-        repaired here. Runtime response validation and routing remain in Zeroshot;
-        custody completeness belongs to the caller.
-        """
-        from .assurance_graph import assurance_graph, assurance_runtime
-
-        self.require_assurance_profile()
-        self._profile_identity()
-        if (
-            request["target"] != self.target
-            or request["graph"] != assurance_graph()
-            or request["runtime"] != assurance_runtime()
-        ):
-            raise UnsupportedRuntime(
-                "observation requires the admitted product protocol and target"
-            )
-        if not isinstance(run_id, str) or not run_id.strip():
-            raise UnsupportedRuntime(
-                "observation requires an already-correlated run ID"
-            )
-        assert_qualified_integration()
-
-        from zeroshot import Client, LocalTarget
-
-        final_nodes = {
-            "final_assessment_authority_clean": "implement",
-            "final_assessment_authority_repaired": "repair",
-        }
-        mutation = None
-        final = None
-
-        def observe(status):
-            nonlocal mutation, final
-            if status.run_id != run_id:
-                raise UnsupportedRuntime("observed status belongs to another run")
-            if status.phase == "stopping":
-                raise UnsupportedRuntime("normal observation lost to a stopping run")
-            selected = [
-                item
-                for item in status.active_executions
-                if item.node in {"implement", "repair"} or item.node in final_nodes
-            ]
-            if (status.phase == "finished" or status.result is not None) and selected:
-                raise UnsupportedRuntime(
-                    "terminal status cannot establish live occurrence provenance"
-                )
-            if len(selected) > 1:
-                raise UnsupportedRuntime("ambiguous mutation or final occurrence")
-            for item in selected:
-                if not item.execution:
-                    raise UnsupportedRuntime(
-                        "observed occurrence has no runtime identity"
-                    )
-                reference = (item.node, item.execution)
-                if item.node in {"implement", "repair"}:
-                    if final is not None:
-                        raise UnsupportedRuntime("mutation followed the final assessor")
-                    mutation = reference
-                else:
-                    if mutation is None or mutation[0] != final_nodes[item.node]:
-                        raise UnsupportedRuntime(
-                            "final structural mutation was not observed"
-                        )
-                    if final is not None and final != reference:
-                        raise UnsupportedRuntime(
-                            "ambiguous designated final occurrence"
-                        )
-                    final = reference
-            if status.result is None:
-                if status.phase == "finished":
-                    raise UnsupportedRuntime("finished run has no public result")
-                return None
-            result = status.result
-            if status.phase != "finished" or result.run_id != run_id:
-                raise UnsupportedRuntime("terminal result lacks current-run provenance")
-            # Two distinct facts, each fail-closed and separately named: the run
-            # itself ended unsuccessfully, or this observation never held the
-            # occurrences a success must have. One message for both leaves a
-            # refusal that cannot say which invariant failed (issue #40).
-            if not result.succeeded:
-                raise UnsupportedRuntime(
-                    f"normal observation ended in a failed run: {result.failure}"
-                )
-            if final is None or mutation is None:
-                raise UnsupportedRuntime(
-                    "normal successful final occurrence was not observed"
-                )
-            return CurrentRunObservation(
-                run_id, final[0], final[1], mutation[0], mutation[1], result.output
-            )
-
-        async with Client(
-            target=LocalTarget(
-                request["workspace"], state_dir=request["target"]["stateDir"]
-            ),
-            environment=request["target"]["environment"],
-        ) as client:
-            run = client.get_run(run_id)
-            current = await run.status()
-            if (
-                current.phase not in {"admitted", "running"}
-                or current.result is not None
-            ):
-                raise UnsupportedRuntime(
-                    "normal observation requires a current nonterminal run"
-                )
-            observe(current)
-            if not current.cursor:
-                raise UnsupportedRuntime(
-                    "current status has no forward-observation cursor"
-                )
-            async with aclosing(run.watch(after=current.cursor)) as statuses:
-                async for status in statuses:
-                    completed = observe(status)
-                    if completed is not None:
-                        return completed
-            raise UnsupportedRuntime("normal status stream ended before final capture")
-
     async def _submit(self, request: dict) -> str:
-        from zeroshot import Client, GraphSpec, LocalTarget, RunRequest, RuntimePlan
+        from zeroshot import Preset, UniformRuntime
         from zeroshot.run_errors import SubmissionConflictError
 
-        native = RunRequest(
-            title=request["title"],
-            graph=GraphSpec.from_dict(request["graph"]),
-            runtime=RuntimePlan.from_dict(request["runtime"]),
-            initial_input=request["initialInput"],
-            submission_key=request["submissionKey"],
-        )
         try:
-            async with Client(
-                target=LocalTarget(
-                    request["workspace"], state_dir=request["target"]["stateDir"]
-                ),
-                environment=request["target"]["environment"],
-            ) as client:
-                return (await client.submit(native)).id
+            async with self._submission_client(request) as client:
+                delivery = request["preset"]["delivery"]
+                source = request.get("delivery") if delivery == "pull_request" else {}
+                options = {}
+                if delivery == "pull_request":
+                    options = {
+                        "repository": source["repository"],
+                        "branch": source["targetBranch"],
+                        "revision": source["baseRevision"],
+                    }
+                return (
+                    await client.submit(
+                        request["task"],
+                        title=request["title"],
+                        preset=Preset(**request["preset"]),
+                        runtime=UniformRuntime(**request["runtime"]),
+                        submission_key=request["submissionKey"],
+                        **options,
+                    )
+                ).id
         except SubmissionConflictError as error:
             raise SubmissionConflict(
                 str(error), existing_run_id=error.existing_run_id
             ) from error
+
+    async def wait(self, request: dict, run_id: str):
+        """Return the eventual result, including an already-completed run."""
+        async with self._correlated_client(request) as client:
+            return await client.get_run(run_id).wait()
+
+    async def stop_known(self, request: dict, run_id: str):
+        """Request terminalization; RunResult is not a physical cleanup receipt."""
+        async with self._correlated_client(request) as client:
+            return await client.get_run(run_id).force_stop()

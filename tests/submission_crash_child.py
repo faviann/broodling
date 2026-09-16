@@ -9,16 +9,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from attempt_crash_child import wait_for_gate
 from crash_child import crash_when
-from submission_support import MUTATING_REQUEST, REQUEST
+from submission_support import configured_adapter
 from support import move_head
 
 from broodling import BroodlingStore
 from broodling.submission import SubmissionCoordinator
-from broodling.zeroshot_sdk import ZeroshotSubmitter
 
 store_path, attempt_id, state_dir, mode = sys.argv[1:5]
 store = BroodlingStore.open(store_path)
-adapter = ZeroshotSubmitter(state_dir)
+adapter = configured_adapter(state_dir, Path(store_path).parent.parent)
 coordinator = SubmissionCoordinator(store, adapter)
 if len(sys.argv) > 5:
     wait_for_gate(sys.argv[5])
@@ -28,7 +27,7 @@ if mode == "during_prepare":
 if mode == "during_correlation":
     crash_when(store, "SET state = 'correlated'", before=False)
 if mode == "prepared":
-    coordinator.prepare(attempt_id, **REQUEST)
+    coordinator.prepare(attempt_id)
     os._exit(97)
 
 native = adapter.submit
@@ -49,15 +48,13 @@ def dispatch(request):
     if mode == "after_accept_mutation":
         move_head(Path(request["workspace"]), content="accepted run mutation\n")
         os._exit(97)
-    if mode in ("after_accept", "graph_accept"):
+    if mode == "after_accept":
         os._exit(97)
     return run_id
 
 
 adapter.submit = dispatch
-result = coordinator.submit(
-    attempt_id, **(MUTATING_REQUEST if mode == "graph_accept" else REQUEST)
-)
+result = coordinator.submit(attempt_id)
 print(json.dumps({"correlatedRunId": result.run_id}), flush=True)
 if mode == "after_correlation":
     os._exit(97)

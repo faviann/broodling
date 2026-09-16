@@ -1,105 +1,151 @@
 # Broodling
 
-Broodling implements the single-work-unit execution system.
+Broodling admits one software-change Work Unit, gives its frozen Contract to
+Zeroshot, and records the resulting Broodling lifecycle decision.
+Scheduling, backlog selection, dependency waiting, and multi-project orchestration
+are outside its scope.
 
-## Purpose
+Zeroshot owns execution: its standard `software-change` workflow implements,
+independently reviews acceptance and code, and repairs. Broodling does not author
+an execution graph, supervise provider processes, reconstruct execution history,
+or independently re-prove the workflow's result.
 
-Broodling is responsible for reliably executing **one admitted software-development work unit**. A work unit arrives already selected and ready to run; Broodling's job is to carry it through to a definite outcome.
+## Current boundary
 
-## Scope
+Broodling owns immutable source/Contract admission, one current Attempt and its
+dedicated worktree, durable Attempt-to-run correlation, and the final lifecycle
+decision. The frozen Work Unit selects delivery: an empty effect set submits
+`Preset("software-change", delivery="none")`; exactly one authorized
+`pull_request` effect naming its target branch submits native PR delivery. No
+other effect is inferred. Broodling consumes `Run.wait()`, including an
+already-completed run after reconnection, without a separate mechanical-evidence
+or adjudication record.
 
-In scope:
+A source-attributed Contract can be admitted with acceptance criteria alone.
+A finite evidence population, validation seam/action, and falsifying observation
+are optional guidance, not a required prewritten validation plan. Zeroshot decides
+how to implement and validate the change. Required effects, effect-dependent
+evidence, and unsatisfied prerequisites still fail admission.
 
-- Executing a single admitted work unit.
-- Reliability of that execution.
+The supported target is single-host Linux x86-64 with **Zeroshot 10.3.0** and its
+matching **Python SDK 10.3.0.post1**. See the
+[current integration design](docs/implementation/zeroshot-native-integration.md)
+for the responsibility boundary, release sources, migration, and limitations.
 
-Explicitly **out of scope**:
+No authoritative effect is implicit. Unsupported, mixed, or multiple effects are
+rejected. No-effect local runs use a small Codex launcher with explicit sandbox/network
+policy that disables apps/plugins/hooks/notifications, excludes ambient Codex user
+configuration and exec-policy rules, and uses isolated homes. Zeroshot still owns
+provider sessions, execution, and stop behavior. Its workflow can read current
+repository guidance; that context cannot
+amend Broodling's frozen Contract or entitled source snapshots.
 
-- Higher-level scheduling.
-- Backlog selection.
-- Dependency waiting.
-- Multi-project orchestration.
+## Install and use
 
-## Governing documents
-
-The current governing pair is:
-
-- [Target responsibility and boundary design v0.5](docs/governing/broodling-target-responsibility-boundary-design-v0.5.md).
-- [Implementation and dependency plan v0.5](docs/governing/broodling-implementation-dependency-plan-v0.5.md), with its prospective [G4 evidence addendum](docs/governing/v0.5-g4-evidence-addendum.md).
-
-The preserved v0.4 pair and [G0-v0.4 review](docs/governing/g0-v0.4-review.md) remain provenance; v0.5 supersedes v0.4 as the governing target/plan without modifying the earlier documents or qualification evidence.
-
-V1 is deliberately single-host and no-effect. One current Attempt exclusively owns one dedicated disposable worktree. Only graph-authorized mutating executions change candidate source; assurance readers are read-only and the qualified host profile contains lingering/concurrent writers. Under v0.5, that structure establishes candidate applicability: an assurance occurrence applies to the candidate state left by the most recent preceding graph-authorized mutation, and a later mutation requires fresh assurance before acceptance. V1 does not require an independent candidate seal/hash/manifest, racing observer, or model-supplied applicability identifier for that relationship.
-
-Required evidence remains separately mandatory and must be available/sufficient when the graph relies on it. Missing raw material or inadequate evidence must fail closed; this does not imply a general candidate-provenance subsystem.
-
-An incomplete/stopped/lost Attempt and its worktree are abandoned; a replacement starts from the original admitted state without reusing the abandoned candidate, decisions/directives, evidence or acceptance. Reviewer execution is fresh with a narrowly controlled automatic-context profile.
-
-## Status
-
-Issue #8's preserved [V1 qualification report](qualification/v1-p1/issue-8-w1-w2-w5-w7.md) at `7931ac9` historically records **W1 PASS, W2 FAIL, W5 PASS and W7 PASS** against the v0.4 checklist.
-
-Under the corrected v0.5 witness scope:
-
-- **W1 is satisfied** by the existing issue-#8 evidence.
-- **W2 is satisfied on the recorded profile** by the existing host-containment evidence; the historical v0.4 W2 FAIL remains unchanged. Missing-evidence sufficiency is covered by W3/W6, model-supplied applicability IDs are non-authoritative, and the delayed-observer requirement is removed.
-- **W3 PASS** is recorded by issue #9's [actual assurance-graph qualification](qualification/v1-p1/issue-9-w3.md) on the compatible profile.
-- **W4 PASS** and **W6 PASS** are recorded by issue #10's [controlled-reviewer and normal-final-result qualification](qualification/v1-p1/issue-10-w4-w6.md) on the compatible profile.
-- **W5 is satisfied** by the existing issue-#8 abandon/restart evidence.
-- **W7 is satisfied** by the existing issue-#8 no-effect evidence.
-
-The separate [G1-V1 gate review](qualification/v1-p1/issue-11-g1-v1.md) is **COMPLETE with G1-V1 PASS** for the narrowed single-host, no-effect V1 profile. That gate qualifies the V1-P1 evidence boundary only. Exact effects/reconciliation and completed-run recovery/cross-Attempt reuse remain deferred capabilities.
-
-**V1-P2 is complete with [G2-V1 PASS from #16](qualification/v1-p2/issue-16-g2-v1.md).** The [V1-P2 implementation](docs/implementation/v1-p2-admission-nucleus.md) covers Work Unit identity, source entitlement, immutable Contract revisions, no-effect admission, one current Attempt with B1 and an exclusive worktree, and durable Attempt↔run correlation including acknowledgement loss after graph-authorized mutation.
-
-Issue #17 adds the [product assurance graph](docs/implementation/v1-p3-assurance-graph.md), with structural candidate generations, sticky typed directives, bounded repair and fail-closed required controls. `SubmissionCoordinator.submit_assurance` constructs the product protocol from the frozen Contract and requires the explicit qualified Codex profile. Issue #18 supplies Contract-derived evidence integration and product reviewer controls; final assurance custody remains the #19 boundary. V1-P3 is complete with [G3-V1 PASS](qualification/v1-p3/issue-20-g3-v1.md).
-
-Issue #18 adds [explicit immutable mechanical-evidence declarations and the deterministic read-only evidence leaf](docs/implementation/v1-p3-evidence-review.md). Its [integration record](qualification/v1-p3/issue-18-evidence-review.md) retains actual SDK evidence, containment and real reviewer controls. The earlier blocked and pre-integration records remain historical evidence.
-
-Issue #19 adds [current final-assessment capture and minimal durable custody](docs/implementation/v1-p3-final-assurance.md). Explicit final/B1 material selection is frozen in a new admitted Contract revision and exercised through a fresh Attempt; older revisions and Attempt bindings remain unchanged. Its [completion evidence](qualification/v1-p3/issue-19-final-assurance.md) covers exact bytes/absence, required observations/rationale and refusal of incomplete or lost custody. The earlier selection blocker remains historical. The separate fresh read-only [#20 review records G3-V1 PASS](qualification/v1-p3/issue-20-g3-v1.md) for the integrated current configuration.
-
-Issue #21 is complete with [irreversible abandonment, bounded physical cessation and owned retirement](docs/implementation/v1-p4-abandonment.md). Its [acceptance and requalification record](qualification/v1-p4/issue-21-abandonment.md) retains real-provider controller-loss, live-sibling, mutation/read-only and no-effect controls. Canonical shared Git metadata under the provider's writable `/tmp` root is rejected before dispatch. Earlier cessation and shared-Git blocker records remain historical.
-
-Issue #22 is complete with [explicit original-B1 replacement](docs/implementation/v1-p4-replacement.md), durable retry identity, fresh reserved provider homes, an implementer-only binding for exact frozen entitled instructions, and a narrow refusal of Git checkout transformations. Its [acceptance and requalification record](qualification/v1-p4/issue-22-replacement.md) distinguishes controlled SDK mechanics from real-provider source and boundary evidence, and records the full regression plus corrected affected-suite rerun.
-
-Issue #23's [normal no-effect disposition](docs/implementation/v1-p4-disposition.md) has a [complete acceptance audit](qualification/v1-p4/issue-23-completion.md) under the prospective [G4 evidence addendum](docs/governing/v0.5-g4-evidence-addendum.md). All-real clean completion, the explicitly seeded actual downstream repair chain, deterministic integrated controls and a compatibility audit jointly support the corrected requirement. Earlier blocked records and false single-run witness predicates remain unchanged. The separate fresh read-only [G4-V1 review](qualification/v1-p4/issue-24-g4-v1.md) records **PASS** for the supported single-host no-effect lifecycle/disposition profile. V1-P4 is complete; no P5 work has begun. Effects remain unimplemented.
-
-The historical [G1-core review](qualification/p1/issue-7-g1-core.md) remains **BLOCKED** under v0.3. Q2 and the bounded Q3 fixture retain their historical scoped passes; Q1/Q4/Q5/Q6 remain blocked, and [Q7/G1-effects](qualification/p1/issue-6-q7.md) remains independently blocked. v0.5 does not relabel those historical results.
-
-## Product code
-
-The Broodling product package is `broodling/`, a Python 3.13 package whose admission/storage code uses the standard library; run submission additionally requires the exact G1-V1 qualified Zeroshot SDK/sidecar. It owns one SQLite database holding the durable admission and Attempt facts. Provisioning an Attempt worktree runs the local `git` binary — host-local administrative setup, not a delivery effect — and the narrow submission adapter invokes the official SDK/matching sidecar. It imports the SDK lazily, uses public submission and forward observation of a current correlated run, and does not mirror the Zeroshot RunLedger.
+Use Python 3.13+, SQLite 3.37+, and Git:
 
 ```bash
-python -m pytest tests                              # Broodling regression
-python -m unittest discover -s tests                # the same lane, no plugins
-BROODLING_ZEROSHOT_LANE=1 python -m pytest tests    # + real-Zeroshot witnesses
+python -m pip install -e '.[test]'
+python -m pytest tests
 ```
 
-The default lane is Broodling's own behaviour and finishes in minutes. The
-real-Zeroshot integration/qualification witnesses — the scoped evidence/authority
-integration controls, the G4 disposition and replacement races, #19 custody and
-current-run observation, and the stop/cessation windows — run only with
-`BROODLING_ZEROSHOT_LANE=1` and the qualified SDK/sidecar installed, because
-the broader lifecycle/custody campaigns are expensive and are run deliberately
-rather than on every commit. PR #48 removes dependency-control-flow tests rather than preserving
-them as graph proofs; see the [ownership audit](docs/implementation/pr48-ownership-audit.md) and
-[the lane notes](tests/README.md#two-test-lanes-issue-39) for what each lane
-holds and why the cheap real submission witnesses stay in regression.
+The dependency is pinned to the official Linux x86-64 SDK release wheel,
+including its SHA-256 digest; the wheel bundles the matching native engine.
+Execution also requires the selected Codex CLI `0.153.4` and host-provisioned
+authentication. Broodling neither installs Codex nor copies credentials.
 
-The [V1-P2 implementation record](docs/implementation/v1-p2-admission-nucleus.md) states the selected Python/SQLite versions, the qualified Zeroshot SDK/sidecar version boundary the product configuration records, the schema, the B1/worktree policy and the retained implementation evidence.
+This local no-effect profile requires a trusted host with no operator-managed
+effect-capable MCP or extension configuration. Administrators can enforce an
+empty `[mcp_servers]` allowlist in `requirements.toml`. Broodling does not scan or
+override arbitrary managed configuration; this is a supported-host precondition,
+not a universal no-effect proof. See the
+[local policy limitation](docs/implementation/zeroshot-native-integration.md#local-policy-and-cleanup-limitation).
 
-Two bounded property modules (`tests/test_work_reference_properties.py` and `tests/test_store_state_machine.py`) use Hypothesis. It is a **test-only** dependency — the product package keeps none at runtime — declared as the `test` extra: `pip install -e '.[test]'`. Running the suite requires it; without it those two modules fail to import rather than quietly skipping. See [the property-test notes](tests/README.md) for the invariants they check, the deterministic settings profile and the recorded discrimination evidence.
+The example below starts with an already recorded and admitted Contract
+revision and a clean committed source repository with a GitHub origin. The host
+supplies an empty profile home and a separate Codex home
+containing only `auth.json`. Keep the database, runtime state, profiles, and
+durable Attempt workspaces outside the source checkout; preserve runtime state
+for reconnecting to the run.
 
-`pytest-timeout` is the suite's accidental-hang safety net, also test-only and in the same extra. It is configured once in `pyproject.toml` as a generous 1800-second per-phase default using the signal method, so a wedged subprocess, provider fixture or polling loop fails with the stuck traceback instead of hanging the run. It is a diagnostic net, not a product timing guarantee, and the tests' own deadlines remain the assertions wherever timing or cessation is the subject. See [the test notes](tests/README.md#accidental-hang-safety-net-issue-32). Under `unittest discover` the suite still runs, without that net.
+```python
+import asyncio
+import os
+from pathlib import Path
 
-The Attempt tests provision real Git worktrees and therefore need a durable workspace root, which cannot be `/tmp`. They default to `~/.cache/broodling-tests`; set `BROODLING_TEST_WORKSPACE_ROOT` to choose another durable directory.
+from broodling import (
+    AttemptProvisioner,
+    BroodlingStore,
+    CodexProfile,
+    SubmissionCoordinator,
+    WorkUnitDispositionCoordinator,
+    ZeroshotSubmitter,
+)
 
-## Baseline and qualification provenance
 
-See [qualification entry-point safety and reproduction](qualification/README.md)
-for current invocation rules and the original source identities retained by #36.
+def execute(admitted_revision_id: str):
+    with BroodlingStore.open("/srv/broodling/state/broodling.sqlite3") as store:
+        attempt = AttemptProvisioner(
+            store, "/srv/broodling/attempts"
+        ).admit_and_provision(
+            admitted_revision_id, "/srv/source/repository"
+        ).attempt
 
-The unchanged [P0/G0 inventory](docs/baseline/p0-g0-inventory.md) links the original v0.3 target and plan, all 25 invariant fixtures, the historical-protection map and recorded input hashes. G0 PASS means specification completeness, not integration or semantic qualification.
+        engine = ZeroshotSubmitter(
+            "/srv/broodling/zeroshot",
+            codex_profile=CodexProfile(
+                Path("/opt/codex/bin/codex"),
+                Path("/srv/broodling/profile-home"),
+                Path("/srv/broodling/codex-auth"),
+            ),
+            # Required only when this Contract authorizes pull_request delivery.
+            delivery_target_origin="https://zeroshot.example.internal",
+            github_token=os.environ.get("GH_TOKEN"),
+        )
+        SubmissionCoordinator(store, engine).submit(attempt.attempt_id)
+        return asyncio.run(
+            WorkUnitDispositionCoordinator(store, engine).finalize(attempt.attempt_id)
+        )
+```
 
-The [P1 external SDK/sidecar harness](qualification/p1/README.md), issue-scoped reports/records, the v0.4 governing pair, G0-v0.4, and issue #8 evidence are retained unchanged. Use the originating commits identified by the governing documents for reproduction; bounded historical findings do not establish broader V1 or production readiness.
+For an authorized PR, Zeroshot runs against the explicit repository, target
+branch, and B1 revision on the configured direct target. PR delivery is admitted
+only for a GitHub Work Unit. Its successful PR
+receipt is retained verbatim, and `headRevision` is the stable accepted result.
+The current token is checked on every initial or replayed dispatch and is neither
+persisted nor exposed to agent runtime bindings. Cancelling a wait only detaches;
+waiting again can consume the same result.
+
+For a no-effect Work Unit, Zeroshot 10.3 returns null and leaves only a mutable
+local worktree. Broodling may run that no-effect workflow, but it fails closed at
+final disposition because no stable accepted result exists. It does not silently
+open a PR, manufacture a post-run snapshot, or supervise writers. This is an
+explicit Zeroshot capability gap pending a supported local result delivery.
+
+## Cleanup limitation
+
+The native local target exposes no general physical-cessation receipt for
+escaped descendants or controller loss. Broodling requests native stop and
+abandons the Attempt, but **does not authorize automatic deletion or retry for
+Attempts dispatched under this integration**. Even a terminal label is not cleanup
+authority. Its worktree remains quarantined; manual recovery needs an independently
+established safe host boundary. Broodling provides no operator override that silently grants that
+authority. An Attempt that never dispatched can still be safely retired and
+explicitly replaced from its original B1.
+
+Already-completed historical retirements remain recorded facts; unfinished old
+cessation proof cannot authorize new cleanup.
+
+## Tests and history
+
+The default [test suite](tests/README.md) covers Broodling-owned invariants and
+the published SDK/native seam using a controlled, non-networked provider
+fixture. It is not a paid-provider or sandbox qualification campaign.
+
+This design supersedes the execution/proof requirements in the older governing
+documents. The [source audit](docs/implementation/zeroshot-current-source-audit.md)
+explains the current dependency investigation.
+[Qualification records](qualification/README.md),
+[older governing documents](docs/governing), and the
+[baseline inventory](docs/baseline/p0-g0-inventory.md) remain historical evidence
+for their recorded versions and profiles; they do not qualify this integration.

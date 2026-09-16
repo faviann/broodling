@@ -6,8 +6,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import containment, git, workspace
-from .assurance_graph import assurance_runtime, supports_contained_stop
+from . import git, workspace
 from .errors import BroodlingError, WorktreeOwnershipConflict
 from .provisioning import _sole_provisioner
 from .store import BroodlingStore, _now
@@ -57,7 +56,7 @@ class AbandonmentCoordinator:
         return attempt, assignment
 
     async def stop(self, attempt_id: str, reason: str) -> AttemptRetirement:
-        """Abandon first, fence launches, request stop and prove physical cessation.
+        """Abandon first and request native stop; retain uncertain worktrees.
 
         Inaccessible or ambiguous execution remains abandoned and blocking. This
         operation never calls submission replay to find a missing run identity.
@@ -76,11 +75,7 @@ class AbandonmentCoordinator:
                 )
             proof = {"basis": "never_materialized", "runId": None}
         else:
-            containment.close_launches(assignment.path)
             if never_dispatched:
-                # A crash inside Git provisioning can leave a child after the
-                # caller releases its lock. Without the committed acknowledgment
-                # its cessation is unknown; never guess from a settled-looking tree.
                 if not assignment.provisioned:
                     raise CessationUnconfirmed(
                         "interrupted provisioning cessation is unknown"
@@ -92,28 +87,14 @@ class AbandonmentCoordinator:
                         "existing dispatched run identity is unresolved"
                     )
                 request = json.loads(submitted.request_json)
-                if (
-                    request["target"] != self.submitter.target
-                    or request["target"]
-                    .get("codexProfile", {})
-                    .get("containmentProfile")
-                    != containment.CONTAINMENT_PROFILE
-                    or not supports_contained_stop(request["graph"])
-                    or request["runtime"] != assurance_runtime()
-                ):
-                    raise CessationUnconfirmed(
-                        "run lacks the supported product containment binding"
-                    )
-                observed = await self.submitter.stop_known(request, submitted.run_id)
-                proof = {
-                    "basis": containment.CONTAINMENT_PROFILE,
-                    "runId": observed.run_id,
-                    "runtimeSucceeded": observed.runtime_succeeded,
-                    "runtimeFailure": observed.failure,
-                    "profile": request["target"]["codexProfile"],
-                }
-            if not containment.confirm_ceased(assignment.path):
-                raise CessationUnconfirmed("contained namespace has not fully ceased")
+                await self.submitter.stop_known(request, submitted.run_id)
+                # LocalTarget has no public physical-cleanup result. A terminal
+                # label (including runtime_lost) cannot authorize deletion or a
+                # replacement. Keep the abandoned tree quarantined.
+                raise CessationUnconfirmed(
+                    "Zeroshot LocalTarget does not expose physical cessation; "
+                    "Attempt abandoned and stop requested, worktree retained"
+                )
         with self.store._write() as connection:
             existing = self.record(attempt_id)
             if existing is not None:
@@ -138,6 +119,13 @@ class AbandonmentCoordinator:
             raise CessationUnconfirmed("retirement requires retained cessation proof")
         if record.retired_at is not None:
             return record
+        if json.loads(record.proof_json)["basis"] not in {
+            "never_materialized",
+            "never_dispatched",
+        }:
+            raise CessationUnconfirmed(
+                "historical cessation proof cannot authorize new cleanup"
+            )
         attempt, assignment = self._owned(attempt_id)
         if not assignment.path.parent.exists():
             if json.loads(record.proof_json)["basis"] != "never_materialized":
@@ -153,8 +141,6 @@ class AbandonmentCoordinator:
             if record.retired_at is not None:
                 return record
             attempt, assignment = self._owned(attempt_id)
-            if not containment.confirm_ceased(assignment.path):
-                raise CessationUnconfirmed("physical cessation no longer confirmed")
             self._remove_owned(attempt, assignment, lock_fd)
             return self._acknowledge(attempt_id)
 

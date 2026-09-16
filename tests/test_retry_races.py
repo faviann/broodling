@@ -68,41 +68,6 @@ class RetryRaceTests(RetryCase):
         self.assertFalse(self.path.exists())
         return replacement
 
-    def test_retry_is_refused_while_stop_has_not_established_cessation(self):
-        from broodling import containment
-
-        entered, release = Event(), Event()
-        original = containment.confirm_ceased
-
-        def held_confirmation(path):
-            entered.set()
-            if not release.wait(10):
-                raise TimeoutError("stop barrier not released")
-            return original(path)
-
-        with (
-            ThreadPoolExecutor(max_workers=2) as pool,
-            patch.object(containment, "confirm_ceased", held_confirmation),
-        ):
-            stopped = pool.submit(self.stop_independently)
-            try:
-                self.assertTrue(entered.wait(10))
-                self.assertIsNotNone(self.store.abandonment(self.attempt_id))
-                retry = pool.submit(self.allocate_independently)
-                with self.assertRaises(AttemptAdmissionError):
-                    retry.result(timeout=10)
-                self.assertIsNone(self.store.retry("race-retry"))
-                self.assertIsNone(
-                    AbandonmentCoordinator(self.store, self.adapter).record(
-                        self.attempt_id
-                    )
-                )
-            finally:
-                release.set()
-            stopped.result(timeout=10)
-        self.retire_independently()
-        self.assert_one_replacement()
-
     def test_retry_waits_for_unfinished_owned_retirement(self):
         self.stop_independently()
         entered, release, retry_entered = Event(), Event(), Event()

@@ -1,4 +1,4 @@
-"""Exact admitted source custody and role-limited graph delivery, without SDK."""
+"""Exact admitted source snapshots in the native task, without provider execution."""
 
 import base64
 import hashlib
@@ -10,8 +10,7 @@ from submission_support import SubmissionCase
 from support import work_reference
 
 from broodling import SourceSubmission
-from broodling.assurance_graph import assurance_graph
-from broodling.codex_profile import QualifiedCodexProfile
+from broodling.codex_profile import CodexProfile
 from broodling.contract import MechanicalEvidence
 from broodling.submission import SubmissionCoordinator
 from broodling.zeroshot_sdk import ZeroshotSubmitter
@@ -44,13 +43,13 @@ class FrozenInstructionsTests(SubmissionCase):
         (auth / "auth.json").write_text("{}")
         self.adapter = ZeroshotSubmitter(
             self.runtime_state,
-            codex_profile=QualifiedCodexProfile(executable, home, auth),
+            codex_profile=CodexProfile(executable, home, auth),
         )
         self.coordinator = SubmissionCoordinator(self.store, self.adapter)
 
     def test_exact_snapshot_survives_newer_issue_snapshot_and_restart(self):
-        first = self.coordinator.prepare_assurance(self.attempt_id)
-        state = json.loads(first.request_json)["initialInput"]
+        first = self.coordinator.prepare(self.attempt_id)
+        state = json.loads(json.loads(first.request_json)["task"].split("\n\n", 1)[1])
         self.assertNotIn("SOURCE_ONLY_22", state["contract"])
         material = self.store.contract_source_material(
             self.attempt.contract_revision_id
@@ -80,7 +79,7 @@ class FrozenInstructionsTests(SubmissionCase):
         self.reopen()
         self.addCleanup(self.store.close)
         coordinator = SubmissionCoordinator(self.store, self.adapter)
-        self.assertEqual(coordinator.prepare_assurance(self.attempt_id), first)
+        self.assertEqual(coordinator.prepare(self.attempt_id), first)
         self.assertEqual(self.store.frozen_instructions(self.attempt_id), expected)
 
     def test_binary_source_is_explicit_base64_with_exact_roundtrip(self):
@@ -100,41 +99,11 @@ class FrozenInstructionsTests(SubmissionCase):
         provisioned = self.provisioner().admit_and_provision(
             revision.contract_revision_id, self.repository
         )
-        row = self.coordinator.prepare_assurance(provisioned.attempt.attempt_id)
-        frozen = json.loads(row.request_json)["initialInput"]["admittedInstructions"]
+        row = self.coordinator.prepare(provisioned.attempt.attempt_id)
+        frozen = json.loads(json.loads(row.request_json)["task"].split("\n\n", 1)[1])[
+            "admittedInstructions"
+        ]
         self.assertEqual(len(frozen), 1)
         self.assertEqual(frozen[0]["encoding"], "base64")
         self.assertEqual(base64.b64decode(frozen[0]["content"], validate=True), binary)
         self.assertEqual(frozen[0]["contentSha256"], hashlib.sha256(binary).hexdigest())
-
-    def test_only_implementer_receives_frozen_instructions_and_no_worker_writes_them(
-        self,
-    ):
-        leaves = []
-
-        def visit(value):
-            if isinstance(value, dict):
-                if "worker" in value:
-                    leaves.append(value)
-                for child in value.values():
-                    visit(child)
-            elif isinstance(value, list):
-                for child in value:
-                    visit(child)
-
-        visit(assurance_graph())
-        self.assertTrue(leaves)
-        recipients = []
-        for leaf in leaves:
-            if "admittedInstructions" in leaf["input"]["fields"]:
-                recipients.append(leaf["name"])
-                self.assertIn(
-                    {
-                        "target": ["admittedInstructions"],
-                        "value": {"source": "state", "path": ["admittedInstructions"]},
-                    },
-                    leaf["inputBindings"],
-                )
-            for binding in leaf["writeBindings"]:
-                self.assertNotEqual(binding["target"], ["admittedInstructions"])
-        self.assertEqual(recipients, ["implement"])

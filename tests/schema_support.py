@@ -2,6 +2,7 @@
 
 import hashlib
 import sqlite3
+from pathlib import Path
 
 from broodling.schema import (
     ABANDONMENT_SQL,
@@ -17,6 +18,8 @@ from broodling.schema import (
     V5_SCHEMA_SHA256,
     V6_SCHEMA_SHA256,
     V7_SCHEMA_SHA256,
+    V8_SCHEMA_SHA256,
+    V9_SCHEMA_SHA256,
 )
 
 
@@ -34,6 +37,22 @@ def published_schema(version):
         5: (v5, V5_SCHEMA_SHA256),
         6: (v6, V6_SCHEMA_SHA256),
         7: (v7, V7_SCHEMA_SHA256),
+        8: (
+            v7
+            + Path(__file__)
+            .with_name("fixtures")
+            .joinpath("schema-v8-disposition.sql")
+            .read_text(),
+            V8_SCHEMA_SHA256,
+        ),
+        9: (
+            v7
+            + Path(__file__)
+            .with_name("fixtures")
+            .joinpath("schema-v9-disposition.sql")
+            .read_text(),
+            V9_SCHEMA_SHA256,
+        ),
     }[version]
     # A product edit to any old DDL must not silently change the fixture.
     assert hashlib.sha256(definition.encode()).hexdigest() == expected
@@ -51,6 +70,14 @@ def restore_published_schema(store, version):
             "SELECT name FROM sqlite_schema WHERE type = 'table'"
         ).fetchall()
         for (table,) in tables:
+            if (
+                previous.execute(
+                    "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?",
+                    (table,),
+                ).fetchone()
+                is None
+            ):
+                continue
             rows = [tuple(row) for row in previous.execute(f"SELECT * FROM {table}")]
             if rows:
                 placeholders = ",".join("?" for _ in rows[0])

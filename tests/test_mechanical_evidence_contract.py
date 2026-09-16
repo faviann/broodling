@@ -1,4 +1,4 @@
-"""Runnable evidence is explicit new Contract meaning, never inferred text."""
+"""Historical check declarations retain their exact frozen Contract meaning."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from dataclasses import FrozenInstanceError, replace
 from support import StoreTestCase, criterion
 
 from broodling import Contract, MechanicalEvidence
-from broodling.contract import contract_from_mapping, validate_mechanical_evidence
+from broodling.contract import contract_from_mapping
 
 
 def declared_contract(declaration: MechanicalEvidence | None) -> Contract:
@@ -30,8 +30,6 @@ class MechanicalDeclarationTests(unittest.TestCase):
         restored = contract_from_mapping(mapping)
         self.assertEqual(restored, contract)
         self.assertIsNone(restored.criteria[0].mechanical_evidence)
-        with self.assertRaisesRegex(ValueError, "explicit declaration"):
-            validate_mechanical_evidence(restored)
 
     def test_roundtrip_preserves_exact_argv_context_and_material_order(self) -> None:
         declaration = MechanicalEvidence(
@@ -50,7 +48,6 @@ class MechanicalDeclarationTests(unittest.TestCase):
                 "materials": ["raw/result.bin", "candidate.txt"],
             },
         )
-        validate_mechanical_evidence(restored)
         with self.assertRaises(FrozenInstanceError):
             declaration.cwd = "other"
 
@@ -70,26 +67,6 @@ class MechanicalDeclarationTests(unittest.TestCase):
                     original.contract_revision_id,
                     declared_contract(changed).contract_revision_id,
                 )
-
-    def test_unsupported_declaration_fails_before_execution(self) -> None:
-        for declaration in (
-            MechanicalEvidence(()),
-            MechanicalEvidence(("python", "check.py")),
-            MechanicalEvidence(("./check",)),
-            MechanicalEvidence(("/usr/bin/true", "bad\x00argument")),
-            MechanicalEvidence(("/usr/bin/true",), cwd="../sibling"),
-            MechanicalEvidence(("/usr/bin/true",), cwd="/tmp"),
-            MechanicalEvidence(("/usr/bin/true",), cwd="a/../b"),
-            MechanicalEvidence(("/usr/bin/true",), cwd="a//b"),
-            MechanicalEvidence(("/usr/bin/true",), materials=(".",)),
-            MechanicalEvidence(("/usr/bin/true",), materials=("/tmp/raw",)),
-            MechanicalEvidence(("/usr/bin/true",), materials=("../raw",)),
-            MechanicalEvidence(("/usr/bin/true",), materials=("raw\x00",)),
-            MechanicalEvidence(["/usr/bin/true"]),
-            MechanicalEvidence(("/usr/bin/true",), materials=["raw"]),
-        ):
-            with self.subTest(declaration=declaration), self.assertRaises(ValueError):
-                validate_mechanical_evidence(declared_contract(declaration))
 
     def test_malformed_structured_mapping_is_not_silently_dropped(self) -> None:
         for declaration in (
@@ -125,12 +102,8 @@ class MechanicalRevisionTests(StoreTestCase):
         self.assertEqual(second.supersedes_revision_id, first.contract_revision_id)
         reopened = self.reopen()
         legacy = reopened.get_contract_revision(first.contract_revision_id)
-        runnable = reopened.get_contract_revision(second.contract_revision_id)
         self.assertEqual(legacy.canonical_bytes, first.canonical_bytes)
         self.assertTrue(reopened.is_admitted(first.contract_revision_id))
-        with self.assertRaisesRegex(ValueError, "explicit declaration"):
-            validate_mechanical_evidence(legacy.contract)
-        validate_mechanical_evidence(runnable.contract)
         self.assertFalse(reopened.is_admitted(second.contract_revision_id))
         self.assertTrue(reopened.admit(second.contract_revision_id).admitted)
 

@@ -4,12 +4,13 @@ import dataclasses
 import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from unittest.mock import patch
 
 from schema_support import restore_published_schema
-from submission_support import SubmissionCase
+from submission_support import SubmissionCase, configured_adapter
 
-from broodling import BroodlingStore, SchemaVersionMismatch
+from broodling import BroodlingStore, RequiredEffect, SchemaVersionMismatch
 from broodling.disposition import WorkUnitDispositionCoordinator
 from broodling.errors import SubmissionNotReady
 from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION
@@ -20,14 +21,9 @@ class DispositionFoundationTests(SubmissionCase):
         with patch.object(self.adapter, "submit", return_value="correlated-run"):
             self.submit()
 
-    def marker(self):
-        self.store.connection.execute(
-            "INSERT INTO attempt_finalizations VALUES (?, 'started')",
-            (self.attempt_id,),
-        )
-
     def custody(self, **changes):
         payload = {
+            "format": "broodling.final-assurance/v2",
             "attemptId": self.attempt_id,
             "contractRevisionId": self.attempt.contract_revision_id,
             "runId": "correlated-run",
@@ -50,36 +46,14 @@ class DispositionFoundationTests(SubmissionCase):
             (binding["work"], binding["contract"], binding["attempt"]),
         )
 
-    def test_uncorrelated_or_abandoned_attempt_cannot_start_finalization(self):
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.marker()
+    def test_historical_custody_cannot_gain_new_success(self):
         self.correlate()
-        self.store.abandon_attempt(self.attempt_id, "stop first")
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.marker()
-
-    def test_preexisting_custody_cannot_acquire_new_finalization_marker(self):
-        self.correlate()
-        self.custody()
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.marker()
+        self.custody(format="broodling.final-assurance/v1")
         with self.assertRaises(sqlite3.IntegrityError):
             self.insert_disposition()
 
-    def test_marker_cannot_be_reset_or_replaced_after_interruption(self):
-        self.correlate()
-        self.marker()
-        for sql in (
-            "DELETE FROM attempt_finalizations",
-            "UPDATE attempt_finalizations SET started_at = 'again'",
-            "INSERT OR REPLACE INTO attempt_finalizations SELECT * FROM attempt_finalizations",
-        ):
-            with self.subTest(sql=sql), self.assertRaises(sqlite3.IntegrityError):
-                self.store.connection.execute(sql)
-
     def test_missing_custody_and_conflicting_bound_identity_cannot_complete(self):
         self.correlate()
-        self.marker()
         with self.assertRaises(sqlite3.IntegrityError):
             self.insert_disposition()
         self.custody(runId="foreign-run")
@@ -97,6 +71,7 @@ class DispositionFoundationTests(SubmissionCase):
                 self.insert_disposition(**changes)
 
     def test_explicit_empty_effect_set_never_defaults_from_missing_or_unsupported(self):
+        self.correlate()
         coordinator = WorkUnitDispositionCoordinator(self.store, self.adapter)
         original = self.store.get_contract_revision(self.attempt.contract_revision_id)
         for declaration in (None, "missing", {}, ["push"], "[]", False):
@@ -115,14 +90,12 @@ class DispositionFoundationTests(SubmissionCase):
                 ),
                 self.assertRaises(SubmissionNotReady),
             ):
-                coordinator._require_no_effect_contract(self.attempt_id)
-        self.assertEqual(
-            coordinator._require_no_effect_contract(self.attempt_id), self.attempt
-        )
+                coordinator._bound(self.attempt_id)
+        self.assertEqual(coordinator._bound(self.attempt_id)[0], self.attempt)
 
     def test_exact_v7_migration_preserves_historical_custody_without_eligibility(self):
         self.correlate()
-        self.custody()
+        self.custody(format="broodling.final-assurance/v1")
         before = {
             table: [
                 tuple(row)
@@ -156,7 +129,7 @@ class DispositionFoundationTests(SubmissionCase):
             0,
         )
         with self.assertRaises(sqlite3.IntegrityError):
-            self.marker()
+            self.insert_disposition()
 
     def test_concurrent_v7_openers_migrate_once(self):
         restore_published_schema(self.store, 7)
@@ -170,6 +143,71 @@ class DispositionFoundationTests(SubmissionCase):
         self.assertEqual(records[0], records[1])
         self.assertEqual(records[0]["schema_sha256"], SCHEMA_SHA256)
 
+    def test_exact_v8_migration_preserves_completed_historical_evidence(self):
+        self.correlate()
+        restore_published_schema(self.store, 8)
+        self.store.connection.execute(
+            "INSERT INTO attempt_finalizations VALUES (?, 'historical-start')",
+            (self.attempt_id,),
+        )
+        self.custody(format="broodling.final-assurance/v1")
+        self.insert_disposition()
+        before = WorkUnitDispositionCoordinator(self.store, self.adapter).record(
+            self.attempt_id
+        )
+        self.restart()
+        self.assertEqual(self.store.schema_meta()["schema_sha256"], SCHEMA_SHA256)
+        self.assertEqual(
+            WorkUnitDispositionCoordinator(self.store, self.adapter).record(
+                self.attempt_id
+            ),
+            before,
+        )
+        self.assertEqual(before.result["format"], "broodling.final-assurance/v1")
+        self.assertIsNone(self.store.current_attempt(self.attempt.work_unit_id))
+        self.assertIsNone(
+            self.store.connection.execute(
+                "SELECT 1 FROM sqlite_schema WHERE name = 'attempt_finalizations'"
+            ).fetchone()
+        )
+
+    def test_v8_interrupted_finalization_marker_confers_no_disposition(self):
+        self.correlate()
+        restore_published_schema(self.store, 8)
+        self.store.connection.execute(
+            "INSERT INTO attempt_finalizations VALUES (?, 'interrupted')",
+            (self.attempt_id,),
+        )
+        self.custody(format="broodling.final-assurance/v1")
+        self.restart()
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert_disposition()
+        self.assertIsNone(
+            WorkUnitDispositionCoordinator(self.store, self.adapter).record(
+                self.attempt_id
+            )
+        )
+
+    def test_exact_v9_migration_preserves_completed_historical_result(self):
+        self.correlate()
+        restore_published_schema(self.store, 9)
+        self.custody()
+        self.insert_disposition()
+        before = WorkUnitDispositionCoordinator(self.store, self.adapter).record(
+            self.attempt_id
+        )
+        self.restart()
+        self.assertEqual(
+            self.store.schema_meta()["schema_version"], str(SCHEMA_VERSION)
+        )
+        self.assertEqual(self.store.schema_meta()["schema_sha256"], SCHEMA_SHA256)
+        self.assertEqual(
+            WorkUnitDispositionCoordinator(self.store, self.adapter).record(
+                self.attempt_id
+            ),
+            before,
+        )
+
     def test_unknown_v7_definition_cannot_gain_disposition_tables(self):
         restore_published_schema(self.store, 7)
         self.store.connection.execute(
@@ -182,3 +220,74 @@ class DispositionFoundationTests(SubmissionCase):
                 "SELECT name FROM sqlite_schema WHERE name = 'work_unit_dispositions'"
             ).fetchone()
         )
+
+
+class StableReceiptDatabaseTests(SubmissionCase):
+    def contract(self, work_unit, source, **overrides):
+        return replace(
+            super().contract(work_unit, source, **overrides),
+            required_effects=(
+                RequiredEffect("deliver", "Open the PR.", "pull_request", "main"),
+            ),
+            host_assumptions=("single_host", "one_attempt_one_dedicated_worktree"),
+        )
+
+    def new_adapter(self):
+        return configured_adapter(
+            self.runtime_state,
+            self.root,
+            delivery_target_origin="http://127.0.0.1:8123",
+            github_token="token",
+        )
+
+    def setUp(self):
+        super().setUp()
+        with patch.object(self.adapter, "submit", return_value="run"):
+            self.submit()
+
+    def payload(self, **receipt_changes):
+        receipt = {
+            "version": "v1",
+            "mode": "pr",
+            "outcome": "opened",
+            "repository": "faviann/broodling",
+            "targetBranch": "main",
+            "headRevision": "b" * 40,
+            "pullRequestId": "50",
+        }
+        receipt.update(receipt_changes)
+        return {
+            "format": "broodling.final-assurance/v3",
+            "attemptId": self.attempt_id,
+            "contractRevisionId": self.attempt.contract_revision_id,
+            "runId": "run",
+            "workflow": {"name": "software-change", "delivery": "pull_request"},
+            "acceptedRevision": receipt["headRevision"],
+            "deliveryReceipt": receipt,
+        }
+
+    def insert_result(self, payload):
+        self.store.connection.execute(
+            "INSERT INTO final_assurance VALUES (?, 'run', ?)",
+            (self.attempt_id, json.dumps(payload)),
+        )
+        self.store.connection.execute(
+            "INSERT INTO work_unit_dispositions VALUES (?, ?, ?, 'SUCCEEDED', 'now')",
+            (
+                self.attempt.work_unit_id,
+                self.attempt.contract_revision_id,
+                self.attempt_id,
+            ),
+        )
+
+    def test_matching_native_receipt_can_complete_at_database_boundary(self):
+        self.insert_result(self.payload())
+        self.assertIsNotNone(
+            WorkUnitDispositionCoordinator(self.store, self.adapter).record(
+                self.attempt_id
+            )
+        )
+
+    def test_foreign_native_receipt_cannot_complete_at_database_boundary(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert_result(self.payload(repository="other/project"))

@@ -1,29 +1,15 @@
-"""Broodling V1-P2 admission and Attempt/worktree nucleus.
+"""One admitted Work Unit, executed by Zeroshot.
 
-This package implements the durable facts for one Work Unit:
-
-* stable Work Unit identity for one target repository plus one primary
-  authoritative GitHub issue;
-* explicitly entitled source snapshots, with the exact bytes a Contract was
-  built from;
-* immutable Contract revisions;
-* the V1 no-effect Closability/admission decision for each revision; and
-* one immutable current Attempt, its original starting state B1, and the one
-  dedicated disposable worktree it exclusively owns.
-
-It durably correlates an Attempt to its one Zeroshot run and authors the V1
-assurance graph. Execution state, typed validation and routing remain in
-Zeroshot. Minimal final assurance custody retains declared source material and
-normal current-run assessment. Administrative abandonment and owned retirement
-require physical cessation. Explicit replacement allocates a fresh Attempt
-from the original admitted B1. Normal finalization durably records justified
-no-effect Work Unit success; interrupted finalization abandons the Attempt.
+Broodling freezes domain authority and the invocation, correlates one Attempt
+with one native software-change run, and commits a lifecycle decision only from
+an authorized stable Zeroshot result. Zeroshot owns execution, review, repair,
+delivery, sessions, observation and stopping. Dispatched worktrees remain
+quarantined when physical cessation cannot be established by the supported target.
 """
 
 from __future__ import annotations
 
 from .abandonment import AbandonmentCoordinator, AttemptRetirement, CessationUnconfirmed
-from .assurance import FinalAssuranceCoordinator, FinalAssuranceRecord
 from .closability import (
     ADMITTED,
     REJECTED,
@@ -31,7 +17,7 @@ from .closability import (
     ClosabilityFinding,
     assess,
 )
-from .codex_profile import QualifiedCodexProfile
+from .codex_profile import CodexProfile
 from .contract import (
     Contract,
     Criterion,
@@ -50,7 +36,6 @@ from .errors import (
     AttemptConflict,
     BroodlingError,
     ContractImmutabilityError,
-    FinalizationInterrupted,
     GitCommandError,
     InvalidWorkReference,
     SchemaVersionMismatch,
@@ -110,23 +95,20 @@ __all__ = [
     "CessationUnconfirmed",
     "ClosabilityAssessment",
     "ClosabilityFinding",
+    "CodexProfile",
     "Contract",
     "ContractImmutabilityError",
     "ContractRevisionRecord",
     "Criterion",
     "EntitledSourceRecord",
     "EvidencePopulation",
-    "FinalAssuranceCoordinator",
     "FinalAssuranceMaterial",
-    "FinalAssuranceRecord",
-    "FinalizationInterrupted",
     "GitCommandError",
     "InvalidWorkReference",
     "MechanicalEvidence",
     "Obligation",
     "Prerequisite",
     "ProvisionedWorktree",
-    "QualifiedCodexProfile",
     "RequiredEffect",
     "RetryCoordinator",
     "SchemaVersionMismatch",

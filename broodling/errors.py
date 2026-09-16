@@ -86,7 +86,3 @@ class SubmissionConflict(BroodlingError):
     def __init__(self, message: str, *, existing_run_id: str = "") -> None:
         super().__init__(message)
         self.existing_run_id = existing_run_id
-
-
-class FinalizationInterrupted(BroodlingError):
-    """A started finalization has no disposition and cannot recover eligibility."""
