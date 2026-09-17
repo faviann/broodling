@@ -103,25 +103,55 @@ new cleanup. Legacy storage/type names do not restore the old assurance protocol
 
 ## Next phase: P5 native-workflow product evaluation
 
-**P5 is defined, not started or passed.** Establish how well the existing thin
-integration delivers an authorized task and assess native-workflow outcome quality.
-Do not inherit v0.5's adjudicator/final-assessor checklist or mandatory new API.
+**P5 protocol/setup work is in progress; no live provider trial has started and P5
+has not passed.** Establish how well the existing thin integration delivers an
+authorized task and assess native-workflow outcome quality. Do not inherit v0.5's
+adjudicator/final-assessor checklist or mandatory new API.
+
+The current prospective live protocol is
+[`p5-native-pr-v3`](../../evaluation/p5/v3/protocol.md). It preserves the frozen
+v1 corpus/judge and v2 claim-level decision rules while correcting operational
+prerequisites that had become broader than the current MVP/evaluation requires.
+The v1/v2 files and the recorded blocked v2 preflight remain provenance and are not
+rewritten as successful live evidence.
 
 ### Prerequisites
 
-Use this authority, the current default suite and one recorded product/dependency
-baseline. Before live PR evaluation, provide an explicitly authorized disposable
-GitHub repository/target branch, a compatible configured DirectTarget, provider
-authentication, current delivery credentials and agreed run/spend limits. Record
-the target's operator-owned profile and a safe host teardown arrangement outside
-Broodling's cleanup authority. Missing infrastructure blocks the corresponding
-live claim; controlled fixtures cannot substitute for it.
+Use this authority, one recorded compatible product/dependency baseline and a
+supported full-suite result. Before a live PR trial, use a designated disposable
+GitHub repository/target branch, the exact authorized PR effect, a configured
+compatible DirectTarget, provider authentication and current delivery credentials.
+Each trial still needs the entitled source/primary issue/Work Unit/Contract/B1/
+Attempt/workspace facts required by the current Broodling APIs.
+
+Operational setup should be automated where practical. Evaluation tooling may
+create or verify the disposable fixture, task records, target configuration and
+evidence locations; that automation does not create new Broodling product
+requirements. A setup failure before a slot's first admission may be corrected and
+retried without consuming the preregistered trial. Once admission starts, the
+frozen campaign accounting and no-rerun rules apply.
+
+These first real-provider P5 runs have **no P5-specific dollar or wall-time
+ceiling**. The corpus itself remains bounded at eight serial trials. The owner
+actively supervises execution and can stop/contain the target externally. Record
+observed cost and latency where available, but do not require budget enforcement,
+billing-lag accounting, stop margins, operator signatures or campaign deadlines as
+conditions for the current MVP evaluation.
+
+Preserve the target/operator trust boundary without turning it into a product
+feature. Record the actual target/runtime facts needed to identify the evaluated
+profile, keep frozen judge/reference material out of worker inputs, independently
+judge exact accepted revisions, retain enough evidence outside disposable
+workspaces to reproduce those judgments, and preserve enough capacity for the
+known quarantined Attempts. A formal sandbox inventory, network-disabled judging
+host, separately assigned reviewer, archive SLA or detailed teardown runbook is
+not intrinsically required unless a concrete evaluation/safety concern makes it
+material.
 
 Choose a small task set, independent judging checks and claim/acceptance criteria
-before evaluation runs. These are evaluation controls, not mandatory admission
-proof plans. Exact corpus size, budgets and quantitative quality thresholds are
-P5 protocol choices, not inherited v0.5 obligations. No historical G1–G4 rerun or
-#3/#5/#6 pass is a prerequisite.
+before evaluation runs. For P5 this choice is already frozen as the bounded v1/v2
+corpus and v2 claim-level gate. These are evaluation controls, not mandatory
+admission proof plans. No historical G1–G4 rerun or #3/#5/#6 pass is a prerequisite.
 
 ### Work and evidence
 
@@ -168,6 +198,16 @@ candidate seals, supervision or a second execution ledger. Broader effects, merg
 long-term Git-object custody, new CLI/service packaging and model/reviewer tuning
 are not mandatory P5 deliverables. Findings may motivate separate work; phase
 numbering alone does not authorize it.
+
+### P5 planning provenance
+
+Version 1 remains frozen at `717e94b3548d1dc029bfb54e2758e9929f1d93bd`.
+Version 2 remains frozen at `1d581717509de182410c3ab2f54d3f65768d8d7f`.
+The blocked #64/#65 preflight/not-run record at
+`b9cacd99beb9a297966e68e6047c7663aca9b4c6` remains evidence that the supported
+suite passed there but R01-R08 were all NOT_STARTED and no live provider/PR
+P5 observation occurred. V3 is prospective; it does not rescore or erase that
+record.
 
 ## Backlog disposition from issue #60
 
