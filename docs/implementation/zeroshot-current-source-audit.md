@@ -1,18 +1,28 @@
 # Current Zeroshot source audit
 
+**Status: dated dependency investigation supporting the
+[current architecture and P5 plan](../governing/current.md).** The initial
+no-Git-delivery proposal below preceded the
+[result-handoff audit](zeroshot-result-handoff-audit.md); its findings led to
+conditional authorized PR delivery in the adopted
+[native integration](zeroshot-native-integration.md). Release findings apply to
+the pinned investigation, not a continuously updated latest-release claim.
+
 Investigated 16 September 2026, starting from Broodling main
 `87f228652117557de95a679d4f22bca76cb86b83`. The initial audit examined Zeroshot
 10.2.9 at `70a6c80d3d6b00f4300776fe2bbe1b4ba86763bf`; release rechecking found
 10.3.0 published during this work. Current source links below name its immutable
 commit `054ad3fd6c763b98d12f5b2e90830b97116561ad`.
 
-The selected design uses Zeroshot's standard `software-change` workflow with no
+The initial design considered Zeroshot's standard `software-change` workflow with no
 Git delivery. The user explicitly chose to drop Broodling's separate mechanical
 evidence, adjudication and per-criterion proof protocol. Broodling admits one
 invocation, consumes its eventual result and decides the Work Unit lifecycle
 under current-Attempt authority. Dispatched Attempt workspaces remain quarantined
-because the local target offers no public physical cessation receipt. This is a
-prospective decision, not a revision of historical qualification evidence.
+because the local target offers no public physical cessation receipt. This was a
+prospective decision at that stage, not a revision of historical qualification
+evidence. The later adopted delivery scope includes authorized native PR delivery;
+no-effect Work Units retain the stable-local-result gap.
 
 The owner also removed admission gates requiring a predeclared evidence
 population, validation seam, validation action, and falsifying observation.
@@ -22,9 +32,9 @@ immutable, but a complete validation plan is not an admission prerequisite.
 
 ## Release and distribution
 
-The latest stable engine on recheck is **Zeroshot 10.3.0**, released on 16 September
-2026 at 17:07 UTC. Its matching stable Python SDK is **10.3.0.post1**, released at
-17:12 UTC under tag `zeroshot-python-v10.3.0_1`. Both tags name the current commit
+The stable engine selected at the 16 September recheck was **Zeroshot 10.3.0**,
+released on 16 September 2026 at 17:07 UTC. Its matching stable Python SDK is **10.3.0.post1**, released at
+17:12 UTC under tag `zeroshot-python-v10.3.0_1`. Both tags name the pinned commit
 above. The distribution is `the-open-engine-zeroshot`, imported as `zeroshot`;
 the old unpublished `zeroshot-rust==0.1.0.dev0` integration is not the current
 release line. Sources: [engine release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.3.0),
@@ -125,8 +135,8 @@ The built-in `software-change` graph provides an implementation worker,
 independent acceptance/code review, repair, and ten bounded review iterations.
 With delivery disabled, successful output is JSON null. It supplies no separate
 Broodling criterion evidence, adjudication or final rationale. That is now the
-selected execution outcome, but not a stable candidate identity, so Broodling
-10.3 refuses successful disposition rather than manufacturing a snapshot. An
+selected execution outcome, but not a stable candidate identity. Broodling with
+Zeroshot 10.3 refuses successful disposition rather than manufacturing a snapshot. An
 authorized PR run instead uses the stable native receipt described in the
 [result-handoff audit](zeroshot-result-handoff-audit.md).
 Source: [standard graph implementation](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_templates.rs).

@@ -1,9 +1,14 @@
 # Thin native Zeroshot integration
 
+**Current implementation reference.** The
+[current architecture and P5 plan](../governing/current.md) governs scope and next
+work; this document supplies the detailed native boundary. The source and
+result-handoff audits are dated supporting research, not competing plans.
+
 Decision date: 16 September 2026. This is the current implementation boundary.
 It supersedes the custom execution/proof requirements and recovery capability
 claims in the v0.5 governing pair and V1-P3/V1-P4 implementation notes, without
-changing those historical documents or their qualification evidence. Immutable
+changing their original bodies or qualification evidence. Immutable
 admission, source entitlement, current-Attempt authority, and effect authorization
 remain product requirements.
 
@@ -105,7 +110,7 @@ graph or a different per-call task. A criterion may supply only its identity and
 acceptance statement. An evidence population, validation seam/action, and
 falsifying observation are optional task guidance, not Broodling-run evidence
 commands or admission requirements. Historical supplied guidance remains part of
-its immutable Contract. Required effects, unsupported external obligations,
+its immutable Contract. Unsupported effects and external obligations,
 effect-dependent evidence, and unsatisfied prerequisites still fail closed;
 removing the proof-plan gates does not waive those domain restrictions.
 

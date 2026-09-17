@@ -9,8 +9,10 @@ The fixture returns an empty worker response and accepted read-only verifier
 responses. When the frozen task contains `BROODLING_TEST_WRITE`, its worker
 writes known candidate bytes to `README.md`. It makes no provider calls, uses
 no real credentials, and performs no delivery. Its responses let tests exercise
-Broodling submission/correlation, completed-result consumption, and selected
-candidate retention through the public native seam.
+Broodling submission/correlation, completed-result consumption and mutable
+candidate changes through the public native seam. A null no-effect result is
+refused for successful disposition; this fixture does not produce a stable
+accepted candidate or a real PR receipt.
 
 This is deliberately not an independent implementation of review, repair, or
 graph semantics. Tests do not inspect Zeroshot's private ledger or demand a

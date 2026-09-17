@@ -10,6 +10,14 @@ independently reviews acceptance and code, and repairs. Broodling does not autho
 an execution graph, supervise provider processes, reconstruct execution history,
 or independently re-prove the workflow's result.
 
+## Source of truth
+
+Start with the [current architecture and P5 plan](docs/governing/current.md).
+It governs current scope, identifies historical documents and defines the next
+phase: native-workflow product evaluation, not the superseded v0.5 assurance
+checklist. P5 is not yet executed or qualified. The native integration design
+below supplies implementation details; old gate passes do not qualify this profile.
+
 ## Current boundary
 
 Broodling owns immutable source/Contract admission, one current Attempt and its
@@ -24,8 +32,8 @@ or adjudication record.
 A source-attributed Contract can be admitted with acceptance criteria alone.
 A finite evidence population, validation seam/action, and falsifying observation
 are optional guidance, not a required prewritten validation plan. Zeroshot decides
-how to implement and validate the change. Required effects, effect-dependent
-evidence, and unsatisfied prerequisites still fail admission.
+how to implement and validate the change. Unsupported required effects,
+effect-dependent evidence, and unsatisfied prerequisites still fail admission.
 
 The supported target is single-host Linux x86-64 with **Zeroshot 10.3.0** and its
 matching **Python SDK 10.3.0.post1**. See the
@@ -61,8 +69,9 @@ override arbitrary managed configuration; this is a supported-host precondition,
 not a universal no-effect proof. See the
 [local policy limitation](docs/implementation/zeroshot-native-integration.md#local-policy-and-cleanup-limitation).
 
-The example below starts with an already recorded and admitted Contract
-revision and a clean committed source repository with a GitHub origin. The host
+The example below executes a Contract already recorded and admitted with exactly
+one authorized pull_request effect naming its target branch. It starts from a
+clean committed source repository with a GitHub origin. The host
 supplies an empty profile home and a separate Codex home
 containing only `auth.json`. Keep the database, runtime state, profiles, and
 durable Attempt workspaces outside the source checkout; preserve runtime state
@@ -108,6 +117,10 @@ def execute(admitted_revision_id: str):
         )
 ```
 
+For no-effect LocalTarget work, omit both delivery_target_origin and github_token;
+keep the isolated local Codex profile. This does not remove the no-effect stable
+result limitation described below.
+
 For an authorized PR, Zeroshot runs against the explicit repository, target
 branch, and B1 revision on the configured direct target. PR delivery is admitted
 only for a GitHub Work Unit. Its successful PR
@@ -142,10 +155,12 @@ The default [test suite](tests/README.md) covers Broodling-owned invariants and
 the published SDK/native seam using a controlled, non-networked provider
 fixture. It is not a paid-provider or sandbox qualification campaign.
 
-This design supersedes the execution/proof requirements in the older governing
-documents. The [source audit](docs/implementation/zeroshot-current-source-audit.md)
-explains the current dependency investigation.
+The [current authority](docs/governing/current.md#documentation-authority)
+classifies current and historical documents explicitly. The
+[source audit](docs/implementation/zeroshot-current-source-audit.md) and
+[result-handoff audit](docs/implementation/zeroshot-result-handoff-audit.md)
+record the dependency investigation leading to the adopted native integration.
 [Qualification records](qualification/README.md),
-[older governing documents](docs/governing), and the
+[historical governing plans](docs/governing/broodling-implementation-dependency-plan-v0.5.md), and the
 [baseline inventory](docs/baseline/p0-g0-inventory.md) remain historical evidence
 for their recorded versions and profiles; they do not qualify this integration.
