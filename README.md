@@ -133,6 +133,14 @@ dispatch and are not persisted in the invocation. Zeroshot selects only
 only detaches; waiting again can consume the same result without either dispatch
 credential.
 
+The intended future MVP topology is node-local Codex using its normal
+ChatGPT/OAuth login rather than Broodling forwarding a provider API key. Pinned
+Zeroshot 10.3.0 cannot combine that local-user harness identity with the exact
+explicit target-branch authority required here: its local target derives delivery
+source from the attached Attempt branch. The DirectTarget profile above remains
+supported, but the node-local authorized-PR profile and its P5 live evaluation are
+blocked pending the [missing upstream capability](docs/implementation/zeroshot-node-local-authorized-pr-audit.md).
+
 For a no-effect Work Unit, Zeroshot 10.3 returns null and leaves only a mutable
 local worktree. Broodling may run that no-effect workflow, but it fails closed at
 final disposition because no stable accepted result exists. It does not silently
