@@ -42,7 +42,7 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
 - Exact original B1 provisioning and exclusive ownership of disposable
   worktrees, including Broodling's own concurrent-call/crash boundaries.
 - Immutable invocation preparation, durable dispatch/correlation, acknowledgement
-  loss (including unchanged-worktree DirectTarget replay), current PR credential
+  loss (including unchanged-worktree DirectTarget replay), current PR credentials
   checks, and refusal of conflicting target, forge, or source identities.
 - Native PR receipt binding and stable `headRevision`; refusal to disposition a
   null-output no-effect run; reopened completed runs; current-Attempt authority;

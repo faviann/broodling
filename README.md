@@ -110,6 +110,7 @@ def execute(admitted_revision_id: str):
             # Required only when this Contract authorizes pull_request delivery.
             delivery_target_origin="https://zeroshot.example.internal",
             github_token=os.environ.get("GH_TOKEN"),
+            openai_api_key=os.environ.get("OPENAI_API_KEY"),
         )
         SubmissionCoordinator(store, engine).submit(attempt.attempt_id)
         return asyncio.run(
@@ -117,17 +118,20 @@ def execute(admitted_revision_id: str):
         )
 ```
 
-For no-effect LocalTarget work, omit both delivery_target_origin and github_token;
-keep the isolated local Codex profile. This does not remove the no-effect stable
-result limitation described below.
+For no-effect LocalTarget work, omit `delivery_target_origin`, `github_token`, and
+`openai_api_key`; keep the isolated local Codex profile. This does not remove the
+no-effect stable result limitation described below.
 
 For an authorized PR, Zeroshot runs against the explicit repository, target
 branch, and B1 revision on the configured direct target. PR delivery is admitted
 only for a GitHub Work Unit. Its successful PR
 receipt is retained verbatim, and `headRevision` is the stable accepted result.
-The current token is checked on every initial or replayed dispatch and is neither
-persisted nor exposed to agent runtime bindings. Cancelling a wait only detaches;
-waiting again can consume the same result.
+The current GitHub and OpenAI credentials are checked on every initial or replayed
+dispatch and are not persisted in the invocation. Zeroshot selects only
+`OPENAI_API_KEY` for the runtime's declared `openai` connection and reserves
+`GH_TOKEN` for source checkout and the native delivery binding. Cancelling a wait
+only detaches; waiting again can consume the same result without either dispatch
+credential.
 
 For a no-effect Work Unit, Zeroshot 10.3 returns null and leaves only a mutable
 local worktree. Broodling may run that no-effect workflow, but it fails closed at

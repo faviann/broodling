@@ -213,6 +213,7 @@ class StableReceiptDatabaseTests(SubmissionCase):
             self.root,
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="token",
+            openai_api_key="provider-key",
         )
 
     def setUp(self):

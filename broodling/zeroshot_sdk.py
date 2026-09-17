@@ -36,9 +36,11 @@ class ZeroshotSubmitter:
         codex_profile: CodexProfile | None = None,
         delivery_target_origin: str | None = None,
         github_token: str | None = None,
+        openai_api_key: str | None = None,
     ) -> None:
         self.codex_profile = codex_profile
         self.github_token = github_token
+        self.openai_api_key = openai_api_key
         self._tool_path = os.environ.get("PATH", "")
         # Client inherits these operating variables even with an explicit
         # environment. Freeze/clear them so ambient homes/config cannot leak in.
@@ -79,8 +81,8 @@ class ZeroshotSubmitter:
         if delivery == "none":
             return self.runtime
         if delivery == "pull_request":
-            # The named target owns its provider installation and authentication.
-            # GH_TOKEN is template-owned delivery authority, never an agent binding.
+            # The direct target owns its provider installation. Credentials are
+            # supplied only to the SDK process when this invocation is dispatched.
             return {
                 "harness": "codex",
                 "provider": "openai",
@@ -94,6 +96,23 @@ class ZeroshotSubmitter:
     def require_execution_profile(self) -> None:
         if self.codex_profile is None:
             raise UnsupportedRuntime("execution requires the no-effect Codex profile")
+
+    def _pr_credentials(self) -> tuple[str, str]:
+        token = self.github_token
+        if not isinstance(token, str) or not token.strip() or len(token) > 4096:
+            raise UnsupportedRuntime(
+                "pull-request delivery requires a current nonempty GH_TOKEN"
+            )
+        provider_key = self.openai_api_key
+        if (
+            not isinstance(provider_key, str)
+            or not provider_key.strip()
+            or len(provider_key) > 4096
+        ):
+            raise UnsupportedRuntime(
+                "pull-request delivery requires a current nonempty OPENAI_API_KEY"
+            )
+        return token, provider_key
 
     def _validate_policy(self, delivery: str = "none") -> None:
         if self.target.get("sdkVersion") != ZEROSHOT_SDK_VERSION:
@@ -142,11 +161,7 @@ class ZeroshotSubmitter:
                 workspace, path=self.target["environment"]["PATH"]
             )
             return
-        token = self.github_token
-        if not isinstance(token, str) or not token.strip() or len(token) > 4096:
-            raise UnsupportedRuntime(
-                "pull-request delivery requires a current nonempty GH_TOKEN"
-            )
+        self._pr_credentials()
         selected = request.get("delivery")
         if not isinstance(selected, dict):
             raise UnsupportedRuntime("pull-request delivery identity is missing")
@@ -182,8 +197,10 @@ class ZeroshotSubmitter:
         from zeroshot import Client, DirectTarget, LocalTarget
 
         environment = dict(request["target"]["environment"])
-        if delivery == "pull_request" and self.github_token is not None:
-            environment["GH_TOKEN"] = self.github_token
+        if delivery == "pull_request":
+            token, provider_key = self._pr_credentials()
+            environment["GH_TOKEN"] = token
+            environment["OPENAI_API_KEY"] = provider_key
         target = (
             LocalTarget(request["workspace"], state_dir=request["target"]["stateDir"])
             if delivery == "none"

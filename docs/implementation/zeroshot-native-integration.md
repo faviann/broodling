@@ -125,10 +125,10 @@ typed native conflict can recover the existing run ID only for the narrow case
 of an already-dispatched request whose owned source assignment still matches and
 whose HEAD has changed from B1. Other source/configuration conflicts fail closed.
 DirectTarget replay uses the same explicit source triple, so an exact retry
-normally returns the existing run without local worktree drift. Because delivery
-credentials are intentionally absent from persisted requests, Broodling checks
-the current `GH_TOKEN` again before every initial or replayed PR dispatch, outside
-the SQLite writer transaction.
+normally returns the existing run without local worktree drift. Because provider
+and delivery credentials are intentionally absent from persisted requests,
+Broodling checks the current `OPENAI_API_KEY` and `GH_TOKEN` again before every
+initial or replayed PR dispatch, outside the SQLite writer transaction.
 There is no lease, ledger scan, execution discovery, or runtime replay algorithm.
 
 Abandonment may commit while submission is in flight. If Zeroshot subsequently
@@ -149,8 +149,8 @@ After durable correlation, Broodling reconnects from the locator already frozen
 in that invocation: LocalTarget uses the canonical native state directory and
 DirectTarget uses the persisted target origin. Waiting and force-stop do not
 reconstruct or revalidate the dispatch-time workspace, Codex profile, runtime,
-provider environment, target configuration, or `GH_TOKEN`. Those remain strict
-requirements for new dispatch and acknowledgement-loss replay only. Completion
+provider environment, target configuration, `OPENAI_API_KEY`, or `GH_TOKEN`.
+Those remain strict requirements for new dispatch and acknowledgement-loss replay only. Completion
 still rechecks current Attempt authority, admitted Contract and delivery
 authority, the immutable Attempt/run/invocation binding, and the native delivery
 receipt.
@@ -176,14 +176,17 @@ silently ignored, while historical records remain readable.
 
 The launcher policy below applies to `delivery="none"` LocalTarget execution.
 Authorized PR delivery uses the configured Zeroshot DirectTarget, whose operator
-owns its provider installation, authentication and sandbox profile. Broodling
-supplies `GH_TOKEN` only to the SDK process for the native delivery binding; the
-token is not persisted in the invocation and the agent runtime declares no token
-connection. The frozen Contract authorizes the PR effect, not general provider
-access or any additional effect. Configuring that endpoint is therefore a hard
-operator trust boundary: Broodling freezes its origin into the invocation and
-refuses a changed endpoint on replay, but it cannot qualify or constrain the
-remote target's installation from the local SDK.
+owns its provider installation and sandbox profile. Zeroshot 10.3.0 DirectTarget
+has no target-owned connection store or resolver, so Broodling supplies the
+current `OPENAI_API_KEY` and `GH_TOKEN` only through the SDK environment at
+dispatch. Zeroshot selects `OPENAI_API_KEY` for the runtime's declared `openai`
+connection and reserves `GH_TOKEN` for source checkout and the native delivery
+binding. Neither value is persisted in the invocation. The frozen Contract
+authorizes the PR effect, not general provider access or any additional effect.
+Configuring that endpoint is therefore a hard operator trust boundary: Broodling
+freezes its origin into the invocation and refuses a changed endpoint on replay,
+but it cannot qualify or constrain the remote target's installation from the
+local SDK.
 
 The small [Codex launcher](../../broodling/codex_bin/codex) applies explicit
 workspace-write worker/read-only verifier sandbox modes, strips sandbox/approval

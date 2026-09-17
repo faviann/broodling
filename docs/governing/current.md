@@ -80,9 +80,11 @@ claim or a transfer of old host qualification.
 PR delivery includes native commit/push/open-or-update, not a branch-only effect.
 An opened PR does **not** promise passing CI or a merge. Its commit OID is a stable
 identity, not guaranteed permanent remote object retention. The DirectTarget
-operator owns its execution checkout, provider installation, authentication and
-sandbox policy; the local launcher does not constrain that target. This explicit
-trust boundary is not Broodling multi-host orchestration. The local no-effect
+operator owns its execution checkout, provider installation, and sandbox policy;
+Broodling passes the current provider and delivery credentials ephemerally at PR
+dispatch because the supported DirectTarget has no connection store. The local
+launcher does not constrain that target. This explicit trust boundary is not
+Broodling multi-host orchestration. The local no-effect
 profile requires the documented trusted-host precondition excluding
 operator-managed effect-capable MCP/extensions.
 
@@ -120,7 +122,8 @@ rewritten as successful live evidence.
 Use this authority, one recorded compatible product/dependency baseline and a
 supported full-suite result. Before a live PR trial, use a designated disposable
 GitHub repository/target branch, the exact authorized PR effect, a configured
-compatible DirectTarget, provider authentication and current delivery credentials.
+compatible DirectTarget, a current `OPENAI_API_KEY`, and a current delivery
+credential.
 Each trial still needs the entitled source/primary issue/Work Unit/Contract/B1/
 Attempt/workspace facts required by the current Broodling APIs.
 

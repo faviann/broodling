@@ -436,6 +436,7 @@ class PullRequestSubmissionControls(SubmissionCase):
             self.root,
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="token",
+            openai_api_key="provider-key",
         )
 
     def test_acknowledgement_loss_recovers_without_local_worktree_drift(self):
@@ -461,6 +462,19 @@ class PullRequestSubmissionControls(SubmissionCase):
         self.adapter.github_token = None
         with patch.object(self.adapter, "submit") as native:
             with self.assertRaisesRegex(UnsupportedRuntime, "GH_TOKEN"):
+                self.coordinator.reconcile(self.attempt_id)
+            native.assert_not_called()
+        self.assertEqual(self.coordinator.record(self.attempt_id).state, "dispatched")
+
+    def test_dispatched_replay_requires_a_current_provider_credential(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        self.adapter.openai_api_key = None
+        with patch.object(self.adapter, "submit") as native:
+            with self.assertRaisesRegex(UnsupportedRuntime, "OPENAI_API_KEY"):
                 self.coordinator.reconcile(self.attempt_id)
             native.assert_not_called()
         self.assertEqual(self.coordinator.record(self.attempt_id).state, "dispatched")

@@ -105,12 +105,14 @@ targets. It avoids mutating Broodling's deliberately synthetic Attempt branch
 into the PR base, and lets Zeroshot own its checkout, workflow, commit, push, and
 receipt as one delivery operation.
 
-Only for `pull_request`, Broodling supplies `GH_TOKEN` through the SDK's
-environment value source. With an explicit `Client(environment=...)` mapping,
-that mapping is complete. The template adds `GH_TOKEN` only to its native
-Git-delivery binding; it is not named in the agent runtime's connections.
-Native requires a nonblank token of at most 4,096 bytes; absence is an
-authentication refusal.
+Only for `pull_request`, Broodling supplies `OPENAI_API_KEY` and `GH_TOKEN`
+through the SDK's environment value source. With an explicit
+`Client(environment=...)` mapping, that mapping is complete. The default OpenAI
+runtime declares `openai: [OPENAI_API_KEY]`, while the template adds `GH_TOKEN`
+only to its native Git-delivery binding. DirectTarget has no managed connection
+store or dynamic resolver; its submission therefore forwards these exact
+ephemeral values. Broodling requires each current value to be nonblank and at
+most 4,096 bytes before dispatch.
 
 Sources: [local source snapshot](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_local.rs#L70-L135),
 [local delivery target binding](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_local.rs#L248-L269),

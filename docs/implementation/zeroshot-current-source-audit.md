@@ -76,6 +76,22 @@ The standard public integration surface supports beginning/end participation:
 | Read status for diagnostics | `Run.status()` |
 | Request stop for an already-correlated run | `Run.force_stop()` |
 
+The pinned DirectTarget has no target-owned connection configuration path.
+Connection management is rejected for direct targets, and direct submission
+always sends the environment-selected static connection values with
+`connection_resolver=None`. The target consequently constructs
+`RunEnvironment::exact`, which rejects a runtime whose declared connection is
+missing. Hosted Codex also sets `local_user=None`, so target process environment
+or a local ChatGPT login cannot replace the declared OpenAI connection. The
+supported PR path is therefore an explicit `Client(environment=...)` containing
+the current `OPENAI_API_KEY`; the SDK selects only the fields named by the
+runtime and sends them ephemerally with the run request. Sources: [direct
+connection management](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_target/controller_authority/connections.rs#L12-L20),
+[direct submission](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_target.rs#L355-L370),
+[exact environment construction](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_hosting.rs#L160-L167),
+[connection validation](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_supervisor/environment.rs#L235-L246),
+and [hosted Codex allocation](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_hosting/allocator.rs#L209-L218).
+
 `RunResult` contains `run_id`, `succeeded`, `output`, and `failure`. A completed
 run is returned immediately by `wait()`, including after reopening a client.
 An active wait uses Zeroshot's durable status cursor internally. Python timeout,
@@ -115,9 +131,9 @@ async with Client(target=reconnect_target, environment={}) as client:
 For DirectTarget runs, the corresponding reconnect target is
 `DirectTarget(admitted["target"]["deliveryTargetOrigin"])`. Observation and
 force-stop need that persisted origin and run ID, not the submission workspace,
-runtime, provider environment, or delivery credential. Broodling still requires
-the complete frozen selection and current dispatch authority before an initial
-submission or acknowledgement-loss replay.
+runtime, provider environment, or dispatch credentials. Broodling still requires
+the complete frozen selection, current `OPENAI_API_KEY`, current `GH_TOKEN`, and
+dispatch authority before an initial submission or acknowledgement-loss replay.
 
 Zeroshot expands the preset and validates before starting a controller. Exact
 duplicate submissions return the existing run; changed content under the same

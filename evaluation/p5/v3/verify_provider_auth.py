@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect the unchanged PR credential path without admitting or submitting work.
+"""Verify the PR credential path without admitting or submitting work.
 
 Uses non-secret sentinels only. Native profile materialization and --validate-only
 run in disposable local state: no target, task execution, or real credential is
@@ -29,11 +29,12 @@ UPSTREAM = "https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12
 
 
 def observe() -> dict:
-    with patch.dict(os.environ, {"OPENAI_API_KEY": "non-secret-audit-sentinel"}):
+    with patch.dict(os.environ, {"OPENAI_API_KEY": "ambient-must-not-win-sentinel"}):
         submitter = ZeroshotSubmitter(
             "/tmp/p5-auth-probe-unused-state",
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="non-secret-delivery-sentinel",
+            openai_api_key="non-secret-provider-sentinel",
         )
         request = {
             "target": submitter.target,
@@ -47,6 +48,9 @@ def observe() -> dict:
             "ambientOpenaiKeyPresentForProbe": True,
             "sdkEnvironmentKeyNames": sorted(environment),
             "sdkOpenaiKeyPresent": "OPENAI_API_KEY" in environment,
+            "sdkOpenaiKeyMatchesDispatchCredential": (
+                environment.get("OPENAI_API_KEY") == "non-secret-provider-sentinel"
+            ),
             "sdkCodexKeyPresent": "CODEX_API_KEY" in environment,
             "sdkDeliveryKeyPresent": "GH_TOKEN" in environment,
             "sdkHomeIsEmpty": environment["HOME"] == "",
@@ -99,15 +103,18 @@ def observe() -> dict:
         expanded_runtime = profile.get("profile", profile)["runtime"]
     assert version == "zeroshot 10.3.0", "native baseline changed; reassess this probe"
     assert validation == {"valid": True}
-    assert not environment_probe["sdkOpenaiKeyPresent"], "credential path changed; reassess"
+    assert environment_probe["sdkOpenaiKeyPresent"], "provider credential was not handed off"
+    assert environment_probe["sdkOpenaiKeyMatchesDispatchCredential"]
     assert not environment_probe["sdkCodexKeyPresent"], "credential path changed; reassess"
     assert environment_probe["sdkDeliveryKeyPresent"]
+    assert "non-secret-provider-sentinel" not in json.dumps(request)
+    assert "non-secret-delivery-sentinel" not in json.dumps(request)
     for binding in expanded_runtime["nodes"].values():
         if binding["kind"] == "agent":
             assert binding["connections"] == {"openai": ["OPENAI_API_KEY"]}
     return {
-        "schema": "p5-v3-provider-auth-verification/v1",
-        "verdict": "BLOCKED_BEFORE_ADMISSION",
+        "schema": "p5-v3-provider-auth-verification/v2",
+        "verdict": "PROVIDER_AUTH_PATH_READY",
         "trialState": "R01_NOT_STARTED",
         "scope": {
             "broodlingAdmissions": 0,
@@ -132,13 +139,10 @@ def observe() -> dict:
         },
         "conclusion": (
             "The installed native materializer requires an openai connection with "
-            "OPENAI_API_KEY for each selected agent. The unchanged Broodling PR "
-            "client omits that credential even when a non-secret sentinel is "
-            "available in the caller environment. Pinned source shows the "
-            "DirectTarget forwards exact supplied connections without a resolver "
-            "and rejects missing connections before execution. Local ChatGPT "
-            "login/auth.json and target process environment cannot satisfy this "
-            "unchanged submission path. No R01 admission is justified."
+            "OPENAI_API_KEY for each selected agent. Broodling supplies the explicit "
+            "current dispatch credential to the SDK alongside GH_TOKEN while keeping "
+            "both values out of the persisted request. Pinned source confirms that "
+            "this is the supported DirectTarget path. No R01 admission occurred."
         ),
         "sourceAudit": [
             {
@@ -172,7 +176,7 @@ def observe() -> dict:
         ],
         "limits": [
             "The validation-only command proves runtime validity, not provider authentication.",
-            "The environment probe observes current production code without changing its runtime or credentials.",
+            "The environment probe observes current production code with non-secret sentinels only.",
             "No target-side rejection, provider failure, live receipt, or quality judgment was observed.",
             "Pinned source and wheel report the same release identity; full binary/source parity was not established. The source serve implementation mentions bootstrap-key-file while the installed binary help exposes only listen/public-origin/storage. Installed binary runtime expansion independently confirms the audit-critical credential binding.",
             "The publicly mutable submitter.target mapping is not used to inject credentials: doing so would retain secret values in the frozen invocation and would not be the configured product credential path.",

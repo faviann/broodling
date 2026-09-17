@@ -136,6 +136,7 @@ class SdkPolicyTests(SubmissionCase):
             self.runtime_state,
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="dispatch-only-token",
+            openai_api_key="dispatch-only-provider-key",
         )
         request = self.request()
         request["target"] = submitted.target
@@ -249,6 +250,7 @@ class SdkPolicyTests(SubmissionCase):
             self.runtime_state,
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="secret-delivery-token",
+            openai_api_key="secret-provider-key",
         )
         request = self.request()
         request["target"] = adapter.target
@@ -272,7 +274,10 @@ class SdkPolicyTests(SubmissionCase):
                 "http://127.0.0.1:8123", workspace=request["workspace"]
             ),
             environment=request["target"]["environment"]
-            | {"GH_TOKEN": "secret-delivery-token"},
+            | {
+                "GH_TOKEN": "secret-delivery-token",
+                "OPENAI_API_KEY": "secret-provider-key",
+            },
         )
         client.submit.assert_awaited_once_with(
             request["task"],
@@ -286,6 +291,7 @@ class SdkPolicyTests(SubmissionCase):
         )
         self.assertNotIn("connections", request["runtime"])
         self.assertNotIn("secret-delivery-token", json.dumps(request))
+        self.assertNotIn("secret-provider-key", json.dumps(request))
 
     def test_pr_delivery_requires_current_credential_before_dispatch(self):
         adapter = ZeroshotSubmitter(
@@ -304,11 +310,34 @@ class SdkPolicyTests(SubmissionCase):
         with self.assertRaisesRegex(UnsupportedRuntime, "GH_TOKEN"):
             adapter.validate_dispatch(self.path, request)
 
+    def test_pr_delivery_requires_current_provider_credential_before_dispatch(self):
+        adapter = ZeroshotSubmitter(
+            self.runtime_state,
+            delivery_target_origin="http://127.0.0.1:8123",
+            github_token="delivery-token",
+        )
+        request = self.request()
+        request["target"] = adapter.target
+        request["preset"] = {"name": "software-change", "delivery": "pull_request"}
+        request["runtime"] = adapter.runtime_for("pull_request")
+        request["delivery"] = {
+            "repository": "faviann/broodling",
+            "targetBranch": "main",
+            "baseRevision": self.attempt.b1_commit_oid,
+        }
+        with self.assertRaisesRegex(UnsupportedRuntime, "OPENAI_API_KEY"):
+            adapter.validate_dispatch(self.path, request)
+        with patch("zeroshot.Client") as client:
+            with self.assertRaisesRegex(UnsupportedRuntime, "OPENAI_API_KEY"):
+                adapter.submit(request)
+            client.assert_not_called()
+
     def test_pr_delivery_refuses_an_invalid_branch_or_foreign_repository(self):
         adapter = ZeroshotSubmitter(
             self.runtime_state,
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="token",
+            openai_api_key="provider-key",
         )
         request = self.request()
         request["target"] = adapter.target

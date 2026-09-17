@@ -45,6 +45,7 @@ class ResultTests(SubmissionCase):
             self.root,
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="test-github-token",
+            openai_api_key="test-provider-key",
         )
 
     def setUp(self):
@@ -130,6 +131,7 @@ class ResultTests(SubmissionCase):
             },
         )
         self.assertNotIn("test-github-token", self.submitted.request_json)
+        self.assertNotIn("test-provider-key", self.submitted.request_json)
         self.assertEqual(request["target"]["deliveryCredential"], "GH_TOKEN")
         self.assertEqual(request["runtime"]["session_scope"], "execution")
         self.assertNotIn("connections", request["runtime"])
