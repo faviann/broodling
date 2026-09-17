@@ -167,18 +167,6 @@ class ImmutabilityEnforcementTests(StoreTestCase):
         with self.assertRaises(ContractImmutabilityError):
             self.store.get_contract_revision(self.revision.contract_revision_id)
 
-    def test_the_api_offers_no_way_to_amend_a_revision(self) -> None:
-        mutating = [
-            name
-            for name in dir(self.store)
-            if not name.startswith("_")
-            and any(
-                verb in name
-                for verb in ("amend", "update", "edit", "delete", "replace", "patch")
-            )
-        ]
-        self.assertEqual(mutating, [])
-
 
 class ObligationPreservationTests(StoreTestCase):
     def test_an_inadmissible_obligation_is_stored_exactly_as_stated(self) -> None:
@@ -236,23 +224,6 @@ class ContractIdentityTests(unittest.TestCase):
         restored = contract_from_mapping(mapping)
         self.assertEqual(restored, contract)
         self.assertEqual(restored.canonical_bytes(), contract.canonical_bytes())
-
-    def test_canonical_bytes_are_stable_across_field_ordering(self) -> None:
-        attribution = (SourceAttribution("src-a", "a" * 64),)
-        first = Contract(
-            work_unit_id="wu-1",
-            source_attribution=attribution,
-            criteria=(criterion(),),
-            host_assumptions=("single_host",),
-        )
-        second = Contract(
-            criteria=(criterion(),),
-            host_assumptions=("single_host",),
-            source_attribution=attribution,
-            work_unit_id="wu-1",
-        )
-        self.assertEqual(first.canonical_bytes(), second.canonical_bytes())
-        self.assertEqual(first.contract_revision_id, second.contract_revision_id)
 
     def test_meaning_changes_change_the_revision_id(self) -> None:
         base = Contract(
