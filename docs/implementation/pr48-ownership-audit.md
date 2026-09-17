@@ -1,3 +1,10 @@
+> **Historical / superseded — not current architecture or a current gate.**
+> Read the [current architecture and P5 plan](../governing/current.md).
+> The original body below describes its recorded revision, including any claims
+> of current authority, supported behavior or next-phase dependencies. It does not
+> govern the native integration or transfer historical qualification to it.
+> [Exact pre-alignment file](https://github.com/faviann/broodling/blob/525902050c256f10232bd74ff717cfb59224e985/docs/implementation/pr48-ownership-audit.md) preserves the original complete bytes.
+
 # PR #48: Broodling / Zeroshot ownership audit
 
 Date: 16 September 2026. The initial audit reviewed PR head

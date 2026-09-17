@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "broodling"
 version = "0.1.0"
-description = "One admitted Work Unit, executed by Zeroshot, with durable no-effect disposition."
+description = "One admitted Work Unit, executed by Zeroshot, with durable lifecycle disposition."
 requires-python = ">=3.13"
 # Official stable Linux wheel; the advertised PyPI distribution is not yet
 # published as of 2026-09-16. This is the supported host profile.

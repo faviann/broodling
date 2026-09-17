@@ -1,3 +1,10 @@
+> **Historical / superseded — not current architecture or a current gate.**
+> Read the [current architecture and P5 plan](../governing/current.md).
+> The original body below describes its recorded revision, including any claims
+> of current authority, supported behavior or next-phase dependencies. It does not
+> govern the native integration or transfer historical qualification to it.
+> [Exact pre-alignment file](https://github.com/faviann/broodling/blob/525902050c256f10232bd74ff717cfb59224e985/docs/implementation/v1-p4-abandonment.md) preserves the original complete bytes.
+
 # V1-P4 abandonment and physical cessation
 
 Issue #21 is **complete** with its [acceptance and requalification record](../../qualification/v1-p4/issue-21-abandonment.md).

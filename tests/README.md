@@ -1,5 +1,9 @@
 # Broodling tests
 
+The [current architecture and P5 plan](../docs/governing/current.md) governs
+scope. This README describes current validation, not a continuation of the old
+custom-assurance gates or a P5 real-provider quality verdict.
+
 The default suite tests Broodling's own decisions and its public Zeroshot seam.
 It does not maintain a second execution model or prove Zeroshot's graph routing,
 review/repair loops, dependency handling, or process supervision.
@@ -101,6 +105,7 @@ and qualification outcomes apply only to the old implementation. The
 retain that context.
 [Qualification reports](../qualification/README.md) and
 [the earlier ownership audit](../docs/implementation/pr48-ownership-audit.md)
-remain unchanged; no old pass is relabeled for the current dependency.
+retain their historical content; only the audit receives a supersession notice.
+No old pass is relabeled for the current dependency.
 Historical-tooling tests retain only inert-import and record-overwrite
 protections; they do not re-run an old execution campaign against this release.

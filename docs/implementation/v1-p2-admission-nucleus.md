@@ -1,3 +1,10 @@
+> **Historical / superseded — not current architecture or a current gate.**
+> Read the [current architecture and P5 plan](../governing/current.md).
+> The original body below describes its recorded revision, including any claims
+> of current authority, supported behavior or next-phase dependencies. It does not
+> govern the native integration or transfer historical qualification to it.
+> [Exact pre-alignment file](https://github.com/faviann/broodling/blob/525902050c256f10232bd74ff717cfb59224e985/docs/implementation/v1-p2-admission-nucleus.md) preserves the original complete bytes.
+
 # V1-P2 — admission and durable semantic nucleus
 
 **Issues:** [#12](https://github.com/faviann/broodling/issues/12) (admission

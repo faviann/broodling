@@ -3,8 +3,13 @@
 Investigated 16 September 2026 against the current stable Zeroshot 10.3.0
 source at immutable commit
 [`054ad3fd6c763b98d12f5b2e90830b97116561ad`](https://github.com/the-open-engine/zeroshot/tree/054ad3fd6c763b98d12f5b2e90830b97116561ad).
-This note is prospective implementation research for PR #50. It does not amend
-historical qualification or evidence.
+**Status: completed research adopted by PR #50.** The conditional PR handoff
+recommended below is implemented in the [native integration](zeroshot-native-integration.md).
+Read the [current architecture and P5 plan](../governing/current.md) for governing
+scope and next work. This followed the initial no-Git-delivery proposal in the
+[source audit](zeroshot-current-source-audit.md), not an outstanding alternative
+design. It does not amend historical qualification or evidence. Descriptions of
+upstream merge delivery below do not grant Broodling merge support.
 
 ## Finding
 
@@ -19,8 +24,8 @@ mode in 10.3.0. The public delivery selector is closed to `none`,
 `pull_request`, and `merge`. With `none`, an accepted software-change run returns
 JSON null and leaves the candidate as mutable files in the supplied workspace.
 Consequently, **no current supported mode simultaneously provides a stable
-Zeroshot-produced candidate and preserves Broodling's no-authoritative-external-
-effects requirement**.
+Zeroshot-produced candidate and preserves a no-effect Work Unit's
+no-authoritative-external-effects requirement**.
 
 Broodling should not bridge that gap by watching processes or by racing to
 create its own commit after a no-delivery terminal result. Such a commit would

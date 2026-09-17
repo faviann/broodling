@@ -1,21 +1,37 @@
-# Qualification entry-point safety and reproduction
+# Qualification archive and current validation
+
+**Historical evidence only; not qualification of the current native integration.**
+Read the [current architecture and P5 plan](../docs/governing/current.md) and
+[current test guidance](../tests/README.md) first. Reports, records, hashes and
+verdicts below retain their original source/profile meaning. This README is
+mutable navigation; it cannot transfer an old pass to current code.
+
+Archived campaign scripts are not supported current qualification commands.
+Some still reference deleted fixtures or APIs, including the #18 evidence writer.
+Do not import or run them as a current campaign merely because a file survives.
+A guarded writer may reserve an empty output before a missing dependency fails;
+that is not evidence. Only the default suite and focused safety test below are
+current validation commands. Dated PR/issue sections describe historical changes,
+not present campaign availability.
 
 ## PR #48 ownership correction (15 September 2026)
 
-The current #17 control and adversarial entrypoints and their controlled provider
-fixture are retired. They tested Zeroshot control-flow/response mechanics rather
-than a Broodling-owned integration boundary. No replacement graph analyzer or
-empty PASS record is provided. Use the original recorded Git tree for historical
-reproduction; the reviewed pre-audit PR tree is d2d34ae30a2e573e23a61379184b623c988944f5.
-Historical records, reports and hashes remain unchanged.
-
-The current #18 writer retains three explicitly scoped integration witnesses and
-can be invoked with an explicit fresh output path. See the
-[ownership audit](../docs/implementation/pr48-ownership-audit.md). The issue #36
-section below records the earlier safety change; its statements about #17's
-continued executable behavior describe that historical revision, not current code.
+PR #48 retired the #17 control/adversarial entrypoints and their controlled
+provider fixture because they tested Zeroshot control-flow/response mechanics.
+The intermediate #18 writer retained three integration witnesses at that time;
+PR #50 subsequently removed the custom evidence fixtures and qualified-integration
+API it depended on. It is now historical tooling, not a supported native campaign.
+See the [dated ownership audit](../docs/implementation/pr48-ownership-audit.md)
+and [adopted native boundary](../docs/implementation/zeroshot-native-integration.md).
+No replacement analyzer or empty PASS record is supplied. The reviewed pre-audit
+PR tree is d2d34ae30a2e573e23a61379184b623c988944f5; historical reproduction needs
+the actual tree and dependencies named by the relevant record.
 
 ## Issue #36 decision (12 September 2026)
+
+The following describes the safety change at that historical revision, before
+native integration. The current retained safety checks are described separately
+below; the old campaign behaviors are not current support claims.
 
 The five entry points listed below are now inert on import. Path setup, fixture
 imports, argument parsing and campaigns run only through their guarded main
@@ -94,61 +110,51 @@ current code. Old trees retain the old hazards: never import those unguarded
 scripts, and give old P4 commands an explicit fresh output. This fix cannot
 retroactively change an immutable historical checkout.
 
-## Intentional fresh reproduction on current code
+## Current supported validation
 
-Use the exact SDK/sidecar and host profile required by the relevant record.
-From the repository root, choose a fresh output directory whose parent exists:
+From the current repository root, install the pinned release SDK and run the
+default tests, as described in the [test README](../tests/README.md):
 
-```bash
-SDK_PYTHON=/path/to/qualified-venv/bin/python
-FRESH_DIR="$(mktemp -d)"
+    python -m pip install -e '.[test]'
+    python -m pytest tests
 
-"$SDK_PYTHON" qualification/v1-p4/issue21_lifecycle.py "$FRESH_DIR/issue21.json"
-"$SDK_PYTHON" qualification/v1-p4/issue22_lifecycle.py "$FRESH_DIR/issue22.json"
+The default suite includes controlled-provider checks through the published
+SDK/native seam. There is no old opt-in campaign lane to select. These checks do
+not qualify real-provider semantic quality, a live DirectTarget PR delivery,
+sandbox escape resistance or physical cessation. Missing dependencies or skipped
+coverage are not a passing integration result.
 
-"$SDK_PYTHON" qualification/v1-p2/issue14_regression.py
-"$SDK_PYTHON" qualification/v1-p2/issue14_regression.py --legacy-b1-guard
-# The legacy guard is a negative control: expect exit 1.
-"$SDK_PYTHON" qualification/v1-p2/issue14_evidence.py --output "$FRESH_DIR/issue14.json"
-
-"$SDK_PYTHON" qualification/v1-p3/issue18_evidence.py --output "$FRESH_DIR/issue18.json"
-# Choose a fresh explicit output; never overwrite retained historical records.
-```
-
-These commands intentionally launch the supported current campaigns. The #18
-writer now uses the integration-only scope described above.
-The P4 scripts retain their existing verdict logic: failures or skipped tests
-cannot report `mechanicsPassed: true`; #22 also requires invocation/final source
-hashes to match. Fresh results are separate observations, not replacements for
-retained G1–G4 evidence or a new gate verdict.
+For historical reproduction, use a separate checkout of the relevant recorded
+product/test tree and its exact dependencies/profile, not an old script copied
+onto main. Inspect its commands first, use disposable resources and fresh outputs,
+and account for the original unsafe import/overwrite behavior described above.
+Do not overwrite retained evidence or use a fresh run to relabel an old verdict.
+No historical campaign is required for this documentation alignment.
 
 ## Focused safety validation
 
-`tests/test_qualification_entrypoints.py` checks cold imports with bare and
-execution-like arguments, unchanged import search paths, and no campaign/file
-writes. It exercises missing, occupied, symlinked and unusable P4 output paths,
-including the actual committed evidence paths, before any campaign can run.
-Fresh P4 CLI checks use explicit campaign/SDK-identity doubles to verify record
-writing, success/failure/skip exit behavior, and #22's actual current self-hash.
-They are entry-point tests, **not SDK qualification evidence**; their temporary
-records are labeled as doubles and are not retained as gate artifacts.
+The current tests/test_qualification_entrypoints.py retains import-inertness
+checks for the #14 evidence/regression and #21/#22 lifecycle script copies, with
+execution-like arguments, unchanged import search paths and no campaign/file
+writes. It also checks missing, occupied, symlinked and unusable P4 output paths
+using temporary stand-ins before any campaign can run. It does not invoke an
+archived campaign, fabricate a successful campaign record or qualify its self-hash.
 
-```bash
-python -m pytest tests/test_qualification_entrypoints.py -q
-```
+    python -m pytest tests/test_qualification_entrypoints.py -q
 
-No P5 work, product requalification claim, or G1–G4 guarantee change is included.
+This is entrypoint/record-overwrite safety only, not SDK or product qualification.
+Historical evidence JSON, reports and recorded verdicts are unchanged.
 
-## Lane selection added to four entry points (issue #39)
+## Historical lane selection (issue #39)
 
-`issue19_capture.py`, `issue21_lifecycle.py`, `issue22_lifecycle.py` and
-`issue23_controls.py` each gained one `os.environ.setdefault(
-"BROODLING_ZEROSHOT_LANE", "1")` before they import the test class they run.
-Broodling regression now excludes the real-Zeroshot witnesses by default
-([the lane notes](../tests/README.md#two-test-lanes-issue-39)); these campaigns
-are that lane, so they select it rather than requiring the operator to.
+At that revision, issue19_capture.py, issue21_lifecycle.py, issue22_lifecycle.py
+and issue23_controls.py selected BROODLING_ZEROSHOT_LANE before importing their
+campaign test classes. The split belonged to the former SDK/custom-assurance
+suite, not the native integration. The
+[pre-native test notes](https://github.com/faviann/broodling/blob/87f228652117557de95a679d4f22bca76cb86b83/tests/README.md)
+retain that historical context; the current default suite has no such lane.
 
-This changes no campaign, fixture, assertion or retained record, and no
-documented command. As with the #36 guards, the original bytes remain in Git at
-the commits those reports name; a current checkout's executable is not offered
-as the historical source identity.
+As with the #36 guards, original executable bytes remain in Git at the commits
+named by their records. Current executable copies are not offered as those
+historical source identities. No campaign, fixture or retained record is changed
+by this navigation correction.
