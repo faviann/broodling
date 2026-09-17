@@ -43,7 +43,7 @@ class CrashRecoveryTests(StoreTestCase):
         self.addCleanup(store.close)
         return store
 
-    def test_a_crash_mid_contract_write_leaves_no_revision(self) -> None:
+    def test_a_crash_mid_contract_write_rolls_back_and_releases_writer(self) -> None:
         revision_id = self.crash_at("mid_contract_write")
         store = self.reopened()
 
@@ -58,6 +58,11 @@ class CrashRecoveryTests(StoreTestCase):
         self.assertEqual(work_unit.reference_key, "github.com/faviann/broodling#12")
         self.assertEqual(len(store.list_entitled_sources(work_unit.work_unit_id)), 1)
 
+        # The dead writer left neither partial authority nor a held transaction.
+        resolved = store.resolve_work_unit(work_reference())
+        self.assertEqual(resolved.work_unit_id, work_unit.work_unit_id)
+        self.assertEqual(store.submission_count(work_unit.work_unit_id), 2)
+
     def test_a_crash_after_the_contract_commit_leaves_no_admission(self) -> None:
         revision_id = self.crash_at("after_contract_commit")
         store = self.reopened()
@@ -70,7 +75,7 @@ class CrashRecoveryTests(StoreTestCase):
         self.assertIsNone(store.find_admission_decision(revision_id))
         self.assertFalse(store.is_admitted(revision_id))
 
-    def test_a_crash_mid_admission_write_leaves_no_half_admitted_authority(
+    def test_a_crash_mid_admission_write_rolls_back_and_can_be_decided_again(
         self,
     ) -> None:
         revision_id = self.crash_at("mid_admission_write")
@@ -84,9 +89,6 @@ class CrashRecoveryTests(StoreTestCase):
         ).fetchone()
         self.assertEqual(rows["total"], 0)
 
-    def test_an_interrupted_admission_can_simply_be_decided_again(self) -> None:
-        revision_id = self.crash_at("mid_admission_write")
-        store = self.reopened()
         decision = store.admit(revision_id)
         self.assertEqual(decision.outcome, ADMITTED)
         self.assertTrue(store.is_admitted(revision_id))
@@ -108,12 +110,6 @@ class CrashRecoveryTests(StoreTestCase):
             material[0].content_sha256,
             revision.contract.source_attribution[0].content_sha256,
         )
-
-    def test_a_crashed_write_does_not_block_a_later_writer(self) -> None:
-        self.crash_at("mid_contract_write")
-        store = self.reopened()
-        work_unit = store.resolve_work_unit(work_reference())
-        self.assertEqual(store.submission_count(work_unit.work_unit_id), 2)
 
 
 class DurabilityAcrossReopenTests(StoreTestCase):

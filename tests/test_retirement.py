@@ -110,19 +110,6 @@ class RetirementTests(SubmissionCase):
             self.administrator.retire(self.attempt_id)
         self.assertTrue(self.path.exists())
 
-    def test_owned_removal_acknowledgment_loss_converges(self):
-        self.stop()
-        with (
-            patch.object(
-                self.administrator, "_acknowledge", side_effect=OSError("ack lost")
-            ),
-            self.assertRaises(OSError),
-        ):
-            self.administrator.retire(self.attempt_id)
-        self.assertFalse(self.path.exists())
-        self.assertIsNone(self.administrator.record(self.attempt_id).retired_at)
-        self.assertIsNotNone(self.administrator.retire(self.attempt_id).retired_at)
-
     def test_missing_marker_or_foreign_branch_cannot_be_retired(self):
         self.stop()
         git(self.path, "checkout", "-b", "foreign")

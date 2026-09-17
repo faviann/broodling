@@ -89,7 +89,9 @@ class AttemptCrashTestCase(AttemptTestCase):
 
 
 class InterruptedAdmissionTests(AttemptCrashTestCase):
-    def test_a_crash_mid_admission_leaves_no_attempt_at_all(self) -> None:
+    def test_a_crash_mid_admission_rolls_back_and_recovers_original_identity(
+        self,
+    ) -> None:
         completed = self.child("mid_attempt_write")
         attempt_id = self.derived_attempt_id(completed)
         store = self.reopen()
@@ -101,16 +103,13 @@ class InterruptedAdmissionTests(AttemptCrashTestCase):
         ).fetchone()
         self.assertEqual(rows["total"], 0)
 
-    def test_a_half_written_admission_can_simply_be_requested_again(self) -> None:
-        completed = self.child("mid_attempt_write")
-        attempt_id = self.derived_attempt_id(completed)
-        self.reopen()
-
         attempt = self.provisioner().admit(
             self.revision.contract_revision_id, self.repository
         )
         self.assertEqual(attempt.attempt_id, attempt_id)
         self.assertEqual(attempt.b1_commit_oid, self.b1)
+        self.assertEqual(store.current_attempt(self.work_unit.work_unit_id), attempt)
+        self.assertFalse(store.worktree_assignment(attempt_id).provisioned)
 
 
 class InterruptedProvisioningTests(AttemptCrashTestCase):
@@ -128,17 +127,16 @@ class InterruptedProvisioningTests(AttemptCrashTestCase):
         self.assertFalse(assignment.path.exists())
         self.assertNotIn(assignment.worktree_path, self.worktree_paths())
 
-    def test_repeating_the_operation_converges_on_that_attempt(self) -> None:
-        completed = self.child("after_attempt_commit")
-        attempt_id = self.derived_attempt_id(completed)
-        self.reopen()
-
         provisioned = self.provisioner().admit_and_provision(
             self.revision.contract_revision_id, self.repository
         )
         self.assertEqual(provisioned.attempt.attempt_id, attempt_id)
+        self.assertEqual(provisioned.assignment.worktree_path, assignment.worktree_path)
+        self.assertTrue(provisioned.assignment.provisioned)
         self.assertEqual(git(provisioned.path, "rev-parse", "HEAD"), self.b1)
         self.assertEqual(self.attempt_count(), 1)
+        self.assertEqual(len(self.worktree_paths()), 2)
+        self.assertEqual(len(self.branches()), 2)
 
     def test_no_replacement_attempt_is_allocated_after_live_head_drift(self) -> None:
         completed = self.child("after_attempt_commit")
@@ -249,20 +247,6 @@ class ConcurrentAdmissionTests(AttemptCrashTestCase):
         # Nothing was provisioned, so the host still shows only the source tree.
         self.assertEqual(len(self.worktree_paths()), 1)
 
-    def test_two_identical_concurrent_admissions_resolve_one_attempt(self) -> None:
-        (outputs, children) = self.race("HEAD", "HEAD")
-        for (stdout, stderr), child in zip(outputs, children, strict=True):
-            self.assertEqual(child.returncode, 0, stderr)
-            self.assertEqual(len(stdout.strip().splitlines()), 2, stdout)
-        derived = {stdout.strip().splitlines()[0] for stdout, _ in outputs}
-        self.assertEqual(len(derived), 1)
-
-        store = self.reopen()
-        current = store.current_attempt(self.work_unit.work_unit_id)
-        self.assertEqual(current.attempt_id, derived.pop())
-        self.assertEqual(self.attempt_count(store), 1)
-        self.assertEqual(len(self.worktree_paths()), 2)
-
     def test_every_concurrent_caller_is_handed_the_finished_worktree(self) -> None:
         """A caller is never given a worktree that is still being checked out.
 
@@ -302,8 +286,8 @@ class ConcurrentAdmissionTests(AttemptCrashTestCase):
 
         Held from outside, the enclosure lock keeps a provisioner out entirely —
         it cannot even look — and once released it converges on what it finds.
-        This is the mechanism the previous two tests rely on, asserted directly
-        rather than through the outcome it produces.
+        This is the mechanism the finished-worktree test relies on, asserted
+        directly rather than through the outcome it produces.
         """
 
         attempt = self.provisioner().admit(
