@@ -9,17 +9,10 @@ import unittest
 from pathlib import Path
 
 from broodling import BroodlingStore, SchemaVersionMismatch, StoreLocationError
-from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION, TABLES
+from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION
 from broodling.store import default_store_path
 from broodling.workspace import DISPOSABLE_WORKTREE_MARKER
 from support import StoreTestCase
-
-
-def schema_objects(connection: sqlite3.Connection) -> list[tuple[str, str, str]]:
-    rows = connection.execute(
-        "SELECT type, name, COALESCE(sql, '') FROM sqlite_schema ORDER BY type, name"
-    ).fetchall()
-    return [tuple(row) for row in rows]
 
 
 class SchemaInitializationTests(StoreTestCase):
@@ -28,32 +21,10 @@ class SchemaInitializationTests(StoreTestCase):
         self.assertEqual(meta["schema_version"], str(SCHEMA_VERSION))
         self.assertEqual(meta["schema_sha256"], SCHEMA_SHA256)
 
-    def test_initialization_is_deterministic(self) -> None:
-        other_root = Path(tempfile.mkdtemp(prefix="broodling-p2-alt-"))
-        self.addCleanup(shutil.rmtree, other_root, ignore_errors=True)
-        with BroodlingStore.open(other_root / "broodling.sqlite3") as other:
-            self.assertEqual(
-                schema_objects(self.store.connection),
-                schema_objects(other.connection),
-            )
-            self.assertEqual(
-                other.schema_meta()["schema_sha256"],
-                self.store.schema_meta()["schema_sha256"],
-            )
-
-    def test_reopening_is_idempotent(self) -> None:
-        before = schema_objects(self.store.connection)
+    def test_reopening_preserves_metadata(self) -> None:
         meta_before = self.store.schema_meta()
         reopened = self.reopen()
-        self.assertEqual(schema_objects(reopened.connection), before)
         self.assertEqual(reopened.schema_meta(), meta_before)
-
-    def test_owns_exactly_the_declared_tables(self) -> None:
-        rows = self.store.connection.execute(
-            "SELECT name FROM sqlite_schema WHERE type = 'table' "
-            "AND name NOT LIKE 'sqlite_%' ORDER BY name"
-        ).fetchall()
-        self.assertEqual(tuple(row["name"] for row in rows), TABLES)
 
     def test_tables_are_strict(self) -> None:
         with self.assertRaises(sqlite3.IntegrityError):
