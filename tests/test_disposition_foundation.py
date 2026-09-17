@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from schema_support import restore_published_schema
 from submission_support import SubmissionCase, configured_adapter
+from support import work_reference
 
 from broodling import BroodlingStore, RequiredEffect, SchemaVersionMismatch
 from broodling.disposition import WorkUnitDispositionCoordinator
@@ -34,41 +35,15 @@ class DispositionFoundationTests(SubmissionCase):
             (self.attempt_id, json.dumps(payload)),
         )
 
-    def insert_disposition(self, **changes):
-        binding = {
-            "work": self.attempt.work_unit_id,
-            "contract": self.attempt.contract_revision_id,
-            "attempt": self.attempt_id,
-        }
-        binding.update(changes)
+    def insert_disposition(self):
         self.store.connection.execute(
             "INSERT INTO work_unit_dispositions VALUES (?, ?, ?, 'SUCCEEDED', 'completed')",
-            (binding["work"], binding["contract"], binding["attempt"]),
+            (
+                self.attempt.work_unit_id,
+                self.attempt.contract_revision_id,
+                self.attempt_id,
+            ),
         )
-
-    def test_historical_custody_cannot_gain_new_success(self):
-        self.correlate()
-        self.custody(format="broodling.final-assurance/v1")
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.insert_disposition()
-
-    def test_missing_custody_and_conflicting_bound_identity_cannot_complete(self):
-        self.correlate()
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.insert_disposition()
-        self.custody(runId="foreign-run")
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.insert_disposition()
-        for changes in (
-            {"work": "foreign-work"},
-            {"contract": "foreign-contract"},
-            {"attempt": "foreign-attempt"},
-        ):
-            with (
-                self.subTest(changes=changes),
-                self.assertRaises(sqlite3.IntegrityError),
-            ):
-                self.insert_disposition(**changes)
 
     def test_explicit_empty_effect_set_never_defaults_from_missing_or_unsupported(self):
         self.correlate()
@@ -266,28 +241,95 @@ class StableReceiptDatabaseTests(SubmissionCase):
             "deliveryReceipt": receipt,
         }
 
-    def insert_result(self, payload):
+    def insert_custody(self, payload):
         self.store.connection.execute(
             "INSERT INTO final_assurance VALUES (?, 'run', ?)",
             (self.attempt_id, json.dumps(payload)),
         )
+
+    def insert_disposition(self, **changes):
+        binding = {
+            "work": self.attempt.work_unit_id,
+            "contract": self.attempt.contract_revision_id,
+            "attempt": self.attempt_id,
+        }
+        binding.update(changes)
         self.store.connection.execute(
             "INSERT INTO work_unit_dispositions VALUES (?, ?, ?, 'SUCCEEDED', 'now')",
-            (
-                self.attempt.work_unit_id,
-                self.attempt.contract_revision_id,
-                self.attempt_id,
-            ),
+            (binding["work"], binding["contract"], binding["attempt"]),
         )
+
+    def insert_result(self, payload):
+        self.insert_custody(payload)
+        self.insert_disposition()
 
     def test_matching_native_receipt_can_complete_at_database_boundary(self):
-        self.insert_result(self.payload())
-        self.assertIsNotNone(
+        payload = self.payload()
+        self.insert_result(payload)
+        self.assertEqual(
             WorkUnitDispositionCoordinator(self.store, self.adapter).record(
                 self.attempt_id
+            ).result,
+            payload,
+        )
+        self.assertIsNone(self.store.current_attempt(self.attempt.work_unit_id))
+
+    def test_missing_custody_cannot_complete_at_database_boundary(self):
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "disposition requires"):
+            self.insert_disposition()
+        self.insert_result(self.payload())
+
+    def test_historical_custody_cannot_gain_new_success(self):
+        for version in ("v1", "v2"):
+            payload = {**self.payload(), "format": f"broodling.final-assurance/{version}"}
+            with (
+                self.subTest(version=version),
+                self.assertRaisesRegex(sqlite3.IntegrityError, "disposition requires"),
+                self.store._write(),
+            ):
+                self.insert_result(payload)
+        self.insert_result(self.payload())
+
+    def test_custody_must_name_the_bound_attempt_contract_and_run(self):
+        for field in ("attemptId", "contractRevisionId", "runId"):
+            payload = {**self.payload(), field: "foreign-identity"}
+            # Roll back rejected custody so each case changes only one binding
+            # of the same current, PR-authorized successful control.
+            with (
+                self.subTest(field=field),
+                self.assertRaisesRegex(sqlite3.IntegrityError, "disposition requires"),
+                self.store._write(),
+            ):
+                self.insert_result(payload)
+        self.insert_result(self.payload())
+
+    def test_disposition_cannot_complete_another_work_unit_or_contract(self):
+        other_work = self.store.resolve_work_unit(work_reference(issue=13))
+        contract = self.revision.contract
+        other_contract = self.store.record_contract_revision(
+            replace(
+                contract,
+                criteria=(replace(contract.criteria[0], statement="Another task."),),
             )
         )
+        self.assertTrue(self.store.admit(other_contract.contract_revision_id).admitted)
+        self.insert_custody(self.payload())
+        # Both references exist: foreign-key failure cannot explain refusal.
+        for changes in (
+            {"work": other_work.work_unit_id},
+            {"contract": other_contract.contract_revision_id},
+        ):
+            with (
+                self.subTest(changes=changes),
+                self.assertRaisesRegex(sqlite3.IntegrityError, "disposition requires"),
+            ):
+                self.insert_disposition(**changes)
+        self.insert_disposition()
 
     def test_foreign_native_receipt_cannot_complete_at_database_boundary(self):
-        with self.assertRaises(sqlite3.IntegrityError):
+        with (
+            self.assertRaisesRegex(sqlite3.IntegrityError, "disposition requires"),
+            self.store._write(),
+        ):
             self.insert_result(self.payload(repository="other/project"))
+        self.insert_result(self.payload())
