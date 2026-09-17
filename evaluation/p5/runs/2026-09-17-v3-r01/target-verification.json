@@ -1,0 +1,166 @@
+{
+  "observed_at": "2026-09-17T18:51:46.768996+00:00",
+  "target_origin": "http://127.0.0.1:18767",
+  "checks": [
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "broodling-p5-v3-r01-target",
+        "--format",
+        "{{json .State}}"
+      ],
+      "exit": 0,
+      "stdout": "{\"Status\":\"running\",\"Running\":true,\"Paused\":false,\"Restarting\":false,\"OOMKilled\":false,\"Dead\":false,\"Pid\":907580,\"ExitCode\":0,\"Error\":\"\",\"StartedAt\":\"2026-09-17T18:51:06.48002486Z\",\"FinishedAt\":\"0001-01-01T00:00:00Z\"}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "broodling-p5-v3-r01-target",
+        "--format",
+        "{{json .Mounts}}"
+      ],
+      "exit": 0,
+      "stdout": "[{\"Type\":\"bind\",\"Source\":\"/home/faviann/.local/share/broodling-p5-v3/target-state\",\"Destination\":\"/p5-state\",\"Mode\":\"\",\"RW\":true,\"Propagation\":\"rprivate\"},{\"Type\":\"bind\",\"Source\":\"/home/faviann/.local/share/broodling-p5-v3/target-home\",\"Destination\":\"/home/node\",\"Mode\":\"\",\"RW\":true,\"Propagation\":\"rprivate\"}]\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "broodling-p5-v3-r01-target",
+        "--format",
+        "{{json .NetworkSettings.Ports}}"
+      ],
+      "exit": 0,
+      "stdout": "{\"18767/tcp\":[{\"HostIp\":\"127.0.0.1\",\"HostPort\":\"18767\"}]}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "image",
+        "inspect",
+        "broodling-p5-v3-target:codex-0.153.4",
+        "--format",
+        "{{.Id}}"
+      ],
+      "exit": 0,
+      "stdout": "sha256:bfed075c6443f63127dc30f73376483148d78bf3023d093bd90ce76353344dad\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "exec",
+        "broodling-p5-v3-r01-target",
+        "zeroshot",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "zeroshot 10.3.0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "exec",
+        "broodling-p5-v3-r01-target",
+        "codex",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "codex-cli 0.153.4\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "exec",
+        "broodling-p5-v3-r01-target",
+        "codex",
+        "login",
+        "status"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Logged in using ChatGPT\n"
+    },
+    {
+      "command": [
+        "docker",
+        "exec",
+        "broodling-p5-v3-r01-target",
+        "git",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "git version 2.39.5\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "exec",
+        "broodling-p5-v3-r01-target",
+        "gh",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "gh version 2.23.0 (2023-02-27 Debian 2.23.0+dfsg1-1)\nhttps://github.com/cli/cli/releases/tag/v2.23.0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "curl",
+        "--fail",
+        "--silent",
+        "--show-error",
+        "http://127.0.0.1:18767/.well-known/zeroshot-native-v2"
+      ],
+      "exit": 0,
+      "stdout": "{\"kind\":\"zeroshot.native-v2-target/v2\",\"authentication\":\"none\",\"runPath\":\"/native-v2/run\",\"sessionPath\":\"/native-v2/oecp-session\",\"oecpPath\":\"/native-v2/oecp\",\"audience\":\"controller\"}",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "zeroshot",
+        "target",
+        "add",
+        "p5-audit",
+        "--url",
+        "http://127.0.0.1:18767",
+        "--direct"
+      ],
+      "environment": "isolated temporary config/state; no credentials",
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "zeroshot",
+        "connection",
+        "list",
+        "--target",
+        "p5-audit"
+      ],
+      "environment": "isolated temporary config/state; no credentials",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "zeroshot: target operation failed: direct target does not advertise connection management\n"
+    }
+  ],
+  "sdk_list_runs": [],
+  "sdk_list_error": null,
+  "provider_task_invoked": false,
+  "provider_auth_note": "CLI ChatGPT login availability does not establish hosted native provider connection availability. See provider-auth-verification.json.",
+  "worker_material": "No host checkout, judge, reference code, Docker socket or unrelated trial mounted. Only new target-state and isolated target-home mounted.",
+  "external_stop_command": [
+    "docker",
+    "stop",
+    "broodling-p5-v3-r01-target"
+  ]
+}
