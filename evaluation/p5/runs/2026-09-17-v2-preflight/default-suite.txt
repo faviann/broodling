@@ -1,0 +1,43 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/faviann/repos/broodling
+configfile: pyproject.toml
+plugins: timeout-2.4.0, hypothesis-6.168.0
+timeout: 180.0s
+timeout method: signal
+timeout func_only: False
+collected 330 items
+
+tests/test_abandonment_foundation.py ..............                      [  4%]
+tests/test_admission.py .........................                        [ 11%]
+tests/test_assurance_custody_storage.py .....                            [ 13%]
+tests/test_attempt_admission.py .........................                [ 20%]
+tests/test_attempt_crash_recovery.py .........                           [ 23%]
+tests/test_checkout_profile.py ...........                               [ 26%]
+tests/test_codex_profile.py ..............                               [ 31%]
+tests/test_contract_revisions.py .............                           [ 35%]
+tests/test_crash_recovery.py .....                                       [ 36%]
+tests/test_disposition_foundation.py .............                       [ 40%]
+tests/test_entitlement.py .................                              [ 45%]
+tests/test_frozen_instructions.py ..                                     [ 46%]
+tests/test_mechanical_evidence_contract.py .....                         [ 47%]
+tests/test_product_qualification_boundary.py ..                          [ 48%]
+tests/test_qualification_entrypoints.py ..                               [ 49%]
+tests/test_retirement.py ..........                                      [ 52%]
+tests/test_retry_admission.py ..............                             [ 56%]
+tests/test_retry_crashes.py ...                                          [ 57%]
+tests/test_retry_races.py ..                                             [ 57%]
+tests/test_schema.py ........                                            [ 60%]
+tests/test_sdk_policy.py ..............                                  [ 64%]
+tests/test_starting_state.py ................                            [ 69%]
+tests/test_store_fixture.py ..                                           [ 70%]
+tests/test_store_state_machine.py .                                      [ 70%]
+tests/test_submission.py ..............................                  [ 79%]
+tests/test_submission_crashes.py .........                               [ 82%]
+tests/test_submission_migration.py ..                                    [ 82%]
+tests/test_work_reference_properties.py ......                           [ 84%]
+tests/test_work_unit_identity.py ............                            [ 88%]
+tests/test_workflow_result.py ............                               [ 91%]
+tests/test_worktree_provisioning.py ...........................          [100%]
+
+======================= 330 passed in 112.06s (0:01:52) ========================

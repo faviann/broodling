@@ -1,0 +1,10 @@
+{
+  "url": "https://github.com/the-open-engine/zeroshot/releases/download/zeroshot-python-v10.3.0_1/the_open_engine_zeroshot-10.3.0.post1-py3-none-manylinux_2_17_x86_64.whl",
+  "archive": "/home/faviann/.cache/broodling-p5/the_open_engine_zeroshot-10.3.0.post1-py3-none-manylinux_2_17_x86_64.whl",
+  "sha256": "f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9",
+  "expected_sha256": "f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9",
+  "hash_matches": true,
+  "installed_package_files_checked": 15,
+  "differences": [],
+  "comparison_note": "Wheel uses .data/purelib prefix; compare mapped installed package paths byte for byte."
+}
