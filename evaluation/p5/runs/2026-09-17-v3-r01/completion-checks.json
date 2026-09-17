@@ -1,0 +1,64 @@
+{
+  "observed_at": "2026-09-17T18:54:14.775539+00:00",
+  "checks": [
+    {
+      "command": [
+        "gh",
+        "api",
+        "repos/faviann/broodling-p5-v3-20260917",
+        "--jq",
+        "{full_name,private,default_branch,permissions}"
+      ],
+      "exit": 0,
+      "stdout": "{\"default_branch\":\"p5-eval\",\"full_name\":\"faviann/broodling-p5-v3-20260917\",\"permissions\":{\"admin\":true,\"maintain\":true,\"pull\":true,\"push\":true,\"triage\":true},\"private\":true}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "gh",
+        "api",
+        "repos/faviann/broodling-p5-v3-20260917/git/ref/heads/p5-eval"
+      ],
+      "exit": 0,
+      "stdout": "{\"ref\":\"refs/heads/p5-eval\",\"node_id\":\"REF_kwDOUfOy6bJyZWZzL2hlYWRzL3A1LWV2YWw\",\"url\":\"https://api.github.com/repos/faviann/broodling-p5-v3-20260917/git/refs/heads/p5-eval\",\"object\":{\"sha\":\"884bd64264df1515bee76a63f548db9cabe25a35\",\"type\":\"commit\",\"url\":\"https://api.github.com/repos/faviann/broodling-p5-v3-20260917/git/commits/884bd64264df1515bee76a63f548db9cabe25a35\"}}",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "gh",
+        "pr",
+        "list",
+        "--repo",
+        "faviann/broodling-p5-v3-20260917",
+        "--state",
+        "all",
+        "--json",
+        "number,url,headRefOid,baseRefName"
+      ],
+      "exit": 0,
+      "stdout": "[]\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "broodling-p5-v3-r01-target",
+        "--format",
+        "{{json .State}}"
+      ],
+      "exit": 0,
+      "stdout": "{\"Status\":\"exited\",\"Running\":false,\"Paused\":false,\"Restarting\":false,\"OOMKilled\":false,\"Dead\":false,\"Pid\":0,\"ExitCode\":137,\"Error\":\"\",\"StartedAt\":\"2026-09-17T18:51:06.48002486Z\",\"FinishedAt\":\"2026-09-17T18:53:41.572399302Z\"}\n",
+      "stderr": ""
+    }
+  ],
+  "isolated_auth_copy_removed": true,
+  "original_host_auth_modified": false,
+  "target_container": "stopped and retained",
+  "target_state": "retained outside Broodling repository",
+  "broodling_quarantined_attempts": 0,
+  "quarantine_policy": "No Attempt was dispatched. Every future dispatched Attempt remains ineligible for automatic deletion/replacement, irrespective of native stop or external containment.",
+  "active_owner_authorization": "User session: authorized disposable resources, host/provider/delivery setup; actively supervising with stop capability.",
+  "provider_task_count": 0,
+  "spend": "No evaluation provider task was invoked; no provider billing claim. Operator setup cost not measured."
+}

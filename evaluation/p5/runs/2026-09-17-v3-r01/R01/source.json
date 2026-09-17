@@ -1,0 +1,12 @@
+{
+  "content_sha256": "7f2c3c810da2713860ef5c0bbffdba6157b5b25bdfbed98cce1a9648e81cee13",
+  "entitled_by": "broodling_policy",
+  "entitlement_basis": "primary_authoritative_work_reference",
+  "kind": "primary_issue",
+  "locator": "https://github.com/faviann/broodling-p5-v3-20260917/issues/1",
+  "media_type": "text/markdown; charset=utf-8",
+  "recorded_at": "2026-09-17T18:51:13.968192+00:00",
+  "retrieved_at": "2026-09-17T18:51:13.930426+00:00",
+  "source_id": "src-a634b4d18a121a1088cc184e11ffa07759bc40f6dd5b4e4843ae80420ca90b20",
+  "work_unit_id": "wu-5d3cb6246c8e910471364fd3098d12d8f0e2fbd43901fd55c1633d394f171192"
+}
