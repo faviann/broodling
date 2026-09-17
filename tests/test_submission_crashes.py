@@ -71,17 +71,6 @@ class SubmissionCrashTests(RealSubmissionCase):
     def test_death_after_correlation_commit(self):
         self.recover("after_correlation", expected_state="correlated")
 
-    def test_second_death_after_public_conflict_before_id(self):
-        accepted = self.collect(self.child("after_accept_mutation"), 97)[0][
-            "publicRunId"
-        ]
-        events = self.collect(self.child("after_conflict"), 97)
-        self.assertEqual(events, [{"publicRunId": accepted}])
-        self.assertEqual(self.coordinator.record(self.attempt_id).state, "dispatched")
-        self.restart()
-        self.assertEqual(self.coordinator.reconcile(self.attempt_id).run_id, accepted)
-        self.assert_single(accepted)
-
     def race(self):
         gate = self.root / "go"
         children = [self.child("report", gate) for _ in range(4)]

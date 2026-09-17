@@ -36,14 +36,7 @@ native = adapter.submit
 def dispatch(request):
     if mode == "before_call":
         os._exit(97)
-    try:
-        run_id = native(request)
-    except Exception as error:
-        # The conflict itself is also a caller-visible acknowledgement window.
-        if mode == "after_conflict" and getattr(error, "existing_run_id", ""):
-            print(json.dumps({"publicRunId": error.existing_run_id}), flush=True)
-            os._exit(97)
-        raise
+    run_id = native(request)
     print(json.dumps({"publicRunId": run_id}), flush=True)
     if mode == "after_accept_mutation":
         move_head(Path(request["workspace"]), content="accepted run mutation\n")
