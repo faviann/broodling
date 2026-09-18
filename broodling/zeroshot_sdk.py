@@ -11,10 +11,23 @@ import importlib.metadata
 import json
 import os
 from pathlib import Path
+from types import MappingProxyType
 
 from .codex_profile import OPERATING_ENVIRONMENT, CodexProfile
 from .errors import SubmissionConflict, UnsupportedRuntime
 from .profile import ZEROSHOT_SDK_VERSION
+
+
+# Deliberately fixed for V1. Runtime selection, per-node overrides, and capability
+# profiles require a later product boundary rather than caller-authored values here.
+_V1_UNIFORM_RUNTIME = MappingProxyType({
+    "harness": "codex",
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "effort": "medium",
+    "size": "small",
+    "session_scope": "execution",
+})
 
 
 def canonical_request(value: dict) -> str:
@@ -61,13 +74,7 @@ class ZeroshotSubmitter:
     @property
     def runtime(self) -> dict:
         """The supported provider selection, not a caller-authored execution plan."""
-        return {
-            "harness": "codex",
-            "provider": "openai",
-            "model": "gpt-5.6-sol",
-            "effort": "low",
-            "size": "small",
-            "session_scope": "execution",
+        return dict(_V1_UNIFORM_RUNTIME) | {
             "connections": {
                 "profile": [
                     "BROODLING_REAL_CODEX",
@@ -83,14 +90,7 @@ class ZeroshotSubmitter:
         if delivery == "pull_request":
             # The direct target owns its provider installation. Credentials are
             # supplied only to the SDK process when this invocation is dispatched.
-            return {
-                "harness": "codex",
-                "provider": "openai",
-                "model": "gpt-5.6-sol",
-                "effort": "low",
-                "size": "small",
-                "session_scope": "execution",
-            }
+            return dict(_V1_UNIFORM_RUNTIME)
         raise UnsupportedRuntime(f"unsupported delivery mode {delivery!r}")
 
     def require_execution_profile(self) -> None:

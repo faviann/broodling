@@ -62,6 +62,31 @@ class SdkPolicyTests(SubmissionCase):
 
     def test_runtime_is_a_fixed_selection_not_an_alternate_harness_seam(self):
         runtime = self.adapter.runtime
+        expected = {
+            "harness": "codex",
+            "provider": "openai",
+            "model": "gpt-5.6-sol",
+            "effort": "medium",
+            "size": "small",
+            "session_scope": "execution",
+        }
+        self.assertEqual(
+            self.adapter.runtime_for("pull_request"),
+            expected,
+        )
+        self.assertEqual(
+            runtime,
+            expected
+            | {
+                "connections": {
+                    "profile": [
+                        "BROODLING_REAL_CODEX",
+                        "BROODLING_PROFILE_HOME",
+                        "BROODLING_ISOLATED_CODEX_HOME",
+                    ]
+                }
+            },
+        )
         runtime["harness"] = "claude"
         runtime["connections"].clear()
         self.assertEqual(self.adapter.runtime["harness"], "codex")

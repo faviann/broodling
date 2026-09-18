@@ -73,6 +73,15 @@ The material capabilities are:
 - `force_stop()` requests native stop. Its terminal result is not a public
   physical-cessation receipt for a local provider process tree.
 
+The deliberately simple V1 authorized-PR execution profile fixes the standard
+`software-change` preset with native `pull_request` delivery through
+`DirectTarget`, and fixes one `UniformRuntime` for every executable workflow
+node: Codex harness, OpenAI provider, `gpt-5.6-sol`, medium reasoning effort,
+small size, and execution-scoped sessions. Broodling does not expose harness,
+provider, model, effort, or per-node runtime selection in V1. Node-local OAuth,
+`RuntimePlan` overrides, skill/tool capability profiles, and fleet scheduling
+remain future profiles rather than latent alternatives in this interface.
+
 Execution-scoped freshness separates provider sessions between occurrences.
 Within an execution, Zeroshot may resume its own session for response correction
 or provider retries. Broodling no longer forces CLI-session disposal, which would
