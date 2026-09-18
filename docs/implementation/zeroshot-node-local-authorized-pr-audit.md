@@ -3,7 +3,9 @@
 **Status: issue #72 completed BLOCKED against the pinned Zeroshot 10.3.0 / Python
 SDK 10.3.0.post1 boundary.** This is a dated dependency finding, not a claim
 about later Zeroshot releases. It changes neither the supported DirectTarget
-profile nor the preserved P5 v1-v3 records.
+profile nor the preserved P5 v1-v3 records. Node-local OAuth is post-V1, so this
+finding is not a blocker for the selected V1 DirectTarget/API-key profile; it is
+the source-backed dependency record for a future node-local profile.
 
 ## Required combination
 
@@ -107,6 +109,8 @@ workspace branch) while preserving its current local-user candidate placement.
 An equivalent upstream target/API would also satisfy the gap.
 
 Until then, the node-local OAuth-backed authorized-PR profile is unsupported.
-Broodling retains the working DirectTarget/API-key profile from #69 unchanged,
-does not create a P5 v4 protocol for an unavailable profile, does not consume
-R01, and leaves #68 gated pending a later supported profile and R01 successor.
+At issue #72's completion Broodling retained the working DirectTarget/API-key
+profile from #69, created no protocol for the unavailable node-local profile,
+and did not consume R01. The later prospective P5 v4 selects that separate,
+already-supported DirectTarget profile; it does not change this finding or make
+node-local OAuth part of V1.

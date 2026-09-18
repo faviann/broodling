@@ -71,6 +71,15 @@ The administrative profile is single-host Linux x86-64, Python 3.13+, SQLite
 Codex 0.153.4 profile. This is a selected baseline, not a floating latest-release
 claim or a transfer of old host qualification.
 
+The deliberately simple V1 authorized-PR execution profile is Zeroshot's standard
+`software-change` workflow with native `pull_request` delivery through the
+already-supported DirectTarget path. One `UniformRuntime` applies across the
+workflow: Codex harness, OpenAI provider, `gpt-5.6-sol`, medium reasoning effort,
+small size, and execution-scoped sessions. V1 has no caller-selectable harness,
+provider, model, effort, per-node runtime, skill/tool capability profile, or fleet
+placement. Node-local OAuth authentication and those configuration/orchestration
+features are post-V1 concerns.
+
 | Frozen delivery authority | Current execution and Broodling outcome |
 | --- | --- |
 | Empty required-effect set | Standard workflow, delivery=none, LocalTarget. Native success returns null. Broodling refuses successful disposition without a stable accepted local result; no PR or post-run snapshot is inferred. |
@@ -110,31 +119,25 @@ has not passed.** Establish how well the existing thin integration delivers an
 authorized task and assess native-workflow outcome quality. Do not inherit v0.5's
 adjudicator/final-assessor checklist or mandatory new API.
 
-The latest frozen live protocol is
-[`p5-native-pr-v3`](../../evaluation/p5/v3/protocol.md). It preserves the frozen
-v1 corpus/judge and v2 claim-level decision rules while correcting operational
-prerequisites that had become broader than the current MVP/evaluation requires.
-It still selects the DirectTarget/API-key topology. The owner subsequently chose
-a node-local, harness-authenticated topology as the intended MVP evaluation
-profile. The [issue #72 source audit](../implementation/zeroshot-node-local-authorized-pr-audit.md)
-found that profile unsupported by pinned Zeroshot 10.3.0: `LocalTarget` supplies
-local-user Codex identity but replaces explicit source authority with its attached
-worktree branch, while target execution honoring explicit source authority clears
-local-user identity. No v4 profile is frozen for an unavailable integration, and
-no live dispatch is authorized until a supported profile and prospective protocol
-successor exist. The v1-v3 files and every blocked record remain provenance and
-are not rewritten as successful live evidence.
+The current prospective live profile is
+[`p5-native-pr-v4`](../../evaluation/p5/v4/protocol.md). It preserves the frozen
+v1 corpus/judge, v2 claim-level decision rules, and v3 operational policy while
+selecting the V1 DirectTarget execution profile above. No live dispatch occurred
+under v1-v3 or the blocked #64/#65/#67/#71 work, and those files and records remain
+unchanged provenance rather than being reinterpreted as evidence for v4.
+
+The [issue #72 source audit](../implementation/zeroshot-node-local-authorized-pr-audit.md)
+remains the source-backed dependency finding for a future node-local OAuth
+profile. Its pinned Zeroshot limitation is not a blocker for V1's supported
+DirectTarget/API-key path.
 
 ### Prerequisites
 
 Use this authority, one recorded compatible product/dependency baseline and a
-supported full-suite result. Before a live PR trial, first select and freeze a
-supported execution/authentication profile. The intended node-local profile is
-currently blocked as described above; v3's configured DirectTarget, current
-`OPENAI_API_KEY`, and delivery credential remain valid for that preserved profile
-but are no longer the selected MVP evaluation topology. Any successor still needs
-a designated disposable GitHub repository/target branch, the exact authorized PR
-effect, and a current delivery credential.
+supported full-suite result. The selected profile is V1: configured DirectTarget,
+current `OPENAI_API_KEY`, current delivery credential, and the fixed uniform
+runtime above. A live trial still needs a designated disposable GitHub
+repository/target branch and the exact authorized PR effect.
 Each trial still needs the entitled source/primary issue/Work Unit/Contract/B1/
 Attempt/workspace facts required by the current Broodling APIs.
 
@@ -198,15 +201,14 @@ alone is not P5 success; defining this plan grants no release verdict.
 ### Capability gaps and non-goals
 
 The no-effect stable-local-result gap blocks successful local disposition, not
-P5 definition. The separate node-local authorized-PR gap currently blocks the
-intended P5 execution/authentication profile: Zeroshot 10.3.0 cannot combine
-local harness-owned authentication with Broodling's exact target-branch source
-authority. Preserve both refusals; do not call either successful local
-completion. Dispatched cessation/cleanup is a live operational limitation for
-both delivery modes under current Broodling policy. Preserve quarantine and
-assess its operational consequences; a supervisor or automatic retry is not a
-hidden P5 prerequisite. Closing any gap requires a separately justified
-supported capability and explicit scope change.
+P5 definition. Zeroshot 10.3.0's separate node-local authorized-PR gap remains a
+post-V1 dependency finding, not a blocker for the selected DirectTarget profile.
+Preserve both limitations; do not call either successful local completion.
+Dispatched cessation/cleanup is a live operational limitation for both delivery
+modes under current Broodling policy. Preserve quarantine and assess its
+operational consequences; a supervisor or automatic retry is not a hidden P5
+prerequisite. Closing any gap requires a separately justified supported
+capability and explicit scope change.
 
 Zeroshot owns workflow internals, reviewer sessions, validation choices and repair
 routing. P5 does not restore custom graphs, deterministic evidence leaves, sticky
@@ -223,10 +225,11 @@ Version 2 remains frozen at `1d581717509de182410c3ab2f54d3f65768d8d7f`.
 The blocked #64/#65 preflight/not-run record at
 `b9cacd99beb9a297966e68e6047c7663aca9b4c6` remains evidence that the supported
 suite passed there but R01-R08 were all NOT_STARTED and no live provider/PR
-P5 observation occurred. V3 remains frozen and unexecuted; after the topology
-decision recorded in #71/#72 it is not the selected live profile, and it does not
-rescore or erase any earlier record. No version 4 exists until a supported
-successor can be specified.
+P5 observation occurred. V3 remains frozen and unexecuted. The profile-selection
+pause recorded by #71 and the source-backed #72 finding remain preserved. V4 is
+the prospective successor selecting the already-supported V1 DirectTarget path;
+it does not rescore or erase any earlier record. R01 remains NOT_STARTED, and
+issue #79 is the single next task to run that live boundary once against V4.
 
 ## Backlog disposition from issue #60
 
