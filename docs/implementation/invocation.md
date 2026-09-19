@@ -124,11 +124,13 @@ returning identifiers, use `history(reference)` to inspect retained revisions an
 select the exact revision to resume. Failures before a revision was recorded
 leave no revision handle. The facade does not add a separate error ledger.
 
-`history` checks supplied upstream repository/issue IDs against already-pinned
-identities and raises `WorkUnitIdentityConflict` on a mismatch. It never creates
-a Work Unit, records ingress or pins a previously unknown ID. Matching or omitted
-IDs allow observation; without supplied IDs, this offline lookup cannot detect
-upstream recreation at the same path. Unknown references return no history.
+`history` checks repository and issue identities independently. For either
+identity, it raises `WorkUnitIdentityConflict` only when the caller supplies an ID
+that conflicts with an ID already pinned on the retained Work Unit. Recreation
+at the same path cannot be detected for that identity when the caller omits the
+ID or the retained Work Unit has no previously pinned ID to compare it against.
+It never creates a Work Unit, records ingress or pins a previously unknown ID.
+Unknown references return no history.
 
 `resume` returns existing rejection,
 abandonment or disposition without automatically creating a replacement Attempt.

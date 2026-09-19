@@ -181,6 +181,9 @@ class Broodling:
         Returns oldest revision first, or an empty tuple for unknown references.
         This never acquires sources, runs a proposer, or resolves a new Work Unit.
         Supplied upstream identities must agree with any already-pinned identities.
+        For each of repository and issue identity, recreation cannot be detected
+        if the caller omits that identity or the retained Work Unit has no pin
+        for it. Observation never establishes a missing pin.
         """
         work_unit = self.store.find_work_unit(reference)
         if work_unit is None:
