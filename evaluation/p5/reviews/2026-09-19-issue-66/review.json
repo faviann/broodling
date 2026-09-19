@@ -1,0 +1,75 @@
+{
+  "observed_at": "2026-09-19T14:42:01.067605+00:00",
+  "issue": 66,
+  "parent_issue": 62,
+  "review_status": "COMPLETE",
+  "p5_verdict": "FAIL",
+  "scope": "bounded authorized-PR native profile on recorded v5/v6 baselines",
+  "broader_release_decision": "NOT ASSESSED / NOT AUTHORIZED by this review",
+  "reviewed_evidence_commit": "fcc8439f7827068185bb533a2b48b3ae5bb9c90d",
+  "v5": {
+    "verdict": "BLOCKED",
+    "primary_class": "IF",
+    "evaluator": "NOT_DELIVERED",
+    "native": "FAILED",
+    "broodling_disposition": null,
+    "counts": {
+      "P": 8,
+      "S": 1,
+      "D": 1,
+      "U": 1,
+      "A": 0,
+      "J_A": 0
+    }
+  },
+  "v6": {
+    "verdict": "FAIL",
+    "primary_class": "FA",
+    "evaluator": "FAIL",
+    "native": "SUCCEEDED",
+    "broodling_disposition": "SUCCEEDED",
+    "boundary": "PASS",
+    "automated_judge": "18/18 PASS",
+    "accepted_revision": "248d67d35fc8fe6ac5dba9a0fb8cae831ae22631",
+    "counts": {
+      "P": 8,
+      "S": 1,
+      "D": 1,
+      "U": 1,
+      "A": 1,
+      "J_A": 1
+    }
+  },
+  "both_cohorts_unstarted": [
+    "R02",
+    "R03",
+    "R04",
+    "R05",
+    "R06",
+    "R07",
+    "R08"
+  ],
+  "decisive_rule": "Frozen v2 rule 4: zero FA; any FA stops further confirmatory dispatch and disqualifies this cohort.",
+  "additional_unsupported_claims": [
+    "all eight slots started/resolved",
+    "T1 correct observation",
+    "T2-T4 coverage",
+    "repetition stability"
+  ],
+  "new_observations": [
+    "139 retained manifest entries verified",
+    "frozen bytes and applicable tested identities verified",
+    "v5/v6 bundles independently recovered and fsck passed",
+    "unchanged judge and retained criteria probes reproduced offline",
+    "original SQLite store compared read-only",
+    "original v5/v6 stopped-container identities inspected read-only"
+  ],
+  "review_provider_calls": 0,
+  "review_product_replays": 0,
+  "new_cohorts": 0,
+  "frozen_rule_changes": 0,
+  "implemented_fixes": 0,
+  "smallest_justified_follow_up": "Separately scoped offline analysis of retained T1 acceptance/calibration gap; report limits of native-cause attribution; any evaluator correction requires prospective version and impact statement preserving FA/IF.",
+  "follow_up_executed": false,
+  "detail": "README.md"
+}

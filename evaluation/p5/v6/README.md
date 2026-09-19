@@ -30,5 +30,8 @@ in the evidence package and Git history.
 
 The cohorts remain separate. The compatible v6 delivery boundary passes, but
 the frozen FA rule makes a positive recommendation impossible for this cohort.
-P5 readiness remains NOT REVIEWED by #66; no release verdict is inferred.
-No R01 replacement, R02–R08 execution or continuation issue was created.
+[Skeptical review #66](../reviews/2026-09-19-issue-66/README.md) is COMPLETE;
+the scoped P5 verdict is **FAIL**, and broader release readiness is NOT ASSESSED.
+It upholds FA against frozen T1, separately verifies delivery/disposition/replay,
+and applies the unchanged v2 claim-level rules. No R01 replacement, R02–R08
+execution or continuation issue was created.

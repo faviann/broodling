@@ -9,8 +9,9 @@ disposition remain SUCCEEDED; evaluator class is FA.
 Do not run `start`, `finalize`, `replay` or native/provider work for this consumed
 slot. Do not remove its start marker, reset the store, replace its Attempt,
 repair/publish its PR, or use its output as another trial's input. R02–R08 remain
-NOT_STARTED and no v6 continuation is eligible. #66 may review the settled
-incomplete package; P5 readiness remains NOT REVIEWED.
+NOT_STARTED and no v6 continuation is eligible. The
+[skeptical #66 review](../reviews/2026-09-19-issue-66/README.md) is COMPLETE
+with scoped P5 verdict FAIL; broader release readiness remains NOT ASSESSED.
 
 The original store/source/workspace, stopped corrected target container/image,
 target state/home and dispatched Attempt remain quarantined. The actual PR
