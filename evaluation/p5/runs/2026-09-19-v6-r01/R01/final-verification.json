@@ -1,0 +1,38 @@
+{
+  "all_json_records_parsed": true,
+  "compatible_tested_revision": "2fd972c17a4b4edff4c591dd1c8acc06e1b9e896",
+  "continuation_created_or_executed": false,
+  "empty_precheck_stdout_is_not_json_result": true,
+  "frozen_task_issue_body_matches_setup_bytes": true,
+  "git_diff_check_exit": 0,
+  "git_diff_check_scope": "All settlement changes except verbatim review-inputs/b1-to-receipt.diff, whose blank context lines intentionally contain the unified-diff space marker.",
+  "limitations": "Original v5 state/home were never accessed for mutation; this final check re-verifies protected tracked bytes and exact stopped-container/remote-PR identity, not an exhaustive raw-state rehash.",
+  "observed_at": "2026-09-19T14:24:36.068601+00:00",
+  "post_delivery_provider_work": 0,
+  "post_delivery_replay": 0,
+  "protected_tracked_v1_v5_paths": [
+    "evaluation/p5/v1",
+    "evaluation/p5/v2",
+    "evaluation/p5/v3",
+    "evaluation/p5/v4",
+    "evaluation/p5/v5",
+    "evaluation/p5/runs/2026-09-19-v5-setup",
+    "evaluation/p5/runs/2026-09-19-v5-r01"
+  ],
+  "protected_tracked_v1_v5_unchanged_from_82": true,
+  "relevant_product_test_dependency_helper_paths": [
+    "broodling",
+    "tests",
+    "pyproject.toml",
+    "conftest.py",
+    "evaluation/p5/v6/run_r01.py",
+    "evaluation/p5/v6/setup_r01.py",
+    "evaluation/p5/verify_direct_target_gh.py"
+  ],
+  "relevant_tracked_identities_unchanged": true,
+  "v5_container_and_partial_pr_match_pre_admission": true,
+  "v5_container_id": "e937e7fd7d8e35c823ba027edbfd95338d075cdbfbc3056249083a09e34854eb",
+  "v5_partial_pr_head": "64213ae12edcd571bc313bbe7920b66dcd6c17d8",
+  "v6_frozen_protocol_setup_bytes_unchanged": true,
+  "verbatim_diff_whitespace_warnings": "Four blank context lines in retained Git diff; bytes intentionally preserved. All other changes pass git diff --check."
+}

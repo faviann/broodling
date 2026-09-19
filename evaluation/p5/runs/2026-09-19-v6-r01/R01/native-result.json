@@ -1,0 +1,16 @@
+{
+  "credential_free_reconnection": true,
+  "failure": null,
+  "observed_at": "2026-09-19T14:01:08.175415+00:00",
+  "output": {
+    "headRevision": "248d67d35fc8fe6ac5dba9a0fb8cae831ae22631",
+    "mode": "pr",
+    "outcome": "opened",
+    "pullRequestId": "2",
+    "repository": "faviann/broodling-p5-v6-20260919",
+    "targetBranch": "p5-eval",
+    "version": "v1"
+  },
+  "run_id": "01a0b9ee-476e-7b02-a216-ae885ac1db4b",
+  "succeeded": true
+}

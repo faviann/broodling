@@ -1,0 +1,95 @@
+{
+  "container": {
+    "id": "6dcb51921a9b6a71e3275429c2459a735457860745aa1d1164330364c2953d6d",
+    "image": "sha256:3511d1b7134167b6a845bdc0536532a2265cba580e77b475e26d25d0382f4e5a",
+    "mounts": [
+      {
+        "Destination": "/p5-state",
+        "RW": true,
+        "Source": "/home/faviann/.local/share/broodling-p5-v6/target-state",
+        "Type": "bind"
+      },
+      {
+        "Destination": "/home/node",
+        "RW": true,
+        "Source": "/home/faviann/.local/share/broodling-p5-v6/target-home",
+        "Type": "bind"
+      }
+    ],
+    "name": "/broodling-p5-v6-r01-target",
+    "state": {
+      "Dead": false,
+      "Error": "",
+      "ExitCode": 0,
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "OOMKilled": false,
+      "Paused": false,
+      "Pid": 418629,
+      "Restarting": false,
+      "Running": true,
+      "StartedAt": "2026-09-19T13:35:45.452024557Z",
+      "Status": "running"
+    }
+  },
+  "observed_at": "2026-09-19T14:16:49.152485+00:00",
+  "policy": "All dispatched Attempt resources remain quarantined; no retirement, replacement, cleanup or continuation authorized. Completed target retained without invoking provider work.",
+  "resources": [
+    {
+      "apparent_bytes": 3366,
+      "exists": true,
+      "free_bytes": 74117677056,
+      "path": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/source"
+    },
+    {
+      "apparent_bytes": 911,
+      "exists": true,
+      "free_bytes": 74117677056,
+      "path": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/workspaces"
+    },
+    {
+      "apparent_bytes": 241664,
+      "exists": true,
+      "free_bytes": 74117677056,
+      "path": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/broodling.sqlite3"
+    },
+    {
+      "exists": true,
+      "free_bytes": 74117677056,
+      "path": "/home/faviann/.local/share/broodling-p5-v6/target-state"
+    },
+    {
+      "exists": true,
+      "free_bytes": 74117677056,
+      "path": "/home/faviann/.local/share/broodling-p5-v6/target-home"
+    },
+    {
+      "apparent_bytes": 335187,
+      "exists": true,
+      "free_bytes": 74117677056,
+      "path": "/home/faviann/.local/share/broodling-p5-v6/judging"
+    },
+    {
+      "apparent_bytes": 83297,
+      "exists": true,
+      "free_bytes": 891489759232,
+      "path": "/home/faviann/repos/broodling/evaluation/p5/runs/2026-09-19-v6-r01/R01"
+    }
+  ],
+  "retained_assignments": [
+    {
+      "allocated_at": "2026-09-19T13:49:55.420414+00:00",
+      "attempt_id": "at-166aae70a8b5c4b3ac3a34176f68fab0040139b7af0c325f3199bf4e136de593",
+      "branch": "broodling/faviann-broodling-p5-v6-20260919-1/166aae70a8b5c4b3ac3a3417",
+      "provisioned_at": "2026-09-19T13:49:55.458073+00:00",
+      "repository": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/source/.git",
+      "state": "provisioned",
+      "work_unit_id": "wu-ea6214a07f5940fbf64a68ea88bbe715650a814073158804ec0145440b37ea6b",
+      "worktree_path": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/workspaces/faviann-broodling-p5-v6-20260919-1-166aae70a8b5c4b3ac3a3417/worktree"
+    }
+  ],
+  "target_apparent_bytes": {
+    "/home/node": 48,
+    "/p5-state": 172039
+  },
+  "usage_limit": "du apparent sizes are point-in-time, not unique physical allocation or peak usage; no new fixed quota introduced."
+}

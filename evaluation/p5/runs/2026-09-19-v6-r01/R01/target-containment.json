@@ -1,0 +1,44 @@
+{
+  "basis": "External containment after already-completed R01 and verified Git retention; preserve all resources and do not invoke native stop/replay/dispatch or Broodling abandonment/retirement.",
+  "command": [
+    "docker",
+    "stop",
+    "--time",
+    "10",
+    "broodling-p5-v6-r01-target"
+  ],
+  "container_id": "6dcb51921a9b6a71e3275429c2459a735457860745aa1d1164330364c2953d6d",
+  "exit_code": 0,
+  "image": "sha256:3511d1b7134167b6a845bdc0536532a2265cba580e77b475e26d25d0382f4e5a",
+  "mounts": [
+    {
+      "Destination": "/p5-state",
+      "RW": true,
+      "Source": "/home/faviann/.local/share/broodling-p5-v6/target-state",
+      "Type": "bind"
+    },
+    {
+      "Destination": "/home/node",
+      "RW": true,
+      "Source": "/home/faviann/.local/share/broodling-p5-v6/target-home",
+      "Type": "bind"
+    }
+  ],
+  "observed_at": "2026-09-19T14:19:10.831407+00:00",
+  "provider_work_executed": false,
+  "resources_removed": false,
+  "state": {
+    "Dead": false,
+    "Error": "",
+    "ExitCode": 137,
+    "FinishedAt": "2026-09-19T14:19:10.456080516Z",
+    "OOMKilled": false,
+    "Paused": false,
+    "Pid": 0,
+    "Restarting": false,
+    "Running": false,
+    "StartedAt": "2026-09-19T13:35:45.452024557Z",
+    "Status": "exited"
+  },
+  "stdout": "Flag --time has been deprecated, use --timeout instead\nbroodling-p5-v6-r01-target\n"
+}

@@ -1,0 +1,22 @@
+diff --git a/tiny.py b/tiny.py
+index 2236681..7ed1688 100644
+--- a/tiny.py
++++ b/tiny.py
+@@ -2,7 +2,16 @@
+ 
+ 
+ def parse_port(text):
+-    return int(text)
++    if not isinstance(text, str):
++        raise TypeError("port must be a string")
++    if not text or not str.isascii(text) or not str.isdigit(text):
++        raise ValueError("port must contain only ASCII digits")
++
++    significant_digits = str.lstrip(text, "0")
++    port = int(significant_digits or "0")
++    if not 1 <= port <= 65535:
++        raise ValueError("port must be between 1 and 65535")
++    return port
+ 
+ 
+ def unique_words(words):

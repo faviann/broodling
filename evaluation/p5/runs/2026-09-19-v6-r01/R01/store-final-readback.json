@@ -1,0 +1,51 @@
+{
+  "access": "SQLite mode=ro; backup API to separate archive; no product coordinator invocation",
+  "backup": "/home/faviann/.local/share/broodling-p5-v6/judging/r01-disposed-store.sqlite3",
+  "backup_sha256": "c7f334b17a594599ea348d24c050cfeccfe386c75ba4ba3fff91abcb31f87c60",
+  "exact_relevant_rows": {
+    "final_assurance": [
+      {
+        "attempt_id": "at-166aae70a8b5c4b3ac3a34176f68fab0040139b7af0c325f3199bf4e136de593",
+        "record_json": "{\"acceptedRevision\":\"248d67d35fc8fe6ac5dba9a0fb8cae831ae22631\",\"attemptId\":\"at-166aae70a8b5c4b3ac3a34176f68fab0040139b7af0c325f3199bf4e136de593\",\"contractRevisionId\":\"cr-0fa0f05f1b6850901a9678b1d31700b1d75b7ca64876ee0fcac1987c46f52d61\",\"deliveryReceipt\":{\"headRevision\":\"248d67d35fc8fe6ac5dba9a0fb8cae831ae22631\",\"mode\":\"pr\",\"outcome\":\"opened\",\"pullRequestId\":\"2\",\"repository\":\"faviann/broodling-p5-v6-20260919\",\"targetBranch\":\"p5-eval\",\"version\":\"v1\"},\"format\":\"broodling.final-assurance/v3\",\"runId\":\"01a0b9ee-476e-7b02-a216-ae885ac1db4b\",\"workflow\":{\"delivery\":\"pull_request\",\"name\":\"software-change\"}}",
+        "zeroshot_run_id": "01a0b9ee-476e-7b02-a216-ae885ac1db4b"
+      }
+    ],
+    "work_unit_dispositions": [
+      {
+        "attempt_id": "at-166aae70a8b5c4b3ac3a34176f68fab0040139b7af0c325f3199bf4e136de593",
+        "completed_at": "2026-09-19T14:01:08.185522+00:00",
+        "contract_revision_id": "cr-0fa0f05f1b6850901a9678b1d31700b1d75b7ca64876ee0fcac1987c46f52d61",
+        "outcome": "SUCCEEDED",
+        "work_unit_id": "wu-ea6214a07f5940fbf64a68ea88bbe715650a814073158804ec0145440b37ea6b"
+      }
+    ],
+    "worktree_assignments": [
+      {
+        "allocated_at": "2026-09-19T13:49:55.420414+00:00",
+        "attempt_id": "at-166aae70a8b5c4b3ac3a34176f68fab0040139b7af0c325f3199bf4e136de593",
+        "branch": "broodling/faviann-broodling-p5-v6-20260919-1/166aae70a8b5c4b3ac3a3417",
+        "provisioned_at": "2026-09-19T13:49:55.458073+00:00",
+        "repository": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/source/.git",
+        "state": "provisioned",
+        "work_unit_id": "wu-ea6214a07f5940fbf64a68ea88bbe715650a814073158804ec0145440b37ea6b",
+        "worktree_path": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/workspaces/faviann-broodling-p5-v6-20260919-1-166aae70a8b5c4b3ac3a3417/worktree"
+      }
+    ]
+  },
+  "integrity_check": "ok",
+  "observed_at": "2026-09-19T14:16:48.848691+00:00",
+  "provider_calls": 0,
+  "replays_performed": 0,
+  "store": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/broodling.sqlite3",
+  "table_counts": {
+    "admission_decisions": 1,
+    "attempt_abandonments": 0,
+    "attempt_retirements": 0,
+    "attempt_retries": 0,
+    "attempt_submissions": 1,
+    "attempts": 1,
+    "final_assurance": 1,
+    "work_unit_dispositions": 1,
+    "worktree_assignments": 1
+  }
+}
