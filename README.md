@@ -61,15 +61,21 @@ python -m pip install -e '.[test]'
 python -m pytest tests
 ```
 
-`ContractIngress.from_github` now supplies the front half: acquire one explicit
-issue, freeze its exact source bytes, validate caller effect authority in a typed
-Contract from a caller-supplied proposer, and record deterministic admission.
-See the [ingress API and example](docs/implementation/work-reference-ingress.md).
-It stops at admission; no Attempt is created. Comments and referenced documents
-require separate explicit entitlement, and proposal generation has no bundled
-model. The [#74 first-use decision](https://github.com/faviann/broodling/issues/74)
-retains P5's scoped FAIL and requires independent operator review of every
-subsequently delivered PR before a separate merge decision.
+`Broodling` is the caller-facing Python API: submit one explicit GitHub issue
+with a typed Contract proposer and exact effect authority, inspect its pinned
+lineage, and wait for its receipt-backed disposition. It composes the existing
+ingress, admission, workspace, submission and disposition services. See the
+[invocation API and recovery behavior](docs/implementation/invocation.md).
+The [ingress API](docs/implementation/work-reference-ingress.md) remains available
+for admission alone. Comments and referenced documents require separate explicit
+entitlement, and proposal generation has no bundled model.
+
+The [#74 first-use decision](https://github.com/faviann/broodling/issues/74)
+retains P5's scoped **FAIL**. This is an operator-supervised internal PR-proposal
+workflow: every delivered PR requires independent human/operator review of its
+exact revision against the frozen request and Contract, with appropriate tests/CI,
+before a separate merge decision. `SUCCEEDED` does not certify semantic correctness
+or authorize automatic merge, deployment or downstream release.
 
 The dependency is pinned to the official Linux x86-64 SDK release wheel,
 including its SHA-256 digest; the wheel bundles the matching native engine.
@@ -83,59 +89,83 @@ override arbitrary managed configuration; this is a supported-host precondition,
 not a universal no-effect proof. See the
 [local policy limitation](docs/implementation/zeroshot-native-integration.md#local-policy-and-cleanup-limitation).
 
-The example below executes a Contract already recorded and admitted with exactly
-one authorized pull_request effect naming its target branch. It starts from a
-clean committed source repository with a GitHub origin. The host
-supplies an empty profile home and a separate Codex home
-containing only `auth.json`. Keep the database, runtime state, profiles, and
-durable Attempt workspaces outside the source checkout; preserve runtime state
-for reconnecting to the run.
+The example below submits an issue already reviewed to require only a candidate
+change, local checks and one explicitly authorized PR targeting `main`. Its simple
+proposer preserves the whole issue body as a criterion; a general proposer must
+also represent unsupported obligations and unresolved prerequisites. The source
+checkout must be clean and committed with the matching GitHub origin. Supply an
+authenticated `gh` for issue capture and an existing supported DirectTarget with
+the [compatible actual-target GitHub CLI](evaluation/p5/direct-target-gh-compatibility.md).
+Keep the database, runtime state and durable Attempt workspaces outside the source
+checkout. This API example does not provision or package a deployment (#77).
 
 ```python
 import asyncio
+import json
 import os
-from pathlib import Path
 
 from broodling import (
-    AttemptProvisioner,
+    Broodling,
     BroodlingStore,
-    CodexProfile,
-    SubmissionCoordinator,
-    WorkUnitDispositionCoordinator,
+    Contract,
+    Criterion,
+    RequiredEffect,
+    WorkReference,
     ZeroshotSubmitter,
 )
 
 
-def execute(admitted_revision_id: str):
-    with BroodlingStore.open("/srv/broodling/state/broodling.sqlite3") as store:
-        attempt = AttemptProvisioner(
-            store, "/srv/broodling/attempts"
-        ).admit_and_provision(
-            admitted_revision_id, "/srv/source/repository"
-        ).attempt
+def propose_reviewed_change(inputs):
+    primary = next(source for source in inputs.sources if source.kind == "primary_issue")
+    return Contract(
+        work_unit_id=inputs.work_unit.work_unit_id,
+        source_attribution=inputs.source_attribution,
+        criteria=(Criterion("request", json.loads(primary.content)["body"]),),
+        required_effects=inputs.required_effects,
+        constructed_by=inputs.constructed_by,
+    )
 
+
+def execute():
+    with BroodlingStore.open("/srv/broodling/state/broodling.sqlite3") as store:
         engine = ZeroshotSubmitter(
             "/srv/broodling/zeroshot",
-            codex_profile=CodexProfile(
-                Path("/opt/codex/bin/codex"),
-                Path("/srv/broodling/profile-home"),
-                Path("/srv/broodling/codex-auth"),
+            delivery_target_origin=os.environ["ZEROSHOT_TARGET_ORIGIN"],
+            github_token=os.environ["GH_TOKEN"],
+            gateway_base_url=os.environ["GATEWAY_BASE_URL"],
+            gateway_api_key=os.environ["GATEWAY_API_KEY"],
+        )
+        app = Broodling(store, engine, "/srv/broodling/attempts")
+        status = app.submit(
+            WorkReference.parse("acme/widget", 123),
+            propose_reviewed_change,
+            repository="/srv/source/repository",
+            constructed_by="caller",
+            required_effects=(
+                RequiredEffect("pr", "Deliver a PR targeting main.", "pull_request", "main"),
             ),
-            # Required only when this Contract authorizes pull_request delivery.
-            delivery_target_origin="https://zeroshot.example.internal",
-            github_token=os.environ.get("GH_TOKEN"),
-            gateway_base_url=os.environ.get("GATEWAY_BASE_URL"),
-            gateway_api_key=os.environ.get("GATEWAY_API_KEY"),
         )
-        SubmissionCoordinator(store, engine).submit(attempt.attempt_id)
-        return asyncio.run(
-            WorkUnitDispositionCoordinator(store, engine).finalize(attempt.attempt_id)
-        )
+        # Retain these identifiers for status/resume/wait after reopening the store.
+        print(status.revision.contract_revision_id, status.decision.outcome)
+        if not status.decision.admitted or status.abandonment:
+            return status
+        print(status.attempt.attempt_id, status.submission.run_id)
+        return asyncio.run(app.wait(status.attempt.attempt_id))
 ```
 
-For no-effect LocalTarget work, omit `delivery_target_origin`, `github_token`, and
-both gateway arguments; keep the isolated local Codex/OpenAI profile. This does
-not remove the no-effect stable result limitation described below.
+`app.status(revision_id)` reads retained facts without external calls.
+`app.history(reference)` lists recorded revisions, including handles retained
+when a submission failed before returning.
+`app.resume(revision_id)` continues the same admitted invocation after a restart;
+`await app.wait(attempt_id)` consumes its result. `await app.stop(attempt_id, reason)`
+abandons authority and requests native stop; dispatched worktrees remain
+quarantined. These methods preserve the existing errors and lifecycle decisions.
+
+For no-effect LocalTarget work, explicitly pass `required_effects=()`, omit the
+PR target/credential arguments and supply the isolated local `CodexProfile`
+described in the [integration design](docs/implementation/zeroshot-native-integration.md).
+That profile requires an empty profile home and a separate Codex home containing
+only `auth.json`; it retains the stable-result limitation described below.
 
 For an authorized PR, Zeroshot runs against the explicit repository, target
 branch, and B1 revision on the configured direct target. PR delivery is admitted

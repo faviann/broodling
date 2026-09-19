@@ -472,6 +472,18 @@ class BroodlingStore:
     ) -> None:
         """Pin an unset upstream identity once; never change a pinned one."""
 
+        self._check_upstream_identities(row, reference)
+        for column in ("repository_identity", "issue_identity"):
+            submitted = getattr(reference, column)
+            if row[column] is None and submitted is not None:
+                self._connection.execute(
+                    f"UPDATE work_units SET {column} = ? WHERE work_unit_id = ?",
+                    (submitted, row["work_unit_id"]),
+                )
+
+    @staticmethod
+    def _check_upstream_identities(row: sqlite3.Row, reference: WorkReference) -> None:
+        """Reject known conflicting pins, for both ingress and observation."""
         for column, submitted in (
             ("repository_identity", reference.repository_identity),
             ("issue_identity", reference.issue_identity),
@@ -482,13 +494,9 @@ class BroodlingStore:
             if stored is not None:
                 raise WorkUnitIdentityConflict(
                     f"{reference.key} is already pinned to {column} {stored!r}; "
-                    f"ingress presenting {submitted!r} names different upstream "
+                    f"reference presenting {submitted!r} names different upstream "
                     "material and cannot alias onto this Work Unit"
                 )
-            self._connection.execute(
-                f"UPDATE work_units SET {column} = ? WHERE work_unit_id = ?",
-                (submitted, row["work_unit_id"]),
-            )
 
     def _record_submission(self, work_unit_id: str, reference: WorkReference) -> None:
         self._connection.execute(
@@ -528,6 +536,14 @@ class BroodlingStore:
             issue_identity=row["issue_identity"],
             first_seen_at=row["first_seen_at"],
         )
+
+    def find_work_unit(self, reference: WorkReference) -> WorkUnitRecord | None:
+        """Look up retained identity without creating, pinning or recording ingress."""
+        row = self._work_unit_row(reference.work_unit_id)
+        if row is None:
+            return None
+        self._check_upstream_identities(row, reference)
+        return WorkUnitRecord(**dict(row))
 
     def submission_count(self, work_unit_id: str) -> int:
         row = self._connection.execute(
@@ -1267,6 +1283,14 @@ class BroodlingStore:
             (work_unit_id,),
         ).fetchone()
         return None if row is None else self._attempt(row)
+
+    def list_attempts(self, work_unit_id: str) -> tuple[AttemptRecord, ...]:
+        """Retained Attempt lineage, oldest admission first, including history."""
+        rows = self._connection.execute(
+            "SELECT * FROM attempts WHERE work_unit_id = ? ORDER BY rowid",
+            (work_unit_id,),
+        ).fetchall()
+        return tuple(self._attempt(row) for row in rows)
 
     @staticmethod
     def _attempt(row: sqlite3.Row) -> AttemptRecord:
