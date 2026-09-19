@@ -35,6 +35,11 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
 
 ## What remains
 
+- The installed single-host CLI reuses invocation authority and retains exact
+  source/Contract bytes in JSON inspection. Deployment tests cover immutable
+  installation replay/refusal, operator-reviewed issue byte pins, and actual-target
+  configuration/dependency checks. They do not substitute for the separate
+  [installation validation](../deployment/validation.md) or prove provider quality.
 - Caller-facing invocation from explicit GitHub reference through receipt-backed
   disposition, with pinned lineage/status, repeated and reopened submission,
   recovery after lost dispatch acknowledgment or interrupted provisioning,
