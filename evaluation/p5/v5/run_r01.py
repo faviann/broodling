@@ -37,6 +37,7 @@ from broodling import (  # noqa: E402
     WorkUnitDispositionCoordinator,
     ZeroshotSubmitter,
 )
+from evaluation.p5.verify_direct_target_gh import IncompatibleGitHubCLI, verify as verify_gh  # noqa: E402
 
 PROTOCOL = "p5-native-pr-v5"
 FREEZE = "52eb3569b3671baa37426792a67b50058e2d223f"
@@ -192,6 +193,8 @@ def preflight() -> dict:
             and len(allocation["slots"]) == 8
             and all(slot["status"] == "NOT_STARTED" for slot in allocation["slots"]),
             "one or more frozen slots has started")
+    target = load(EVIDENCE / "target-preparation.json")
+    target_gh = verify_gh("docker", "exec", target["container_id"])
     require(not any(name in os.environ for name in LEGACY),
             "conflicting legacy credentials/environment are present")
     require(os.environ.get("GATEWAY_BASE_URL") == GATEWAY,
@@ -267,7 +270,6 @@ def preflight() -> dict:
             and issue["node_id"] == frozen_issue["id"]
             and issue["body"] == frozen_issue["body"] and issue["title"] == frozen_issue["title"],
             "designated open issue differs from frozen R01 text")
-    target = load(EVIDENCE / "target-preparation.json")
     actual = json.loads(command("docker", "inspect", target["container_id"]))[0]
     expected_image = next(value for value in target["command"] if value.startswith("sha256:"))
     require(actual["State"]["Running"] and actual["Image"] == expected_image,
@@ -294,6 +296,7 @@ def preflight() -> dict:
         "reviewed_preparation_sha256": sha(EVIDENCE / "pre-admission-verification.json"),
         "input_records_sha256": sha(SETUP / "R01/input-records.json"),
         "direct_target_origin": TARGET, "runtime": RUNTIME,
+        "direct_target_github_cli": target_gh,
         "repository": REPOSITORY, "target_branch": BRANCH, "B1": B1,
         "target_run_count": 0, "credentials_present": list(CREDENTIALS),
         "gateway_metadata_status": 200, "github_repo_scope_verified": True,
@@ -481,8 +484,10 @@ def main() -> int:
     except Exception as error:
         # No exception text/traceback: third-party failures may contain secrets.
         record = {"phase": args.phase, "observed_at": now(), "error_type": type(error).__name__,
-                  "message": str(error) if isinstance(error, Refusal) else
+                  "message": str(error) if isinstance(error, (Refusal, IncompatibleGitHubCLI)) else
                   "Phase refused or failed; inspect sanitized prerequisites and durable state. Never rerun start after the start marker exists."}
+        if isinstance(error, IncompatibleGitHubCLI):
+            record["direct_target_github_cli"] = error.facts
         if args.phase != "check" and (EVIDENCE / "R01/execution-start.json").exists():
             write(EVIDENCE / "R01" / f"{args.phase}-error-{os.getpid()}.json", record)
         print(json.dumps(record), file=sys.stderr)

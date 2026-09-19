@@ -40,6 +40,10 @@ first-admission accounting and the frozen no-rerun rule independently.
 
 ## Target preparation used for #67
 
+For the current GitHub CLI pin, isolated rebuild and mandatory compatibility
+preflight, see [issue #82's target instructions](../direct-target-gh-compatibility.md).
+The commands below retain the historical #67 setup and tag.
+
 These are operator setup commands, not Broodling features. The build context
 contains only the Dockerfile and pinned native executable. The image installs
 Codex 0.153.4; the retained run record identifies the actual image digest and

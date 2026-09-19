@@ -1,5 +1,9 @@
 # P5 v5 setup and R01 handoff
 
+R01 is now [consumed as `IF`](../runs/2026-09-19-v5-r01/README.md); do not rerun
+this handoff. [Issue #82's target fix and preflight](../direct-target-gh-compatibility.md)
+must be incorporated before any separately reviewed prospective cohort.
+
 The corrected protocol freeze is
 `52eb3569b3671baa37426792a67b50058e2d223f`. Its selected gateway base URL is exactly
 `https://cliproxy.local.faviann.com/v1`, without a trailing slash. The
