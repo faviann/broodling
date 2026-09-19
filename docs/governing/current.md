@@ -125,17 +125,19 @@ new cleanup. Legacy storage/type names do not restore the old assurance protocol
 
 ## Next phase: P5 native-workflow product evaluation
 
-**P5 protocol/setup work is in progress; no live provider trial has started and P5
-has not passed.** Establish how well the existing thin integration delivers an
-authorized task and assess native-workflow outcome quality. Do not inherit v0.5's
-adjudicator/final-assessor checklist or mandatory new API.
+**V5 R01 is settled `NOT_DELIVERED / IF`; prospective v6 is frozen but unstarted.
+P5 has not passed; readiness remains NOT REVIEWED.** Evaluate the existing thin
+integration's authorized task delivery and native-workflow outcome quality.
+Do not inherit v0.5's adjudicator/final-assessor checklist or mandatory new API.
 
-The current prospective live profile is
-[`p5-native-pr-v5`](../../evaluation/p5/v5/protocol.md). It preserves the frozen
-v1 corpus/judge, v2 claim-level decision rules, and v3 operational policy while
-changing only v4's provider/credential binding to the gateway profile above.
-Protocols v1-v4 and all prior evidence remain byte-for-byte unchanged provenance;
-none is rescored or reinterpreted as gateway evidence. R01-R08 remain NOT_STARTED.
+The current prospective cohort is
+[`p5-native-pr-v6`](../../evaluation/p5/v6/protocol.md). It preserves the frozen
+v1 corpus/judge, v2 claim-level decision rules, v3 operational policy and v5's
+corrected gateway/provider/model/runtime binding. Its only execution-profile
+delta is #82's compatible DirectTarget GitHub CLI image and actual-container
+pre-admission check. New cohort/resources keep it separate from consumed v5.
+All earlier protocols/evidence remain unchanged; v5 is not rescored or reopened.
+Only **v6** R01-R08 are all NOT_STARTED.
 
 The [issue #72 source audit](../implementation/zeroshot-node-local-authorized-pr-audit.md)
 remains the source-backed dependency finding for a future node-local OAuth
@@ -145,13 +147,18 @@ DirectTarget/API-key path.
 ### Prerequisites
 
 Use this authority, one recorded compatible product/dependency baseline and a
-supported full-suite result. The corrected v5 freeze identity is
-`52eb3569b3671baa37426792a67b50058e2d223f`, superseding the original root-endpoint
-selection in `c8d3285`. The [v5 setup and baseline record](../../evaluation/p5/runs/2026-09-19-v5-setup/README.md)
-retains compatible identities and controlled test evidence; the
-[v5 setup helper and handoff](../../evaluation/p5/v5/setup.md) prepare the inputs
-without admission or provider execution. The selected profile is V1:
-configured DirectTarget, exact
+supported full-suite result. The v6 protocol/setup freeze is
+`4a2b0b8a0340b747e805f51da218a77ad81278f9`; the selected #82 baseline is
+`da5db3167eda0ef458cf0875b5a1c64138637b9d`. The
+[v6 freeze and gate record](../../evaluation/p5/v6/README.md) and
+[baseline/setup requirements](../../evaluation/p5/v6/setup.md) distinguish the
+retained 356-test / 270-subtest result from setup still to be performed.
+No v6 live target/input binding or execution authorization is claimed by the freeze.
+#83 owns the minimal evaluation-only setup/driver adaptation and one later R01;
+it must record actual compatible identities and check `/usr/bin/gh` in the
+selected new target before counting/admission. Preserve all v5 helpers and state.
+
+The selected profile remains V1: configured DirectTarget, exact
 `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`, current `GATEWAY_API_KEY`,
 current GitHub delivery credential, and the fixed uniform runtime above.
 A live trial still needs a designated disposable GitHub
@@ -246,20 +253,26 @@ suite passed there but R01-R08 were all NOT_STARTED and no live provider/PR
 P5 observation occurred. V3 remains frozen and unexecuted. The profile-selection
 pause recorded by #71 and the source-backed #72 finding remain preserved. V4's
 OpenAI/`OPENAI_API_KEY` selection is historical prospective authority, superseded
-only for future dispatch by v5's gateway binding. This provider amendment leaves
-every earlier protocol and evidence package unchanged and consumes no slot.
+only for future dispatch by v5's gateway binding.
 
-Issue #81's implementation and setup obligations are complete in the retained
-v5 record; the corrected freeze and compatible baseline are recorded above.
-The remaining order is **separately authorize #79's one R01 gateway execution →
-#68 → #66**, after its current operational prerequisites are checked. The current
-#62/#79 issue dependency text follows this order; #79's former OpenAI/v4 wording
-and comments cannot authorize gateway execution. #68 remains gated
-on compatible successful R01 boundary evidence, and #66 may review a settled
-incomplete package. Implementation, controlled tests, documentation, setup and
-endpoint preflight do not consume R01. Issue #81 performs none of the live P5
-provider calls, admissions, dispatches, PRs, dispositions or judgments and grants
-no CLIProxyAPI quality, live-boundary or P5-readiness verdict.
+V5's corrected freeze remains `52eb3569b3671baa37426792a67b50058e2d223f`.
+#81's [setup/baseline evidence](../../evaluation/p5/runs/2026-09-19-v5-setup/README.md)
+is retained; #79 then consumed R01 once, settled at
+`445c6d773ab772cb00f98a274d4bb8fce3e21b84` as
+[`NOT_DELIVERED / IF`](../../evaluation/p5/runs/2026-09-19-v5-r01/README.md).
+V5 counts remain `P=8; S=1; D=1; U=1; A=0; J_A=0`. Its R02-R08 remain
+NOT_STARTED and #68 is settled BLOCKED / NOT RUN. Preserve the partial PR/Git
+bundle and quarantined Attempt/target state; do not repair or replace that R01.
+
+#82's [DirectTarget compatibility fix](../../evaluation/p5/direct-target-gh-compatibility.md)
+is complete. V6 is a separately accounted prospective successor, not a retroactive
+v5 pass. The next order is **#83 non-provider setup/compatible validation → fresh
+owner authorization for v6 R01 only → one R01 → stop and retain its outcome**.
+Only compatible successful R01 boundary/CO evidence may justify a separately
+authorized v6 R02-R08 continuation; do not reopen v5 #68. #66 may review a settled
+incomplete package. Keep both cohorts visible and separate. This preparation
+performs no provider task, admission, dispatch, live disposition or judgment and
+grants no live-boundary, task-quality or readiness verdict.
 
 ## Backlog disposition from issue #60
 
