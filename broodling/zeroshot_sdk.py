@@ -29,7 +29,7 @@ _V1_UNIFORM_RUNTIME = MappingProxyType({
     "session_scope": "execution",
 })
 
-V1_GATEWAY_BASE_URL = "https://cliproxy.local.faviann.com/"
+V1_GATEWAY_BASE_URL = "https://cliproxy.local.faviann.com/v1"
 
 
 def canonical_request(value: dict) -> str:

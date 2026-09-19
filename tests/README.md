@@ -45,7 +45,7 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
   loss (including unchanged-worktree DirectTarget replay), current PR credentials
   checks, and refusal of conflicting target, forge, or source identities.
 - Fixed Codex `gateway` PR selection, exact
-  `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/`, ephemeral
+  `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`, ephemeral
   `GATEWAY_API_KEY`/`GH_TOKEN` handoff, suppressed ambient credentials, and
   rejection of legacy credentials in persisted target configuration. Synthetic
   credential rotation and process-death replay preserve the same request/key;

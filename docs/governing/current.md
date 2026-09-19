@@ -75,7 +75,7 @@ The deliberately simple V1 authorized-PR execution profile is Zeroshot's standar
 `software-change` workflow with native `pull_request` delivery through the
 already-supported DirectTarget path. One `UniformRuntime` applies across the
 workflow: Codex harness, `gateway` provider through CLIProxyAPI at exactly
-`https://cliproxy.local.faviann.com/`, `gpt-5.6-sol`, medium reasoning effort,
+`https://cliproxy.local.faviann.com/v1`, `gpt-5.6-sol`, medium reasoning effort,
 small size, and execution-scoped sessions. The no-effect LocalTarget retains its
 existing Codex/OpenAI profile. V1 has no caller-selectable harness,
 provider, model, effort, per-node runtime, skill/tool capability profile, or fleet
@@ -145,9 +145,11 @@ DirectTarget/API-key path.
 ### Prerequisites
 
 Use this authority, one recorded compatible product/dependency baseline and a
-supported full-suite result. Record v5's first-addition commit as its freeze
-identity. The selected profile is V1: configured DirectTarget, exact
-`GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/`, current `GATEWAY_API_KEY`,
+supported full-suite result. Record the commit first correcting v5's endpoint to
+`https://cliproxy.local.faviann.com/v1` as its freeze identity, superseding the
+original root-endpoint selection in `c8d3285`. The selected profile is V1:
+configured DirectTarget, exact
+`GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`, current `GATEWAY_API_KEY`,
 current GitHub delivery credential, and the fixed uniform runtime above.
 A live trial still needs a designated disposable GitHub
 repository/target branch and the exact authorized PR effect.

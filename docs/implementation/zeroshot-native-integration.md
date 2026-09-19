@@ -77,7 +77,7 @@ The deliberately simple V1 authorized-PR execution profile fixes the standard
 `software-change` preset with native `pull_request` delivery through
 `DirectTarget`, and fixes one `UniformRuntime` for every executable workflow
 node: Codex harness, `gateway` provider through CLIProxyAPI at exactly
-`https://cliproxy.local.faviann.com/`, `gpt-5.6-sol`, medium reasoning effort,
+`https://cliproxy.local.faviann.com/v1`, `gpt-5.6-sol`, medium reasoning effort,
 small size, and execution-scoped sessions. Broodling does not expose harness,
 provider, model, effort, or per-node runtime selection in V1. Node-local OAuth,
 `RuntimePlan` overrides, skill/tool capability profiles, and fleet scheduling
@@ -151,7 +151,7 @@ and delivery credentials are intentionally absent from persisted requests,
 Broodling checks explicit current `GATEWAY_BASE_URL`, `GATEWAY_API_KEY` and
 `GH_TOKEN` inputs again before every initial or replayed PR dispatch, outside the
 SQLite writer transaction. Missing/empty gateway inputs, a base URL other than
-exactly `https://cliproxy.local.faviann.com/`, or conflicting legacy provider
+exactly `https://cliproxy.local.faviann.com/v1`, or conflicting legacy provider
 credentials in the dispatch environment fail closed before the SDK dispatch.
 There is no lease, ledger scan, execution discovery, or runtime replay algorithm.
 

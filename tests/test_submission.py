@@ -488,7 +488,13 @@ class PullRequestSubmissionControls(SubmissionCase):
         ):
             self.submit()
         original = self.coordinator.record(self.attempt_id)
-        for endpoint in (None, "", "https://foreign.example/"):
+        for endpoint in (
+            None,
+            "",
+            "https://cliproxy.local.faviann.com/",
+            "https://cliproxy.local.faviann.com/v1/",
+            "https://foreign.example/",
+        ):
             self.adapter.gateway_base_url = endpoint
             with self.subTest(endpoint=endpoint), patch.object(self.adapter, "submit") as native:
                 with self.assertRaisesRegex(UnsupportedRuntime, "GATEWAY_BASE_URL"):

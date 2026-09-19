@@ -10,16 +10,20 @@ protocol and prior evidence package byte-for-byte, including all BLOCKED/NOT RUN
 provenance. The frozen v1 corpus/judge, v2 claim-level rules and v3 operational
 policy remain unchanged. No prior evidence is rescored or relabeled for v5.
 
-The immutable freeze identity is the commit that first adds this file. Record
-that commit and a compatible product/dependency/test baseline with a supported
-full-suite result before R01's first admission. This amendment performs no live
-provider call, admission, dispatch, PR, disposition or judgment; it claims no
-CLIProxyAPI task quality, successful native PR boundary or P5 readiness.
+The immutable freeze identity is the commit that first corrects this file's
+selected endpoint to `https://cliproxy.local.faviann.com/v1`, superseding the
+original root-endpoint selection in `c8d3285`. Record that commit and a compatible
+product/dependency/test baseline with a supported full-suite result before R01's
+first admission. The operator verified `/models` returns 404 and `/v1/models`
+returns 200 before any trial; this endpoint preflight is not task-quality or
+native-PR evidence. This amendment performs no live provider call, admission,
+dispatch, PR, disposition or judgment; it claims no CLIProxyAPI task quality,
+successful native PR boundary or P5 readiness.
 
 ## Provider/credential delta
 
 Replace v4's `openai` provider with Zeroshot's supported `codex/gateway` lane
-through CLIProxyAPI at exactly `https://cliproxy.local.faviann.com/`. Supply explicit
+through CLIProxyAPI at exactly `https://cliproxy.local.faviann.com/v1`. Supply explicit
 current `GATEWAY_BASE_URL`, nonempty `GATEWAY_API_KEY` and GitHub delivery credential
 `GH_TOKEN` only in the SDK environment for initial or idempotently replayed
 dispatch. No `OPENAI_API_KEY` is sent. Missing/empty gateway fields, a different

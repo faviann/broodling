@@ -127,7 +127,7 @@ For an authorized PR, Zeroshot runs against the explicit repository, target
 branch, and B1 revision on the configured direct target. PR delivery is admitted
 only for a GitHub Work Unit. Its successful PR
 receipt is retained verbatim, and `headRevision` is the stable accepted result.
-Set `GATEWAY_BASE_URL` to exactly `https://cliproxy.local.faviann.com/` and supply a
+Set `GATEWAY_BASE_URL` to exactly `https://cliproxy.local.faviann.com/v1` and supply a
 current nonempty `GATEWAY_API_KEY` and `GH_TOKEN`. These explicit inputs are checked
 on every initial or replayed dispatch and passed only in the SDK environment;
 their values are not persisted in the invocation. Zeroshot selects the two

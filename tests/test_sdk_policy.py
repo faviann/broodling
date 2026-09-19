@@ -341,7 +341,7 @@ class SdkPolicyTests(SubmissionCase):
             environment=request["target"]["environment"]
             | {
                 "GH_TOKEN": "secret-delivery-token",
-                "GATEWAY_BASE_URL": "https://cliproxy.local.faviann.com/",
+                "GATEWAY_BASE_URL": "https://cliproxy.local.faviann.com/v1",
                 "GATEWAY_API_KEY": "secret-provider-key",
             },
         )
@@ -426,6 +426,7 @@ class SdkPolicyTests(SubmissionCase):
             "",
             " ",
             "https://cliproxy.local.faviann.com",
+            "https://cliproxy.local.faviann.com/",
             "http://cliproxy.local.faviann.com/",
             "https://cliproxy.local.faviann.com/v1/",
             "https://cliproxy.local.faviann.com/?key=canary",
