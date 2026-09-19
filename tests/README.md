@@ -82,11 +82,18 @@ result interface. The
 Tests assert the Broodling outcome and native receipt/run binding, not
 Zeroshot's internal history.
 
-`test_invocation.py` covers facade wiring and recovery choices. Native failure,
-cancelled waits, foreign-run rejection, the no-effect result gap and dispatched
-cleanup refusals stay at the coordinator seams in `test_workflow_result.py`.
-Its stop scenario checks only stop wiring and the facade's subsequent
-abandonment handback from `resume`/`submit`. Its contention regression reads
+`test_invocation.py` covers facade wiring, lineage, recovery handles and handback.
+Exact SDK request fields and replay contents, detailed closability findings, and
+Git/B1 materialization stay in the submission, admission and provisioning suites.
+HEAD drift in invocation recovery tests distinguishes reusing the recorded
+Attempt from incorrectly admitting one again; those tests do not inspect Git
+materialization.
+
+Native failure, cancelled waits, foreign-run rejection, the no-effect result gap
+and dispatched cleanup refusals stay at the coordinator seams in
+`test_workflow_result.py`. The invocation stop scenario checks only stop wiring
+and the facade's subsequent abandonment handback from `resume`/`submit`.
+The invocation contention regression reads
 `history`/`status` while real Attempt provisioning holds a lifecycle write
 transaction, so acquiring the writer slot during observation fails immediately.
 History also checks caller-supplied upstream identities through the existing
