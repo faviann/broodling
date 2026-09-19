@@ -54,6 +54,12 @@ amend Broodling's frozen Contract or entitled source snapshots.
 
 ## Install and use
 
+For first internal use, follow the [single-host deployment procedure](deployment/README.md).
+It installs an immutable Broodling release, persistent local DirectTarget and
+operator CLI, with the actual-target dependency check and restart/recovery
+instructions. The [deployment validation record](deployment/validation.md)
+identifies what was exercised. The Python API remains available below.
+
 Use Python 3.13+, SQLite 3.37+, and Git:
 
 ```bash
@@ -97,7 +103,7 @@ checkout must be clean and committed with the matching GitHub origin. Supply an
 authenticated `gh` for issue capture and an existing supported DirectTarget with
 the [compatible actual-target GitHub CLI](evaluation/p5/direct-target-gh-compatibility.md).
 Keep the database, runtime state and durable Attempt workspaces outside the source
-checkout. This API example does not provision or package a deployment (#77).
+checkout. The [deployment package](deployment/README.md) provisions this profile.
 
 ```python
 import asyncio

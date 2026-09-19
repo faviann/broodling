@@ -32,6 +32,9 @@ The [baseline](../baseline/p0-g0-inventory.md) and
 source/profile/evidence/verdict meaning. Neither an old G1–G4 pass nor an old
 blocked gate is relabeled for the native release. The qualification README is
 mutable navigation, not evidence. Root and test READMEs are current usage guidance.
+The [single-host deployment guide](../../deployment/README.md) packages the
+#74 first-use scope through the existing invocation API; its operational
+instructions do not broaden the supported runtime, effects or success claim.
 
 ## Ownership today
 

@@ -13,6 +13,9 @@ dependencies = [
     "the-open-engine-zeroshot @ https://github.com/the-open-engine/zeroshot/releases/download/zeroshot-python-v10.3.0_1/the_open_engine_zeroshot-10.3.0.post1-py3-none-manylinux_2_17_x86_64.whl#sha256=f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9",
 ]
 
+[project.scripts]
+broodling = "broodling.cli:main"
+
 [project.optional-dependencies]
 # Test-only: Hypothesis is required — the property/state-machine tests fail to import
 # without it rather than dropping their invariants. pytest-timeout is the
