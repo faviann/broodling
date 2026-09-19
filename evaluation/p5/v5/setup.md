@@ -38,6 +38,11 @@ admission; changed material is refused rather than overwritten.
 The historical v4 setup/driver scripts bind the obsolete v4/OpenAI profile and baseline.
 Do not execute them for v5. No historical record is migrated or rescored.
 
+Keep the retained #81 setup package immutable. #79 uses a new live-evidence
+directory for trial accounting and results, referencing/copying the verified
+input records and zero-start allocation. The prepared durable store/source and
+Contract remain the inputs; no new Attempt is substituted after admission.
+
 ## Remaining live prerequisites for #79
 
 1. Separately authorize the one R01 execution and keep the owner actively

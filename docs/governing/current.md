@@ -145,9 +145,12 @@ DirectTarget/API-key path.
 ### Prerequisites
 
 Use this authority, one recorded compatible product/dependency baseline and a
-supported full-suite result. Record the commit first correcting v5's endpoint to
-`https://cliproxy.local.faviann.com/v1` as its freeze identity, superseding the
-original root-endpoint selection in `c8d3285`. The selected profile is V1:
+supported full-suite result. The corrected v5 freeze identity is
+`52eb3569b3671baa37426792a67b50058e2d223f`, superseding the original root-endpoint
+selection in `c8d3285`. The [v5 setup and baseline record](../../evaluation/p5/runs/2026-09-19-v5-setup/README.md)
+retains compatible identities and controlled test evidence; the
+[v5 setup helper and handoff](../../evaluation/p5/v5/setup.md) prepare the inputs
+without admission or provider execution. The selected profile is V1:
 configured DirectTarget, exact
 `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`, current `GATEWAY_API_KEY`,
 current GitHub delivery credential, and the fixed uniform runtime above.
@@ -246,8 +249,10 @@ OpenAI/`OPENAI_API_KEY` selection is historical prospective authority, supersede
 only for future dispatch by v5's gateway binding. This provider amendment leaves
 every earlier protocol and evidence package unchanged and consumes no slot.
 
-The current order is **#81 → record the v5 freeze and compatible baseline →
-separately authorize #79's one R01 gateway execution → #68 → #66**. The current
+Issue #81's implementation and setup obligations are complete in the retained
+v5 record; the corrected freeze and compatible baseline are recorded above.
+The remaining order is **separately authorize #79's one R01 gateway execution →
+#68 → #66**, after its current operational prerequisites are checked. The current
 #62/#79 issue dependency text follows this order; #79's former OpenAI/v4 wording
 and comments cannot authorize gateway execution. #68 remains gated
 on compatible successful R01 boundary evidence, and #66 may review a settled

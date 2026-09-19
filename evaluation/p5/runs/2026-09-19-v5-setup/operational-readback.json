@@ -1,0 +1,64 @@
+{
+  "observed_at": "2026-09-19T03:46:03.487890+00:00",
+  "github_repository": {
+    "description": "Disposable Broodling P5 v3 evaluation fixture (issue #67)",
+    "full_name": "faviann/broodling-p5-v3-20260917",
+    "id": 1374925545,
+    "node_id": "R_kgDOUfOy6Q",
+    "permissions": {
+      "admin": true,
+      "maintain": true,
+      "pull": true,
+      "push": true,
+      "triage": true
+    },
+    "private": true
+  },
+  "target_branch": {
+    "object": {
+      "sha": "884bd64264df1515bee76a63f548db9cabe25a35",
+      "type": "commit",
+      "url": "https://api.github.com/repos/faviann/broodling-p5-v3-20260917/git/commits/884bd64264df1515bee76a63f548db9cabe25a35"
+    },
+    "ref": "refs/heads/p5-eval"
+  },
+  "existing_pull_requests": [],
+  "direct_target": {
+    "origin": "http://127.0.0.1:18767",
+    "container_name": "broodling-p5-v3-r01-target",
+    "image_id": "sha256:bfed075c6443f63127dc30f73376483148d78bf3023d093bd90ce76353344dad",
+    "status": "exited",
+    "exit_code": 137,
+    "finished_at": "2026-09-18T22:09:32.097695277Z",
+    "discovery_checked": false,
+    "run_inventory_checked": false,
+    "reason": "Stopped historical target; no restart, gateway request, or target connection performed.",
+    "operator_stop_access": "Docker daemon reachable; stop command available but not exercised."
+  },
+  "credentials": {
+    "observed_at": "2026-09-19T03:46:03.487890+00:00",
+    "nonempty_environment_fields": {
+      "GATEWAY_BASE_URL": false,
+      "GATEWAY_API_KEY": false,
+      "GH_TOKEN": false,
+      "GITHUB_TOKEN": false
+    },
+    "gateway_url_matches_selection": false,
+    "secret_values_retained": false
+  },
+  "gateway_endpoint_evidence": {
+    "source": "operator report in task conversation",
+    "models_status": 404,
+    "v1_models_status": 200,
+    "repeated_by_this_work": false,
+    "live_provider_task_calls": 0
+  },
+  "scope": {
+    "github_mutations": 0,
+    "live_provider_calls": 0,
+    "r01_admissions": 0,
+    "r01_dispatches": 0,
+    "native_pr_effects": 0,
+    "judgments": 0
+  }
+}

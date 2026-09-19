@@ -1,0 +1,30 @@
+{
+  "observed_at": "2026-09-19T03:42:10.668282+00:00",
+  "python_version": "3.13.5",
+  "sqlite_version": "3.46.1",
+  "git_version": "2.47.3",
+  "python_executable": "/home/faviann/repos/broodling/.venv/bin/python",
+  "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+  "machine": "x86_64",
+  "dependency": {
+    "python_sdk_distribution": "the-open-engine-zeroshot",
+    "python_sdk_version": "10.3.0.post1",
+    "native_binary": "/home/faviann/repos/broodling/.venv/lib/python3.13/site-packages/zeroshot/_bin/zeroshot",
+    "native_version_output": "zeroshot 10.3.0",
+    "native_binary_sha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06",
+    "source_revision": "054ad3fd6c763b98d12f5b2e90830b97116561ad",
+    "wheel_url": "https://github.com/the-open-engine/zeroshot/releases/download/zeroshot-python-v10.3.0_1/the_open_engine_zeroshot-10.3.0.post1-py3-none-manylinux_2_17_x86_64.whl",
+    "cached_wheel": "/home/faviann/.cache/broodling-p5/the_open_engine_zeroshot-10.3.0.post1-py3-none-manylinux_2_17_x86_64.whl",
+    "wheel_sha256": "f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9",
+    "expected_wheel_sha256": "f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9",
+    "wheel_hash_matches": true,
+    "installed_package_files_checked": 15,
+    "differences": [],
+    "comparison": "Mapped cached wheel .data/purelib/zeroshot entries to installed paths and compared every package file including native executable byte-for-byte; no install, download or upgrade."
+  },
+  "test_dependencies": {
+    "pytest": "9.1.1",
+    "hypothesis": "6.168.0",
+    "pytest-timeout": "2.4.0"
+  }
+}
