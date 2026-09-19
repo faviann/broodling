@@ -52,7 +52,14 @@ from .errors import (
     WorktreeOwnershipConflict,
     WorkUnitIdentityConflict,
 )
+from .github_source import AcquiredIssue, GitHubSourceError, acquire_github_issue
 from .identity import WorkReference
+from .ingress import (
+    ContractIngress,
+    ContractIngressResult,
+    ContractProposalInput,
+    InvalidContractProposal,
+)
 from .provisioning import AttemptProvisioner, ProvisionedWorktree
 from .replacement import RetryCoordinator
 from .starting_state import StartingState, resolve_starting_state
@@ -82,6 +89,7 @@ __all__ = [
     "DISPOSABLE_WORKTREE_MARKER",
     "REJECTED",
     "AbandonmentCoordinator",
+    "AcquiredIssue",
     "AdmissionDecisionRecord",
     "AttemptAdmissionError",
     "AttemptConflict",
@@ -97,13 +105,18 @@ __all__ = [
     "ClosabilityFinding",
     "CodexProfile",
     "Contract",
+    "ContractIngress",
+    "ContractIngressResult",
     "ContractImmutabilityError",
+    "ContractProposalInput",
     "ContractRevisionRecord",
     "Criterion",
     "EntitledSourceRecord",
     "EvidencePopulation",
     "FinalAssuranceMaterial",
     "GitCommandError",
+    "GitHubSourceError",
+    "InvalidContractProposal",
     "InvalidWorkReference",
     "MechanicalEvidence",
     "Obligation",
@@ -138,6 +151,7 @@ __all__ = [
     "ZeroshotSubmitter",
     "__version__",
     "assert_durable_workspace_root",
+    "acquire_github_issue",
     "assess",
     "default_store_path",
     "resolve_starting_state",
