@@ -1,0 +1,202 @@
+{
+  "observed_at": "2026-09-19T14:36:19.404421+00:00",
+  "reviewer": "/root, issue #66 skeptical review session",
+  "reviewed_evidence_commit": "fcc8439f7827068185bb533a2b48b3ae5bb9c90d",
+  "mode": "read-only retained-file/Git verification; temporary bare bundle recovery only",
+  "provider_calls": 0,
+  "product_replay_calls": 0,
+  "suite_rerun": false,
+  "manifests": [
+    {
+      "package": "evaluation/p5/runs/2026-09-19-v5-setup",
+      "checked": 18,
+      "all_match": true,
+      "failures": []
+    },
+    {
+      "package": "evaluation/p5/runs/2026-09-19-v5-r01",
+      "checked": 37,
+      "all_match": true,
+      "failures": []
+    },
+    {
+      "package": "evaluation/p5/runs/2026-09-19-v6-setup",
+      "checked": 18,
+      "all_match": true,
+      "failures": []
+    },
+    {
+      "package": "evaluation/p5/runs/2026-09-19-v6-r01",
+      "checked": 66,
+      "all_match": true,
+      "failures": []
+    }
+  ],
+  "frozen_files": [
+    {
+      "path": "evaluation/p5/v1/corpus.md",
+      "freeze": "717e94b3548d1dc029bfb54e2758e9929f1d93bd",
+      "sha256": "7b8de1a891d0d152602b26ea2e2c361b74d6ea4e34d87b38df8295c879e22fb8",
+      "matches_freeze": true
+    },
+    {
+      "path": "evaluation/p5/v1/judge.py",
+      "freeze": "717e94b3548d1dc029bfb54e2758e9929f1d93bd",
+      "sha256": "b6dbf57a606e95377eadb89dea72ad2979b84147705be384c361f883483ddb95",
+      "matches_freeze": true
+    },
+    {
+      "path": "evaluation/p5/v1/protocol.md",
+      "freeze": "717e94b3548d1dc029bfb54e2758e9929f1d93bd",
+      "sha256": "d34ded5f92ef6b9421b38a5d87558a64de9632e1a92d13e018fdaf12c1cf4b82",
+      "matches_freeze": true
+    },
+    {
+      "path": "evaluation/p5/v1/fixture/tiny.py",
+      "freeze": "717e94b3548d1dc029bfb54e2758e9929f1d93bd",
+      "sha256": "f541d2923c53624d41284164d00cb7c8aa025dfda3883ac4c0b3c211d691385c",
+      "matches_freeze": true
+    },
+    {
+      "path": "evaluation/p5/v1/fixture/README.md",
+      "freeze": "717e94b3548d1dc029bfb54e2758e9929f1d93bd",
+      "sha256": "941c40cc39ac4a74045f9c4b4771ca99f04349480a344a3e9355e80249656420",
+      "matches_freeze": true
+    },
+    {
+      "path": "evaluation/p5/v2/protocol.md",
+      "freeze": "1d581717509de182410c3ab2f54d3f65768d8d7f",
+      "sha256": "96ddce12e0d0f998802c83af49e125a242d894bff6db771fb5df76184ede1cda",
+      "matches_freeze": true
+    },
+    {
+      "path": "evaluation/p5/v3/protocol.md",
+      "freeze": "de1da18479fdf846d04994190132357fcb0a87ef",
+      "sha256": "b3d628251b70881762a4576a4a8650875ba85bd3188ffb6367eb541a21a83cce",
+      "matches_freeze": true
+    },
+    {
+      "path": "evaluation/p5/v5/protocol.md",
+      "freeze": "52eb3569b3671baa37426792a67b50058e2d223f",
+      "sha256": "43e3979d4335e87444879da6c14a165f1cd98af5f666a7d83b50867d10ecde7e",
+      "matches_freeze": true
+    },
+    {
+      "path": "evaluation/p5/v6/protocol.md",
+      "freeze": "4a2b0b8a0340b747e805f51da218a77ad81278f9",
+      "sha256": "bf29c8cd91d0a0c1f317f67c332cb2781cd16984f590cc62aef783f3451d5b21",
+      "matches_freeze": true
+    },
+    {
+      "path": "evaluation/p5/v6/setup.md",
+      "freeze": "4a2b0b8a0340b747e805f51da218a77ad81278f9",
+      "sha256": "7449cbf8354f0fb2be61ebe77abc26f91084b4839fa5fe4cf96bb6e157d95fee",
+      "matches_freeze": true
+    }
+  ],
+  "retained_test_baseline": "2fd972c17a4b4edff4c591dd1c8acc06e1b9e896",
+  "test_identity_checks": [
+    {
+      "path": "broodling",
+      "expected_object": "e8fe4e2a25272d240a3406b51d5c77fa904da562",
+      "actual_object": "e8fe4e2a25272d240a3406b51d5c77fa904da562",
+      "matches": true,
+      "working_tree_clean": true
+    },
+    {
+      "path": "conftest.py",
+      "expected_object": "6dd7826c7d2773ac2058887218b50499f8ea6600",
+      "actual_object": "6dd7826c7d2773ac2058887218b50499f8ea6600",
+      "matches": true,
+      "working_tree_clean": true
+    },
+    {
+      "path": "evaluation/p5/v6/run_r01.py",
+      "expected_object": "5e30f36ebd4df2419c70e8ff8c43e41a96c6ef07",
+      "actual_object": "5e30f36ebd4df2419c70e8ff8c43e41a96c6ef07",
+      "matches": true,
+      "working_tree_clean": true
+    },
+    {
+      "path": "evaluation/p5/v6/setup_r01.py",
+      "expected_object": "9fe370b2f66b3a1428e47875c2a5ff0d73bd761c",
+      "actual_object": "9fe370b2f66b3a1428e47875c2a5ff0d73bd761c",
+      "matches": true,
+      "working_tree_clean": true
+    },
+    {
+      "path": "evaluation/p5/verify_direct_target_gh.py",
+      "expected_object": "00eb7f2a2a56bbe4107ad8085a65cc038a1110ed",
+      "actual_object": "00eb7f2a2a56bbe4107ad8085a65cc038a1110ed",
+      "matches": true,
+      "working_tree_clean": true
+    },
+    {
+      "path": "pyproject.toml",
+      "expected_object": "3269f76db05f2789b7fe89f27563607150b01882",
+      "actual_object": "3269f76db05f2789b7fe89f27563607150b01882",
+      "matches": true,
+      "working_tree_clean": true
+    },
+    {
+      "path": "tests",
+      "expected_object": "ca87c75d1f1c27fda56c83f1a3deec3eb1340be6",
+      "actual_object": "ca87c75d1f1c27fda56c83f1a3deec3eb1340be6",
+      "matches": true,
+      "working_tree_clean": true
+    }
+  ],
+  "historical_tracked_v1_v5_unchanged_from_82": true,
+  "bundle_recovery": [
+    {
+      "cohort": "v5",
+      "bundle": "evaluation/p5/runs/2026-09-19-v5-r01/R01/github-delivery.bundle",
+      "sha256": "fefec9ec94fdc5c48bf89e2824ae60440430f4a45d75996cde36cc244d813172",
+      "clone_exit": 0,
+      "fsck_exit": 0,
+      "fsck_stdout": "dangling commit 943970d6278e81bc11d88fabfe1824ed562dca0d\n",
+      "fsck_stderr": "",
+      "commits": [
+        {
+          "revision": "884bd64264df1515bee76a63f548db9cabe25a35",
+          "tiny_sha256": "f541d2923c53624d41284164d00cb7c8aa025dfda3883ac4c0b3c211d691385c",
+          "b1_ancestor_exit": 0
+        },
+        {
+          "revision": "1d49f231e35169ff8ac8ed82997d4a8df6747502",
+          "tiny_sha256": "9f3e09618109475ecb5dd445bdf4f02fc180d7b73ecb2d7db1fd0823830fae4d",
+          "b1_ancestor_exit": 0
+        },
+        {
+          "revision": "64213ae12edcd571bc313bbe7920b66dcd6c17d8",
+          "tiny_sha256": "9f3e09618109475ecb5dd445bdf4f02fc180d7b73ecb2d7db1fd0823830fae4d",
+          "b1_ancestor_exit": 0
+        }
+      ]
+    },
+    {
+      "cohort": "v6",
+      "bundle": "evaluation/p5/runs/2026-09-19-v6-r01/R01/receipt.bundle",
+      "sha256": "0d8d283080b83fcc03a5aa1bcf98585f49a7015493cee7d0b0affab910852c79",
+      "clone_exit": 0,
+      "fsck_exit": 0,
+      "fsck_stdout": "",
+      "fsck_stderr": "notice: HEAD points to an unborn branch (main)\n",
+      "commits": [
+        {
+          "revision": "884bd64264df1515bee76a63f548db9cabe25a35",
+          "tiny_sha256": "f541d2923c53624d41284164d00cb7c8aa025dfda3883ac4c0b3c211d691385c",
+          "b1_ancestor_exit": 0,
+          "matches_review_input": true
+        },
+        {
+          "revision": "248d67d35fc8fe6ac5dba9a0fb8cae831ae22631",
+          "tiny_sha256": "8baa4bad9f19f6a64f4fb515298a741297065bd96b3955aa129242048ec69582",
+          "b1_ancestor_exit": 0,
+          "matches_review_input": true
+        }
+      ]
+    }
+  ],
+  "checks_passed": true
+}

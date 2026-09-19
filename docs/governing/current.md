@@ -125,19 +125,25 @@ new cleanup. Legacy storage/type names do not restore the old assurance protocol
 
 ## Next phase: P5 native-workflow product evaluation
 
-**V5 R01 is settled `NOT_DELIVERED / IF`; prospective v6 is frozen but unstarted.
-P5 has not passed; readiness remains NOT REVIEWED.** Evaluate the existing thin
-integration's authorized task delivery and native-workflow outcome quality.
+**Review status: COMPLETE (#66). P5 verdict: FAIL for the bounded authorized-PR
+native profile. Broader release decision: NOT ASSESSED by this review.** The
+[skeptical review](../../evaluation/p5/reviews/2026-09-19-issue-66/README.md)
+supports v6's compatible delivery boundary but upholds R01's false acceptance.
+V5 remains separately `NOT_DELIVERED / IF` and BLOCKED. #62 retains the reviewed
+scope, failed/unsupported claims, limitations and smallest justified follow-up.
+This section governs the existing thin integration's authorized task delivery
+and native-workflow outcome quality.
 Do not inherit v0.5's adjudicator/final-assessor checklist or mandatory new API.
 
-The current prospective cohort is
+The latest settled cohort is
 [`p5-native-pr-v6`](../../evaluation/p5/v6/protocol.md). It preserves the frozen
 v1 corpus/judge, v2 claim-level decision rules, v3 operational policy and v5's
 corrected gateway/provider/model/runtime binding. Its only execution-profile
 delta is #82's compatible DirectTarget GitHub CLI image and actual-container
 pre-admission check. New cohort/resources keep it separate from consumed v5.
 All earlier protocols/evidence remain unchanged; v5 is not rescored or reopened.
-Only **v6** R01-R08 are all NOT_STARTED.
+V6 R01 is `FA`, with `P=8; S=1; D=1; U=1; A=1; J_A=1`. R02–R08 remain
+NOT_STARTED in both cohorts. The frozen FA rule prohibits v6 continuation.
 
 The [issue #72 source audit](../implementation/zeroshot-node-local-authorized-pr-audit.md)
 remains the source-backed dependency finding for a future node-local OAuth
@@ -151,12 +157,13 @@ supported full-suite result. The v6 protocol/setup freeze is
 `4a2b0b8a0340b747e805f51da218a77ad81278f9`; the selected #82 baseline is
 `da5db3167eda0ef458cf0875b5a1c64138637b9d`. The
 [v6 freeze and gate record](../../evaluation/p5/v6/README.md) and
-[baseline/setup requirements](../../evaluation/p5/v6/setup.md) distinguish the
-retained 356-test / 270-subtest result from setup still to be performed.
-No v6 live target/input binding or execution authorization is claimed by the freeze.
-#83 owns the minimal evaluation-only setup/driver adaptation and one later R01;
-it must record actual compatible identities and check `/usr/bin/gh` in the
-selected new target before counting/admission. Preserve all v5 helpers and state.
+[baseline/setup requirements](../../evaluation/p5/v6/setup.md) preserve the
+prospective requirements. #83 completed setup and the single authorized R01;
+its [settled evidence](../../evaluation/p5/runs/2026-09-19-v6-r01/README.md)
+records tested helper revision `2fd972c17a4b4edff4c591dd1c8acc06e1b9e896`,
+372 passing tests / 291 subtests, actual compatible target/input identities and
+the in-container `/usr/bin/gh` check before counting/admission. The freeze alone
+granted no execution authorization. Preserve all v5 helpers and state.
 
 The selected profile remains V1: configured DirectTarget, exact
 `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`, current `GATEWAY_API_KEY`,
@@ -265,14 +272,19 @@ NOT_STARTED and #68 is settled BLOCKED / NOT RUN. Preserve the partial PR/Git
 bundle and quarantined Attempt/target state; do not repair or replace that R01.
 
 #82's [DirectTarget compatibility fix](../../evaluation/p5/direct-target-gh-compatibility.md)
-is complete. V6 is a separately accounted prospective successor, not a retroactive
-v5 pass. The next order is **#83 non-provider setup/compatible validation → fresh
-owner authorization for v6 R01 only → one R01 → stop and retain its outcome**.
-Only compatible successful R01 boundary/CO evidence may justify a separately
-authorized v6 R02-R08 continuation; do not reopen v5 #68. #66 may review a settled
-incomplete package. Keep both cohorts visible and separate. This preparation
-performs no provider task, admission, dispatch, live disposition or judgment and
-grants no live-boundary, task-quality or readiness verdict.
+is complete. V6 was prospectively separated from v5 and is now settled at
+`fcc8439f7827068185bb533a2b48b3ae5bb9c90d`: compatible boundary PASS, native and
+Broodling SUCCEEDED, independent outcome FAIL / FA at receipt revision
+`248d67d35fc8fe6ac5dba9a0fb8cae831ae22631`. The frozen judge passed 18/18;
+full-criteria reviews and retained probes establish the valid falsey-string
+failure. #66 completed the skeptical review and records scoped P5 FAIL. Keep
+both cohorts visible and separate; do not reopen v5 #68 or continue v6.
+
+The smallest justified follow-up is separately scoped offline analysis of this
+T1 acceptance/calibration gap. Any proposed evaluator correction needs a
+prospective version and impact statement preserving the recorded FA and IF.
+The review authorizes no fixes, new cohort, provider work, workflow tuning or
+subsequent phase. Broader release decisions remain separate.
 
 ## Backlog disposition from issue #60
 

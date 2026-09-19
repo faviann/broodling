@@ -15,10 +15,12 @@ or independently re-prove the workflow's result.
 Start with the [current architecture and P5 plan](docs/governing/current.md).
 It governs current scope, identifies historical documents and defines the next
 phase: native-workflow product evaluation, not the superseded v0.5 assurance
-checklist. V5's first live trial is retained as an infrastructure failure;
-[prospective v6](evaluation/p5/v6/README.md) is frozen and unstarted. P5 is not
-qualified. The native integration design below supplies implementation details;
-old gate passes do not qualify this profile.
+checklist. The [skeptical P5 review](evaluation/p5/reviews/2026-09-19-issue-66/README.md)
+is complete with a scoped **FAIL** verdict. V6 established the compatible delivery
+boundary but accepted an incorrect T1 result; v5 remains separately blocked by
+infrastructure failure. R02–R08 remain unstarted in both cohorts. No broader
+release decision is inferred. The native integration design below supplies
+implementation details; old gate passes do not qualify this profile.
 
 ## Current boundary
 
