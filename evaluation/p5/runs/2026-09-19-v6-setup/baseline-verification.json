@@ -1,0 +1,33 @@
+{
+  "baseline_commit": "da5db3167eda0ef458cf0875b5a1c64138637b9d",
+  "compatibility": "Product/dependency/config unchanged from #82; new v6 helpers/tests validated by this fresh full supported suite.",
+  "compatible_tested_commit": "2fd972c17a4b4edff4c591dd1c8acc06e1b9e896",
+  "inherited_setup_primitive": {
+    "baseline_blob": "24e8e61a2674e710f14e6a90f2e6f5b47593f882",
+    "blob": "24e8e61a2674e710f14e6a90f2e6f5b47593f882",
+    "path": "evaluation/p5/v3/setup_r01.py",
+    "unchanged": true
+  },
+  "observed_at": "2026-09-19T13:43:45.230492+00:00",
+  "protocol_sha256": "bf29c8cd91d0a0c1f317f67c332cb2781cd16984f590cc62aef783f3451d5b21",
+  "tested_path_identities": {
+    "broodling": "e8fe4e2a25272d240a3406b51d5c77fa904da562",
+    "conftest.py": "6dd7826c7d2773ac2058887218b50499f8ea6600",
+    "evaluation/p5/v6/run_r01.py": "5e30f36ebd4df2419c70e8ff8c43e41a96c6ef07",
+    "evaluation/p5/v6/setup_r01.py": "9fe370b2f66b3a1428e47875c2a5ff0d73bd761c",
+    "evaluation/p5/verify_direct_target_gh.py": "00eb7f2a2a56bbe4107ad8085a65cc038a1110ed",
+    "pyproject.toml": "3269f76db05f2789b7fe89f27563607150b01882",
+    "tests": "ca87c75d1f1c27fda56c83f1a3deec3eb1340be6"
+  },
+  "tests": {
+    "command": ".venv/bin/python -m pytest tests -q",
+    "exit_code": 0,
+    "failed": 0,
+    "live_provider_inference": false,
+    "passed": 372,
+    "skipped": 0,
+    "stdout": "default-suite.txt",
+    "stdout_sha256": "8ae7222c17323847bd61f5b23ec2b949537116c97dd394c21118d3305ebed6f6",
+    "subtests_passed": 291
+  }
+}

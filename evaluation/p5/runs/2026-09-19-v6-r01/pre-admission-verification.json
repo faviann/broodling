@@ -1,0 +1,183 @@
+{
+  "active_supervision": "Separate owner authorization must begin/continue active supervision; external Docker stop capability verified. Preparation grants no live authorization.",
+  "admission_started": false,
+  "attempt_provisioned": false,
+  "baseline_commit": "da5db3167eda0ef458cf0875b5a1c64138637b9d",
+  "compatible_tested_commit": "2fd972c17a4b4edff4c591dd1c8acc06e1b9e896",
+  "credentials": {
+    "gateway_base_url": "https://cliproxy.local.faviann.com/v1",
+    "required": [
+      "GATEWAY_BASE_URL",
+      "GATEWAY_API_KEY",
+      "GH_TOKEN"
+    ],
+    "source": "current ephemeral environment",
+    "values_retained": false
+  },
+  "direct_target": {
+    "container_id": "6dcb51921a9b6a71e3275429c2459a735457860745aa1d1164330364c2953d6d",
+    "container_name": "broodling-p5-v6-r01-target",
+    "delivery": "pull_request",
+    "direct_target_github_cli": {
+      "api_paginate_slurp": true,
+      "gh_program": "/usr/bin/gh",
+      "gh_version": "gh version 2.101.0 (2026-09-15)"
+    },
+    "discovery": {
+      "audience": "controller",
+      "authentication": "none",
+      "kind": "zeroshot.native-v2-target/v2",
+      "oecpPath": "/native-v2/oecp",
+      "runPath": "/native-v2/run",
+      "sessionPath": "/native-v2/oecp-session"
+    },
+    "dispatch_credentials_present": [],
+    "image_id": "sha256:3511d1b7134167b6a845bdc0536532a2265cba580e77b475e26d25d0382f4e5a",
+    "mounts": [
+      {
+        "Destination": "/p5-state",
+        "RW": true,
+        "Source": "/home/faviann/.local/share/broodling-p5-v6/target-state"
+      },
+      {
+        "Destination": "/home/node",
+        "RW": true,
+        "Source": "/home/faviann/.local/share/broodling-p5-v6/target-home"
+      }
+    ],
+    "observed_at": "2026-09-19T13:39:21.323618+00:00",
+    "origin": "http://127.0.0.1:18768",
+    "ports": {
+      "18767/tcp": [
+        {
+          "HostIp": "127.0.0.1",
+          "HostPort": "18768"
+        }
+      ]
+    },
+    "preset": "software-change",
+    "preset_resolved": true,
+    "provider_tasks": 0,
+    "run_count": 0,
+    "runs": [],
+    "sdk_environment": {},
+    "status": "running",
+    "stop_access": {
+      "active_execution_supervision": "Required with later separate owner authorization; no execution authorized now",
+      "docker_daemon_accessible": true,
+      "external_stop_command": "docker stop broodling-p5-v6-r01-target",
+      "operator": "faviann",
+      "stop_exercised": false
+    },
+    "versions": {
+      "codex": "codex-cli 0.153.4",
+      "gh_sha256": "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff  /usr/bin/gh",
+      "git": "git version 2.39.5",
+      "native": "zeroshot 10.3.0",
+      "native_sha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06  /usr/local/bin/zeroshot",
+      "node": "v22.23.2"
+    }
+  },
+  "external_stop_command": "docker stop broodling-p5-v6-r01-target",
+  "freeze_commit": "4a2b0b8a0340b747e805f51da218a77ad81278f9",
+  "gateway": {
+    "credential_nonempty": true,
+    "credential_source": "current GATEWAY_API_KEY environment",
+    "credentials_retained": false,
+    "endpoint": "https://cliproxy.local.faviann.com/v1/models",
+    "http_status": 200,
+    "model_count": 27,
+    "observed_at": "2026-09-19T13:39:19.436907+00:00",
+    "operation": "read-only metadata; no inference or provider task",
+    "selected_model_listed": true
+  },
+  "github_delivery": {
+    "branch": {
+      "name": "p5-eval",
+      "protected": false,
+      "sha": "884bd64264df1515bee76a63f548db9cabe25a35"
+    },
+    "credential_source": "current GH_TOKEN environment",
+    "credential_values_retained": false,
+    "delivery_prerequisites_verified": true,
+    "limit": "Read-only access/scope checks; actual native delivery remains untested until authorized R01.",
+    "login": "faviann",
+    "oauth_scopes": "gist, read:org, read:packages, repo, workflow",
+    "observed_at": "2026-09-19T13:39:21.665343+00:00",
+    "pull_requests": [],
+    "repository": {
+      "archived": false,
+      "disabled": false,
+      "full_name": "faviann/broodling-p5-v6-20260919",
+      "id": 1377196002,
+      "node_id": "R_kgDOUhZX4g",
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "pull": true,
+        "push": true,
+        "triage": true
+      },
+      "private": true
+    }
+  },
+  "input_records": {
+    "admission_started": false,
+    "b1_commit_oid": "884bd64264df1515bee76a63f548db9cabe25a35",
+    "contract_revision_id": "cr-0fa0f05f1b6850901a9678b1d31700b1d75b7ca64876ee0fcac1987c46f52d61",
+    "contract_sha256": "06bc5cf657e0b651bc242f3b5ac685ff747333b011b06221b04275b927946d3d",
+    "source_content_sha256": "7f2c3c810da2713860ef5c0bbffdba6157b5b25bdfbed98cce1a9648e81cee13",
+    "source_id": "src-94f9a98aff5803a78508f97dd843ef6f38c4e5c91931a2332c8df617c8e7e819",
+    "source_repository": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/source",
+    "store_path": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/broodling.sqlite3",
+    "work_unit_id": "wu-ea6214a07f5940fbf64a68ea88bbe715650a814073158804ec0145440b37ea6b",
+    "workspace_root": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/workspaces"
+  },
+  "issue": 83,
+  "live_execution_authorized": false,
+  "observed_at": "2026-09-19T13:43:45.426285+00:00",
+  "operational_arrangements": "../2026-09-19-v6-setup/operational-readback.json",
+  "protocol": "p5-native-pr-v6",
+  "provider_tasks": 0,
+  "quality_claim": "No live boundary or quality outcome; P5 remains NOT REVIEWED.",
+  "ready_for_separate_live_authorization": true,
+  "remaining_gate": "Fresh owner authorization for v6 R01 only, with active supervision and still-current ephemeral credentials; start repeats preflight. R02-R08 remain unauthorized.",
+  "safe_check_command": ".venv/bin/python evaluation/p5/v6/run_r01.py check",
+  "separately_authorized_start_command": ".venv/bin/python evaluation/p5/v6/run_r01.py start --authorize-r01",
+  "slot_counts": {
+    "A": 0,
+    "D": 0,
+    "J_A": 0,
+    "P": 8,
+    "S": 0,
+    "U": 0
+  },
+  "slots_all_not_started": true,
+  "store_table_counts": {
+    "admission_decisions": 0,
+    "attempt_abandonments": 0,
+    "attempt_retirements": 0,
+    "attempt_retries": 0,
+    "attempt_submissions": 0,
+    "attempts": 0,
+    "contract_revisions": 1,
+    "entitled_sources": 1,
+    "final_assurance": 0,
+    "work_unit_dispositions": 0,
+    "work_units": 1,
+    "worktree_assignments": 0
+  },
+  "target_network": {
+    "container_id": "6dcb51921a9b6a71e3275429c2459a735457860745aa1d1164330364c2953d6d",
+    "credentials_supplied": false,
+    "dns_addresses": [
+      "10.1.0.2"
+    ],
+    "gateway_http_status": 401,
+    "github_http_status": 200,
+    "observed_at": "2026-09-19T13:39:22.555952+00:00",
+    "provider_tasks": 0,
+    "tls_verified": true,
+    "tls_version": "TLSv1.3"
+  }
+}

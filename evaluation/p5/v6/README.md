@@ -1,6 +1,7 @@
 # Prospective P5 v6 — freeze and current gate
 
-**Prepared 19 September 2026. No v6 trial has started. No live execution is
+**Non-provider setup completed 19 September 2026; ready for separate owner
+authorization of v6 R01 only. No v6 trial has started. No live execution is
 authorized by this preparation. P5 readiness remains NOT REVIEWED.**
 
 | Identity | Recorded value |
@@ -11,7 +12,8 @@ authorized by this preparation. P5 readiness remains NOT REVIEWED.**
 | Selected compatible product/dependency/test/helper baseline | `da5db3167eda0ef458cf0875b5a1c64138637b9d` (#82) |
 | Next issue | [#83: prepare and execute R01 once](https://github.com/faviann/broodling/issues/83), live authorization pending |
 | Parent gate | [#62](https://github.com/faviann/broodling/issues/62) |
-| New target/repository/input bindings | Not yet created or verified for v6 |
+| New target/repository/input bindings | [Fresh #83 setup](../runs/2026-09-19-v6-setup/README.md) and [actual-container preparation](../runs/2026-09-19-v6-r01/README.md) verified |
+| Actual tested helper/test revision | `2fd972c17a4b4edff4c591dd1c8acc06e1b9e896`; 372 tests / 291 subtests passed |
 
 The [protocol](https://github.com/faviann/broodling/blob/4a2b0b8a0340b747e805f51da218a77ad81278f9/evaluation/p5/v6/protocol.md)
 and [baseline/setup requirements](https://github.com/faviann/broodling/blob/4a2b0b8a0340b747e805f51da218a77ad81278f9/evaluation/p5/v6/setup.md)
@@ -28,13 +30,16 @@ runtime or Broodling responsibility boundary. Fresh cohort/resources prevent
 reuse of v5's consumed state and prior output. No new cleanup/model-tuning phase
 or R02-R08 execution issue was created.
 
-Baseline evidence is the retained #82 report: 356 tests and 270 subtests passed,
-including the incompatible-target-before-admission regression. It is cited as
-existing evidence, not a test run performed by this preparation. Reuse requires
-actual relevant-tree/dependency compatibility; #83 must validate and record any
-v6 helper/test adaptation and the actual target before admission. No independent
-P5 readiness review, provider execution, target deployment or new admission was
-performed here.
+The #82 report retains the original 356 tests / 270 subtests result. #83's minimal
+v6 helper/test adaptation was committed and received a fresh supported full suite:
+372 tests / 291 subtests passed, with no skips or missing SDK/native coverage.
+Product/dependency/configuration identities remain unchanged from #82. The new
+tests preserve incompatible-CLI refusal before counting/admission and validate
+completed-result consumption and reopened-store replay. The actual new container
+uses #82's pinned image, with `/usr/bin/gh 2.101.0` and `api_paginate_slurp=true`.
+No provider execution or admission occurred; these are preparation facts, not a
+live-boundary or independent P5 readiness verdict. See the [handoff](handoff.md)
+for the safe check and separately authorized start action.
 
 ## Separate accounting and next gate
 
@@ -49,7 +54,7 @@ V5 remains settled at
 retained, not repaired, replaced or reclassified. Report both cohorts separately.
 
 Current order: **#82 complete → v6 freeze recorded → #83 non-provider setup and
-compatible validation → fresh owner authorization for v6 R01 only → one R01 →
+compatible validation complete → fresh owner authorization for v6 R01 only → one R01 →
 stop and record its outcome.** Only compatible successful R01 boundary/CO evidence
 can justify a separately authorized v6 continuation. #66 may review a settled
 incomplete package instead. Neither a freeze nor a green suite establishes live

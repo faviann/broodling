@@ -1,0 +1,12 @@
+{
+  "admission_started": false,
+  "b1_commit_oid": "884bd64264df1515bee76a63f548db9cabe25a35",
+  "contract_revision_id": "cr-0fa0f05f1b6850901a9678b1d31700b1d75b7ca64876ee0fcac1987c46f52d61",
+  "contract_sha256": "06bc5cf657e0b651bc242f3b5ac685ff747333b011b06221b04275b927946d3d",
+  "source_content_sha256": "7f2c3c810da2713860ef5c0bbffdba6157b5b25bdfbed98cce1a9648e81cee13",
+  "source_id": "src-94f9a98aff5803a78508f97dd843ef6f38c4e5c91931a2332c8df617c8e7e819",
+  "source_repository": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/source",
+  "store_path": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/broodling.sqlite3",
+  "work_unit_id": "wu-ea6214a07f5940fbf64a68ea88bbe715650a814073158804ec0145440b37ea6b",
+  "workspace_root": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/workspaces"
+}

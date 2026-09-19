@@ -1,0 +1,20 @@
+{
+  "admission_started": false,
+  "b1_commit_oid": "884bd64264df1515bee76a63f548db9cabe25a35",
+  "b1_tree_oid": "7be09d5ce802612670dff148ebd6b8ff2b5244f4",
+  "corpus_freeze_commit": "717e94b3548d1dc029bfb54e2758e9929f1d93bd",
+  "evidence_directory": "/home/faviann/repos/broodling/evaluation/p5/runs/2026-09-19-v6-setup",
+  "files_sha256": {
+    "README.md": "941c40cc39ac4a74045f9c4b4771ca99f04349480a344a3e9355e80249656420",
+    "tiny.py": "f541d2923c53624d41284164d00cb7c8aa025dfda3883ac4c0b3c211d691385c"
+  },
+  "freeze_commit": "4a2b0b8a0340b747e805f51da218a77ad81278f9",
+  "issue_body_sha256": "7f2c3c810da2713860ef5c0bbffdba6157b5b25bdfbed98cce1a9648e81cee13",
+  "protocol": "p5-native-pr-v6",
+  "protocol_sha256": "bf29c8cd91d0a0c1f317f67c332cb2781cd16984f590cc62aef783f3451d5b21",
+  "repository": "faviann/broodling-p5-v6-20260919",
+  "source_repository": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/source",
+  "store_path": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/broodling.sqlite3",
+  "target_branch": "p5-eval",
+  "workspace_root": "/home/faviann/.local/share/broodling-p5-v6/r01-inputs/workspaces"
+}

@@ -1,0 +1,32 @@
+{
+  "compatible_tested_commit": "2fd972c17a4b4edff4c591dd1c8acc06e1b9e896",
+  "focused_validation": {
+    "command": ".venv/bin/python -m pytest tests/test_p5_v6_setup.py tests/test_p5_v6_driver.py tests/test_direct_target_gh.py -q",
+    "passed": 21,
+    "subtests_passed": 24,
+    "exit_code": 0,
+    "duration_seconds": 2.26,
+    "captured_by": "v6 helper implementation agent"
+  },
+  "full_validation": {
+    "command": ".venv/bin/python -m pytest tests -q",
+    "passed": 372,
+    "subtests_passed": 291,
+    "failed": 0,
+    "skipped": 0,
+    "exit_code": 0,
+    "duration_seconds": 110.38,
+    "retained_stdout": "../2026-09-19-v6-setup/default-suite.txt"
+  },
+  "regressions": [
+    "Actual v6 start refuses incompatible container CLI before counting/admission/evidence or store writes",
+    "Capable but unpinned CLI refused before start",
+    "Consumed slot refused before target/admission",
+    "Active native run refused by completed-result consumption guard",
+    "Detached completed result consumed before atomic disposition; reopened replay returns identical stored result/disposition without native wait or submission",
+    "Fresh setup retains exact frozen profile and rejects changed or started state"
+  ],
+  "campaign_admissions": 0,
+  "campaign_attempts": 0,
+  "provider_tasks": 0
+}

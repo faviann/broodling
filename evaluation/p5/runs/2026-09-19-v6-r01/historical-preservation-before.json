@@ -1,0 +1,33 @@
+{
+  "facts": {
+    "container": {
+      "id": "e937e7fd7d8e35c823ba027edbfd95338d075cdbfbc3056249083a09e34854eb",
+      "image": "sha256:bfed075c6443f63127dc30f73376483148d78bf3023d093bd90ce76353344dad",
+      "state": {
+        "Dead": false,
+        "Error": "",
+        "ExitCode": 137,
+        "FinishedAt": "2026-09-19T05:01:14.457831206Z",
+        "OOMKilled": false,
+        "Paused": false,
+        "Pid": 0,
+        "Restarting": false,
+        "Running": false,
+        "StartedAt": "2026-09-19T04:01:11.438905635Z",
+        "Status": "exited"
+      }
+    },
+    "partial_pr": {
+      "head": "64213ae12edcd571bc313bbe7920b66dcd6c17d8",
+      "merged": false,
+      "state": "open",
+      "updated_at": "2026-09-19T04:32:17Z",
+      "url": "https://github.com/faviann/broodling-p5-v3-20260917/pull/2"
+    },
+    "state_file_count": 32,
+    "state_files_digest": "690484fcadc7a3eb93d8c2a663f08b99551d5a8f68e913b8f3c352c74e49ce9a",
+    "tracked_file_count": 113,
+    "tracked_files_digest": "f01b32816eb437cc20fad0644b472979e28b4685fc7c6a3032cd3912ce7c3c33"
+  },
+  "observed_at": "2026-09-19T13:38:37.147429+00:00"
+}

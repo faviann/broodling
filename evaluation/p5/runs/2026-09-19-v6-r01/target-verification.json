@@ -1,0 +1,64 @@
+{
+  "container_id": "6dcb51921a9b6a71e3275429c2459a735457860745aa1d1164330364c2953d6d",
+  "container_name": "broodling-p5-v6-r01-target",
+  "delivery": "pull_request",
+  "direct_target_github_cli": {
+    "api_paginate_slurp": true,
+    "gh_program": "/usr/bin/gh",
+    "gh_version": "gh version 2.101.0 (2026-09-15)"
+  },
+  "discovery": {
+    "audience": "controller",
+    "authentication": "none",
+    "kind": "zeroshot.native-v2-target/v2",
+    "oecpPath": "/native-v2/oecp",
+    "runPath": "/native-v2/run",
+    "sessionPath": "/native-v2/oecp-session"
+  },
+  "dispatch_credentials_present": [],
+  "image_id": "sha256:3511d1b7134167b6a845bdc0536532a2265cba580e77b475e26d25d0382f4e5a",
+  "mounts": [
+    {
+      "Destination": "/p5-state",
+      "RW": true,
+      "Source": "/home/faviann/.local/share/broodling-p5-v6/target-state"
+    },
+    {
+      "Destination": "/home/node",
+      "RW": true,
+      "Source": "/home/faviann/.local/share/broodling-p5-v6/target-home"
+    }
+  ],
+  "observed_at": "2026-09-19T13:39:21.323618+00:00",
+  "origin": "http://127.0.0.1:18768",
+  "ports": {
+    "18767/tcp": [
+      {
+        "HostIp": "127.0.0.1",
+        "HostPort": "18768"
+      }
+    ]
+  },
+  "preset": "software-change",
+  "preset_resolved": true,
+  "provider_tasks": 0,
+  "run_count": 0,
+  "runs": [],
+  "sdk_environment": {},
+  "status": "running",
+  "stop_access": {
+    "active_execution_supervision": "Required with later separate owner authorization; no execution authorized now",
+    "docker_daemon_accessible": true,
+    "external_stop_command": "docker stop broodling-p5-v6-r01-target",
+    "operator": "faviann",
+    "stop_exercised": false
+  },
+  "versions": {
+    "codex": "codex-cli 0.153.4",
+    "gh_sha256": "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff  /usr/bin/gh",
+    "git": "git version 2.39.5",
+    "native": "zeroshot 10.3.0",
+    "native_sha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06  /usr/local/bin/zeroshot",
+    "node": "v22.23.2"
+  }
+}
