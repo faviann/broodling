@@ -1,0 +1,6 @@
+{
+  "error_type": "SubmissionNotReady",
+  "message": "Phase refused or failed; inspect sanitized prerequisites and durable state. Never rerun start after the start marker exists.",
+  "observed_at": "2026-09-19T04:44:39.387621+00:00",
+  "phase": "finalize"
+}

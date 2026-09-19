@@ -1,0 +1,33 @@
+{
+  "broodling_disposition": null,
+  "cause": {
+    "category": "target_installation_compatibility",
+    "detail": "Zeroshot 10.3.0 native PR delivery invokes `gh api graphql --paginate --slurp`, but the DirectTarget image contains GitHub CLI 2.23.0, whose `gh api` command does not support `--slurp`.",
+    "direct_target_gh_version": "2.23.0",
+    "failed_flag": "--slurp",
+    "supporting_zeroshot_event_sequences": [60, 119, 173, 219]
+  },
+  "classified_at": "2026-09-19T05:01:33Z",
+  "evaluator_outcome": "NOT_DELIVERED",
+  "frozen_rule_basis": "IF applies because a concrete target installation failure prevented the required observation/delivery. UR requires no demonstrated infrastructure/capability cause; FA requires Broodling SUCCEEDED; neither condition holds.",
+  "independent_judgment": null,
+  "native_result": {
+    "reason": "change_attempts_exhausted",
+    "status": "failed"
+  },
+  "primary_class": "IF",
+  "protocol": "p5-native-pr-v5",
+  "receipt": null,
+  "run_id": "01a0b7e7-712e-7e42-9e6b-d0d0a2dec6ea",
+  "secondary_flags": [
+    "partial_authorized_github_effect",
+    "native_failed",
+    "no_broodling_disposition",
+    "delivery_status_inspection_failure",
+    "change_attempts_exhausted",
+    "current_partial_pr_head_violates_scope"
+  ],
+  "slot": "R01",
+  "status": "BLOCKED",
+  "trial_reuse_permitted": false
+}

@@ -1,0 +1,11 @@
+{
+  "credential_free_reconnection": true,
+  "failure": {
+    "detail": "Raw provider error omitted to prevent credential retention.",
+    "type": "str"
+  },
+  "observed_at": "2026-09-19T04:44:39.368267+00:00",
+  "output": null,
+  "run_id": "01a0b7e7-712e-7e42-9e6b-d0d0a2dec6ea",
+  "succeeded": false
+}

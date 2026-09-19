@@ -1,0 +1,39 @@
+{
+  "authorized_target": {
+    "base_branch": "p5-eval",
+    "base_revision": "884bd64264df1515bee76a63f548db9cabe25a35",
+    "repository": "faviann/broodling-p5-v3-20260917"
+  },
+  "bundle": {
+    "path": "R01/github-delivery.bundle",
+    "sha256": "fefec9ec94fdc5c48bf89e2824ae60440430f4a45d75996cde36cc244d813172",
+    "verified_complete_history": true
+  },
+  "first_observed_native_head": {
+    "changed_files": ["tiny.py"],
+    "revision": "1d49f231e35169ff8ac8ed82997d4a8df6747502",
+    "zeroshot_event_sequence": 61
+  },
+  "observed_at": "2026-09-19T05:01:33Z",
+  "partial_delivery_only": true,
+  "pull_request": {
+    "base_ref": "p5-eval",
+    "base_sha": "884bd64264df1515bee76a63f548db9cabe25a35",
+    "created_at": "2026-09-19T04:25:41Z",
+    "current_changed_files": [
+      "__pycache__/tiny.cpython-311.pyc",
+      "tiny.py"
+    ],
+    "head_ref": "zeroshot/v2-6fbed5ea695f49366fd9",
+    "head_sha": "64213ae12edcd571bc313bbe7920b66dcd6c17d8",
+    "merged": false,
+    "number": 2,
+    "state": "open",
+    "title": "Validate ASCII port strings in parse_port",
+    "updated_at": "2026-09-19T04:32:17Z",
+    "url": "https://github.com/faviann/broodling-p5-v3-20260917/pull/2"
+  },
+  "receipt": null,
+  "run_id": "01a0b7e7-712e-7e42-9e6b-d0d0a2dec6ea",
+  "why_partial": "Zeroshot created and updated the branch/PR, but its post-write GitHub status query failed on unsupported gh --slurp. The run failed and Broodling recorded no SUCCEEDED disposition or native receipt."
+}

@@ -1,11 +1,11 @@
 {
   "counts": {
     "A": 0,
-    "D": 0,
+    "D": 1,
     "J_A": 0,
     "P": 8,
-    "S": 0,
-    "U": 0
+    "S": 1,
+    "U": 1
   },
   "freeze_commit": "52eb3569b3671baa37426792a67b50058e2d223f",
   "protocol": "p5-native-pr-v5",
@@ -13,13 +13,13 @@
     {
       "broodling_disposition": null,
       "expected": "CO",
-      "independent_judgment": null,
-      "native_result": null,
-      "primary_class": null,
-      "reason": "Awaiting v5 prerequisites and separately authorized first admission",
+      "independent_judgment": "NOT_DELIVERED",
+      "native_result": "FAILED",
+      "primary_class": "IF",
+      "reason": "DirectTarget GitHub CLI 2.23.0 lacks the --slurp flag required by Zeroshot 10.3.0 native delivery; the run failed without a receipt or Broodling disposition. Partial PR #2 is retained as evidence only.",
       "repetition": 1,
       "slot": "R01",
-      "status": "NOT_STARTED",
+      "status": "BLOCKED",
       "task": "T1"
     },
     {

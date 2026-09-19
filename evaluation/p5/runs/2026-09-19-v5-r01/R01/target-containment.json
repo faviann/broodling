@@ -1,0 +1,12 @@
+{
+  "container_id": "e937e7fd7d8e35c823ba027edbfd95338d075cdbfbc3056249083a09e34854eb",
+  "container_name": "broodling-p5-v5-r01-target",
+  "contained_at": "2026-09-19T05:01:14.457831206Z",
+  "exit_code": 137,
+  "image": "sha256:bfed075c6443f63127dc30f73376483148d78bf3023d093bd90ce76353344dad",
+  "mounts_preserved": [
+    "/home/faviann/.local/share/broodling-p5-v5/target-state",
+    "/home/faviann/.local/share/broodling-p5-v5/target-home"
+  ],
+  "state": "exited"
+}

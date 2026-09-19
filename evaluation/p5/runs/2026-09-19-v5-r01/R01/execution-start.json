@@ -1,0 +1,11 @@
+{
+  "authority": "separate --authorize-r01 action with active operator supervision",
+  "counting_boundary": "recorded immediately before first Contract admission attempt",
+  "driver_sha256": "354f5377be88666fd58847cb9a14b1bc575637964e77242be005b9bc4c81ddf9",
+  "freeze_commit": "52eb3569b3671baa37426792a67b50058e2d223f",
+  "issue": 79,
+  "protocol": "p5-native-pr-v5",
+  "rerun_permitted": false,
+  "slot": "R01",
+  "started_at": "2026-09-19T04:23:12.780370+00:00"
+}

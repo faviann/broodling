@@ -1,0 +1,32 @@
+{
+  "configuration": {
+    "requiredEffects": [],
+    "runtime": {
+      "python": "3.13.5",
+      "sqlite": "3.46.1"
+    },
+    "supportedHostAssumptions": [
+      "disposable_worktree",
+      "local_filesystem_only",
+      "no_authoritative_effects",
+      "one_attempt_one_dedicated_worktree",
+      "single_host"
+    ],
+    "supportedResultDeliveries": [
+      "none",
+      "pull_request"
+    ],
+    "zeroshotBoundary": {
+      "engine": "10.3.0",
+      "integration": "official Python SDK LocalTarget/DirectTarget with bundled native engine",
+      "sdk": "the-open-engine-zeroshot 10.3.0.post1",
+      "zeroshotRevision": "054ad3fd6c763b98d12f5b2e90830b97116561ad"
+    }
+  },
+  "contract_revision_id": "cr-e7ac6d684c3bda5681f28b2937cb9d84461520ea7417f76c3797e0476477477a",
+  "decided_at": "2026-09-19T04:23:12.790878+00:00",
+  "decision_id": "ad-125f989e16f0929e3955df9f6dd27c02b76c44e7a04d527fb661b1533e658a44",
+  "findings": [],
+  "outcome": "admitted",
+  "work_unit_id": "wu-5d3cb6246c8e910471364fd3098d12d8f0e2fbd43901fd55c1633d394f171192"
+}

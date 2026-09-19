@@ -1,0 +1,74 @@
+{
+  "credential_values_retained": false,
+  "durable_store": {
+    "cursor": 491,
+    "event_count": 491,
+    "path": "/home/faviann/.local/share/broodling-p5-v5/target-state/runs.sqlite3",
+    "sha256_at_readback": "065fc11cffc0d53ca9c5bebb800acbf7ea81229488d411c181bfd20290537f2f"
+  },
+  "observed_at": "2026-09-19T05:01:33Z",
+  "run_id": "01a0b7e7-712e-7e42-9e6b-d0d0a2dec6ea",
+  "selected_events": [
+    {
+      "event_json_sha256": "b7f5793c571b6a8a7c12015d1c24193e1b6e3bfae9412a46add295735f1abcaf",
+      "kind": "run_started",
+      "sequence": 1
+    },
+    {
+      "event_json_sha256": "3e82c359642c5902d871da3a8f409c201a7fdb70be2ef156134577b74a5a51cc",
+      "kind": "node_completed",
+      "observation": "First deliver node recorded repository, target branch, B1, run branch, head 1d49f231e35169ff8ac8ed82997d4a8df6747502 and PR 2, then failed its GitHub API query.",
+      "sequence": 61
+    },
+    {
+      "event_json_sha256": "764fa4701fd309edb2c7831afa80e564eda6fed9e8e494c8e1c0766e95c74a02",
+      "kind": "safe_log",
+      "observation": "The exact command used /usr/bin/gh api graphql --paginate --slurp and exited 1 with `unknown flag: --slurp`.",
+      "sequence": 60
+    },
+    {
+      "event_json_sha256": "ca1f7c345083226f66a8efcabdd13061a2243e7644df8fcfba8b3e8820d62f97",
+      "kind": "safe_log",
+      "observation": "Worker attempted to replace /usr/bin/gh after identifying the version mismatch.",
+      "sequence": 77
+    },
+    {
+      "event_json_sha256": "84d405c2db3a94d1ef10fbc1743d8d4657ccc29ee9fc6a08955cbeeef96cce34",
+      "kind": "safe_log",
+      "observation": "Replacement failed because /usr/bin/gh was not writable; installed gh remained 2.23.0.",
+      "sequence": 78
+    },
+    {
+      "event_json_sha256": "82c04708bcd28742f4ff2bfc65216d13a1b5746e5b0445cfe90762ace1e5dc8e",
+      "kind": "safe_log",
+      "observation": "Downloaded gh 2.101.0 help exposed --slurp, confirming a CLI compatibility cause.",
+      "sequence": 80
+    },
+    {
+      "event_json_sha256": "f34ce86e632ff4a2795c1c9832a9d92d01531db9b32d4f5512d9de76e2a6526e",
+      "kind": "node_completed",
+      "observation": "A later deliver node recorded current head 64213ae12edcd571bc313bbe7920b66dcd6c17d8 and PR 2, then failed the same GitHub API query.",
+      "sequence": 220
+    },
+    {
+      "event_json_sha256": "fa7da0ee0350099d13d29d03de94c80c19e89b658be197a4e7de7258dd5d2c3d",
+      "kind": "node_completed",
+      "observation": "Code review rejected the current head because it added __pycache__/tiny.cpython-311.pyc outside the authorized scope.",
+      "sequence": 258
+    },
+    {
+      "event_json_sha256": "72af06634cfa0112b97adc20129a695bba0aecd8116cc730dcab2a983000b05b",
+      "kind": "node_completed",
+      "observation": "Final code review still rejected the current head and also identified an overridable str-subclass method edge case.",
+      "sequence": 465
+    },
+    {
+      "event_json_sha256": "0c1ab483be52dfb0acfa7483c622095ef69161e1120b9568dff05ebc69221172",
+      "kind": "terminal",
+      "observation": "status=failed; reason=change_attempts_exhausted",
+      "sequence": 491
+    }
+  ],
+  "submission_digest": "a417b9935d787e0b37cd3500dfa4b7c8baaa236e4c00ed7b9f87d7d8ad606a64",
+  "submission_key": "broodling:v1:at-008dada5f9fb428ad00f5c2e3457886a87a68558eb2bb532f4d4632ffa8140b7"
+}
