@@ -7,14 +7,13 @@ replace it. This boundary ends at admission and never creates an Attempt.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from types import UnionType
 from typing import get_args, get_origin, get_type_hints
 
 from .contract import CONSTRUCTED_BY, Contract, RequiredEffect, SourceAttribution
-from .entitlement import PRIMARY_ISSUE, SourceEntitlement, SourceSubmission
+from .entitlement import PRIMARY_ISSUE, SourceSubmission
 from .errors import BroodlingError, SourceAttributionError, SourceNotEntitled
 from .github_source import acquire_github_issue
 from .identity import WorkReference
@@ -80,10 +79,11 @@ class ContractIngress:
         """Read just the explicitly named issue, then propose and admit.
 
         Comments, links and repository guidance are not fetched or entitled.
-        Supplementary material needs an explicit caller/policy source grant.
+        Supplementary material needs an explicit caller source grant.
         """
+        _validate_caller_sources(additional_sources)
         acquired = acquire_github_issue(reference)
-        return self.from_sources(
+        return self._admit_sources(
             acquired.reference,
             (acquired.source, *additional_sources),
             propose,
@@ -102,14 +102,33 @@ class ContractIngress:
     ) -> ContractIngressResult:
         """Use explicitly supplied bytes without a GitHub/Markdown dependency.
 
+        Every source, including the primary issue, needs an explicit caller
+        grant. Supplied bytes cannot claim acquisition under Broodling policy.
         A caller with a structured Contract can return it from ``propose``.
         Acquisition/proposal errors raise without an admitted revision; any
         sources already captured remain immutable facts. Supported structure
         with unsupported capabilities is retained as a rejected revision.
         """
+        _validate_caller_sources(sources)
+        return self._admit_sources(
+            reference,
+            sources,
+            propose,
+            required_effects=required_effects,
+            constructed_by=constructed_by,
+        )
+
+    def _admit_sources(
+        self,
+        reference: WorkReference,
+        sources: tuple[SourceSubmission, ...],
+        propose: Callable[[ContractProposalInput], Contract],
+        *,
+        required_effects: tuple[RequiredEffect, ...],
+        constructed_by: str,
+    ) -> ContractIngressResult:
         if constructed_by not in CONSTRUCTED_BY:
             raise InvalidContractProposal("unrecognized proposal producer")
-        _check_type(sources, tuple[SourceSubmission, ...], "sources")
         _check_type(required_effects, tuple[RequiredEffect, ...], "required_effects")
         if sum(source.kind == PRIMARY_ISSUE for source in sources) != 1:
             raise SourceNotEntitled(
@@ -120,50 +139,39 @@ class ContractIngress:
             self.store.entitle_source(work_unit.work_unit_id, source)
             for source in sources
         )
-        # Record the caller's authority independently of the model's proposal.
-        # Pinning this source makes effect changes new revision meaning and keeps
-        # the complete request authoritative even when criteria are summarized.
-        authority = self.store.entitle_source(
-            work_unit.work_unit_id,
-            SourceSubmission(
-                kind="caller_statement",
-                locator=f"{work_unit.issue_locator}#broodling-ingress-authority",
-                content=json.dumps(
-                    {
-                        "format": "broodling.ingress-authority/v1",
-                        "sources": [
-                            SourceAttribution(
-                                s.source_id, s.content_sha256
-                            ).to_mapping()
-                            for s in captured
-                        ],
-                        "requiredEffects": [e.to_mapping() for e in required_effects],
-                        "scope": (
-                            "The complete entitled source snapshots govern this "
-                            "Work Unit. Extracted criteria do not replace or "
-                            "narrow the work request. Only the exact requiredEffects "
-                            "declared here are authorized; "
-                            "conflicting requirements must be handed back, not waived."
-                        ),
-                    },
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    ensure_ascii=False,
-                ).encode("utf-8"),
-                media_type="application/json",
-                entitlement=SourceEntitlement(
-                    "caller", "explicit ingress effect authority"
-                ),
-            ),
-        )
         inputs = ContractProposalInput(
-            work_unit, (*captured, authority), required_effects, constructed_by
+            work_unit, captured, required_effects, constructed_by
         )
         proposal = propose(inputs)
         _validate_proposal(inputs, proposal)
+        # Attribution is a set of pins, not a precedence order. Normalize new
+        # ingress revisions without changing historical Contract v1 bytes.
+        proposal = replace(
+            proposal,
+            source_attribution=tuple(
+                sorted(
+                    proposal.source_attribution,
+                    key=lambda item: (item.source_id, item.content_sha256),
+                )
+            ),
+        )
         revision = self.store.record_contract_revision(proposal)
         decision = self.store.admit(revision.contract_revision_id)
         return ContractIngressResult(work_unit, inputs.sources, revision, decision)
+
+
+def _validate_caller_sources(sources: tuple[SourceSubmission, ...]) -> None:
+    _check_type(sources, tuple[SourceSubmission, ...], "sources")
+    for source in sources:
+        if (
+            source.origin != "caller"
+            or source.entitlement is None
+            or source.entitlement.granted_by != "caller"
+        ):
+            raise SourceNotEntitled(
+                "caller-supplied sources require caller origin and an explicit "
+                "caller entitlement; they cannot claim Broodling-policy acquisition"
+            )
 
 
 def _validate_proposal(inputs: ContractProposalInput, proposal: Contract) -> None:

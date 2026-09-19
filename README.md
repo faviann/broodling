@@ -62,7 +62,7 @@ python -m pytest tests
 ```
 
 `ContractIngress.from_github` now supplies the front half: acquire one explicit
-issue, freeze its exact source bytes and caller effect authority, obtain a typed
+issue, freeze its exact source bytes, validate caller effect authority in a typed
 Contract from a caller-supplied proposer, and record deterministic admission.
 See the [ingress API and example](docs/implementation/work-reference-ingress.md).
 It stops at admission; no Attempt is created. Comments and referenced documents

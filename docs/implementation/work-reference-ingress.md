@@ -26,18 +26,20 @@ scoped P5 **FAIL**; it does not establish reliable semantic acceptance.
    Contracts. Ingress never repairs a proposal by deleting a requirement.
 
 The required `required_effects` argument is trusted caller authority, including
-when it is explicitly `()`. It is snapshotted as an entitled caller statement
-before extraction. A model cannot add, remove or retarget an effect, even to
-another otherwise supported PR branch. This uses the current required-effect
-model; it adds no separate permission ontology. Repository authority comes from
-the Work Unit; B1 is still established by later Attempt admission.
+when it is explicitly `()`. Ingress requires the proposal to match it exactly;
+the immutable Contract then retains that authority in its `required_effects`
+field. A model cannot add, remove or retarget an effect, even to another otherwise
+supported PR branch. No synthetic source or separate grant record is created.
+Repository authority comes from the Work Unit; B1 is still established by later
+Attempt admission.
 
-Every input snapshot, including the caller statement, must be attributed at its
-exact digest. The statement also preserves that the complete source governs scope
-and acceptance: extracted criteria supplement it and cannot waive its
-requirements. A different, previously entitled snapshot cannot be substituted.
-Source acquisition and semantic proposal remain separate; the model output has
-no source-entitlement channel.
+Every input snapshot must be attributed at its exact digest. The existing
+Broodling execution policy makes the complete frozen sources govern scope and
+acceptance alongside the Contract; that policy is not caller-authored source
+material. Extracted criteria cannot waive source requirements. A different,
+previously entitled snapshot cannot be substituted. Source acquisition and
+semantic proposal remain separate; the model output has no source-entitlement
+channel.
 
 ## Use
 
@@ -90,10 +92,15 @@ with BroodlingStore.open("/srv/broodling/state/broodling.sqlite3") as store:
 `from_sources(reference, sources, propose, required_effects=...)` accepts exact
 `SourceSubmission` bytes directly, with no JSON/Markdown dependency in Contract
 construction. The current Work Unit profile still requires one primary issue.
-Additional sources in either method need their own explicit `SourceEntitlement`;
-links, issue comments and repository guidance are never fetched or entitled
+All caller-supplied sources, including the primary issue in `from_sources`, need
+`origin="caller"` and an explicit `SourceEntitlement("caller", basis)`. Supplied
+bytes cannot claim Broodling-policy acquisition or entitlement. Only the primary
+issue actually acquired and validated by `from_github` receives implicit policy
+entitlement. Additional sources in that method also need explicit caller grants.
+Links, issue comments and repository guidance are never fetched or entitled
 implicitly. This allows callers to freeze a relevant decision or prerequisite
-record without granting authority to everything the issue links to.
+record without granting authority to everything the issue links to. Caller grants
+authorize supplied bytes; they do not verify those bytes against an upstream site.
 
 An external model adapter must decode its output to the existing dataclasses;
 ingress validates their runtime types as well as nonempty, unique identifiers and
@@ -106,6 +113,11 @@ Contract can return it from the callback after binding these source pins.
 The result exposes the Work Unit, all entitled snapshots, immutable revision and
 stored decision. Repeating identical source bytes and proposal meaning resolves
 the same source/revision/decision identities, including after reopening the store.
+Source attribution is unordered: after validating the complete pin set, ingress
+sorts pins by source ID and digest before recording a new Contract. Reordering
+input sources or proposal pins therefore does not create a different revision.
+Historical Contract v1 serialization and stored revision bytes remain unchanged;
+ingress normalization does not rewrite earlier revisions.
 Changed issue bytes or proposal meaning create new records; they cannot amend an
 earlier admitted revision or its Attempt. Replaying a recorded decision needs no
 GitHub fetch or extraction. Re-running a model is not promised to reproduce its

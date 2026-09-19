@@ -35,9 +35,10 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
 
 ## What remains
 
-- Explicit GitHub work-reference ingress, exact issue snapshots and caller effect
-  grants, complete proposal/source attribution, immutable revision replay, and
-  deterministic refusal of unsupported capabilities. The
+- Explicit GitHub work-reference ingress, exact issue snapshots, explicit caller
+  source grants and effect authority, complete proposal/source attribution,
+  ordering-independent ingress revisions, immutable replay, and deterministic
+  refusal of unsupported capabilities. The
   [retained issue fixtures](fixtures/ingress/README.md) exercise current structured
   issue prose with controlled proposers and no network/provider execution.
 - Work Unit identity, entitled source snapshots, immutable Contract/Attempt

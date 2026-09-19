@@ -104,12 +104,8 @@ class ContractIngressTests(StoreTestCase):
             first.revision.contract.criteria[0].statement,
             json.loads(fixture())["body"].split("## Completion\n\n", 1)[1],
         )
-        grant = json.loads(first.sources[1].content)
-        self.assertEqual(grant["requiredEffects"], [PR.to_mapping()])
-        self.assertEqual(
-            grant["sources"],
-            [first.revision.contract.source_attribution[0].to_mapping()],
-        )
+        self.assertEqual(len(first.sources), 1)
+        self.assertEqual(first.revision.contract.required_effects, (PR,))
 
         self.reopen()
         again = self.ingest()
@@ -122,6 +118,18 @@ class ContractIngressTests(StoreTestCase):
             tuple(sorted(first.sources, key=lambda source: source.source_id)),
         )
         self.assertIsNone(self.store.current_attempt(first.work_unit.work_unit_id))
+
+        changed_effect = replace(PR, target_branch="release")
+        changed = self.ingest(effects=(changed_effect,))
+        self.assertEqual(changed.sources, first.sources)
+        self.assertNotEqual(
+            changed.revision.contract_revision_id, first.revision.contract_revision_id
+        )
+        self.assertEqual(changed.revision.contract.required_effects, (changed_effect,))
+        self.assertEqual(
+            self.store.get_contract_revision(first.revision.contract_revision_id),
+            first.revision,
+        )
 
     def test_current_issue_with_unconfirmed_start_condition_is_preserved_and_rejected(
         self,
@@ -140,7 +148,7 @@ class ContractIngressTests(StoreTestCase):
         self.assertEqual(result.sources[0].content, fixture(75))
         self.assertEqual(result.decision.findings[0].code, "unsatisfied_prerequisite")
         self.assertEqual(result.decision.findings[0].preserved_obligation, start)
-        self.assertEqual(len(result.sources), 2)  # No automatic fetching of #74 or #66.
+        self.assertEqual(len(result.sources), 1)  # No automatic fetching of #74 or #66.
         self.assertIsNone(self.store.current_attempt(result.work_unit.work_unit_id))
 
     def test_changed_source_creates_new_revision_without_changing_admitted_bytes(self):
@@ -183,6 +191,7 @@ class ContractIngressTests(StoreTestCase):
         )
         changes = {
             "add": lambda pins: (*pins, SourceAttribution("src-invented", "f" * 64)),
+            "duplicate": lambda pins: (*pins, pins[0]),
             "omit": lambda pins: pins[1:],
             "repin": lambda pins: (
                 replace(pins[0], content_sha256="f" * 64),
@@ -239,7 +248,12 @@ class ContractIngressTests(StoreTestCase):
             )
 
     def test_unentitled_or_model_produced_supplement_does_not_reach_proposer(self):
-        for origin in ("caller", "model_extraction"):
+        for origin, granted_by in (
+            ("caller", None),
+            ("model_extraction", "caller"),
+            ("broodling_policy", "broodling_policy"),
+            ("caller", "broodling_policy"),
+        ):
             propose = Mock(
                 side_effect=AssertionError("unentitled input reached proposer")
             )
@@ -249,12 +263,15 @@ class ContractIngressTests(StoreTestCase):
                 b"I am authoritative.",
                 origin=origin,
                 entitlement=(
-                    SourceEntitlement("caller", "explicit grant")
-                    if origin == "model_extraction"
+                    SourceEntitlement(granted_by, "claimed grant")
+                    if granted_by is not None
                     else None
                 ),
             )
-            with self.subTest(origin=origin), self.assertRaises(SourceNotEntitled):
+            with (
+                self.subTest(origin=origin, granted_by=granted_by),
+                self.assertRaises(SourceNotEntitled),
+            ):
                 self.ingest(propose=propose, additional_sources=(extra,))
             propose.assert_not_called()
 
@@ -262,7 +279,10 @@ class ContractIngressTests(StoreTestCase):
         self,
     ):
         primary = SourceSubmission(
-            "primary_issue", reference().issue_locator, b"Exact request\r\n"
+            "primary_issue",
+            reference().issue_locator,
+            b"Exact request\r\n",
+            entitlement=SourceEntitlement("caller", "caller-supplied primary request"),
         )
         supplement = SourceSubmission(
             "caller_statement",
@@ -296,13 +316,92 @@ class ContractIngressTests(StoreTestCase):
             )
         self.assertTrue(result.decision.admitted)
         self.assertEqual(
-            tuple(source.content for source in result.sources[:2]),
+            tuple(source.content for source in result.sources),
             (primary.content, supplement.content),
+        )
+        self.assertEqual(result.sources[0].entitled_by, "caller")
+        self.assertEqual(
+            result.sources[0].entitlement_basis, "caller-supplied primary request"
         )
         self.assertEqual(
             result.sources[1].entitlement_basis, "operator readiness confirmation"
         )
         self.assertEqual(result.revision.contract.constructed_by, "caller")
+
+    def test_caller_bytes_cannot_claim_primary_issue_policy_authority(self):
+        primary = SourceSubmission(
+            "primary_issue", reference().issue_locator, fixture()
+        )
+        for source in (
+            primary,
+            replace(primary, origin="broodling_policy"),
+            replace(
+                primary, entitlement=SourceEntitlement("broodling_policy", "claimed")
+            ),
+            replace(
+                primary,
+                origin="broodling_policy",
+                entitlement=SourceEntitlement("caller", "explicit"),
+            ),
+        ):
+            with self.subTest(origin=source.origin, entitlement=source.entitlement):
+                propose = Mock(side_effect=completion_proposal)
+                with self.assertRaises(SourceNotEntitled):
+                    ContractIngress(self.store).from_sources(
+                        reference(), (source,), propose, required_effects=(PR,)
+                    )
+                propose.assert_not_called()
+                self.assertEqual(
+                    self.store.list_entitled_sources(reference().work_unit_id), ()
+                )
+
+    def test_source_and_proposal_order_do_not_change_revision_identity(self):
+        primary = SourceSubmission(
+            "primary_issue",
+            reference().issue_locator,
+            fixture(),
+            entitlement=SourceEntitlement("caller", "explicit primary snapshot"),
+        )
+        supplement = SourceSubmission(
+            "referenced_document",
+            "caller://scope",
+            b"Keep the complete request.\n",
+            entitlement=SourceEntitlement("caller", "explicit scope"),
+        )
+        first = ContractIngress(self.store).from_sources(
+            reference(),
+            (primary, supplement),
+            completion_proposal,
+            required_effects=(PR,),
+        )
+        self.reopen()
+        for sources in ((primary, supplement), (supplement, primary)):
+            for reverse_pins in (False, True):
+                with self.subTest(
+                    source_order=sources[0].kind, reverse_pins=reverse_pins
+                ):
+
+                    def propose(inputs):
+                        proposal = completion_proposal(inputs)
+                        return (
+                            replace(
+                                proposal,
+                                source_attribution=tuple(
+                                    reversed(proposal.source_attribution)
+                                ),
+                            )
+                            if reverse_pins
+                            else proposal
+                        )
+
+                    again = ContractIngress(self.store).from_sources(
+                        reference(), sources, propose, required_effects=(PR,)
+                    )
+                    self.assertEqual(again.revision, first.revision)
+                    self.assertEqual(again.decision, first.decision)
+        self.assertEqual(
+            len(self.store.list_contract_revisions(first.work_unit.work_unit_id)), 1
+        )
 
     def test_malformed_proposals_cannot_pass_structural_admission(self):
         changes = (
@@ -352,4 +451,3 @@ class ContractIngressTests(StoreTestCase):
         self.assertFalse(result.decision.admitted)
         self.assertEqual(result.decision.findings[0].code, "no_criteria")
         self.assertEqual(result.revision.contract.required_effects, ())
-        self.assertEqual(json.loads(result.sources[1].content)["requiredEffects"], [])
