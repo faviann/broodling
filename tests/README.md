@@ -89,6 +89,9 @@ Its stop scenario checks only stop wiring and the facade's subsequent
 abandonment handback from `resume`/`submit`. Its contention regression reads
 `history`/`status` while real Attempt provisioning holds a lifecycle write
 transaction, so acquiring the writer slot during observation fails immediately.
+History also checks caller-supplied upstream identities through the existing
+store identity rule; its regression covers conflicting/matching/omitted pins
+and unknown references while SQLite is read-only and external calls are refused.
 
 Gateway dispatch tests replace the public SDK client and never connect to
 CLIProxyAPI or GitHub. These checks require no real gateway credentials and

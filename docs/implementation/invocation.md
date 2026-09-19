@@ -123,6 +123,13 @@ Exceptions do not roll back earlier durable steps. If `submit` raises before
 returning identifiers, use `history(reference)` to inspect retained revisions and
 select the exact revision to resume. Failures before a revision was recorded
 leave no revision handle. The facade does not add a separate error ledger.
+
+`history` checks supplied upstream repository/issue IDs against already-pinned
+identities and raises `WorkUnitIdentityConflict` on a mismatch. It never creates
+a Work Unit, records ingress or pins a previously unknown ID. Matching or omitted
+IDs allow observation; without supplied IDs, this offline lookup cannot detect
+upstream recreation at the same path. Unknown references return no history.
+
 `resume` returns existing rejection,
 abandonment or disposition without automatically creating a replacement Attempt.
 Stopping an Attempt that never dispatched can establish the existing retirement

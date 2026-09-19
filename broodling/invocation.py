@@ -180,10 +180,14 @@ class Broodling:
 
         Returns oldest revision first, or an empty tuple for unknown references.
         This never acquires sources, runs a proposer, or resolves a new Work Unit.
+        Supplied upstream identities must agree with any already-pinned identities.
         """
+        work_unit = self.store.find_work_unit(reference)
+        if work_unit is None:
+            return ()
         return tuple(
             self.status(revision.contract_revision_id)
-            for revision in self.store.list_contract_revisions(reference.work_unit_id)
+            for revision in self.store.list_contract_revisions(work_unit.work_unit_id)
         )
 
     async def wait(self, attempt_id: str) -> WorkUnitDisposition:

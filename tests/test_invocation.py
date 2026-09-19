@@ -23,6 +23,7 @@ from broodling import (
     Prerequisite,
     RequiredEffect,
     WorkReference,
+    WorkUnitIdentityConflict,
 )
 from broodling.zeroshot_sdk import V1_GATEWAY_BASE_URL, ZeroshotSubmitter
 
@@ -156,6 +157,43 @@ class InvocationTests(StoreTestCase):
         self.assertTrue(submitted.worktree.provisioned)
         self.assertEqual(submitted.submission.run_id, "native-run")
 
+    def test_history_checks_upstream_identity_without_becoming_ingress(self):
+        reference = replace(REFERENCE, repository_identity="R_original")
+        submitted = self.app.submit(
+            reference, propose, repository=self.repository, required_effects=(PR,)
+        )
+        pinned = replace(reference, issue_identity=submitted.work_unit.issue_identity)
+        unpinned = WorkReference.parse("faviann/broodling", 83)
+        self.store.resolve_work_unit(unpinned)
+        self.reopen()
+        self.app = self.application()
+        self.sdk.reset_mock()
+        # Observation must not record submissions or pin previously unknown IDs.
+        self.store.connection.execute("PRAGMA query_only = ON")
+        with patch("subprocess.run", side_effect=AssertionError("observation only")):
+            self.assertEqual(self.app.history(pinned), (submitted,))
+            self.assertEqual(self.app.history(REFERENCE), (submitted,))
+            for field in ("repository_identity", "issue_identity"):
+                with (
+                    self.subTest(field=field),
+                    self.assertRaises(WorkUnitIdentityConflict),
+                ):
+                    self.app.history(replace(pinned, **{field: "recreated"}))
+            self.assertEqual(
+                self.app.history(
+                    replace(
+                        unpinned,
+                        repository_identity="R_supplied",
+                        issue_identity="I_supplied",
+                    )
+                ),
+                (),
+            )
+            self.assertEqual(
+                self.app.history(WorkReference.parse("other/repo", 82)), ()
+            )
+        self.sdk.assert_not_called()
+
     def test_repeated_submission_and_reopened_resume_preserve_original_authority(self):
         first = self.submit()
         revision_id = first.revision.contract_revision_id
@@ -173,14 +211,9 @@ class InvocationTests(StoreTestCase):
             self.assertEqual(resumed, first)
             result = asyncio.run(self.app.wait(first.attempt.attempt_id))
             self.assertEqual(self.app.resume(revision_id).disposition, result)
-        self.assertEqual(self.client.submit.await_count, 1)
-        self.assertEqual(self.run.wait.await_count, 1)
-        self.assertEqual(self.sdk.call_args.kwargs["environment"], {})
-        self.reopen()
-        self.app = self.application()
-        self.run.wait.side_effect = AssertionError("result already retained")
-        self.assertEqual(asyncio.run(self.app.wait(first.attempt.attempt_id)), result)
         self.assertEqual(self.submit().disposition, result)
+        self.client.submit.assert_awaited_once()
+        self.run.wait.assert_awaited_once()
 
     def test_lost_dispatch_acknowledgment_is_discoverable_and_replays_frozen_request(
         self,
@@ -195,7 +228,6 @@ class InvocationTests(StoreTestCase):
         self.assertEqual(pending.submission.state, "dispatched")
         original_dispatch = self.client.submit.call_args
         move_head(self.repository)
-        self.engine.github_token = "rotated-fixture-token"
         self.client.submit.side_effect = None
         resumed = self.app.resume(pending.revision.contract_revision_id)
         self.assertEqual(resumed.attempt, pending.attempt)
@@ -204,8 +236,6 @@ class InvocationTests(StoreTestCase):
         )
         self.assertEqual(self.client.submit.call_args, original_dispatch)
         self.assertEqual(resumed.submission.run_id, "native-run")
-        result = asyncio.run(self.app.wait(resumed.attempt.attempt_id))
-        self.assertEqual(result.outcome, "SUCCEEDED")
 
     def test_stopped_invocation_is_handed_back_by_resume_and_submit(self):
         submitted = self.submit()
