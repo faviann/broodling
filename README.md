@@ -61,6 +61,16 @@ python -m pip install -e '.[test]'
 python -m pytest tests
 ```
 
+`ContractIngress.from_github` now supplies the front half: acquire one explicit
+issue, freeze its exact source bytes and caller effect authority, obtain a typed
+Contract from a caller-supplied proposer, and record deterministic admission.
+See the [ingress API and example](docs/implementation/work-reference-ingress.md).
+It stops at admission; no Attempt is created. Comments and referenced documents
+require separate explicit entitlement, and proposal generation has no bundled
+model. The [#74 first-use decision](https://github.com/faviann/broodling/issues/74)
+retains P5's scoped FAIL and requires independent operator review of every
+subsequently delivered PR before a separate merge decision.
+
 The dependency is pinned to the official Linux x86-64 SDK release wheel,
 including its SHA-256 digest; the wheel bundles the matching native engine.
 Execution also requires the selected Codex CLI `0.153.4` and host-provisioned
