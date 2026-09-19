@@ -16,7 +16,8 @@ release, or reliance on semantic correctness. This review is outside Broodling.
 One Linux x86-64 host runs the Broodling CLI as an unprivileged dedicated account
 and one rootful Docker container runs Zeroshot DirectTarget. The native target
 is unauthenticated; only `127.0.0.1:18770` is published. Local users with access
-to that port are trusted. Do not expose it through a public proxy or network
+to that port, and containers able to reach the target on its Docker bridge,
+are trusted. Do not expose it through a public proxy or network
 bind. Docker access itself grants substantial host authority.
 
 The target runs as root **inside the container**, matching the demonstrated
@@ -115,6 +116,34 @@ export GH_TOKEN GATEWAY_API_KEY
 export GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1
 ```
 
+Before dispatch, verify gateway authentication and the selected model from the
+actual target. This probe only lists models; it sends no inference request and
+does not install secrets in the container configuration:
+
+```bash
+python3 - <<'PY'
+import json, os, subprocess
+assert os.environ["GATEWAY_BASE_URL"] == "https://cliproxy.local.faviann.com/v1"
+probe = '''import json, sys, urllib.request
+credentials = json.load(sys.stdin)
+request = urllib.request.Request(
+    "https://cliproxy.local.faviann.com/v1/models",
+    headers={"Authorization": "Bearer " + credentials["key"]})
+try:
+    with urllib.request.urlopen(request, timeout=30) as response:
+        models = json.load(response)
+    assert any(item.get("id") == "gpt-5.6-sol" for item in models.get("data", []))
+except Exception:
+    sys.exit("Gateway/model preflight failed; fix this profile before dispatch.")
+print("Configured gateway authentication and gpt-5.6-sol availability passed.")
+'''
+subprocess.run(["docker", "exec", "-i", "broodling-target", "python3", "-c", probe],
+    input=json.dumps({"key": os.environ["GATEWAY_API_KEY"]}), text=True, check=True)
+PY
+```
+
+Do not fall back to another provider or authentication path if this fails.
+
 The GitHub identity must read the explicit issue/repository and clone/fetch,
 push a proposal branch, open/update its PR, and perform native delivery's issue
 read/comment and PR/status/check queries. Use repository-scoped credentials
@@ -180,7 +209,8 @@ unset GH_TOKEN GATEWAY_API_KEY GATEWAY_BASE_URL
 ```
 
 Retain `revision.contract_revision_id` and, when admitted, `attempt.attempt_id`
-from the JSON response. A rejected admission has no dispatched Attempt; inspect
+from the JSON response. The native run ID is `submission.zeroshot_run_id`.
+A rejected admission has no dispatched Attempt; inspect
 the recorded decision/findings. On an error, discover retained identifiers with
 `history` before deciding on the permitted recovery below. Command JSON is a
 view of the existing domain records, not a new result ledger. Source bytes are
