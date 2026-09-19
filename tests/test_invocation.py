@@ -9,22 +9,19 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from submission_support import configured_adapter
 from support import StoreTestCase, durable_test_root, git, make_repository, move_head
 from zeroshot import RunResult
 
 from broodling import (
     AttemptConflict,
     Broodling,
+    BroodlingStore,
     CessationUnconfirmed,
     Contract,
     Criterion,
     GitCommandError,
     Prerequisite,
     RequiredEffect,
-    StaleAttempt,
-    SubmissionConflict,
-    SubmissionNotReady,
     WorkReference,
 )
 from broodling.zeroshot_sdk import V1_GATEWAY_BASE_URL, ZeroshotSubmitter
@@ -124,19 +121,40 @@ class InvocationTests(StoreTestCase):
         self.assertIsNone(submitted.disposition)
         result = asyncio.run(self.app.wait(submitted.attempt.attempt_id))
         self.assertEqual(result.outcome, "SUCCEEDED")
-        self.assertEqual(result.result["deliveryReceipt"], self.receipt)
-        self.assertEqual(result.result["acceptedRevision"], "b" * 40)
-        self.assertEqual(result.result["runId"], "native-run")
+        self.assertEqual(result.attempt_id, submitted.attempt.attempt_id)
         status = self.app.status(submitted.revision.contract_revision_id)
         self.assertEqual(status.disposition, result)
-        self.assertFalse(status.attempt.is_current)
-        self.assertTrue(status.worktree.path.is_dir())
-        self.assertIsNone(status.abandonment)
         dispatch = self.client.submit.call_args.kwargs
         self.assertEqual(dispatch["repository"], "faviann/broodling")
         self.assertEqual(dispatch["branch"], "main")
         self.assertEqual(dispatch["revision"], self.b1)
         self.assertEqual(dispatch["preset"].delivery, "pull_request")
+
+    def test_observation_does_not_wait_for_the_provisioning_writer(self):
+        real_run = subprocess.run
+        observed = []
+        with BroodlingStore.open(self.store_path) as reader:
+            # Make writer-slot contention fail immediately, without timing races.
+            reader.connection.execute("PRAGMA busy_timeout = 0")
+            observer = Broodling(reader, self.engine, self.host / "attempts")
+
+            def observe_during_worktree_creation(command, *args, **kwargs):
+                if "worktree" in command and "add" in command:
+                    # Real provisioning holds its lifecycle write transaction
+                    # across this Git call. Read through the public facade.
+                    observed.extend(observer.history(REFERENCE))
+                return real_run(command, *args, **kwargs)
+
+            with patch("subprocess.run", side_effect=observe_during_worktree_creation):
+                submitted = self.submit()
+
+        (snapshot,) = observed
+        self.assertEqual(snapshot.revision, submitted.revision)
+        self.assertEqual(snapshot.attempt, submitted.attempt)
+        self.assertFalse(snapshot.worktree.provisioned)
+        self.assertIsNone(snapshot.submission)
+        self.assertTrue(submitted.worktree.provisioned)
+        self.assertEqual(submitted.submission.run_id, "native-run")
 
     def test_repeated_submission_and_reopened_resume_preserve_original_authority(self):
         first = self.submit()
@@ -189,20 +207,15 @@ class InvocationTests(StoreTestCase):
         result = asyncio.run(self.app.wait(resumed.attempt.attempt_id))
         self.assertEqual(result.outcome, "SUCCEEDED")
 
-    def test_stop_abandons_and_retains_dispatched_worktree_without_replacement(self):
+    def test_stopped_invocation_is_handed_back_by_resume_and_submit(self):
         submitted = self.submit()
         revision_id = submitted.revision.contract_revision_id
-        attempt_id = submitted.attempt.attempt_id
         with self.assertRaises(CessationUnconfirmed):
-            asyncio.run(self.app.stop(attempt_id, "operator stop"))
+            asyncio.run(self.app.stop(submitted.attempt.attempt_id, "operator stop"))
         self.run.force_stop.assert_awaited_once()
+        # Guard the facade's abandonment handback, not native cessation policy.
         status = self.app.status(revision_id)
         self.assertEqual(status.abandonment.reason, "operator stop")
-        self.assertFalse(status.attempt.is_current)
-        self.assertTrue(status.worktree.path.is_dir())
-        self.assertIsNone(status.disposition)
-        with self.assertRaises(StaleAttempt):
-            asyncio.run(self.app.wait(attempt_id))
         self.assertEqual(self.app.resume(revision_id), status)
         self.assertEqual(self.submit(), status)
         self.client.submit.assert_awaited_once()
@@ -247,43 +260,6 @@ class InvocationTests(StoreTestCase):
         self.assertEqual(self.app.resume(first.revision.contract_revision_id), first)
         self.client.submit.assert_awaited_once()
 
-    def test_native_failure_exposes_abandonment_instead_of_a_success_disposition(self):
-        submitted = self.submit()
-        self.run.wait.return_value = RunResult(
-            run_id="native-run",
-            succeeded=False,
-            failure="runtime_lost",
-        )
-        with self.assertRaisesRegex(SubmissionNotReady, "runtime_lost"):
-            asyncio.run(self.app.wait(submitted.attempt.attempt_id))
-        self.reopen()
-        self.app = self.application()
-        status = self.app.resume(submitted.revision.contract_revision_id)
-        self.assertIn("runtime_lost", status.abandonment.reason)
-        self.assertEqual(status.submission.run_id, "native-run")
-        self.assertIsNone(status.disposition)
-        self.assertFalse(status.attempt.is_current)
-        self.assertTrue(status.worktree.path.is_dir())
-        self.client.submit.assert_awaited_once()
-
-    def test_cancelled_wait_can_reconnect_without_implicitly_stopping(self):
-        submitted = self.submit()
-        self.run.wait.side_effect = asyncio.CancelledError()
-        with self.assertRaises(asyncio.CancelledError):
-            asyncio.run(self.app.wait(submitted.attempt.attempt_id))
-        self.assertEqual(
-            self.app.status(submitted.revision.contract_revision_id), submitted
-        )
-        self.run.force_stop.assert_not_awaited()
-        self.reopen()
-        self.app = self.application()
-        self.run.wait.side_effect = None
-        self.assertEqual(
-            asyncio.run(self.app.wait(submitted.attempt.attempt_id)).outcome,
-            "SUCCEEDED",
-        )
-        self.client.submit.assert_awaited_once()
-
     def test_interrupted_provisioning_resumes_the_recorded_attempt_and_b1(self):
         real_run = subprocess.run
 
@@ -309,32 +285,3 @@ class InvocationTests(StoreTestCase):
         self.assertEqual(resumed.attempt, pending.attempt)
         self.assertEqual(git(resumed.worktree.path, "rev-parse", "HEAD"), self.b1)
         self.assertEqual(resumed.submission.run_id, "native-run")
-
-    def test_unrelated_run_result_cannot_grant_work_unit_success(self):
-        submitted = self.submit()
-        self.run.wait.return_value = RunResult(
-            run_id="unrelated-run",
-            succeeded=True,
-            output=self.receipt,
-        )
-        with self.assertRaises(SubmissionConflict):
-            asyncio.run(self.app.wait(submitted.attempt.attempt_id))
-        status = self.app.status(submitted.revision.contract_revision_id)
-        self.assertIsNone(status.disposition)
-        self.assertTrue(status.attempt.is_current)
-
-    def test_no_effect_native_success_keeps_the_existing_stable_result_gap(self):
-        self.engine = configured_adapter(self.host / "runtime", self.root)
-        self.app = self.application()
-        submitted = self.submit(required_effects=())
-        self.run.wait.return_value = RunResult(
-            run_id="native-run",
-            succeeded=True,
-            output=None,
-        )
-        with self.assertRaisesRegex(SubmissionNotReady, "capability gap"):
-            asyncio.run(self.app.wait(submitted.attempt.attempt_id))
-        status = self.app.status(submitted.revision.contract_revision_id)
-        self.assertIsNone(status.disposition)
-        self.assertTrue(status.attempt.is_current)
-        self.assertEqual(self.client.submit.call_args.kwargs["preset"].delivery, "none")

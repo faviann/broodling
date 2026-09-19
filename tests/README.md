@@ -38,9 +38,10 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
 - Caller-facing invocation from explicit GitHub reference through receipt-backed
   disposition, with pinned lineage/status, repeated and reopened submission,
   recovery after lost dispatch acknowledgment or interrupted provisioning,
-  admission refusal, detached waits, native failure and stop handback. These
-  integration tests compose real Broodling services/local Git and control only
-  the GitHub/SDK boundaries; they do not dispatch live provider work.
+  admission/abandonment handback, authority conflicts and observation during a
+  lifecycle write. These integration tests compose real Broodling services/local
+  Git and control only the GitHub/SDK boundaries; they do not dispatch live
+  provider work.
 - Explicit GitHub work-reference ingress, exact issue snapshots, explicit caller
   source grants and effect authority, complete proposal/source attribution,
   ordering-independent ingress revisions, immutable replay, and deterministic
@@ -80,6 +81,15 @@ result interface. The
 [controlled Codex fixture](fixtures/README.md) substitutes only the provider.
 Tests assert the Broodling outcome and native receipt/run binding, not
 Zeroshot's internal history.
+
+`test_invocation.py` covers facade wiring and recovery choices. Native failure,
+cancelled waits, foreign-run rejection, the no-effect result gap and dispatched
+cleanup refusals stay at the coordinator seams in `test_workflow_result.py`.
+Its stop scenario checks only stop wiring and the facade's subsequent
+abandonment handback from `resume`/`submit`. Its contention regression reads
+`history`/`status` while real Attempt provisioning holds a lifecycle write
+transaction, so acquiring the writer slot during observation fails immediately.
+
 Gateway dispatch tests replace the public SDK client and never connect to
 CLIProxyAPI or GitHub. These checks require no real gateway credentials and
 neither admit nor execute a P5 trial.

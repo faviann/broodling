@@ -66,6 +66,8 @@ state: `work_unit`, entitled `sources`, exact Contract `revision`, admission
 Absent records are `None`. A revision recorded before admission can therefore
 have no decision. Submission exposes the retained submission key/state and
 Zeroshot run ID; a run ID alone is not a successful Broodling disposition.
+Each status uses a coherent read snapshot without reserving SQLite's writer slot
+from lifecycle operations. `history` reads each revision's status independently.
 
 Retain `status.revision.contract_revision_id` and
 `status.attempt.attempt_id` when present. `status(revision_id)` never substitutes

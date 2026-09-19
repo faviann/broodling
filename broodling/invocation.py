@@ -136,9 +136,10 @@ class Broodling:
         Attempts. Otherwise the last admitted Attempt supplies terminal history.
         No later Contract revision is substituted for the requested one.
         """
-        # Read one consistent snapshot using the store's existing transaction
-        # boundary; no external operation or mutation occurs in this block.
-        with self.store._write():
+        # Keep Attempt currentness and its disposition in one WAL read snapshot
+        # without reserving the writer slot needed by lifecycle operations.
+        with self.store.connection as connection:
+            connection.execute("BEGIN")
             revision = self.store.get_contract_revision(contract_revision_id)
             attempts = tuple(
                 attempt
