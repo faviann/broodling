@@ -1,0 +1,13 @@
+{
+  "observed_at": "2026-09-19T04:02:38.779071+00:00",
+  "target_container": "broodling-p5-v5-r01-target",
+  "credentials_supplied": false,
+  "exit_code": 0,
+  "dns_addresses": [
+    "10.1.0.2"
+  ],
+  "tls_verified": true,
+  "tls_version": "TLSv1.3",
+  "gateway_http_status": 401,
+  "github_http_status": 200
+}

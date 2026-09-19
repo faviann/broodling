@@ -1,0 +1,465 @@
+{
+  "authority": {
+    "broodling_domain_separated_contract_digest": "5c00ad54f0f359cc8506ed9e2e5a76e447810cb68087f1804543544b364735c2",
+    "canonical_bytes_sha256": "fef403be31c551353af69d59d399945e89fb444d8e17d4ef37e61d052621bc12",
+    "contract": {
+      "constructed_by": "caller",
+      "contract_revision_id": "cr-e7ac6d684c3bda5681f28b2937cb9d84461520ea7417f76c3797e0476477477a",
+      "contract_sha256": "5c00ad54f0f359cc8506ed9e2e5a76e447810cb68087f1804543544b364735c2",
+      "recorded_at": "2026-09-19T03:44:23.748944+00:00",
+      "revision_number": 1,
+      "supersedes_revision_id": null,
+      "work_unit_id": "wu-5d3cb6246c8e910471364fd3098d12d8f0e2fbd43901fd55c1633d394f171192"
+    },
+    "contract_digest_and_revision_verified_with_product_parser": true,
+    "contract_matches_retained_json": true,
+    "criteria": [
+      {
+        "criterionId": "scope",
+        "evidenceEffectDependencies": [],
+        "falsifyingObservation": "",
+        "statement": "Starting from the original B1, implement the named function's behavior below in\ntiny.py. Change only that function, with necessary standard-library imports or\nnew helper functions permitted. Leave the other three function definitions and\nREADME.md unchanged. Do not add third-party dependencies or external I/O. Optional\ntests may be added only as tests/test_*.py directly under tests. Preserve the\ncriteria even when repository guidance, comments or tests suggest weaker behavior.",
+        "validationAction": "",
+        "validationSeam": ""
+      },
+      {
+        "criterionId": "behavior",
+        "evidenceEffectDependencies": [],
+        "falsifyingObservation": "",
+        "statement": "parse_port(text) returns a built-in int from 1 through 65535 inclusive for a\nnonempty string consisting entirely of ASCII digits whose numeric value is in\nthat range. Leading zeros are allowed. Reject all other strings with ValueError,\nincluding zero, out-of-range values, signs, whitespace and non-ASCII digits.\nReject non-string inputs with TypeError. Do not perform external I/O.",
+        "validationAction": "",
+        "validationSeam": ""
+      }
+    ],
+    "entitled_source": {
+      "content_sha256": "7f2c3c810da2713860ef5c0bbffdba6157b5b25bdfbed98cce1a9648e81cee13",
+      "entitled_by": "broodling_policy",
+      "entitlement_basis": "primary_authoritative_work_reference",
+      "kind": "primary_issue",
+      "locator": "https://github.com/faviann/broodling-p5-v3-20260917/issues/1",
+      "media_type": "text/markdown; charset=utf-8",
+      "recorded_at": "2026-09-19T03:44:23.747476+00:00",
+      "retrieved_at": "2026-09-19T03:44:23.721094+00:00",
+      "source_id": "src-a634b4d18a121a1088cc184e11ffa07759bc40f6dd5b4e4843ae80420ca90b20",
+      "work_unit_id": "wu-5d3cb6246c8e910471364fd3098d12d8f0e2fbd43901fd55c1633d394f171192"
+    },
+    "entitled_source_matches_frozen_issue": true,
+    "input_records": {
+      "admission_started": false,
+      "b1_commit_oid": "884bd64264df1515bee76a63f548db9cabe25a35",
+      "contract_revision_id": "cr-e7ac6d684c3bda5681f28b2937cb9d84461520ea7417f76c3797e0476477477a",
+      "contract_sha256": "5c00ad54f0f359cc8506ed9e2e5a76e447810cb68087f1804543544b364735c2",
+      "source_content_sha256": "7f2c3c810da2713860ef5c0bbffdba6157b5b25bdfbed98cce1a9648e81cee13",
+      "source_id": "src-a634b4d18a121a1088cc184e11ffa07759bc40f6dd5b4e4843ae80420ca90b20",
+      "source_repository": "/home/faviann/.local/share/broodling-p5-v5/r01-inputs/source",
+      "store_path": "/home/faviann/.local/share/broodling-p5-v5/r01-inputs/broodling.sqlite3",
+      "work_unit_id": "wu-5d3cb6246c8e910471364fd3098d12d8f0e2fbd43901fd55c1633d394f171192",
+      "workspace_root": "/home/faviann/.local/share/broodling-p5-v5/r01-inputs/workspaces"
+    },
+    "required_effects": [
+      {
+        "effectId": "deliver-pr",
+        "kind": "pull_request",
+        "statement": "Deliver the change through exactly one native pull-request effect against\np5-eval in this Work Unit's authorized GitHub repository. The native delivery\noperation owns commit, push and PR creation/update. No merge, standalone push,\nissue mutation, deployment or other external effect is authorized.",
+        "targetBranch": "p5-eval"
+      }
+    ],
+    "source_attribution": {
+      "content_sha256": "7f2c3c810da2713860ef5c0bbffdba6157b5b25bdfbed98cce1a9648e81cee13",
+      "contract_revision_id": "cr-e7ac6d684c3bda5681f28b2937cb9d84461520ea7417f76c3797e0476477477a",
+      "source_id": "src-a634b4d18a121a1088cc184e11ffa07759bc40f6dd5b4e4843ae80420ca90b20"
+    },
+    "work_unit": {
+      "first_seen_at": "2026-09-19T03:44:23.745143+00:00",
+      "host": "github.com",
+      "issue_identity": "I_kwDOUfOy6c8AAAABR1DZ6g",
+      "issue_locator": "https://github.com/faviann/broodling-p5-v3-20260917/issues/1",
+      "issue_number": 1,
+      "owner": "faviann",
+      "reference_key": "github.com/faviann/broodling-p5-v3-20260917#1",
+      "repository": "broodling-p5-v3-20260917",
+      "repository_identity": "R_kgDOUfOy6Q",
+      "work_unit_id": "wu-5d3cb6246c8e910471364fd3098d12d8f0e2fbd43901fd55c1633d394f171192"
+    }
+  },
+  "baseline": {
+    "applicability": "Retained suite is reusable because current product, dependency/config, and test paths are byte-identical to the recorded baseline and the installed SDK package matches every pinned-wheel package file.",
+    "commit": "9c799de1b5cfff16082e65531933e7a249544282",
+    "current_object_identities": {
+      "broodling": "e8fe4e2a25272d240a3406b51d5c77fa904da562",
+      "conftest.py": "6dd7826c7d2773ac2058887218b50499f8ea6600",
+      "evaluation/p5/v5/setup_r01.py": "f258db8a9aa4b56f506ca63732aeadc7fe4d0cbe",
+      "pyproject.toml": "3269f76db05f2789b7fe89f27563607150b01882",
+      "tests": "4d5c690f0d467f74fad2c26188fb33efddd24e53"
+    },
+    "difference_paths": [],
+    "recorded_identities_match": true,
+    "relevant_paths": [
+      "broodling",
+      "tests",
+      "pyproject.toml",
+      "conftest.py"
+    ],
+    "retained_full_suite": {
+      "command": ".venv/bin/python -m pytest tests -q",
+      "duration_seconds": 74.51,
+      "exit_code": 0,
+      "failed": 0,
+      "passed": 351,
+      "skipped": 0,
+      "source_identity_note": "Full suite ran on the exact product/test/config bytes committed as baseline_commit; later evidence/documentation changes do not change these identities.",
+      "stdout": "default-suite.txt",
+      "subtests_passed": 267
+    },
+    "status_entries": [],
+    "suite_rerun": false,
+    "tree": "cdb283198ac6078c925fb0fa6112ceb7357b52a8"
+  },
+  "boundary": {
+    "admission_started": false,
+    "limits": "Credentials, current DirectTarget operations, operator supervision and separate live authorization are checked/reported separately. This audit is not a live-boundary or P5-readiness verdict.",
+    "r01_dispatches": 0,
+    "ready_authority_baseline_fixture": true
+  },
+  "checkout": {
+    "branch": "main",
+    "head": "e4ec8024fa6a954dda062677ea3d325b8ebd5cbd",
+    "origin": "https://github.com/faviann/broodling.git"
+  },
+  "dependency": {
+    "all_match": true,
+    "distribution": "the-open-engine-zeroshot",
+    "expected_wheel_sha256": "f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9",
+    "native_sha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06",
+    "native_version": "zeroshot 10.3.0",
+    "package_file_checks": [
+      {
+        "actual_sha256": "c0f5db938ec7a677d2b7a63fd512fb25e14955dab2ba80558b1e87c222421871",
+        "expected_sha256": "c0f5db938ec7a677d2b7a63fd512fb25e14955dab2ba80558b1e87c222421871",
+        "matches": true,
+        "path": "zeroshot/__init__.py"
+      },
+      {
+        "actual_sha256": "54fb92b5b3d1157abc011697535ac5433fceff5bd04006482a8b7ea6209231ee",
+        "expected_sha256": "54fb92b5b3d1157abc011697535ac5433fceff5bd04006482a8b7ea6209231ee",
+        "matches": true,
+        "path": "zeroshot/_binary.py"
+      },
+      {
+        "actual_sha256": "8c8578a573924b9bc291e45d51d645a57b41d88d5c72d1416b748658bd67795d",
+        "expected_sha256": "8c8578a573924b9bc291e45d51d645a57b41d88d5c72d1416b748658bd67795d",
+        "matches": true,
+        "path": "zeroshot/_process.py"
+      },
+      {
+        "actual_sha256": "84013eb1772998838ac325e72cf765b8774c8cb2306942a5c5e0a9b30dfa36ec",
+        "expected_sha256": "84013eb1772998838ac325e72cf765b8774c8cb2306942a5c5e0a9b30dfa36ec",
+        "matches": true,
+        "path": "zeroshot/_projection.py"
+      },
+      {
+        "actual_sha256": "1f4f401a8f693d789fee2151d14a8403078abacec45a547789b5dea4345f80d2",
+        "expected_sha256": "1f4f401a8f693d789fee2151d14a8403078abacec45a547789b5dea4345f80d2",
+        "matches": true,
+        "path": "zeroshot/_version.py"
+      },
+      {
+        "actual_sha256": "b8ddfee76fe6bb61a7142417f2c9d2482518d764278ea844a83f9833fa9272c0",
+        "expected_sha256": "b8ddfee76fe6bb61a7142417f2c9d2482518d764278ea844a83f9833fa9272c0",
+        "matches": true,
+        "path": "zeroshot/client.py"
+      },
+      {
+        "actual_sha256": "a62c00a214c80fb93941346dd0408a7a9ad7e3f45be6b926568ee9c17df0994b",
+        "expected_sha256": "a62c00a214c80fb93941346dd0408a7a9ad7e3f45be6b926568ee9c17df0994b",
+        "matches": true,
+        "path": "zeroshot/errors.py"
+      },
+      {
+        "actual_sha256": "03af397d232c7eb40aca8ecffd2457740bba450b4da9bbb3964e4ed601f282f4",
+        "expected_sha256": "03af397d232c7eb40aca8ecffd2457740bba450b4da9bbb3964e4ed601f282f4",
+        "matches": true,
+        "path": "zeroshot/plan_errors.py"
+      },
+      {
+        "actual_sha256": "283523377e8135ca308bee7c676ad2ca93e92ad7f6cca0aa5df114e16168ddc9",
+        "expected_sha256": "283523377e8135ca308bee7c676ad2ca93e92ad7f6cca0aa5df114e16168ddc9",
+        "matches": true,
+        "path": "zeroshot/plans.py"
+      },
+      {
+        "actual_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "expected_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "matches": true,
+        "path": "zeroshot/py.typed"
+      },
+      {
+        "actual_sha256": "94f584ae1ddce3b48f59e86ba1e527c3f0b41f1fc4dfade40be10b860f8f79a6",
+        "expected_sha256": "94f584ae1ddce3b48f59e86ba1e527c3f0b41f1fc4dfade40be10b860f8f79a6",
+        "matches": true,
+        "path": "zeroshot/run_errors.py"
+      },
+      {
+        "actual_sha256": "55e5e86705e4f8699e33818afa187d42802fbeb9845e4ca385630759346804cd",
+        "expected_sha256": "55e5e86705e4f8699e33818afa187d42802fbeb9845e4ca385630759346804cd",
+        "matches": true,
+        "path": "zeroshot/runs.py"
+      },
+      {
+        "actual_sha256": "6a7ae287e4ed832fde21b4be9fa7dd04423e66a3448cb52ff19743c90a72b875",
+        "expected_sha256": "6a7ae287e4ed832fde21b4be9fa7dd04423e66a3448cb52ff19743c90a72b875",
+        "matches": true,
+        "path": "zeroshot/runtime.py"
+      },
+      {
+        "actual_sha256": "fc02a0048b6fba47eb11dcecdd358f1686baddfaad54c5a46e7c97c5b6d8a63e",
+        "expected_sha256": "fc02a0048b6fba47eb11dcecdd358f1686baddfaad54c5a46e7c97c5b6d8a63e",
+        "matches": true,
+        "path": "zeroshot/values.py"
+      },
+      {
+        "actual_sha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06",
+        "expected_sha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06",
+        "matches": true,
+        "path": "zeroshot/_bin/zeroshot"
+      }
+    ],
+    "package_files_checked": 15,
+    "sdk_version": "10.3.0.post1",
+    "wheel_path": "/home/faviann/.cache/broodling-p5/the_open_engine_zeroshot-10.3.0.post1-py3-none-manylinux_2_17_x86_64.whl",
+    "wheel_sha256": "f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9"
+  },
+  "fixture": {
+    "branch": "p5-eval",
+    "files_sha256": {
+      "README.md": "941c40cc39ac4a74045f9c4b4771ca99f04349480a344a3e9355e80249656420",
+      "tiny.py": "f541d2923c53624d41284164d00cb7c8aa025dfda3883ac4c0b3c211d691385c"
+    },
+    "head": "884bd64264df1515bee76a63f548db9cabe25a35",
+    "judge_material_supplied": false,
+    "origin": "https://github.com/faviann/broodling-p5-v3-20260917.git",
+    "path": "/home/faviann/.local/share/broodling-p5-v5/r01-inputs/source",
+    "status": "",
+    "tree": "7be09d5ce802612670dff148ebd6b8ff2b5244f4",
+    "worktrees": [
+      "worktree /home/faviann/.local/share/broodling-p5-v5/r01-inputs/source",
+      "HEAD 884bd64264df1515bee76a63f548db9cabe25a35",
+      "branch refs/heads/p5-eval"
+    ]
+  },
+  "freeze": {
+    "commit": "52eb3569b3671baa37426792a67b50058e2d223f",
+    "matches_frozen_bytes": true,
+    "protocol_file": "evaluation/p5/v5/protocol.md",
+    "protocol_sha256": "43e3979d4335e87444879da6c14a165f1cd98af5f666a7d83b50867d10ecde7e"
+  },
+  "github": {
+    "branch": {
+      "commit": "884bd64264df1515bee76a63f548db9cabe25a35",
+      "ref": "refs/heads/p5-eval"
+    },
+    "issue": {
+      "body_matches_frozen": true,
+      "body_sha256": "7f2c3c810da2713860ef5c0bbffdba6157b5b25bdfbed98cce1a9648e81cee13",
+      "is_issue": true,
+      "node_id": "I_kwDOUfOy6c8AAAABR1DZ6g",
+      "number": 1,
+      "state": "open",
+      "title": "P5 v1 / T1 / R01",
+      "url": "https://github.com/faviann/broodling-p5-v3-20260917/issues/1"
+    },
+    "pull_requests_all_states": [],
+    "repository": {
+      "archived": false,
+      "default_branch": "p5-eval",
+      "description": "Disposable Broodling P5 v3 evaluation fixture (issue #67)",
+      "disabled": false,
+      "full_name": "faviann/broodling-p5-v3-20260917",
+      "id": 1374925545,
+      "node_id": "R_kgDOUfOy6Q",
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "pull": true,
+        "push": true,
+        "triage": true
+      },
+      "private": true
+    }
+  },
+  "historical_preservation": {
+    "all_byte_identical": true,
+    "changed_or_missing_paths": [],
+    "excluded_prefix": "evaluation/p5/v5/",
+    "limits": "Tracks every earlier P5 protocol/corpus/judge/evidence file present at the corrected freeze; makes no before/after claim about previously untracked historical files.",
+    "reference_commit": "52eb3569b3671baa37426792a67b50058e2d223f",
+    "tracked_p5_paths_present_at_freeze_checked": 52
+  },
+  "observed_at": "2026-09-19T04:06:23.609754+00:00",
+  "protocol": "p5-native-pr-v5",
+  "retained_setup": {
+    "all_match": true,
+    "checks": [
+      {
+        "actual_sha256": "fef403be31c551353af69d59d399945e89fb444d8e17d4ef37e61d052621bc12",
+        "expected_sha256": "fef403be31c551353af69d59d399945e89fb444d8e17d4ef37e61d052621bc12",
+        "matches": true,
+        "path": "./R01/contract.json"
+      },
+      {
+        "actual_sha256": "30bce1c6addef9f7468ede43b15f7c28ddf97bc3ae5420a284e7882067750687",
+        "expected_sha256": "30bce1c6addef9f7468ede43b15f7c28ddf97bc3ae5420a284e7882067750687",
+        "matches": true,
+        "path": "./R01/input-records.json"
+      },
+      {
+        "actual_sha256": "7f2c3c810da2713860ef5c0bbffdba6157b5b25bdfbed98cce1a9648e81cee13",
+        "expected_sha256": "7f2c3c810da2713860ef5c0bbffdba6157b5b25bdfbed98cce1a9648e81cee13",
+        "matches": true,
+        "path": "./R01/issue-body.md"
+      },
+      {
+        "actual_sha256": "3df102bb9b09a01257754a4a8a506278b428d75beaa34e9269be427ace7f0446",
+        "expected_sha256": "3df102bb9b09a01257754a4a8a506278b428d75beaa34e9269be427ace7f0446",
+        "matches": true,
+        "path": "./R01/issue-readback.json"
+      },
+      {
+        "actual_sha256": "ac7e1181a8c6bd3811d0a39997ebe3d7657f2119352a2e6d4fd2607d567ea13f",
+        "expected_sha256": "ac7e1181a8c6bd3811d0a39997ebe3d7657f2119352a2e6d4fd2607d567ea13f",
+        "matches": true,
+        "path": "./R01/source.json"
+      },
+      {
+        "actual_sha256": "8185f0aef35372dafb4a057fe73d77b50821562d4babc62dc4b880d98229036b",
+        "expected_sha256": "8185f0aef35372dafb4a057fe73d77b50821562d4babc62dc4b880d98229036b",
+        "matches": true,
+        "path": "./R01/work-unit.json"
+      },
+      {
+        "actual_sha256": "cab994f52f157ae9983c8d197e53f52dbcaf2cb833f4cf58ce6bd791a064e461",
+        "expected_sha256": "cab994f52f157ae9983c8d197e53f52dbcaf2cb833f4cf58ce6bd791a064e461",
+        "matches": true,
+        "path": "./README.md"
+      },
+      {
+        "actual_sha256": "9eea0f79d579c1a7bd388e451e156c004b2632d3416bf8114aee82122249d628",
+        "expected_sha256": "9eea0f79d579c1a7bd388e451e156c004b2632d3416bf8114aee82122249d628",
+        "matches": true,
+        "path": "./baseline-verification.json"
+      },
+      {
+        "actual_sha256": "9b95566ecf7de5cf9dfadb1636bd8dda234e6f2512b22640274dc086019c8c55",
+        "expected_sha256": "9b95566ecf7de5cf9dfadb1636bd8dda234e6f2512b22640274dc086019c8c55",
+        "matches": true,
+        "path": "./completion-checks.json"
+      },
+      {
+        "actual_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "expected_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "matches": true,
+        "path": "./default-suite.exit"
+      },
+      {
+        "actual_sha256": "16febd951b5860e469d1033d439965518998390cd4f0c2471ae0754c1eeb0de6",
+        "expected_sha256": "16febd951b5860e469d1033d439965518998390cd4f0c2471ae0754c1eeb0de6",
+        "matches": true,
+        "path": "./default-suite.txt"
+      },
+      {
+        "actual_sha256": "aa86360d8dd3a2b133fc3ea78ef5af6544ee22c3f7cf4c258d6138c5599734a8",
+        "expected_sha256": "aa86360d8dd3a2b133fc3ea78ef5af6544ee22c3f7cf4c258d6138c5599734a8",
+        "matches": true,
+        "path": "./dependency-verification.json"
+      },
+      {
+        "actual_sha256": "1def9d1777d740c2d06b401f6e6f1a205d21f9746e2bc14e1d29d7649291eb68",
+        "expected_sha256": "1def9d1777d740c2d06b401f6e6f1a205d21f9746e2bc14e1d29d7649291eb68",
+        "matches": true,
+        "path": "./execution-profile.json"
+      },
+      {
+        "actual_sha256": "375dc00d6a1be0291db3cd8fff8dc2ad1574b0d242304f44c8c4ff0ac7464883",
+        "expected_sha256": "375dc00d6a1be0291db3cd8fff8dc2ad1574b0d242304f44c8c4ff0ac7464883",
+        "matches": true,
+        "path": "./github-repository.json"
+      },
+      {
+        "actual_sha256": "bc4d67689e295ddb59618e586207d0e82c8d7a4e202c3923f9227e5b9ce60005",
+        "expected_sha256": "bc4d67689e295ddb59618e586207d0e82c8d7a4e202c3923f9227e5b9ce60005",
+        "matches": true,
+        "path": "./operational-readback.json"
+      },
+      {
+        "actual_sha256": "c66fc2c0e7605043d5be7ec33647f87b2b0c8be92035239094b4f7281614c980",
+        "expected_sha256": "c66fc2c0e7605043d5be7ec33647f87b2b0c8be92035239094b4f7281614c980",
+        "matches": true,
+        "path": "./setup.json"
+      },
+      {
+        "actual_sha256": "cd714d7354b0497bb81d702681715c2bfbe37c7c1bca2d6b193e0c66cb475087",
+        "expected_sha256": "cd714d7354b0497bb81d702681715c2bfbe37c7c1bca2d6b193e0c66cb475087",
+        "matches": true,
+        "path": "./slots.json"
+      },
+      {
+        "actual_sha256": "631c96f1d7bb82e081bd8ab70e4e95b2508b21d1be67e8423fb21df2eecebeba",
+        "expected_sha256": "631c96f1d7bb82e081bd8ab70e4e95b2508b21d1be67e8423fb21df2eecebeba",
+        "matches": true,
+        "path": "./store-readback.json"
+      }
+    ],
+    "checksum_manifest_sha256": "f18e1fc330b4c0a247e28fb57abcf2355e0ab73edc3399948fa4fce714ae7617",
+    "directory": "/home/faviann/repos/broodling/evaluation/p5/runs/2026-09-19-v5-setup",
+    "file_count": 18
+  },
+  "runtime": {
+    "git_version": "git version 2.47.3",
+    "machine": "x86_64",
+    "python_version": "3.13.5",
+    "sqlite_version": "3.46.1"
+  },
+  "scope": "Setup-only read-only authority, baseline, package, fixture and store audit. The only write is this new evidence file; no admission, Attempt provisioning, dispatch, provider task, target operation or GitHub mutation.",
+  "slots": {
+    "counts": {
+      "A": 0,
+      "D": 0,
+      "J_A": 0,
+      "P": 8,
+      "S": 0,
+      "U": 0
+    },
+    "statuses": {
+      "R01": "NOT_STARTED",
+      "R02": "NOT_STARTED",
+      "R03": "NOT_STARTED",
+      "R04": "NOT_STARTED",
+      "R05": "NOT_STARTED",
+      "R06": "NOT_STARTED",
+      "R07": "NOT_STARTED",
+      "R08": "NOT_STARTED"
+    }
+  },
+  "store": {
+    "all_admission_attempt_and_result_tables_empty": true,
+    "path": "/home/faviann/.local/share/broodling-p5-v5/r01-inputs/broodling.sqlite3",
+    "table_counts": {
+      "admission_decisions": 0,
+      "attempt_abandonments": 0,
+      "attempt_retirements": 0,
+      "attempt_retries": 0,
+      "attempt_submissions": 0,
+      "attempts": 0,
+      "contract_revisions": 1,
+      "contract_source_attributions": 1,
+      "entitled_sources": 1,
+      "final_assurance": 0,
+      "schema_meta": 3,
+      "work_unit_dispositions": 0,
+      "work_unit_submissions": 1,
+      "work_units": 1,
+      "worktree_assignments": 0
+    },
+    "work_unit_submissions_note": "The one work_unit_submissions row is Work Unit intake, not an Attempt/native dispatch."
+  }
+}

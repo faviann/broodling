@@ -1,0 +1,32 @@
+{
+  "B1": "884bd64264df1515bee76a63f548db9cabe25a35",
+  "admission_started": false,
+  "baseline_commit": "9c799de1b5cfff16082e65531933e7a249544282",
+  "credential_values_retained": false,
+  "credentials_present": [
+    "GATEWAY_BASE_URL",
+    "GATEWAY_API_KEY",
+    "GH_TOKEN"
+  ],
+  "direct_target_origin": "http://127.0.0.1:18767",
+  "driver_sha256": "354f5377be88666fd58847cb9a14b1bc575637964e77242be005b9bc4c81ddf9",
+  "freeze_commit": "52eb3569b3671baa37426792a67b50058e2d223f",
+  "gateway_metadata_status": 200,
+  "github_repo_scope_verified": true,
+  "input_records_sha256": "30bce1c6addef9f7468ede43b15f7c28ddf97bc3ae5420a284e7882067750687",
+  "issue": 79,
+  "observed_at": "2026-09-19T04:08:30.789671+00:00",
+  "protocol": "p5-native-pr-v5",
+  "repository": "faviann/broodling-p5-v3-20260917",
+  "reviewed_preparation_sha256": "2bca634e16dfca5535552db3197913ba7e0a62b3d0568aade26b5de608f1ecce",
+  "runtime": {
+    "effort": "medium",
+    "harness": "codex",
+    "model": "gpt-5.6-sol",
+    "provider": "gateway",
+    "session_scope": "execution",
+    "size": "small"
+  },
+  "target_branch": "p5-eval",
+  "target_run_count": 0
+}

@@ -1,0 +1,51 @@
+{
+  "observed_at": "2026-09-19T04:02:02.857455+00:00",
+  "origin": "http://127.0.0.1:18767",
+  "container_name": "broodling-p5-v5-r01-target",
+  "image_id": "sha256:bfed075c6443f63127dc30f73376483148d78bf3023d093bd90ce76353344dad",
+  "status": "running",
+  "mounts": [
+    {
+      "Source": "/home/faviann/.local/share/broodling-p5-v5/target-state",
+      "Destination": "/p5-state",
+      "RW": true
+    },
+    {
+      "Source": "/home/faviann/.local/share/broodling-p5-v5/target-home",
+      "Destination": "/home/node",
+      "RW": true
+    }
+  ],
+  "ports": {
+    "18767/tcp": [
+      {
+        "HostIp": "127.0.0.1",
+        "HostPort": "18767"
+      }
+    ]
+  },
+  "container_dispatch_credentials_present": false,
+  "discovery": {
+    "kind": "zeroshot.native-v2-target/v2",
+    "authentication": "none",
+    "runPath": "/native-v2/run",
+    "sessionPath": "/native-v2/oecp-session",
+    "oecpPath": "/native-v2/oecp",
+    "audience": "controller"
+  },
+  "run_count": 0,
+  "versions": {
+    "native": "zeroshot 10.3.0",
+    "native_sha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06  /usr/local/bin/zeroshot",
+    "codex": "codex-cli 0.153.4",
+    "node": "v22.23.2",
+    "git": "git version 2.39.5",
+    "gh": "gh version 2.23.0 (2023-02-27 Debian 2.23.0+dfsg1-1)\nhttps://github.com/cli/cli/releases/tag/v2.23.0"
+  },
+  "stop_access": {
+    "docker_daemon_accessible": true,
+    "external_stop_command": "docker stop broodling-p5-v5-r01-target",
+    "stop_exercised": false
+  },
+  "task_invocations": 0
+}
