@@ -1,0 +1,504 @@
+{
+  "record_kind": "p5-judge-v2 offline verification; no cohort or historical rescore",
+  "baseline_commit": "9790691df98aa16cd4e76fb434eb4757fc2d9625",
+  "started_at": "2026-09-19T15:34:51.668831+00:00",
+  "ended_at": "2026-09-19T15:34:52.647024+00:00",
+  "elapsed_seconds": 0.9781727837398648,
+  "command": [
+    "/usr/bin/bwrap",
+    "--unshare-all",
+    "--die-with-parent",
+    "--new-session",
+    "--clearenv",
+    "--setenv",
+    "PATH",
+    "/usr/bin:/bin",
+    "--setenv",
+    "HOME",
+    "/tmp",
+    "--setenv",
+    "LANG",
+    "C.UTF-8",
+    "--ro-bind",
+    "/usr",
+    "/usr",
+    "--ro-bind",
+    "/bin",
+    "/bin",
+    "--ro-bind",
+    "/lib",
+    "/lib",
+    "--ro-bind",
+    "/lib64",
+    "/lib64",
+    "--proc",
+    "/proc",
+    "--dev",
+    "/dev",
+    "--tmpfs",
+    "/tmp",
+    "--ro-bind",
+    "/home/faviann/repos/broodling/evaluation/p5",
+    "/p5",
+    "--ro-bind",
+    "/home/faviann/.local/share/broodling-p5-v6/judging/r01-bundle-recovered.git",
+    "/repository",
+    "--chdir",
+    "/tmp",
+    "/usr/bin/python3",
+    "-I",
+    "-B",
+    "/p5/judges/v2/verify.py",
+    "/repository"
+  ],
+  "network_disabled": "bwrap --unshare-all",
+  "environment_cleared": true,
+  "inputs_read_only": true,
+  "candidate_source_and_diff_inspected_before_execution": true,
+  "blinded": false,
+  "preservation_check_command": [
+    "git",
+    "diff",
+    "--exit-code",
+    "9790691df98aa16cd4e76fb434eb4757fc2d9625",
+    "--",
+    ".",
+    ":!evaluation/p5/judges/v2"
+  ],
+  "preservation_check_exit_before_and_after": [
+    0,
+    0
+  ],
+  "exit_code": 0,
+  "stderr": "",
+  "stdout": {
+    "record_kind": "post-outcome offline evaluator verification; not a cohort or historical rescore",
+    "evaluator": "p5-judge-v2",
+    "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+    "environment_keys": [
+      "HOME",
+      "LANG",
+      "PATH",
+      "PWD"
+    ],
+    "network_namespace": "net:[4026541216]",
+    "ipv4_routes": "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT                                                       \n",
+    "input_sha256_before_and_after": {
+      "v1/judge.py": "b6dbf57a606e95377eadb89dea72ad2979b84147705be384c361f883483ddb95",
+      "v1/corpus.md": "7b8de1a891d0d152602b26ea2e2c361b74d6ea4e34d87b38df8295c879e22fb8",
+      "v1/protocol.md": "d34ded5f92ef6b9421b38a5d87558a64de9632e1a92d13e018fdaf12c1cf4b82",
+      "v1/fixture/tiny.py": "f541d2923c53624d41284164d00cb7c8aa025dfda3883ac4c0b3c211d691385c",
+      "judges/v2/verify.py": "b1c0bb6b1020030f9582509e56c21c6490612172873a1712752fd62c21a5b58b",
+      "judges/v2/judge.py": "50ab5d543a2d1dffb08b8a7d39ac47de8befb16f5c67d66bcbfd999603f9464c",
+      "runs/2026-09-19-v6-r01/R01/receipt.json": "55d1ac4ec45332e5483889d726705e307cf6b44d328ce5535e30d8eceda1956e",
+      "runs/2026-09-19-v6-r01/R01/review-inputs/b1-README.md": "941c40cc39ac4a74045f9c4b4771ca99f04349480a344a3e9355e80249656420",
+      "runs/2026-09-19-v6-r01/R01/review-inputs/b1-tiny.py": "f541d2923c53624d41284164d00cb7c8aa025dfda3883ac4c0b3c211d691385c",
+      "runs/2026-09-19-v6-r01/R01/review-inputs/b1-to-receipt.diff": "293a204d63f4188a31baf35b2345c4c315193b8ef4c8cb9da6931d1692ff9755",
+      "runs/2026-09-19-v6-r01/R01/review-inputs/frozen-v1-corpus.md": "7b8de1a891d0d152602b26ea2e2c361b74d6ea4e34d87b38df8295c879e22fb8",
+      "runs/2026-09-19-v6-r01/R01/review-inputs/frozen-v1-judge.py": "b6dbf57a606e95377eadb89dea72ad2979b84147705be384c361f883483ddb95",
+      "runs/2026-09-19-v6-r01/R01/review-inputs/frozen-v1-protocol.md": "d34ded5f92ef6b9421b38a5d87558a64de9632e1a92d13e018fdaf12c1cf4b82",
+      "runs/2026-09-19-v6-r01/R01/review-inputs/receipt-README.md": "941c40cc39ac4a74045f9c4b4771ca99f04349480a344a3e9355e80249656420",
+      "runs/2026-09-19-v6-r01/R01/review-inputs/receipt-tiny.py": "8baa4bad9f19f6a64f4fb515298a741297065bd96b3955aa129242048ec69582"
+    },
+    "archive_git_objects_sha256_before_and_after": {
+      "884bd64264df1515bee76a63f548db9cabe25a35:tiny.py": "f541d2923c53624d41284164d00cb7c8aa025dfda3883ac4c0b3c211d691385c",
+      "884bd64264df1515bee76a63f548db9cabe25a35:README.md": "941c40cc39ac4a74045f9c4b4771ca99f04349480a344a3e9355e80249656420",
+      "248d67d35fc8fe6ac5dba9a0fb8cae831ae22631:tiny.py": "8baa4bad9f19f6a64f4fb515298a741297065bd96b3955aa129242048ec69582",
+      "248d67d35fc8fe6ac5dba9a0fb8cae831ae22631:README.md": "941c40cc39ac4a74045f9c4b4771ca99f04349480a344a3e9355e80249656420"
+    },
+    "deepcopy_preserves_regression_subclass_and_false_truth": true,
+    "existing_cases_references_checker_and_cli_preserved": true,
+    "calibration": {
+      "v1": {
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": {
+          "calibration_pass": true,
+          "controls": [
+            {
+              "task": "T1",
+              "control": "B1",
+              "expected_pass": false,
+              "observed_pass": false
+            },
+            {
+              "task": "T1",
+              "control": "reference",
+              "expected_pass": true,
+              "observed_pass": true
+            },
+            {
+              "task": "T2",
+              "control": "B1",
+              "expected_pass": false,
+              "observed_pass": false
+            },
+            {
+              "task": "T2",
+              "control": "reference",
+              "expected_pass": true,
+              "observed_pass": true
+            },
+            {
+              "task": "T3",
+              "control": "B1",
+              "expected_pass": false,
+              "observed_pass": false
+            },
+            {
+              "task": "T3",
+              "control": "reference",
+              "expected_pass": true,
+              "observed_pass": true
+            },
+            {
+              "task": "T4",
+              "control": "B1",
+              "expected_pass": false,
+              "observed_pass": false
+            },
+            {
+              "task": "T4",
+              "control": "reference",
+              "expected_pass": true,
+              "observed_pass": true
+            }
+          ]
+        }
+      },
+      "v2": {
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": {
+          "evaluator": "p5-judge-v2",
+          "calibration_pass": true,
+          "controls": [
+            {
+              "task": "T1",
+              "control": "B1",
+              "expected_pass": false,
+              "observed_pass": false
+            },
+            {
+              "task": "T1",
+              "control": "reference",
+              "expected_pass": true,
+              "observed_pass": true
+            },
+            {
+              "task": "T2",
+              "control": "B1",
+              "expected_pass": false,
+              "observed_pass": false
+            },
+            {
+              "task": "T2",
+              "control": "reference",
+              "expected_pass": true,
+              "observed_pass": true
+            },
+            {
+              "task": "T3",
+              "control": "B1",
+              "expected_pass": false,
+              "observed_pass": false
+            },
+            {
+              "task": "T3",
+              "control": "reference",
+              "expected_pass": true,
+              "observed_pass": true
+            },
+            {
+              "task": "T4",
+              "control": "B1",
+              "expected_pass": false,
+              "observed_pass": false
+            },
+            {
+              "task": "T4",
+              "control": "reference",
+              "expected_pass": true,
+              "observed_pass": true
+            },
+            {
+              "task": "T1",
+              "control": "v1-reference",
+              "expected_pass": false,
+              "observed_pass": false,
+              "expected_failures": [
+                "valid-falsey-str-80"
+              ],
+              "observed_failures": [
+                "valid-falsey-str-80"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "behavioral_comparisons": {
+      "exact_accepted_revision": {
+        "v1": {
+          "passed": 16,
+          "total": 16,
+          "failures": []
+        },
+        "v2": {
+          "passed": 16,
+          "total": 17,
+          "failures": [
+            {
+              "id": "valid-falsey-str-80",
+              "pass": false,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            }
+          ]
+        }
+      },
+      "frozen_reference": {
+        "v1": {
+          "passed": 16,
+          "total": 16,
+          "failures": []
+        },
+        "v2": {
+          "passed": 16,
+          "total": 17,
+          "failures": [
+            {
+              "id": "valid-falsey-str-80",
+              "pass": false,
+              "actual": "ValueError('ASCII digits required')"
+            }
+          ]
+        }
+      },
+      "corrected_reference": {
+        "v1": {
+          "passed": 16,
+          "total": 16,
+          "failures": []
+        },
+        "v2": {
+          "passed": 17,
+          "total": 17,
+          "failures": []
+        }
+      }
+    },
+    "retained_receipt_cli": {
+      "v1": {
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": {
+          "task": "T1",
+          "baseRevision": "884bd64264df1515bee76a63f548db9cabe25a35",
+          "headRevision": "248d67d35fc8fe6ac5dba9a0fb8cae831ae22631",
+          "source_sha256": "8baa4bad9f19f6a64f4fb515298a741297065bd96b3955aa129242048ec69582",
+          "automated_checks": "PASS",
+          "independent_review": "REQUIRED",
+          "observations": [
+            {
+              "id": "minimum",
+              "pass": true,
+              "actual": "1"
+            },
+            {
+              "id": "maximum",
+              "pass": true,
+              "actual": "65535"
+            },
+            {
+              "id": "leading-zero",
+              "pass": true,
+              "actual": "80"
+            },
+            {
+              "id": "invalid-0",
+              "pass": true,
+              "actual": "ValueError('port must be between 1 and 65535')"
+            },
+            {
+              "id": "invalid-1",
+              "pass": true,
+              "actual": "ValueError('port must be between 1 and 65535')"
+            },
+            {
+              "id": "invalid-2",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-3",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-4",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-5",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-6",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-7",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-8",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-9",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "type-0",
+              "pass": true,
+              "actual": "TypeError('port must be a string')"
+            },
+            {
+              "id": "type-1",
+              "pass": true,
+              "actual": "TypeError('port must be a string')"
+            },
+            {
+              "id": "type-2",
+              "pass": true,
+              "actual": "TypeError('port must be a string')"
+            },
+            {
+              "id": "README-unchanged",
+              "pass": true
+            },
+            {
+              "id": "file-scope",
+              "pass": true
+            }
+          ]
+        }
+      },
+      "v2": {
+        "exit_code": 1,
+        "stderr": "",
+        "stdout": {
+          "evaluator": "p5-judge-v2",
+          "task": "T1",
+          "baseRevision": "884bd64264df1515bee76a63f548db9cabe25a35",
+          "headRevision": "248d67d35fc8fe6ac5dba9a0fb8cae831ae22631",
+          "source_sha256": "8baa4bad9f19f6a64f4fb515298a741297065bd96b3955aa129242048ec69582",
+          "automated_checks": "FAIL",
+          "independent_review": "REQUIRED",
+          "observations": [
+            {
+              "id": "minimum",
+              "pass": true,
+              "actual": "1"
+            },
+            {
+              "id": "maximum",
+              "pass": true,
+              "actual": "65535"
+            },
+            {
+              "id": "leading-zero",
+              "pass": true,
+              "actual": "80"
+            },
+            {
+              "id": "invalid-0",
+              "pass": true,
+              "actual": "ValueError('port must be between 1 and 65535')"
+            },
+            {
+              "id": "invalid-1",
+              "pass": true,
+              "actual": "ValueError('port must be between 1 and 65535')"
+            },
+            {
+              "id": "invalid-2",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-3",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-4",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-5",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-6",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-7",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-8",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "invalid-9",
+              "pass": true,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "type-0",
+              "pass": true,
+              "actual": "TypeError('port must be a string')"
+            },
+            {
+              "id": "type-1",
+              "pass": true,
+              "actual": "TypeError('port must be a string')"
+            },
+            {
+              "id": "type-2",
+              "pass": true,
+              "actual": "TypeError('port must be a string')"
+            },
+            {
+              "id": "valid-falsey-str-80",
+              "pass": false,
+              "actual": "ValueError('port must contain only ASCII digits')"
+            },
+            {
+              "id": "README-unchanged",
+              "pass": true
+            },
+            {
+              "id": "file-scope",
+              "pass": true
+            }
+          ]
+        }
+      }
+    },
+    "verification_assertions_passed": true
+  }
+}
