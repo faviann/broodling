@@ -35,6 +35,12 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
 
 ## What remains
 
+- Caller-facing invocation from explicit GitHub reference through receipt-backed
+  disposition, with pinned lineage/status, repeated and reopened submission,
+  recovery after lost dispatch acknowledgment or interrupted provisioning,
+  admission refusal, detached waits, native failure and stop handback. These
+  integration tests compose real Broodling services/local Git and control only
+  the GitHub/SDK boundaries; they do not dispatch live provider work.
 - Explicit GitHub work-reference ingress, exact issue snapshots, explicit caller
   source grants and effect authority, complete proposal/source attribution,
   ordering-independent ingress revisions, immutable replay, and deterministic

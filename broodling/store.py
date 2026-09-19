@@ -1268,6 +1268,14 @@ class BroodlingStore:
         ).fetchone()
         return None if row is None else self._attempt(row)
 
+    def list_attempts(self, work_unit_id: str) -> tuple[AttemptRecord, ...]:
+        """Retained Attempt lineage, oldest admission first, including history."""
+        rows = self._connection.execute(
+            "SELECT * FROM attempts WHERE work_unit_id = ? ORDER BY rowid",
+            (work_unit_id,),
+        ).fetchall()
+        return tuple(self._attempt(row) for row in rows)
+
     @staticmethod
     def _attempt(row: sqlite3.Row) -> AttemptRecord:
         return AttemptRecord(
