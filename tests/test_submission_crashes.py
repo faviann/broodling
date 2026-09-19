@@ -3,9 +3,15 @@
 import json
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from submission_support import RealSubmissionCase
+from submission_support import RealSubmissionCase, SubmissionCase, configured_adapter
+
+from broodling import RequiredEffect, UnsupportedRuntime
+from broodling.zeroshot_sdk import V1_GATEWAY_BASE_URL
 
 CHILD = Path(__file__).with_name("submission_crash_child.py")
 
@@ -107,3 +113,73 @@ class SubmissionCrashTests(RealSubmissionCase):
             all(result[-1]["correlatedRunId"] == accepted for result in events)
         )
         self.assert_single(accepted)
+
+
+class GatewaySubmissionCrashTests(SubmissionCase):
+    def contract(self, work_unit, source, **overrides):
+        return replace(
+            super().contract(work_unit, source, **overrides),
+            required_effects=(
+                RequiredEffect("deliver", "Open the PR.", "pull_request", "main"),
+            ),
+            host_assumptions=("single_host", "one_attempt_one_dedicated_worktree"),
+        )
+
+    def new_adapter(self):
+        return configured_adapter(
+            self.runtime_state,
+            self.root,
+            delivery_target_origin="http://127.0.0.1:8123",
+            github_token="RECOVERY_GH_CANARY",
+            gateway_base_url=V1_GATEWAY_BASE_URL,
+            gateway_api_key="RECOVERY_GATEWAY_CANARY",
+        )
+
+    def test_death_after_gateway_accept_replays_with_current_ephemeral_credentials(self):
+        child = subprocess.run(
+            [
+                sys.executable,
+                str(CHILD),
+                str(self.store_path),
+                self.attempt_id,
+                str(self.runtime_state),
+                "gateway_after_accept",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(child.returncode, 97, (child.stdout, child.stderr))
+        accepted = json.loads(child.stdout)["publicRunId"]
+        original = self.coordinator.record(self.attempt_id)
+        self.assertEqual(original.state, "dispatched")
+        self.assertIsNone(original.run_id)
+        self.restart()
+        self.adapter.gateway_api_key = None
+        with patch("zeroshot.Client") as construct:
+            with self.assertRaisesRegex(UnsupportedRuntime, "GATEWAY_API_KEY"):
+                self.coordinator.reconcile(self.attempt_id)
+            construct.assert_not_called()
+        self.assertEqual(self.coordinator.record(self.attempt_id), original)
+        self.adapter.gateway_api_key = "RECOVERY_GATEWAY_CANARY"
+        client = MagicMock()
+        client.submit = AsyncMock(return_value=SimpleNamespace(id=accepted))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=None)
+        with patch("zeroshot.Client", return_value=client) as construct:
+            recovered = self.coordinator.reconcile(self.attempt_id)
+        self.assertEqual(recovered.request_json, original.request_json)
+        self.assertEqual(recovered.submission_key, original.submission_key)
+        self.assert_single(accepted)
+        environment = construct.call_args.kwargs["environment"]
+        self.assertEqual(environment["GATEWAY_API_KEY"], "RECOVERY_GATEWAY_CANARY")
+        self.assertEqual(environment["GH_TOKEN"], "RECOVERY_GH_CANARY")
+        stored = "\n".join(self.store.connection.iterdump())
+        for canary in (
+            "CHILD_GH_CANARY",
+            "CHILD_GATEWAY_CANARY",
+            "RECOVERY_GH_CANARY",
+            "RECOVERY_GATEWAY_CANARY",
+            V1_GATEWAY_BASE_URL,
+        ):
+            self.assertNotIn(canary, stored + child.stdout + child.stderr)

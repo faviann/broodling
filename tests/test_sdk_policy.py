@@ -12,7 +12,11 @@ from submission_support import SubmissionCase
 
 from broodling import UnsupportedRuntime
 from broodling.profile import ZEROSHOT_SDK_VERSION
-from broodling.zeroshot_sdk import ZeroshotSubmitter, assert_supported_integration
+from broodling.zeroshot_sdk import (
+    V1_GATEWAY_BASE_URL,
+    ZeroshotSubmitter,
+    assert_supported_integration,
+)
 
 
 class SdkPolicyTests(SubmissionCase):
@@ -72,7 +76,7 @@ class SdkPolicyTests(SubmissionCase):
         }
         self.assertEqual(
             self.adapter.runtime_for("pull_request"),
-            expected,
+            expected | {"provider": "gateway"},
         )
         self.assertEqual(
             runtime,
@@ -161,7 +165,8 @@ class SdkPolicyTests(SubmissionCase):
             self.runtime_state,
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="dispatch-only-token",
-            openai_api_key="dispatch-only-provider-key",
+            gateway_base_url=V1_GATEWAY_BASE_URL,
+            gateway_api_key="dispatch-only-provider-key",
         )
         request = self.request()
         request["target"] = submitted.target
@@ -176,20 +181,29 @@ class SdkPolicyTests(SubmissionCase):
         client.__aenter__ = AsyncMock(return_value=client)
         client.__aexit__ = AsyncMock(return_value=None)
         reconnected = ZeroshotSubmitter(self.root / "different-current-state")
-        with patch("zeroshot.Client", return_value=client) as construct:
-            self.assertEqual(
-                asyncio.run(reconnected.wait(request, "known-run")), "result"
-            )
-            self.assertEqual(
-                asyncio.run(reconnected.stop_known(request, "known-run")), "stopped"
-            )
         target = DirectTarget("http://127.0.0.1:8123")
-        construct.assert_has_calls(
-            [
-                call(target=target, environment={}),
-                call(target=target, environment={}),
-            ],
-        )
+        # Reconnection addresses historical OpenAI runs as well as gateway runs;
+        # neither depends on today's execution profile or dispatch credentials.
+        for provider in ("gateway", "openai"):
+            request["runtime"]["provider"] = provider
+            with (
+                self.subTest(provider=provider),
+                patch("zeroshot.Client", return_value=client) as construct,
+            ):
+                self.assertEqual(
+                    asyncio.run(reconnected.wait(request, "known-run")), "result"
+                )
+                self.assertEqual(
+                    asyncio.run(reconnected.stop_known(request, "known-run")),
+                    "stopped",
+                )
+                self.assertEqual(
+                    construct.call_args_list,
+                    [
+                        call(target=target, environment={}),
+                        call(target=target, environment={}),
+                    ],
+                )
 
     def test_new_local_dispatch_requires_the_current_execution_profile(self):
         adapter = ZeroshotSubmitter(self.runtime_state)
@@ -268,17 +282,9 @@ class SdkPolicyTests(SubmissionCase):
         self.assertEqual(client.get_run.call_args_list[0].args, (run.id,))
         self.assertEqual(client.get_run.call_args_list[1].args, (run.id,))
 
-    def test_pr_delivery_uses_direct_target_and_keeps_token_out_of_agents(self):
-        from zeroshot import DirectTarget, Preset, UniformRuntime
-
-        adapter = ZeroshotSubmitter(
-            self.runtime_state,
-            delivery_target_origin="http://127.0.0.1:8123",
-            github_token="secret-delivery-token",
-            openai_api_key="secret-provider-key",
-        )
+    def pr_request(self, adapter):
         request = self.request()
-        request["target"] = adapter.target
+        request["target"] = copy.deepcopy(adapter.target)
         request["preset"] = {"name": "software-change", "delivery": "pull_request"}
         request["runtime"] = adapter.runtime_for("pull_request")
         request["delivery"] = {
@@ -286,13 +292,47 @@ class SdkPolicyTests(SubmissionCase):
             "targetBranch": "main",
             "baseRevision": self.attempt.b1_commit_oid,
         }
+        return request
+
+    def pr_adapter(self, **overrides):
+        return ZeroshotSubmitter(
+            self.runtime_state,
+            **(
+                {
+                    "delivery_target_origin": "http://127.0.0.1:8123",
+                    "github_token": "secret-delivery-token",
+                    "gateway_base_url": V1_GATEWAY_BASE_URL,
+                    "gateway_api_key": "secret-provider-key",
+                }
+                | overrides
+            ),
+        )
+
+    def test_pr_delivery_uses_gateway_with_only_ephemeral_credentials(self):
+        from zeroshot import DirectTarget, Preset, UniformRuntime
+
+        adapter = self.pr_adapter()
+        request = self.pr_request(adapter)
         adapter.validate_dispatch(self.path, request)
         run = SimpleNamespace(id="delivered-run")
         client = MagicMock()
         client.submit = AsyncMock(return_value=run)
         client.__aenter__ = AsyncMock(return_value=client)
         client.__aexit__ = AsyncMock(return_value=None)
-        with patch("zeroshot.Client", return_value=client) as construct:
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "OPENAI_API_KEY": "ambient-openai-canary",
+                    "CODEX_API_KEY": "ambient-codex-canary",
+                    "OPENROUTER_API_KEY": "ambient-openrouter-canary",
+                    "AWS_BEARER_TOKEN_BEDROCK": "ambient-bedrock-canary",
+                    "GATEWAY_API_KEY": "ambient-gateway-canary",
+                    "GATEWAY_BASE_URL": "https://wrong.example/",
+                },
+            ),
+            patch("zeroshot.Client", return_value=client) as construct,
+        ):
             self.assertEqual(adapter.submit(request), run.id)
         construct.assert_called_once_with(
             target=DirectTarget(
@@ -301,7 +341,8 @@ class SdkPolicyTests(SubmissionCase):
             environment=request["target"]["environment"]
             | {
                 "GH_TOKEN": "secret-delivery-token",
-                "OPENAI_API_KEY": "secret-provider-key",
+                "GATEWAY_BASE_URL": "https://cliproxy.local.faviann.com/",
+                "GATEWAY_API_KEY": "secret-provider-key",
             },
         )
         client.submit.assert_awaited_once_with(
@@ -315,64 +356,123 @@ class SdkPolicyTests(SubmissionCase):
             revision=self.attempt.b1_commit_oid,
         )
         self.assertNotIn("connections", request["runtime"])
+        self.assertEqual(request["runtime"]["provider"], "gateway")
+        self.assertNotIn("OPENAI_API_KEY", construct.call_args.kwargs["environment"])
         self.assertNotIn("secret-delivery-token", json.dumps(request))
         self.assertNotIn("secret-provider-key", json.dumps(request))
+        self.assertNotIn(V1_GATEWAY_BASE_URL, json.dumps(request))
 
-    def test_pr_delivery_requires_current_credential_before_dispatch(self):
-        adapter = ZeroshotSubmitter(
-            self.runtime_state,
-            delivery_target_origin="http://127.0.0.1:8123",
-        )
-        request = self.request()
-        request["target"] = adapter.target
-        request["preset"] = {"name": "software-change", "delivery": "pull_request"}
-        request["runtime"] = adapter.runtime_for("pull_request")
-        request["delivery"] = {
-            "repository": "faviann/broodling",
-            "targetBranch": "main",
-            "baseRevision": self.attempt.b1_commit_oid,
-        }
-        with self.assertRaisesRegex(UnsupportedRuntime, "GH_TOKEN"):
-            adapter.validate_dispatch(self.path, request)
+    def test_pr_delivery_requires_current_explicit_credentials_before_dispatch(self):
+        for field, environment_name in (
+            ("github_token", "GH_TOKEN"),
+            ("gateway_api_key", "GATEWAY_API_KEY"),
+        ):
+            for value in (None, "", " \t", "x" * 4097):
+                adapter = self.pr_adapter(**{field: value})
+                request = self.pr_request(adapter)
+                with (
+                    self.subTest(field=field, value_length=len(value or "")),
+                    patch.dict(os.environ, {environment_name: "ambient-canary"}),
+                    patch("zeroshot.Client") as client,
+                ):
+                    for action in (
+                        lambda: adapter.validate_dispatch(self.path, request),
+                        lambda: adapter.submit(request),
+                    ):
+                        with self.assertRaisesRegex(UnsupportedRuntime, environment_name):
+                            action()
+                    client.assert_not_called()
 
-    def test_pr_delivery_requires_current_provider_credential_before_dispatch(self):
-        adapter = ZeroshotSubmitter(
-            self.runtime_state,
-            delivery_target_origin="http://127.0.0.1:8123",
-            github_token="delivery-token",
-        )
-        request = self.request()
-        request["target"] = adapter.target
-        request["preset"] = {"name": "software-change", "delivery": "pull_request"}
-        request["runtime"] = adapter.runtime_for("pull_request")
-        request["delivery"] = {
-            "repository": "faviann/broodling",
-            "targetBranch": "main",
-            "baseRevision": self.attempt.b1_commit_oid,
+    def test_real_sdk_suppresses_ambient_provider_credentials(self):
+        adapter = self.pr_adapter()
+        request = self.pr_request(adapter)
+        ambient = {
+            name: "AMBIENT_SECRET_CANARY"
+            for name in (
+                "OPENAI_API_KEY",
+                "CODEX_API_KEY",
+                "OPENROUTER_API_KEY",
+                "AWS_BEARER_TOKEN_BEDROCK",
+                "GITHUB_TOKEN",
+                "GATEWAY_API_KEY",
+            )
         }
-        with self.assertRaisesRegex(UnsupportedRuntime, "OPENAI_API_KEY"):
-            adapter.validate_dispatch(self.path, request)
+        # Inspect the pinned SDK's process environment without opening a target
+        # or starting native work; explicit Client environment is our seam.
+        with patch.dict(os.environ, ambient):
+            environment, _ = adapter._submission_client(request)._environment()
+            observation, _ = adapter._correlated_client(request)._environment()
+        self.assertNotIn("AMBIENT_SECRET_CANARY", environment.values())
+        self.assertEqual(environment["GATEWAY_API_KEY"], "secret-provider-key")
+        self.assertEqual(environment["GATEWAY_BASE_URL"], V1_GATEWAY_BASE_URL)
+        self.assertEqual(environment["GH_TOKEN"], "secret-delivery-token")
+        for name in ambient.keys() - {"GATEWAY_API_KEY"}:
+            self.assertNotIn(name, environment)
+        for name in (*ambient, "GH_TOKEN", "GATEWAY_BASE_URL"):
+            self.assertNotIn(name, observation)
+
+    def test_historical_openai_request_cannot_dispatch_under_gateway_profile(self):
+        adapter = self.pr_adapter()
+        request = self.pr_request(adapter)
+        request["runtime"]["provider"] = "openai"
         with patch("zeroshot.Client") as client:
-            with self.assertRaisesRegex(UnsupportedRuntime, "OPENAI_API_KEY"):
+            with self.assertRaisesRegex(UnsupportedRuntime, "workflow runtime"):
                 adapter.submit(request)
             client.assert_not_called()
 
+    def test_pr_delivery_requires_the_exact_gateway_endpoint(self):
+        for value in (
+            None,
+            "",
+            " ",
+            "https://cliproxy.local.faviann.com",
+            "http://cliproxy.local.faviann.com/",
+            "https://cliproxy.local.faviann.com/v1/",
+            "https://cliproxy.local.faviann.com/?key=canary",
+            "https://foreign.example/",
+        ):
+            adapter = self.pr_adapter(gateway_base_url=value)
+            request = self.pr_request(adapter)
+            with (
+                self.subTest(value=value),
+                patch.dict(os.environ, {"GATEWAY_BASE_URL": V1_GATEWAY_BASE_URL}),
+                patch("zeroshot.Client") as client,
+            ):
+                for action in (
+                    lambda: adapter.validate_dispatch(self.path, request),
+                    lambda: adapter.submit(request),
+                ):
+                    with self.assertRaisesRegex(UnsupportedRuntime, "GATEWAY_BASE_URL"):
+                        action()
+                client.assert_not_called()
+
+    def test_pr_environment_refuses_legacy_credentials_even_if_empty(self):
+        adapter = self.pr_adapter()
+        original = copy.deepcopy(adapter.target["environment"])
+        for name in (
+            "OPENAI_API_KEY",
+            "CODEX_API_KEY",
+            "OPENROUTER_API_KEY",
+            "AWS_BEARER_TOKEN_BEDROCK",
+            "GATEWAY_BASE_URL",
+            "GATEWAY_API_KEY",
+            "GH_TOKEN",
+        ):
+            for value in ("", "INJECTED_SECRET_CANARY"):
+                adapter.target["environment"] = original | {name: value}
+                request = self.pr_request(adapter)
+                with self.subTest(name=name, value=value), patch("zeroshot.Client") as client:
+                    for action in (
+                        lambda: adapter.validate_dispatch(self.path, request),
+                        lambda: adapter.submit(request),
+                    ):
+                        with self.assertRaisesRegex(UnsupportedRuntime, "policy/environment"):
+                            action()
+                    client.assert_not_called()
+
     def test_pr_delivery_refuses_an_invalid_branch_or_foreign_repository(self):
-        adapter = ZeroshotSubmitter(
-            self.runtime_state,
-            delivery_target_origin="http://127.0.0.1:8123",
-            github_token="token",
-            openai_api_key="provider-key",
-        )
-        request = self.request()
-        request["target"] = adapter.target
-        request["preset"] = {"name": "software-change", "delivery": "pull_request"}
-        request["runtime"] = adapter.runtime_for("pull_request")
-        request["delivery"] = {
-            "repository": "faviann/broodling",
-            "targetBranch": "main",
-            "baseRevision": self.attempt.b1_commit_oid,
-        }
+        adapter = self.pr_adapter()
+        request = self.pr_request(adapter)
         for field, value, message in (
             ("targetBranch", "bad..branch", "target branch"),
             ("repository", "other/project", "repository"),

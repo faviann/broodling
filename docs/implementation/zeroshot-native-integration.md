@@ -76,11 +76,23 @@ The material capabilities are:
 The deliberately simple V1 authorized-PR execution profile fixes the standard
 `software-change` preset with native `pull_request` delivery through
 `DirectTarget`, and fixes one `UniformRuntime` for every executable workflow
-node: Codex harness, OpenAI provider, `gpt-5.6-sol`, medium reasoning effort,
+node: Codex harness, `gateway` provider through CLIProxyAPI at exactly
+`https://cliproxy.local.faviann.com/`, `gpt-5.6-sol`, medium reasoning effort,
 small size, and execution-scoped sessions. Broodling does not expose harness,
 provider, model, effort, or per-node runtime selection in V1. Node-local OAuth,
 `RuntimePlan` overrides, skill/tool capability profiles, and fleet scheduling
 remain future profiles rather than latent alternatives in this interface.
+
+Issue #81 changes only the authorized-PR provider/credential binding. The no-effect
+LocalTarget retains its Codex/OpenAI runtime. Zeroshot 10.3.0 already supports the
+gateway lane: its [connection fields](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_capsule/gateway.rs#L9-L31)
+and [uniform-runtime connection selection](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_cli/execution/submission.rs#L432-L449)
+require `GATEWAY_BASE_URL` and `GATEWAY_API_KEY`; its
+[Codex configuration](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_codex/command.rs#L129-L142)
+uses the gateway Responses API without OpenAI authentication. The pinned
+[gateway authentication policy](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_codex/command.rs#L42-L63)
+rejects conflicting Codex/OpenAI/OpenRouter/Bedrock provider credentials.
+No Zeroshot or SDK upgrade is needed for this supported seam.
 
 Execution-scoped freshness separates provider sessions between occurrences.
 Within an execution, Zeroshot may resume its own session for response correction
@@ -136,8 +148,11 @@ whose HEAD has changed from B1. Other source/configuration conflicts fail closed
 DirectTarget replay uses the same explicit source triple, so an exact retry
 normally returns the existing run without local worktree drift. Because provider
 and delivery credentials are intentionally absent from persisted requests,
-Broodling checks the current `OPENAI_API_KEY` and `GH_TOKEN` again before every
-initial or replayed PR dispatch, outside the SQLite writer transaction.
+Broodling checks explicit current `GATEWAY_BASE_URL`, `GATEWAY_API_KEY` and
+`GH_TOKEN` inputs again before every initial or replayed PR dispatch, outside the
+SQLite writer transaction. Missing/empty gateway inputs, a base URL other than
+exactly `https://cliproxy.local.faviann.com/`, or conflicting legacy provider
+credentials in the dispatch environment fail closed before the SDK dispatch.
 There is no lease, ledger scan, execution discovery, or runtime replay algorithm.
 
 Abandonment may commit while submission is in flight. If Zeroshot subsequently
@@ -158,7 +173,8 @@ After durable correlation, Broodling reconnects from the locator already frozen
 in that invocation: LocalTarget uses the canonical native state directory and
 DirectTarget uses the persisted target origin. Waiting and force-stop do not
 reconstruct or revalidate the dispatch-time workspace, Codex profile, runtime,
-provider environment, target configuration, `OPENAI_API_KEY`, or `GH_TOKEN`.
+provider environment, target configuration, `GATEWAY_BASE_URL`, `GATEWAY_API_KEY`,
+or `GH_TOKEN`.
 Those remain strict requirements for new dispatch and acknowledgement-loss replay only. Completion
 still rechecks current Attempt authority, admitted Contract and delivery
 authority, the immutable Attempt/run/invocation binding, and the native delivery
@@ -187,10 +203,14 @@ The launcher policy below applies to `delivery="none"` LocalTarget execution.
 Authorized PR delivery uses the configured Zeroshot DirectTarget, whose operator
 owns its provider installation and sandbox profile. Zeroshot 10.3.0 DirectTarget
 has no target-owned connection store or resolver, so Broodling supplies the
-current `OPENAI_API_KEY` and `GH_TOKEN` only through the SDK environment at
-dispatch. Zeroshot selects `OPENAI_API_KEY` for the runtime's declared `openai`
-connection and reserves `GH_TOKEN` for source checkout and the native delivery
-binding. Neither value is persisted in the invocation. The frozen Contract
+current `GATEWAY_BASE_URL`, `GATEWAY_API_KEY` and `GH_TOKEN` only through the SDK
+environment at dispatch. Zeroshot selects the two gateway fields for the runtime's
+declared `gateway` connection and reserves `GH_TOKEN` for source checkout and the
+native delivery binding. No `OPENAI_API_KEY` is sent. Gateway inputs and credential
+values are absent from persisted Contracts, requests and runtime plans; credential
+values are also excluded from logs and evidence. Reconnect/wait/stop clients use
+an empty explicit environment. The CLIProxyAPI base URL is distinct from the
+Zeroshot DirectTarget origin. The frozen Contract
 authorizes the PR effect, not general provider access or any additional effect.
 Configuring that endpoint is therefore a hard operator trust boundary: Broodling
 freezes its origin into the invocation and refuses a changed endpoint on replay,

@@ -71,6 +71,10 @@ class SubmissionCoordinator:
     ) -> dict:
         revision = self.store.get_contract_revision(attempt.contract_revision_id)
         delivery = authorization(revision.contract)
+        if delivery.mode == PULL_REQUEST and frozen_execution is None:
+            # Refuse injected credentials before the target can be persisted.
+            # Current dispatch credentials are checked separately at dispatch.
+            self.submitter._validate_policy(delivery.mode)
         work_unit = self.store.get_work_unit(attempt.work_unit_id)
         if delivery.mode == PULL_REQUEST and work_unit.host != "github.com":
             raise SubmissionNotReady(

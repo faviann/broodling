@@ -110,7 +110,8 @@ def execute(admitted_revision_id: str):
             # Required only when this Contract authorizes pull_request delivery.
             delivery_target_origin="https://zeroshot.example.internal",
             github_token=os.environ.get("GH_TOKEN"),
-            openai_api_key=os.environ.get("OPENAI_API_KEY"),
+            gateway_base_url=os.environ.get("GATEWAY_BASE_URL"),
+            gateway_api_key=os.environ.get("GATEWAY_API_KEY"),
         )
         SubmissionCoordinator(store, engine).submit(attempt.attempt_id)
         return asyncio.run(
@@ -119,25 +120,30 @@ def execute(admitted_revision_id: str):
 ```
 
 For no-effect LocalTarget work, omit `delivery_target_origin`, `github_token`, and
-`openai_api_key`; keep the isolated local Codex profile. This does not remove the
-no-effect stable result limitation described below.
+both gateway arguments; keep the isolated local Codex/OpenAI profile. This does
+not remove the no-effect stable result limitation described below.
 
 For an authorized PR, Zeroshot runs against the explicit repository, target
 branch, and B1 revision on the configured direct target. PR delivery is admitted
 only for a GitHub Work Unit. Its successful PR
 receipt is retained verbatim, and `headRevision` is the stable accepted result.
-The current GitHub and OpenAI credentials are checked on every initial or replayed
-dispatch and are not persisted in the invocation. Zeroshot selects only
-`OPENAI_API_KEY` for the runtime's declared `openai` connection and reserves
-`GH_TOKEN` for source checkout and the native delivery binding. Cancelling a wait
-only detaches; waiting again can consume the same result without either dispatch
-credential.
+Set `GATEWAY_BASE_URL` to exactly `https://cliproxy.local.faviann.com/` and supply a
+current nonempty `GATEWAY_API_KEY` and `GH_TOKEN`. These explicit inputs are checked
+on every initial or replayed dispatch and passed only in the SDK environment;
+their values are not persisted in the invocation. Zeroshot selects the two
+gateway fields for its `gateway` connection and reserves `GH_TOKEN` for source
+checkout and native delivery. No `OPENAI_API_KEY` is sent. Missing gateway fields,
+a different gateway URL, or conflicting provider credentials in the dispatch
+environment fail closed. The CLIProxyAPI endpoint is separate from the configured
+Zeroshot DirectTarget origin. Cancelling a wait only detaches; waiting again can
+consume the same result without dispatch credentials or gateway configuration.
 
 The deliberately simple V1 authorized-PR profile uses Zeroshot's standard
-`software-change` workflow, this supported DirectTarget path, Codex, OpenAI,
-`gpt-5.6-sol`, medium reasoning effort, and one `UniformRuntime` across the
-workflow. Harness/model selection, per-node runtimes, skill/tool capability
-profiles, fleet orchestration, and node-local OAuth are post-V1 concerns. The
+`software-change` workflow, this supported DirectTarget path, Codex, the `gateway`
+provider through CLIProxyAPI, `gpt-5.6-sol`, medium reasoning effort, and one
+`UniformRuntime` across the workflow. Harness/model selection, per-node runtimes,
+skill/tool capability profiles, fleet orchestration, and node-local OAuth are
+post-V1 concerns. The
 [issue #72 dependency finding](docs/implementation/zeroshot-node-local-authorized-pr-audit.md)
 remains the source-backed starting point for a future node-local OAuth profile;
 it does not block the selected V1 DirectTarget profile.
@@ -166,7 +172,8 @@ cessation proof cannot authorize new cleanup.
 
 The default [test suite](tests/README.md) covers Broodling-owned invariants and
 the published SDK/native seam using a controlled, non-networked provider
-fixture. It is not a paid-provider or sandbox qualification campaign.
+fixture. Gateway policy tests use synthetic credentials and need no real gateway
+access. The suite is not a paid-provider or sandbox qualification campaign.
 
 The [current authority](docs/governing/current.md#documentation-authority)
 classifies current and historical documents explicitly. The

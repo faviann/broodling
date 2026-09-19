@@ -20,6 +20,7 @@ from broodling import (
     SubmissionNotReady,
     WorkUnitDispositionCoordinator,
 )
+from broodling.zeroshot_sdk import V1_GATEWAY_BASE_URL
 
 
 class ResultTests(SubmissionCase):
@@ -45,7 +46,8 @@ class ResultTests(SubmissionCase):
             self.root,
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="test-github-token",
-            openai_api_key="test-provider-key",
+            gateway_base_url=V1_GATEWAY_BASE_URL,
+            gateway_api_key="test-provider-key",
         )
 
     def setUp(self):

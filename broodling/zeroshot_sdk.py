@@ -29,6 +29,8 @@ _V1_UNIFORM_RUNTIME = MappingProxyType({
     "session_scope": "execution",
 })
 
+V1_GATEWAY_BASE_URL = "https://cliproxy.local.faviann.com/"
+
 
 def canonical_request(value: dict) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
@@ -49,11 +51,13 @@ class ZeroshotSubmitter:
         codex_profile: CodexProfile | None = None,
         delivery_target_origin: str | None = None,
         github_token: str | None = None,
-        openai_api_key: str | None = None,
+        gateway_base_url: str | None = None,
+        gateway_api_key: str | None = None,
     ) -> None:
         self.codex_profile = codex_profile
         self.github_token = github_token
-        self.openai_api_key = openai_api_key
+        self.gateway_base_url = gateway_base_url
+        self.gateway_api_key = gateway_api_key
         self._tool_path = os.environ.get("PATH", "")
         # Client inherits these operating variables even with an explicit
         # environment. Freeze/clear them so ambient homes/config cannot leak in.
@@ -67,6 +71,7 @@ class ZeroshotSubmitter:
         if codex_profile is not None:
             environment.update(codex_profile.environment(self._tool_path))
             self.target["codexProfile"] = codex_profile.identity()
+        self._environment = MappingProxyType(dict(environment))
         if delivery_target_origin is not None:
             self.target["deliveryTargetOrigin"] = delivery_target_origin
             self.target["deliveryCredential"] = "GH_TOKEN"
@@ -90,29 +95,35 @@ class ZeroshotSubmitter:
         if delivery == "pull_request":
             # The direct target owns its provider installation. Credentials are
             # supplied only to the SDK process when this invocation is dispatched.
-            return dict(_V1_UNIFORM_RUNTIME)
+            return dict(_V1_UNIFORM_RUNTIME) | {"provider": "gateway"}
         raise UnsupportedRuntime(f"unsupported delivery mode {delivery!r}")
 
     def require_execution_profile(self) -> None:
         if self.codex_profile is None:
             raise UnsupportedRuntime("execution requires the no-effect Codex profile")
 
-    def _pr_credentials(self) -> tuple[str, str]:
+    def _pr_credentials(self) -> tuple[str, str, str]:
         token = self.github_token
         if not isinstance(token, str) or not token.strip() or len(token) > 4096:
             raise UnsupportedRuntime(
                 "pull-request delivery requires a current nonempty GH_TOKEN"
             )
-        provider_key = self.openai_api_key
+        provider_key = self.gateway_api_key
         if (
             not isinstance(provider_key, str)
             or not provider_key.strip()
             or len(provider_key) > 4096
         ):
             raise UnsupportedRuntime(
-                "pull-request delivery requires a current nonempty OPENAI_API_KEY"
+                "pull-request delivery requires a current nonempty GATEWAY_API_KEY"
             )
-        return token, provider_key
+        base_url = self.gateway_base_url
+        if base_url != V1_GATEWAY_BASE_URL:
+            raise UnsupportedRuntime(
+                "pull-request delivery requires GATEWAY_BASE_URL="
+                + V1_GATEWAY_BASE_URL
+            )
+        return token, base_url, provider_key
 
     def _validate_policy(self, delivery: str = "none") -> None:
         if self.target.get("sdkVersion") != ZEROSHOT_SDK_VERSION:
@@ -130,6 +141,13 @@ class ZeroshotSubmitter:
                     "provider policy/environment differs from the configured no-effect profile"
                 )
         elif delivery == "pull_request":
+            # Credentials and endpoint values must enter only at dispatch, not
+            # through persisted target configuration. This also excludes every
+            # conflicting legacy provider credential, including empty values.
+            if self.target.get("environment") != self._environment:
+                raise UnsupportedRuntime(
+                    "provider policy/environment differs from the configured PR profile"
+                )
             if not str(self.target.get("deliveryTargetOrigin", "")).strip():
                 raise UnsupportedRuntime(
                     "pull-request delivery requires a configured Zeroshot direct target"
@@ -198,9 +216,10 @@ class ZeroshotSubmitter:
 
         environment = dict(request["target"]["environment"])
         if delivery == "pull_request":
-            token, provider_key = self._pr_credentials()
+            token, base_url, provider_key = self._pr_credentials()
             environment["GH_TOKEN"] = token
-            environment["OPENAI_API_KEY"] = provider_key
+            environment["GATEWAY_BASE_URL"] = base_url
+            environment["GATEWAY_API_KEY"] = provider_key
         target = (
             LocalTarget(request["workspace"], state_dir=request["target"]["stateDir"])
             if delivery == "none"

@@ -15,6 +15,7 @@ from broodling import BroodlingStore, RequiredEffect, SchemaVersionMismatch
 from broodling.disposition import WorkUnitDispositionCoordinator
 from broodling.errors import SubmissionNotReady
 from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION
+from broodling.zeroshot_sdk import V1_GATEWAY_BASE_URL
 
 
 class DispositionFoundationTests(SubmissionCase):
@@ -213,7 +214,8 @@ class StableReceiptDatabaseTests(SubmissionCase):
             self.root,
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="token",
-            openai_api_key="provider-key",
+            gateway_base_url=V1_GATEWAY_BASE_URL,
+            gateway_api_key="provider-key",
         )
 
     def setUp(self):

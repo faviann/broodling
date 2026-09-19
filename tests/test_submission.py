@@ -5,7 +5,8 @@ import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from threading import Event
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from submission_support import RealSubmissionCase, SubmissionCase, configured_adapter
 from support import git, move_head, work_reference
@@ -19,7 +20,7 @@ from broodling.errors import (
     WorktreeOwnershipConflict,
 )
 from broodling.submission import SubmissionCoordinator
-from broodling.zeroshot_sdk import ZeroshotSubmitter
+from broodling.zeroshot_sdk import V1_GATEWAY_BASE_URL, ZeroshotSubmitter
 
 
 class SubmissionControls(SubmissionCase):
@@ -436,7 +437,8 @@ class PullRequestSubmissionControls(SubmissionCase):
             self.root,
             delivery_target_origin="http://127.0.0.1:8123",
             github_token="token",
-            openai_api_key="provider-key",
+            gateway_base_url=V1_GATEWAY_BASE_URL,
+            gateway_api_key="provider-key",
         )
 
     def test_acknowledgement_loss_recovers_without_local_worktree_drift(self):
@@ -472,12 +474,80 @@ class PullRequestSubmissionControls(SubmissionCase):
             self.assertRaises(OSError),
         ):
             self.submit()
-        self.adapter.openai_api_key = None
+        self.adapter.gateway_api_key = None
         with patch.object(self.adapter, "submit") as native:
-            with self.assertRaisesRegex(UnsupportedRuntime, "OPENAI_API_KEY"):
+            with self.assertRaisesRegex(UnsupportedRuntime, "GATEWAY_API_KEY"):
                 self.coordinator.reconcile(self.attempt_id)
             native.assert_not_called()
         self.assertEqual(self.coordinator.record(self.attempt_id).state, "dispatched")
+
+    def test_dispatched_replay_requires_the_current_exact_gateway_endpoint(self):
+        with (
+            patch.object(self.adapter, "submit", side_effect=OSError("ack lost")),
+            self.assertRaises(OSError),
+        ):
+            self.submit()
+        original = self.coordinator.record(self.attempt_id)
+        for endpoint in (None, "", "https://foreign.example/"):
+            self.adapter.gateway_base_url = endpoint
+            with self.subTest(endpoint=endpoint), patch.object(self.adapter, "submit") as native:
+                with self.assertRaisesRegex(UnsupportedRuntime, "GATEWAY_BASE_URL"):
+                    self.coordinator.reconcile(self.attempt_id)
+                native.assert_not_called()
+            self.assertEqual(self.coordinator.record(self.attempt_id), original)
+
+    def test_pr_prepare_refuses_injected_credentials_before_persistence(self):
+        original = self.adapter.target["environment"]
+        for name in (
+            "OPENAI_API_KEY",
+            "CODEX_API_KEY",
+            "OPENROUTER_API_KEY",
+            "AWS_BEARER_TOKEN_BEDROCK",
+            "GATEWAY_API_KEY",
+            "GATEWAY_BASE_URL",
+            "GH_TOKEN",
+        ):
+            self.adapter.target["environment"] = original | {name: "PERSISTENCE_CANARY"}
+            with (
+                self.subTest(name=name),
+                self.assertRaisesRegex(UnsupportedRuntime, "policy/environment"),
+            ):
+                self.prepare()
+            self.assertIsNone(self.coordinator.record(self.attempt_id))
+        self.adapter.target["environment"] = original
+        self.assertNotIn("PERSISTENCE_CANARY", "\n".join(self.store.connection.iterdump()))
+
+    def test_replay_uses_rotated_credentials_without_changing_durable_request(self):
+        first_token, first_key = "FIRST_GH_CANARY", "FIRST_GATEWAY_CANARY"
+        next_token, next_key = "NEXT_GH_CANARY", "NEXT_GATEWAY_CANARY"
+        self.adapter.github_token, self.adapter.gateway_api_key = first_token, first_key
+        prepared = self.prepare()
+        run = SimpleNamespace(id="same-remote-run")
+        client = MagicMock()
+        client.submit = AsyncMock(side_effect=[OSError("ack lost"), run])
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=None)
+        with patch("zeroshot.Client", return_value=client) as construct:
+            with self.assertRaises(OSError):
+                self.submit()
+            self.restart()
+            self.adapter.github_token, self.adapter.gateway_api_key = next_token, next_key
+            recovered = self.coordinator.reconcile(self.attempt_id)
+        self.assertEqual(recovered.request_json, prepared.request_json)
+        self.assertEqual(recovered.submission_key, prepared.submission_key)
+        self.assert_single(run.id)
+        self.assertEqual(client.submit.call_args_list[0], client.submit.call_args_list[1])
+        for invocation, token, key in zip(
+            construct.call_args_list, (first_token, next_token), (first_key, next_key)
+        ):
+            environment = invocation.kwargs["environment"]
+            self.assertEqual(environment["GH_TOKEN"], token)
+            self.assertEqual(environment["GATEWAY_API_KEY"], key)
+            self.assertEqual(environment["GATEWAY_BASE_URL"], V1_GATEWAY_BASE_URL)
+            self.assertNotIn("OPENAI_API_KEY", environment)
+        stored = "\n".join(self.store.connection.iterdump())
+        for ephemeral in (first_token, first_key, next_token, next_key, V1_GATEWAY_BASE_URL):
+            self.assertNotIn(ephemeral, stored)
 
     def test_direct_target_true_conflict_is_not_mistaken_for_ack_recovery(self):
         with (

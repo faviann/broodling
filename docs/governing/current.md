@@ -74,8 +74,10 @@ claim or a transfer of old host qualification.
 The deliberately simple V1 authorized-PR execution profile is Zeroshot's standard
 `software-change` workflow with native `pull_request` delivery through the
 already-supported DirectTarget path. One `UniformRuntime` applies across the
-workflow: Codex harness, OpenAI provider, `gpt-5.6-sol`, medium reasoning effort,
-small size, and execution-scoped sessions. V1 has no caller-selectable harness,
+workflow: Codex harness, `gateway` provider through CLIProxyAPI at exactly
+`https://cliproxy.local.faviann.com/`, `gpt-5.6-sol`, medium reasoning effort,
+small size, and execution-scoped sessions. The no-effect LocalTarget retains its
+existing Codex/OpenAI profile. V1 has no caller-selectable harness,
 provider, model, effort, per-node runtime, skill/tool capability profile, or fleet
 placement. Node-local OAuth authentication and those configuration/orchestration
 features are post-V1 concerns.
@@ -96,6 +98,15 @@ launcher does not constrain that target. This explicit trust boundary is not
 Broodling multi-host orchestration. The local no-effect
 profile requires the documented trusted-host precondition excluding
 operator-managed effect-capable MCP/extensions.
+
+PR dispatch requires explicit current `GATEWAY_BASE_URL`, `GATEWAY_API_KEY` and
+`GH_TOKEN` inputs, passed only in the SDK environment for a new or idempotently
+replayed dispatch. The gateway URL must match the selected endpoint exactly;
+missing/empty gateway inputs, a different URL, or conflicting legacy provider
+credentials in the dispatch environment fail closed. No `OPENAI_API_KEY` is sent.
+Credential values and gateway inputs are absent from frozen requests/runtime
+plans and credential values remain absent from logs and evidence. The gateway
+endpoint is distinct from the persisted Zeroshot DirectTarget origin.
 
 After lost submission acknowledgement, only the identical frozen invocation may
 reconcile while authority remains current. After correlation, waiting again uses
@@ -120,11 +131,11 @@ authorized task and assess native-workflow outcome quality. Do not inherit v0.5'
 adjudicator/final-assessor checklist or mandatory new API.
 
 The current prospective live profile is
-[`p5-native-pr-v4`](../../evaluation/p5/v4/protocol.md). It preserves the frozen
+[`p5-native-pr-v5`](../../evaluation/p5/v5/protocol.md). It preserves the frozen
 v1 corpus/judge, v2 claim-level decision rules, and v3 operational policy while
-selecting the V1 DirectTarget execution profile above. No live dispatch occurred
-under v1-v3 or the blocked #64/#65/#67/#71 work, and those files and records remain
-unchanged provenance rather than being reinterpreted as evidence for v4.
+changing only v4's provider/credential binding to the gateway profile above.
+Protocols v1-v4 and all prior evidence remain byte-for-byte unchanged provenance;
+none is rescored or reinterpreted as gateway evidence. R01-R08 remain NOT_STARTED.
 
 The [issue #72 source audit](../implementation/zeroshot-node-local-authorized-pr-audit.md)
 remains the source-backed dependency finding for a future node-local OAuth
@@ -134,9 +145,11 @@ DirectTarget/API-key path.
 ### Prerequisites
 
 Use this authority, one recorded compatible product/dependency baseline and a
-supported full-suite result. The selected profile is V1: configured DirectTarget,
-current `OPENAI_API_KEY`, current delivery credential, and the fixed uniform
-runtime above. A live trial still needs a designated disposable GitHub
+supported full-suite result. Record v5's first-addition commit as its freeze
+identity. The selected profile is V1: configured DirectTarget, exact
+`GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/`, current `GATEWAY_API_KEY`,
+current GitHub delivery credential, and the fixed uniform runtime above.
+A live trial still needs a designated disposable GitHub
 repository/target branch and the exact authorized PR effect.
 Each trial still needs the entitled source/primary issue/Work Unit/Contract/B1/
 Attempt/workspace facts required by the current Broodling APIs.
@@ -226,10 +239,20 @@ The blocked #64/#65 preflight/not-run record at
 `b9cacd99beb9a297966e68e6047c7663aca9b4c6` remains evidence that the supported
 suite passed there but R01-R08 were all NOT_STARTED and no live provider/PR
 P5 observation occurred. V3 remains frozen and unexecuted. The profile-selection
-pause recorded by #71 and the source-backed #72 finding remain preserved. V4 is
-the prospective successor selecting the already-supported V1 DirectTarget path;
-it does not rescore or erase any earlier record. R01 remains NOT_STARTED, and
-issue #79 is the single next task to run that live boundary once against V4.
+pause recorded by #71 and the source-backed #72 finding remain preserved. V4's
+OpenAI/`OPENAI_API_KEY` selection is historical prospective authority, superseded
+only for future dispatch by v5's gateway binding. This provider amendment leaves
+every earlier protocol and evidence package unchanged and consumes no slot.
+
+The current order is **#81 → record the v5 freeze and compatible baseline →
+separately authorize #79's one R01 gateway execution → #68 → #66**. The current
+#62/#79 issue dependency text follows this order; #79's former OpenAI/v4 wording
+and comments cannot authorize gateway execution. #68 remains gated
+on compatible successful R01 boundary evidence, and #66 may review a settled
+incomplete package. Implementation, controlled tests, documentation, setup and
+endpoint preflight do not consume R01. Issue #81 performs none of the live P5
+provider calls, admissions, dispatches, PRs, dispositions or judgments and grants
+no CLIProxyAPI quality, live-boundary or P5-readiness verdict.
 
 ## Backlog disposition from issue #60
 

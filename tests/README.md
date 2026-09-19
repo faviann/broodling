@@ -44,6 +44,12 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
 - Immutable invocation preparation, durable dispatch/correlation, acknowledgement
   loss (including unchanged-worktree DirectTarget replay), current PR credentials
   checks, and refusal of conflicting target, forge, or source identities.
+- Fixed Codex `gateway` PR selection, exact
+  `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/`, ephemeral
+  `GATEWAY_API_KEY`/`GH_TOKEN` handoff, suppressed ambient credentials, and
+  rejection of legacy credentials in persisted target configuration. Synthetic
+  credential rotation and process-death replay preserve the same request/key;
+  credential-free wait/stop also cover historical OpenAI requests.
 - Native PR receipt binding and stable `headRevision`; refusal to disposition a
   null-output no-effect run; reopened completed runs; current-Attempt authority;
   atomic result/disposition writes; repeatable detached waits; native failure;
@@ -62,6 +68,12 @@ result interface. The
 [controlled Codex fixture](fixtures/README.md) substitutes only the provider.
 Tests assert the Broodling outcome and native receipt/run binding, not
 Zeroshot's internal history.
+Gateway dispatch tests replace the public SDK client and never connect to
+CLIProxyAPI or GitHub. These checks require no real gateway credentials and
+neither admit nor execute a P5 trial.
+`test_gateway_runtime.py` materializes the pinned native gateway profile locally
+without connecting to a target, verifying uniform runtime expansion and its
+declared gateway environment names.
 
 The two bounded Hypothesis modules remain narrowly focused:
 `test_work_reference_properties.py` checks canonical identity/non-aliasing;
