@@ -146,6 +146,7 @@ dedicated `broodling77` account/home were removed. The separate P5 containers,
 images, state, run evidence and working files were not cleanup targets and were
 left unchanged.
 
-The private `faviann/broodling-first-use-77-20260919` repository remains the
-only live validation resource while deletion waits for GitHub's required
-`delete_repo` authorization scope.
+The private `faviann/broodling-first-use-77-20260919` repository, including
+issue #1, the unmerged PR #2 and its proposal branch, was also deleted by the
+owner. No live GitHub or local runtime/deployment resource remains for this
+validation run.
