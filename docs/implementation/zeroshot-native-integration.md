@@ -1,16 +1,13 @@
 # Thin native Zeroshot integration
 
 **Current implementation reference.** The
-[current architecture and P5 plan](../governing/current.md) governs scope and next
-work; this document supplies the detailed native boundary. The source and
-result-handoff audits are dated supporting research, not competing plans.
+[current architecture and operating status](../governing/current.md) governs
+scope; this document supplies the detailed native boundary.
 
 Decision date: 16 September 2026. This is the current implementation boundary.
-It supersedes the custom execution/proof requirements and recovery capability
-claims in the v0.5 governing pair and V1-P3/V1-P4 implementation notes, without
-changing their original bodies or qualification evidence. Immutable
-admission, source entitlement, current-Attempt authority, and effect authorization
-remain product requirements.
+It supersedes the removed custom execution/proof requirements and recovery
+capability claims. Immutable admission, source entitlement, current-Attempt
+authority, and effect authorization remain product requirements.
 
 ## Decision
 
@@ -55,9 +52,7 @@ workflow expansion, execution, state, and provider behavior. The project pins th
 official Linux x86-64 wheel URL and SHA-256 in [pyproject.toml](../../pyproject.toml).
 It does not rebuild or source-hash the old development SDK.
 
-The [current source audit](zeroshot-current-source-audit.md) records release
-verification, supported APIs, and the source basis for the limitations below.
-The material capabilities are:
+The material release capabilities used by this integration are:
 
 - `Preset("software-change", delivery="none"|"pull_request")` supplies implementation,
   independent acceptance/code review, and bounded repair. Broodling chooses the
@@ -262,9 +257,8 @@ configuration.** Administrators can enforce an empty `[mcp_servers]` allowlist i
 managed `requirements.toml`. An environment where that precondition is not known
 to hold is outside this no-effect profile. Broodling does not reproduce Codex's
 configuration interpreter, scan arbitrary managed settings, or independently
-prove the dependency's enforcement. The source audit records this supported
-local-policy limitation; shell-network restrictions alone are not a universal
-no-effect guarantee.
+prove the dependency's enforcement. Shell-network restrictions alone are not a
+universal no-effect guarantee.
 
 Native local process-group cleanup does not establish the stronger escaped-child
 cessation guarantee previously supplied by Broodling's own containment machinery.
@@ -310,10 +304,10 @@ obsolete `attempt_finalizations` mechanism. An old proof record cannot authorize
 standard-workflow disposition. Old invocation configurations are not mechanically
 rewritten to target the new release or preset.
 
-The preserved [qualification reports](../../qualification/README.md), baseline,
-and versioned governing/implementation records describe their original versions.
-Their passes do not transfer to this release. The new acceptance model deliberately
-does not promise the extra proof record or automatic dispatched-run recovery.
+Historical qualification reports and versioned designs remain in Git history.
+Their passes do not transfer to this release. The new acceptance model
+deliberately does not promise the extra proof record or automatic dispatched-run
+recovery.
 
 ## Validation boundary
 

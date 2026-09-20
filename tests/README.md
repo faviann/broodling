@@ -1,8 +1,8 @@
 # Broodling tests
 
-The [current architecture and P5 plan](../docs/governing/current.md) governs
-scope. This README describes current validation, not a continuation of the old
-custom-assurance gates or a P5 real-provider quality verdict.
+The [current architecture and operating status](../docs/governing/current.md)
+governs scope. This README describes current validation, not a continuation of
+removed custom-assurance gates or a real-provider quality verdict.
 
 The default suite tests Broodling's own decisions and its public Zeroshot seam.
 It does not maintain a second execution model or prove Zeroshot's graph routing,
@@ -107,7 +107,7 @@ and unknown references while SQLite is read-only and external calls are refused.
 
 Gateway dispatch tests replace the public SDK client and never connect to
 CLIProxyAPI or GitHub. These checks require no real gateway credentials and
-neither admit nor execute a P5 trial.
+neither admit nor execute a live evaluation run.
 `test_gateway_runtime.py` materializes the pinned native gateway profile locally
 without connecting to a target, verifying uniform runtime expansion and its
 declared gateway environment names.
@@ -146,15 +146,9 @@ Its default configuration in `pyproject.toml` limits mutation to identity
 canonicalization and its two direct test modules. Widening that scope is a
 deliberate review action, not a hidden part of the normal suite.
 
-## Historical evidence
+## Archived history
 
-Previous timing measurements, mutation demonstrations, opt-in lane definitions,
-and qualification outcomes apply only to the old implementation. The
-[previous test notes at the starting main commit](https://github.com/faviann/broodling/blob/87f228652117557de95a679d4f22bca76cb86b83/tests/README.md)
-retain that context.
-[Qualification reports](../qualification/README.md) and
-[the earlier ownership audit](../docs/implementation/pr48-ownership-audit.md)
-retain their historical content; only the audit receives a supersession notice.
-No old pass is relabeled for the current dependency.
-Historical-tooling tests retain only inert-import and record-overwrite
-protections; they do not re-run an old execution campaign against this release.
+Prior qualification outcomes, campaign tooling and old test notes apply only to
+their recorded implementations. They remain available in the
+[pre-cleanup Git tree](https://github.com/faviann/broodling/tree/348e1f469c04fecbc24f4088e6eb438a3934e872)
+and do not define current coverage or transfer a pass to this release.

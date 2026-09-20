@@ -54,7 +54,8 @@ DirectTarget / Codex / CLIProxyAPI `gateway` profile, `gpt-5.6-sol` and medium
 reasoning effort. Configure the target origin, current `GH_TOKEN`, exact
 `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1` and current
 `GATEWAY_API_KEY` through `ZeroshotSubmitter`. Use the pinned dependencies and
-compatible [actual-target GitHub CLI](../../evaluation/p5/direct-target-gh-compatibility.md).
+compatible actual-target GitHub CLI checked by the
+[deployment package](../../deployment/README.md).
 The [single-host deployment package](../../deployment/README.md) installs this
 profile and exposes these same methods through the operator CLI. The API itself
 does not provision a target or select another runtime.

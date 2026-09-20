@@ -61,10 +61,9 @@ authentication path and no persisted credential configuration.
 ## Real invocation and recovery
 
 The user explicitly authorized a fresh private repository with one small
-documentation issue and an unmerged PR. Created
-[`faviann/broodling-first-use-77-20260919`](https://github.com/faviann/broodling-first-use-77-20260919)
-and [issue #1](https://github.com/faviann/broodling-first-use-77-20260919/issues/1),
-asking for an operator-review document and README link. The complete request
+documentation issue and an unmerged PR. Created the now-deleted
+`faviann/broodling-first-use-77-20260919` and issue #1, asking for an
+operator-review document and README link. The complete request
 was captured and used with the installed example proposer; the explicit effect
 was one PR targeting `main`.
 
@@ -76,7 +75,7 @@ was one PR targeting `main`.
 | Attempt | `at-97525680c82d209529cf54d6541872b82d44e9d35b9e6066905722e0d3def018` |
 | Native run | `01a0bbfb-9159-7813-80ac-7609f5b855da` |
 | Accepted revision | `17cc56664291fe7e712ed1a07f722f2a34674d79` |
-| Delivery | [PR #2](https://github.com/faviann/broodling-first-use-77-20260919/pull/2), opened, targeting `main`, left unmerged |
+| Delivery | PR #2, opened, targeting `main`, left unmerged |
 
 The installed CLI performed source capture, deterministic admission, B1/worktree
 provisioning and dispatch. Its submit process exited, leaving native execution
@@ -108,12 +107,12 @@ the original README text. The documentation-only repository has no test/CI
 infrastructure. This external check did not gate or change disposition and does
 not replace the owner's separate merge decision. The PR remains open/unmerged.
 
-The accepted Git history is retained in
+During validation, the accepted Git history was retained in
 `/srv/broodling-issue77/accepted-result.bundle`; source bytes, Contract, B1,
-receipt/disposition and run correlation remain in its SQLite store. Native state,
-home and the dispatched Broodling workspace remain retained. No dispatched
-workspace was deleted, replaced or reused. Historical P5 targets and evidence
-were untouched.
+receipt/disposition and run correlation remained in its SQLite store. Native
+state, home and the dispatched Broodling workspace were kept through completion
+and evidence review. No dispatched workspace was deleted, replaced or reused
+during validation. Historical P5 targets and evidence were untouched.
 
 ## Tests and secret handling
 
@@ -132,7 +131,19 @@ configuration. The native retained files inspected also contained neither value.
 Only allowlisted nonsecret facts are recorded here; no credential value, digest,
 raw environment, or provider transcript is included.
 
-Remaining limits are the [first-use guide's limits](README.md#retention-and-limitations):
+Remaining limits are the [deployment guide's limits](README.md#retention-and-limitations):
 supervised PR proposals with external review, persistent single-host ownership,
 fixed gateway/runtime, no no-effect stable completion, no dispatched cleanup or
 replacement, and no automatic merge/deployment or semantic reliability claim.
+
+## Environment cleanup
+
+On 20 September 2026, after this evidence was committed, the disposable local
+validation environment was intentionally retired. The exact container and
+untagged image, `/srv/broodling-issue77`, and the dedicated account and home were
+removed. The separate P5 containers, images, state, run evidence and working
+files were not #77 cleanup targets and were left unchanged.
+
+The private validation repository, including issue #1, unmerged PR #2 and its
+branch, was deleted by its owner. No live GitHub or local runtime/deployment
+resource remains for #77.
