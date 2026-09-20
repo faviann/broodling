@@ -108,12 +108,12 @@ the original README text. The documentation-only repository has no test/CI
 infrastructure. This external check did not gate or change disposition and does
 not replace the owner's separate merge decision. The PR remains open/unmerged.
 
-The accepted Git history is retained in
+During validation, the accepted Git history was retained in
 `/srv/broodling-issue77/accepted-result.bundle`; source bytes, Contract, B1,
-receipt/disposition and run correlation remain in its SQLite store. Native state,
-home and the dispatched Broodling workspace remain retained. No dispatched
-workspace was deleted, replaced or reused. Historical P5 targets and evidence
-were untouched.
+receipt/disposition and run correlation remained in its SQLite store. Native
+state, home and the dispatched Broodling workspace were kept through completion
+and evidence review. No dispatched workspace was deleted, replaced or reused
+during validation. Historical P5 targets and evidence were untouched.
 
 ## Tests and secret handling
 
@@ -136,3 +136,16 @@ Remaining limits are the [first-use guide's limits](README.md#retention-and-limi
 supervised PR proposals with external review, persistent single-host ownership,
 fixed gateway/runtime, no no-effect stable completion, no dispatched cleanup or
 replacement, and no automatic merge/deployment or semantic reliability claim.
+
+## Environment cleanup
+
+On 20 September 2026, after this evidence was committed, the disposable local
+validation environment was intentionally retired. The exact container and
+untagged image, `/srv/broodling-issue77` installation/state/workspaces, and
+dedicated `broodling77` account/home were removed. The separate P5 containers,
+images, state, run evidence and working files were not cleanup targets and were
+left unchanged.
+
+The private `faviann/broodling-first-use-77-20260919` repository remains the
+only live validation resource while deletion waits for GitHub's required
+`delete_repo` authorization scope.
