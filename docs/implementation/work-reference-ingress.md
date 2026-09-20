@@ -25,6 +25,16 @@ scoped P5 **FAIL**; it does not establish reliable semantic acceptance.
    effects, missing PR targets and unsatisfied prerequisites stay in rejected
    Contracts. Ingress never repairs a proposal by deleting a requirement.
 
+## Work-reference identity
+
+`WorkReference.parse` canonicalizes the supported HTTPS, SSH, scp-like,
+schemeless `host/owner/repository`, and bare `owner/repository` forms. Repository
+host, owner and name are case-insensitive; an optional `.git` suffix or trailing
+slash does not change identity. The issue may be an integer, decimal string,
+`#n`, or canonical issue URL. These spellings resolve to the same Work Unit.
+Other spellings that the parser happens to tolerate are not a compatibility
+promise.
+
 The required `required_effects` argument is trusted caller authority, including
 when it is explicitly `()`. Ingress requires the proposal to match it exactly;
 the immutable Contract then retains that authority in its `required_effects`
@@ -139,8 +149,8 @@ Under #74, any subsequently delivered PR still needs independent human/operator
 review of its exact revision against the frozen request and Contract, with
 appropriate tests/CI, before a separate merge decision. `SUCCEEDED` is not semantic
 certification. No-effect admission retains the existing unsupported stable-result
-limitation. Invocation composition (#76), deployment packaging (#77), execution
-and P5 evaluation are outside this change.
+limitation. Current invocation and deployment behavior are documented by their
+respective application and operations seams.
 
 The offline ingress tests use retained current Broodling issues
 [#75 and #82](../../tests/fixtures/ingress/README.md), with explicit fixture

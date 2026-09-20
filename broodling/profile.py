@@ -1,4 +1,4 @@
-"""Current product configuration; historical qualification is not a runtime pin."""
+"""Current product configuration and runtime pins."""
 
 from __future__ import annotations
 

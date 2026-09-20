@@ -21,6 +21,4 @@ quality, sandbox strength, or physical cessation.
 
 Fixture runtime state/sockets are disposable and use `/dev/shm`; candidate
 worktrees use the durable test root. Historical custom-graph/evidence/supervisor
-fixtures were removed with those Broodling responsibilities. Their recorded
-qualification evidence remains in [qualification](../../qualification/README.md)
-at its original version.
+fixtures and qualification campaigns are available only in Git history.

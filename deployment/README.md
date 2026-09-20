@@ -1,4 +1,4 @@
-# First single-host installation
+# Supported single-host installation
 
 This is the [#77](https://github.com/faviann/broodling/issues/77) deployment of
 the [#76 invocation API](../docs/implementation/invocation.md), under the
@@ -40,8 +40,8 @@ created by the installer into the target.
 | Execution | Native standard `software-change`, DirectTarget, one `UniformRuntime`, Codex / `gateway` / `gpt-5.6-sol` / medium |
 | Gateway | Exactly `https://cliproxy.local.faviann.com/v1`, with current `GATEWAY_API_KEY` |
 
-The product Dockerfile preserves the compatible
-[P5 target dependencies](../evaluation/p5/direct-target-gh-compatibility.md).
+The product Dockerfile pins the compatible target dependencies used by the
+validated profile.
 OS packages receive distribution updates; rebuilds are not claimed to be
 bit-identical. Each installation retains and uses its exact resulting image ID.
 The actual-container check validates the dependencies used by execution,
@@ -159,7 +159,7 @@ Broodling's frozen request. Native execution/session state can contain credentia
 or private task content: protect and back it up accordingly. This package is
 not a secret broker or a hostile-host security boundary.
 
-## First Work Unit
+## Submit a Work Unit
 
 Choose one self-contained GitHub issue whose entire request is a supported
 software change and one explicitly authorized PR. All prerequisites must be

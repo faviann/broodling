@@ -1,12 +1,12 @@
 """Generated work-reference forms: one canonical identity, no aliasing, fail-closed refusal.
 
-The named matrices in ``test_work_unit_identity`` remain the documentation of
-which ingress forms are supported. These properties cover the space around them:
+The named matrices in ``test_work_unit_identity`` remain the executable examples
+of which ingress forms are supported. These properties cover the space around them:
 every *promised* spelling of one generated reference, pairs of references that
 differ in exactly one canonical component, and malformed input. The generated
-spellings are variations of the ingress v1-P2 §2.1 and those named examples
-promise — not of whatever the current parser tolerates, which a property run
-asserting validity would freeze into a contract.
+spellings are variations of the current work-reference ingress promise and those
+named examples — not of whatever the parser happens to tolerate, which a property
+run asserting validity would freeze into a contract.
 """
 
 from __future__ import annotations
@@ -66,13 +66,11 @@ class CanonicalReference:
     def renderings(self) -> tuple[tuple[str, object], ...]:
         """The promised spellings of this reference, as ``(repository, issue)``.
 
-        Each form is a variation of ingress the product actually promises:
-        `v1-P2 §2.1 <../docs/implementation/v1-p2-admission-nucleus.md>`_ —
-        "HTTPS, SSH, ``scp``-like and bare ``owner/repo`` forms, case differences
-        and a ``.git`` suffix all resolve to one Work Unit" — and the named
-        examples in ``test_work_unit_identity.CanonicalIngressTests``, which add
-        the schemeless ``host/owner/repo`` form, a trailing slash, and the issue
-        spelled as a number, a string, ``#n`` or its canonical issue URL.
+        Each form is a variation of the
+        `current ingress promise <../docs/implementation/work-reference-ingress.md#work-reference-identity>`_:
+        HTTPS, SSH, ``scp``-like, schemeless ``host/owner/repo`` and bare
+        ``owner/repo`` forms; case differences; optional ``.git`` and trailing
+        slash; and the issue as a number, string, ``#n`` or canonical issue URL.
 
         Other spellings today's parser happens to tolerate are deliberately
         absent, so a property run neither promises nor refuses them.

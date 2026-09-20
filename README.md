@@ -12,15 +12,13 @@ or independently re-prove the workflow's result.
 
 ## Source of truth
 
-Start with the [current architecture and P5 plan](docs/governing/current.md).
-It governs current scope, identifies historical documents and defines the next
-phase: native-workflow product evaluation, not the superseded v0.5 assurance
-checklist. The [skeptical P5 review](evaluation/p5/reviews/2026-09-19-issue-66/README.md)
-is complete with a scoped **FAIL** verdict. V6 established the compatible delivery
-boundary but accepted an incorrect T1 result; v5 remains separately blocked by
-infrastructure failure. R02–R08 remain unstarted in both cohorts. No broader
-release decision is inferred. The native integration design below supplies
-implementation details; old gate passes do not qualify this profile.
+Start with the
+[current architecture and operating status](docs/governing/current.md).
+Broodling is post-MVP; completed phase plans and qualification campaigns are not
+current requirements. The concise [P5 outcome](evaluation/p5/README.md) retains
+the scoped **FAIL** that limits use: delivery worked, but the one accepted v6
+change was semantically incorrect. The native integration design below supplies
+implementation details.
 
 ## Current boundary
 
@@ -101,7 +99,8 @@ proposer preserves the whole issue body as a criterion; a general proposer must
 also represent unsupported obligations and unresolved prerequisites. The source
 checkout must be clean and committed with the matching GitHub origin. Supply an
 authenticated `gh` for issue capture and an existing supported DirectTarget with
-the [compatible actual-target GitHub CLI](evaluation/p5/direct-target-gh-compatibility.md).
+the GitHub CLI version/capabilities checked by the
+[deployment package](deployment/README.md).
 Keep the database, runtime state and durable Attempt workspaces outside the source
 checkout. The [deployment package](deployment/README.md) provisions this profile.
 
@@ -193,10 +192,8 @@ The deliberately simple V1 authorized-PR profile uses Zeroshot's standard
 provider through CLIProxyAPI, `gpt-5.6-sol`, medium reasoning effort, and one
 `UniformRuntime` across the workflow. Harness/model selection, per-node runtimes,
 skill/tool capability profiles, fleet orchestration, and node-local OAuth are
-post-V1 concerns. The
-[issue #72 dependency finding](docs/implementation/zeroshot-node-local-authorized-pr-audit.md)
-remains the source-backed starting point for a future node-local OAuth profile;
-it does not block the selected V1 DirectTarget profile.
+outside the supported profile. They require separately scoped design work and do
+not block the selected DirectTarget profile.
 
 For a no-effect Work Unit, Zeroshot 10.3 returns null and leaves only a mutable
 local worktree. Broodling may run that no-effect workflow, but it fails closed at
@@ -218,19 +215,17 @@ explicitly replaced from its original B1.
 Already-completed historical retirements remain recorded facts; unfinished old
 cessation proof cannot authorize new cleanup.
 
-## Tests and history
+## Tests and archived history
 
 The default [test suite](tests/README.md) covers Broodling-owned invariants and
 the published SDK/native seam using a controlled, non-networked provider
 fixture. Gateway policy tests use synthetic credentials and need no real gateway
 access. The suite is not a paid-provider or sandbox qualification campaign.
 
-The [current authority](docs/governing/current.md#documentation-authority)
-classifies current and historical documents explicitly. The
-[source audit](docs/implementation/zeroshot-current-source-audit.md) and
-[result-handoff audit](docs/implementation/zeroshot-result-handoff-audit.md)
-record the dependency investigation leading to the adopted native integration.
-[Qualification records](qualification/README.md),
-[historical governing plans](docs/governing/broodling-implementation-dependency-plan-v0.5.md), and the
-[baseline inventory](docs/baseline/p0-g0-inventory.md) remain historical evidence
-for their recorded versions and profiles; they do not qualify this integration.
+The [current authority](docs/governing/current.md#documentation-authority) names
+the small current document set. Superseded governing designs, qualification
+harnesses and raw evaluation campaigns are available in Git history, including
+the [complete pre-cleanup tree](https://github.com/faviann/broodling/tree/348e1f469c04fecbc24f4088e6eb438a3934e872).
+They define only their recorded revisions and profiles. The retained
+[P5 summary](evaluation/p5/README.md) carries forward the evidence-backed
+limitation relevant to current operation.
