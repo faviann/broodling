@@ -43,10 +43,10 @@ def _json_value(value):
     return value
 
 
-def _configuration(root: Path) -> dict:
+def _configuration(root: Path, *, require_store: bool = True) -> dict:
     # A mistyped root must never initialize a second empty lifecycle store.
     database = root / "state" / "broodling.sqlite3"
-    if not database.is_file() or database.stat().st_size == 0:
+    if require_store and (not database.is_file() or database.stat().st_size == 0):
         raise InstallationError("installed state is missing")
     config = json.loads((root / "config.json").read_text(encoding="utf-8"))
     if not isinstance(config, dict) or set(config) != {"direct_target_origin"}:
@@ -88,6 +88,12 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path, help="installed host root")
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser(
+        "initialize-store", help="create a new application store at this installation"
+    )
+    commands.add_parser(
+        "upgrade-store", help="explicitly migrate a recognized application store"
+    )
     submit = commands.add_parser("submit", help="capture, admit and submit one issue")
     history = commands.add_parser("history", help="read retained revisions for an issue")
     for command in (submit, history):
@@ -146,6 +152,21 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         root = args.root.expanduser().resolve()
+        if args.command in {"initialize-store", "upgrade-store"}:
+            _configuration(root, require_store=False)
+            operation = (
+                BroodlingStore.initialize
+                if args.command == "initialize-store"
+                else BroodlingStore.upgrade
+            )
+            with operation(root / "state" / "broodling.sqlite3") as store:
+                result = {
+                    "operation": args.command,
+                    "store": str(store.path),
+                    "schema": store.schema_meta(),
+                }
+            print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+            return 0
         config = _configuration(root)
         credentials = {}
         if args.command in {"submit", "resume"}:
@@ -173,16 +194,23 @@ def main(argv: list[str] | None = None) -> int:
         # Provider/transport exceptions may contain live credential values.
         # Durable facts remain discoverable without exposing those diagnostics.
         quarantined = isinstance(error, CessationUnconfirmed)
-        print(json.dumps({
-            "error": type(error).__name__,
-            "message": (
+        store_command = args.command in {"initialize-store", "upgrade-store"}
+        if quarantined:
+            message = (
                 "Attempt abandoned; physical cessation is unconfirmed. Retain its "
                 "worktree in quarantine; cleanup and replacement are unauthorized. "
                 "Inspect history/status."
-                if quarantined else
+            )
+        elif store_command:
+            message = f"{error}. Existing state was not replaced."
+        else:
+            message = (
                 "Command failed. Check installation and command inputs; inspect "
                 "history/status for retained authority before resuming."
-            ),
+            )
+        print(json.dumps({
+            "error": type(error).__name__,
+            "message": message,
         }), file=sys.stderr)
         return 3 if quarantined else 1
 

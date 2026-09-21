@@ -174,7 +174,7 @@ def temporary_store():
 
     root = Path(tempfile.mkdtemp(prefix="broodling-properties-"))
     try:
-        with BroodlingStore.open(root / "state" / "broodling.sqlite3") as store:
+        with BroodlingStore.initialize(root / "state" / "broodling.sqlite3") as store:
             yield store
     finally:
         shutil.rmtree(root, ignore_errors=True)

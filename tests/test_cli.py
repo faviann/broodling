@@ -12,11 +12,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from schema_support import restore_published_schema
 from support import StoreTestCase, durable_test_root, git, make_repository
 from zeroshot import RunResult
 
 from broodling import BroodlingStore
 from broodling.cli import main
+from broodling.schema import SCHEMA_VERSION
 from broodling.zeroshot_sdk import V1_GATEWAY_BASE_URL
 
 
@@ -143,6 +145,72 @@ class OperatorCLITests(OperatorCLIBase):
                 app.assert_not_called()
 
 
+class OperatorStoreLifecycleTests(OperatorCLIBase):
+    def invoke_at(self, root, *arguments):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = main(["--root", str(root), *arguments])
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_normal_command_refuses_missing_store_then_operator_can_initialize(self):
+        root = self.root / "fresh-install"
+        root.mkdir()
+        (root / "config.json").write_text(json.dumps({
+            "direct_target_origin": "http://127.0.0.1:8123",
+        }))
+        database = root / "state" / "broodling.sqlite3"
+
+        code, output, diagnostics = self.invoke_at(
+            root, "history", "--repository", "faviann/broodling", "--issue", "12"
+        )
+        self.assertEqual(code, 1)
+        self.assertEqual(output, "")
+        self.assertEqual(json.loads(diagnostics)["error"], "InstallationError")
+        self.assertFalse(database.exists())
+
+        with patch("broodling.cli.ZeroshotSubmitter") as submitter:
+            code, output, diagnostics = self.invoke_at(root, "initialize-store")
+        self.assertEqual(code, 0, diagnostics)
+        self.assertEqual(diagnostics, "")
+        self.assertEqual(
+            json.loads(output)["schema"]["schema_version"], str(SCHEMA_VERSION)
+        )
+        submitter.assert_not_called()
+
+        code, output, diagnostics = self.invoke_at(
+            root, "history", "--repository", "faviann/broodling", "--issue", "12"
+        )
+        self.assertEqual(code, 0, diagnostics)
+        self.assertEqual(json.loads(output), [])
+
+    def test_operator_upgrade_command_explicitly_upgrades_known_state(self):
+        restore_published_schema(self.store, 9)
+        self.store.close()
+
+        with patch("broodling.cli.ZeroshotSubmitter") as submitter:
+            code, output, diagnostics = self.invoke("upgrade-store")
+
+        self.assertEqual(code, 0, diagnostics)
+        self.assertEqual(diagnostics, "")
+        self.assertEqual(
+            json.loads(output)["schema"]["schema_version"], str(SCHEMA_VERSION)
+        )
+        submitter.assert_not_called()
+
+    def test_initialize_command_refuses_existing_state_without_changing_it(self):
+        original = self.store_path.read_bytes()
+
+        code, output, diagnostics = self.invoke("initialize-store")
+
+        self.assertEqual(code, 1)
+        self.assertEqual(output, "")
+        error = json.loads(diagnostics)
+        self.assertEqual(error["error"], "FileExistsError")
+        self.assertIn("Existing state was not replaced", error["message"])
+        self.assertEqual(self.store_path.read_bytes(), original)
+
+
 class OperatorLifecycleTests(OperatorCLIBase):
     """Real local services, controlled GitHub/SDK effects, repeated CLI calls."""
 
@@ -156,7 +224,7 @@ class OperatorLifecycleTests(OperatorCLIBase):
         (self.root / "config.json").write_text(json.dumps({
             "direct_target_origin": "http://127.0.0.1:8123",
         }))
-        with BroodlingStore.open(self.root / "state" / "broodling.sqlite3"):
+        with BroodlingStore.initialize(self.root / "state" / "broodling.sqlite3"):
             pass
         self.repository = self.host / "source"
         make_repository(self.repository)

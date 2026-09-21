@@ -1,5 +1,7 @@
 """Upgrade the exact published #13 schema without changing its durable facts."""
 
+import sqlite3
+
 from schema_support import restore_published_schema
 from submission_support import SubmissionCase
 
@@ -28,7 +30,7 @@ class SubmissionMigrationTests(SubmissionCase):
             ]
             for name in tables
         }
-        self.restart()
+        self.upgrade()
         self.assertEqual(
             self.store.schema_meta()["schema_version"], str(SCHEMA_VERSION)
         )
@@ -48,13 +50,31 @@ class SubmissionMigrationTests(SubmissionCase):
         self.restart()
         self.assertEqual(self.coordinator.record(self.attempt_id).state, "prepared")
 
+    def test_open_refuses_a_known_historical_schema_without_migrating_it(self):
+        self.make_v2()
+        self.store.close()
+        original = self.store_path.read_bytes()
+
+        with self.assertRaises(SchemaVersionMismatch):
+            BroodlingStore.open(self.store_path)
+
+        self.assertEqual(self.store_path.read_bytes(), original)
+        with sqlite3.connect(self.store_path) as database:
+            metadata = dict(database.execute("SELECT key, value FROM schema_meta"))
+            self.assertEqual(metadata["schema_version"], "2")
+            self.assertIsNone(
+                database.execute(
+                    "SELECT 1 FROM sqlite_schema WHERE name = 'attempt_submissions'"
+                ).fetchone()
+            )
+
     def test_unrecognized_v2_definition_is_not_migrated(self):
         self.make_v2()
         self.store.connection.execute(
             "UPDATE schema_meta SET value = 'foreign' WHERE key = 'schema_sha256'"
         )
         with self.assertRaises(SchemaVersionMismatch):
-            BroodlingStore.open(self.store_path)
+            BroodlingStore.upgrade(self.store_path)
         self.assertFalse(
             self.store.connection.execute(
                 "SELECT name FROM sqlite_schema WHERE name = 'attempt_submissions'"

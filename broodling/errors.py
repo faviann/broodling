@@ -37,7 +37,7 @@ class UnknownRecord(BroodlingError):
 
 
 class SchemaVersionMismatch(BroodlingError):
-    """The opened database was not written by this schema version."""
+    """The store is missing, unrecognized or incompatible with this schema."""
 
 
 class StoreLocationError(BroodlingError):

@@ -259,7 +259,7 @@ class AbandonmentFoundationTests(AttemptTestCase):
                 tuple(row) for row in connection.execute(f"SELECT * FROM {table}")
             ]
         restore_published_schema(self.store, 4)
-        with BroodlingStore.open(self.store_path) as upgraded:
+        with BroodlingStore.upgrade(self.store_path) as upgraded:
             self.assertEqual(
                 upgraded.schema_meta()["schema_version"], str(SCHEMA_VERSION)
             )
@@ -279,15 +279,15 @@ class AbandonmentFoundationTests(AttemptTestCase):
                 "{}",
             )
 
-    def test_concurrent_v4_openers_migrate_once(self):
+    def test_concurrent_v4_upgraders_migrate_once(self):
         restore_published_schema(self.store, 4)
 
-        def reopen(_):
-            with BroodlingStore.open(self.store_path) as store:
+        def upgrade(_):
+            with BroodlingStore.upgrade(self.store_path) as store:
                 return store.schema_meta()
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            results = list(pool.map(reopen, range(2)))
+            results = list(pool.map(upgrade, range(2)))
         self.assertEqual(results[0], results[1])
         self.assertEqual(results[0]["schema_version"], str(SCHEMA_VERSION))
 
@@ -297,7 +297,7 @@ class AbandonmentFoundationTests(AttemptTestCase):
             "UPDATE schema_meta SET value = 'foreign' WHERE key = 'schema_sha256'"
         )
         with self.assertRaises(SchemaVersionMismatch):
-            BroodlingStore.open(self.store_path)
+            BroodlingStore.upgrade(self.store_path)
         self.assertIsNone(
             self.store.connection.execute(
                 "SELECT name FROM sqlite_schema WHERE name = 'attempt_abandonments'"

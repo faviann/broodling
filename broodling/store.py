@@ -280,24 +280,76 @@ class BroodlingStore:
 
     @classmethod
     def open(cls, path: Path | str) -> BroodlingStore:
-        """Open or create the store at ``path`` and bring the schema up."""
+        """Open an existing current store; never create or upgrade it."""
+
+        store = cls._connect_existing(path)
+        try:
+            store._require_current_schema()
+            store._configure_connection()
+            store._enable_wal()
+            return store
+        except BaseException:
+            store.close()
+            raise
+
+    @classmethod
+    def initialize(cls, path: Path | str) -> BroodlingStore:
+        """Create a current store at a new path, refusing every existing file."""
 
         assert_supported_runtime()
-        target = Path(path).expanduser()
+        target = cls._target_path(path)
         assert_outside_disposable_worktree(target)
         target.parent.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(target, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o666)
+        os.close(descriptor)
         connection = sqlite3.connect(target, isolation_level=None)
         connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA journal_mode = WAL")
-        connection.execute("PRAGMA synchronous = FULL")
-        # Two processes admitting the same Work Unit must serialize on the
-        # write lock and let the loser observe the winner's committed row, not
-        # fail with "database is locked" and retry into an unclear state.
-        connection.execute("PRAGMA busy_timeout = 10000")
         store = cls(connection, target)
-        store._initialize_schema()
-        return store
+        try:
+            store._initialize_schema()
+            store._configure_connection()
+            store._enable_wal()
+            return store
+        except BaseException:
+            try:
+                if connection.in_transaction:
+                    connection.execute("ROLLBACK")
+            finally:
+                store.close()
+            raise
+
+    @classmethod
+    def upgrade(cls, path: Path | str) -> BroodlingStore:
+        """Explicitly upgrade a recognized historical store to this schema."""
+
+        store = cls._connect_existing(path)
+        try:
+            store._configure_connection()
+            store._upgrade_schema()
+            store._enable_wal()
+            return store
+        except BaseException:
+            store.close()
+            raise
+
+    @staticmethod
+    def _target_path(path: Path | str) -> Path:
+        return Path(path).expanduser().absolute()
+
+    @classmethod
+    def _connect_existing(cls, path: Path | str) -> BroodlingStore:
+        assert_supported_runtime()
+        target = cls._target_path(path)
+        assert_outside_disposable_worktree(target)
+        if not target.is_file():
+            raise SchemaVersionMismatch(
+                f"store at {target} does not exist; initialize it explicitly"
+            )
+        connection = sqlite3.connect(
+            target.as_uri() + "?mode=rw", uri=True, isolation_level=None
+        )
+        connection.row_factory = sqlite3.Row
+        return cls(connection, target)
 
     def close(self) -> None:
         self._connection.close()
@@ -315,29 +367,27 @@ class BroodlingStore:
         return self._connection
 
     def _initialize_schema(self) -> None:
-        existing = self._connection.execute(
-            "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'schema_meta'"
-        ).fetchone()
-        if existing is None:
-            # `executescript` cannot be nested inside a Python-managed
-            # transaction, so the script opens its own; SQLite DDL is
-            # transactional, which keeps initialization all-or-nothing.
-            self._connection.executescript("BEGIN IMMEDIATE;\n" + SCHEMA_SQL)
-            try:
-                self._connection.executemany(
-                    "INSERT INTO schema_meta (key, value) VALUES (?, ?)",
-                    [
-                        ("schema_version", str(SCHEMA_VERSION)),
-                        ("schema_sha256", SCHEMA_SHA256),
-                        ("initialized_at", _now()),
-                    ],
-                )
-            except BaseException:
-                self._connection.execute("ROLLBACK")
-                raise
-            self._connection.execute("COMMIT")
-            return
-        meta = self.schema_meta()
+        # ``initialize`` reserves the new database path exclusively before
+        # connecting, so this transaction can only create a fresh store.
+        # `executescript` cannot be nested inside a Python-managed transaction;
+        # SQLite DDL remains all-or-nothing inside this explicit transaction.
+        self._connection.executescript("BEGIN IMMEDIATE;\n" + SCHEMA_SQL)
+        try:
+            self._connection.executemany(
+                "INSERT INTO schema_meta (key, value) VALUES (?, ?)",
+                [
+                    ("schema_version", str(SCHEMA_VERSION)),
+                    ("schema_sha256", SCHEMA_SHA256),
+                    ("initialized_at", _now()),
+                ],
+            )
+        except BaseException:
+            self._connection.execute("ROLLBACK")
+            raise
+        self._connection.execute("COMMIT")
+
+    def _upgrade_schema(self) -> None:
+        meta = self._read_schema_meta()
         migrations = {
             "2": (
                 V2_SCHEMA_SHA256,
@@ -362,29 +412,61 @@ class BroodlingStore:
         migrations["7"] = (V7_SCHEMA_SHA256, DISPOSITION_SQL)
         migrations["8"] = (V8_SCHEMA_SHA256, RESULT_MIGRATION_SQL)
         migrations["9"] = (V9_SCHEMA_SHA256, DELIVERY_RESULT_MIGRATION_SQL)
-        if meta.get("schema_version") in migrations:
-            # Acquire before rereading: concurrent openers must migrate once.
+        migration = migrations.get(meta.get("schema_version"))
+        if migration is not None and meta.get("schema_sha256") == migration[0]:
+            # Acquire before rereading: concurrent explicit upgrades converge.
             with self._write() as connection:
-                current = self.schema_meta()
-                migration = migrations.get(current.get("schema_version"))
-                if (
-                    migration is not None
-                    and current.get("schema_sha256") == migration[0]
-                ):
-                    statement = ""
-                    for line in migration[1].splitlines(keepends=True):
-                        statement += line
-                        if sqlite3.complete_statement(statement):
-                            connection.execute(statement)
-                            statement = ""
-                    connection.executemany(
-                        "UPDATE schema_meta SET value = ? WHERE key = ?",
-                        [
-                            (str(SCHEMA_VERSION), "schema_version"),
-                            (SCHEMA_SHA256, "schema_sha256"),
-                        ],
-                    )
-            meta = self.schema_meta()
+                current = self._read_schema_meta()
+                if current.get("schema_version") == str(SCHEMA_VERSION):
+                    self._require_current_schema(current)
+                else:
+                    migration = migrations.get(current.get("schema_version"))
+                    if (
+                        migration is None
+                        or current.get("schema_sha256") != migration[0]
+                    ):
+                        self._require_current_schema(current)
+                    else:
+                        statement = ""
+                        for line in migration[1].splitlines(keepends=True):
+                            statement += line
+                            if sqlite3.complete_statement(statement):
+                                connection.execute(statement)
+                                statement = ""
+                        connection.executemany(
+                            "UPDATE schema_meta SET value = ? WHERE key = ?",
+                            [
+                                (str(SCHEMA_VERSION), "schema_version"),
+                                (SCHEMA_SHA256, "schema_sha256"),
+                            ],
+                        )
+            meta = self._read_schema_meta()
+        self._require_current_schema(meta)
+
+    def _read_schema_meta(self) -> dict[str, str]:
+        try:
+            existing = self._connection.execute(
+                "SELECT name FROM sqlite_schema "
+                "WHERE type = 'table' AND name = 'schema_meta'"
+            ).fetchone()
+        except sqlite3.DatabaseError as error:
+            raise SchemaVersionMismatch(
+                f"store at {self.path} is not a readable SQLite database"
+            ) from error
+        if existing is None:
+            raise SchemaVersionMismatch(
+                f"store at {self.path} is not a recognized Broodling store"
+            )
+        try:
+            return self.schema_meta()
+        except sqlite3.DatabaseError as error:
+            raise SchemaVersionMismatch(
+                f"store at {self.path} has unreadable Broodling schema metadata"
+            ) from error
+
+    def _require_current_schema(self, meta: dict[str, str] | None = None) -> None:
+        if meta is None:
+            meta = self._read_schema_meta()
         if meta.get("schema_version") != str(SCHEMA_VERSION):
             raise SchemaVersionMismatch(
                 f"store at {self.path} has schema version "
@@ -395,6 +477,17 @@ class BroodlingStore:
                 f"store at {self.path} was initialized from a different schema "
                 f"definition ({meta.get('schema_sha256')!r})"
             )
+
+    def _configure_connection(self) -> None:
+        self._connection.execute("PRAGMA foreign_keys = ON")
+        self._connection.execute("PRAGMA synchronous = FULL")
+        # Two processes admitting the same Work Unit must serialize on the
+        # write lock and let the loser observe the winner's committed row, not
+        # fail with "database is locked" and retry into an unclear state.
+        self._connection.execute("PRAGMA busy_timeout = 10000")
+
+    def _enable_wal(self) -> None:
+        self._connection.execute("PRAGMA journal_mode = WAL")
 
     def schema_meta(self) -> dict[str, str]:
         rows = self._connection.execute("SELECT key, value FROM schema_meta").fetchall()

@@ -94,7 +94,7 @@ class DurableStoreMachine(RuleBasedStateMachine):
         super().__init__()
         self.root = Path(tempfile.mkdtemp(prefix="broodling-machine-store-"))
         self.store_path = self.root / "state" / "broodling.sqlite3"
-        self.store = BroodlingStore.open(self.store_path)
+        self.store = BroodlingStore.initialize(self.store_path)
         #: reference key -> the Work Unit id it resolved to.
         self.identities: dict[str, str] = {}
         #: revision id -> the canonical bytes first recorded for it.

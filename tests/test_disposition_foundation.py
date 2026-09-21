@@ -14,7 +14,7 @@ from support import work_reference
 from broodling import BroodlingStore, RequiredEffect, SchemaVersionMismatch
 from broodling.disposition import WorkUnitDispositionCoordinator
 from broodling.errors import SubmissionNotReady
-from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION
+from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION, V9_SCHEMA_SHA256
 from broodling.zeroshot_sdk import V1_GATEWAY_BASE_URL
 
 
@@ -85,7 +85,7 @@ class DispositionFoundationTests(SubmissionCase):
             )
         }
         restore_published_schema(self.store, 7)
-        self.restart()
+        self.upgrade()
         self.assertEqual(
             self.store.schema_meta()["schema_version"], str(SCHEMA_VERSION)
         )
@@ -107,15 +107,15 @@ class DispositionFoundationTests(SubmissionCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.insert_disposition()
 
-    def test_concurrent_v7_openers_migrate_once(self):
+    def test_concurrent_v7_upgraders_migrate_once(self):
         restore_published_schema(self.store, 7)
 
-        def open_store(_):
-            with BroodlingStore.open(self.store_path) as store:
+        def upgrade_store(_):
+            with BroodlingStore.upgrade(self.store_path) as store:
                 return store.schema_meta()
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            records = list(pool.map(open_store, range(2)))
+            records = list(pool.map(upgrade_store, range(2)))
         self.assertEqual(records[0], records[1])
         self.assertEqual(records[0]["schema_sha256"], SCHEMA_SHA256)
 
@@ -131,7 +131,7 @@ class DispositionFoundationTests(SubmissionCase):
         before = WorkUnitDispositionCoordinator(self.store, self.adapter).record(
             self.attempt_id
         )
-        self.restart()
+        self.upgrade()
         self.assertEqual(self.store.schema_meta()["schema_sha256"], SCHEMA_SHA256)
         self.assertEqual(
             WorkUnitDispositionCoordinator(self.store, self.adapter).record(
@@ -155,7 +155,7 @@ class DispositionFoundationTests(SubmissionCase):
             (self.attempt_id,),
         )
         self.custody(format="broodling.final-assurance/v1")
-        self.restart()
+        self.upgrade()
         with self.assertRaises(sqlite3.IntegrityError):
             self.insert_disposition()
         self.assertIsNone(
@@ -172,7 +172,7 @@ class DispositionFoundationTests(SubmissionCase):
         before = WorkUnitDispositionCoordinator(self.store, self.adapter).record(
             self.attempt_id
         )
-        self.restart()
+        self.upgrade()
         self.assertEqual(
             self.store.schema_meta()["schema_version"], str(SCHEMA_VERSION)
         )
@@ -184,13 +184,58 @@ class DispositionFoundationTests(SubmissionCase):
             before,
         )
 
+    def test_interrupted_v9_upgrade_rolls_back_and_remains_explicit(self):
+        restore_published_schema(self.store, 9)
+        self.store.close()
+        original = self.store_path.read_bytes()
+        connect = sqlite3.connect
+
+        def deny_trigger_creation(*args, **kwargs):
+            connection = connect(*args, **kwargs)
+            connection.set_authorizer(
+                lambda action, _arg1, _arg2, _database, _trigger: (
+                    sqlite3.SQLITE_DENY
+                    if action == sqlite3.SQLITE_CREATE_TRIGGER
+                    else sqlite3.SQLITE_OK
+                )
+            )
+            return connection
+
+        with (
+            patch("broodling.store.sqlite3.connect", side_effect=deny_trigger_creation),
+            self.assertRaises(sqlite3.DatabaseError),
+        ):
+            BroodlingStore.upgrade(self.store_path)
+
+        self.assertEqual(self.store_path.read_bytes(), original)
+        database = sqlite3.connect(self.store_path)
+        try:
+            metadata = dict(database.execute("SELECT key, value FROM schema_meta"))
+            self.assertEqual(metadata["schema_version"], "9")
+            self.assertEqual(metadata["schema_sha256"], V9_SCHEMA_SHA256)
+            self.assertIsNotNone(
+                database.execute(
+                    "SELECT 1 FROM sqlite_schema "
+                    "WHERE type = 'trigger' AND name = 'work_unit_dispositions_bound'"
+                ).fetchone()
+            )
+        finally:
+            database.close()
+
+        with self.assertRaises(SchemaVersionMismatch):
+            BroodlingStore.open(self.store_path)
+        self.store = BroodlingStore.upgrade(self.store_path)
+        self.assertEqual(
+            self.store.schema_meta()["schema_version"], str(SCHEMA_VERSION)
+        )
+
     def test_unknown_v7_definition_cannot_gain_disposition_tables(self):
         restore_published_schema(self.store, 7)
         self.store.connection.execute(
             "UPDATE schema_meta SET value = 'foreign' WHERE key = 'schema_sha256'"
         )
         with self.assertRaises(SchemaVersionMismatch):
-            BroodlingStore.open(self.store_path)
+            BroodlingStore.upgrade(self.store_path)
         self.assertIsNone(
             self.store.connection.execute(
                 "SELECT name FROM sqlite_schema WHERE name = 'work_unit_dispositions'"
