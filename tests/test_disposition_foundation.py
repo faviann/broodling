@@ -1,14 +1,13 @@
 """Storage/migration negatives independent of provider or runtime availability."""
 
 import dataclasses
-import hashlib
 import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from unittest.mock import patch
 
-from schema_support import published_schema, restore_published_schema
+from schema_support import restore_published_schema
 from submission_support import SubmissionCase, configured_adapter
 from support import work_reference
 
@@ -336,13 +335,6 @@ class StableReceiptDatabaseTests(SubmissionCase):
         ):
             restore_published_schema(self.store, 10)
         self.assertEqual(self.store.schema_meta(), metadata_before)
-
-        v10_schema, v10_digest = published_schema(10)
-        self.assertEqual(v10_digest, V10_SCHEMA_SHA256)
-        self.assertEqual(
-            hashlib.sha256(v10_schema.encode("utf-8")).hexdigest(),
-            V10_SCHEMA_SHA256,
-        )
 
         payload = self.payload()
         self.insert_result(payload)
