@@ -60,6 +60,7 @@ from .schema import (
     RESULT_MIGRATION_SQL,
     RETIREMENT_SQL,
     RETRY_SQL,
+    RESULT_CARDINALITY_MIGRATION_SQL,
     SCHEMA_SHA256,
     SCHEMA_SQL,
     SCHEMA_VERSION,
@@ -72,6 +73,7 @@ from .schema import (
     V7_SCHEMA_SHA256,
     V8_SCHEMA_SHA256,
     V9_SCHEMA_SHA256,
+    V10_SCHEMA_SHA256,
 )
 from .starting_state import StartingState, admitted_material_digest
 from .workspace import (
@@ -410,8 +412,15 @@ class BroodlingStore:
             for version, (digest, sql) in migrations.items()
         }
         migrations["7"] = (V7_SCHEMA_SHA256, DISPOSITION_SQL)
-        migrations["8"] = (V8_SCHEMA_SHA256, RESULT_MIGRATION_SQL)
-        migrations["9"] = (V9_SCHEMA_SHA256, DELIVERY_RESULT_MIGRATION_SQL)
+        migrations["8"] = (
+            V8_SCHEMA_SHA256,
+            RESULT_MIGRATION_SQL + RESULT_CARDINALITY_MIGRATION_SQL,
+        )
+        migrations["9"] = (
+            V9_SCHEMA_SHA256,
+            DELIVERY_RESULT_MIGRATION_SQL + RESULT_CARDINALITY_MIGRATION_SQL,
+        )
+        migrations["10"] = (V10_SCHEMA_SHA256, RESULT_CARDINALITY_MIGRATION_SQL)
         migration = migrations.get(meta.get("schema_version"))
         if migration is not None and meta.get("schema_sha256") == migration[0]:
             # Acquire before rereading: concurrent explicit upgrades converge.

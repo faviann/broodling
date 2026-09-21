@@ -1,62 +1,4 @@
-"""The Broodling-owned SQLite schema.
 
-Scope discipline: this schema holds Work Unit identity, entitled source
-snapshots, immutable Contract revisions, admission decisions, and the immutable
-Attempt/B1/worktree-ownership records that admission allocates. It is
-deliberately *not* a Zeroshot RunLedger mirror — there is no table for runs, node
-occurrences, provider sessions, candidate seals or effect intents. A
-Zeroshot-produced delivery receipt is retained as the final result, but there are no
-completed-occurrence projections. One final_assurance row retains a successful
-run's stable result (or historical evidence) for its exact Attempt. An immutable
-disposition references that custody, without tracking the lifetime of callers
-waiting for results. Immutable abandonment removes current authority without
-asserting runtime cessation.
-
-Immutability is enforced in the database, not only in Python: append-only tables
-carry ``BEFORE UPDATE``/``BEFORE DELETE`` triggers, so a direct SQL amendment of
-an admitted Contract, or a rebinding of an Attempt to another Contract revision,
-aborts. Exclusivity is enforced the same way: one current Attempt per Work Unit
-is a partial unique index, and one owner per worktree path/branch is a unique
-constraint, so two racing writers cannot both win.
-"""
-
-from __future__ import annotations
-
-import hashlib
-
-SCHEMA_VERSION = 11
-# SHA-256 of the v10 DDL, accepted only by the explicit upgrade path.
-V10_SCHEMA_SHA256 = "012626aba1930ac0fc62159f09dc7875ee6380323dda44fa2dac87845c60e6f2"
-V9_SCHEMA_SHA256 = "6a81e64fd6cc9136792cfdbd9e06dcc00309384d0d244f68d3a8024ca3b256d8"
-V8_SCHEMA_SHA256 = "0f1935c42baada28b56ad626bbd5c416118d98c9911fcf5949c58aa26127abf6"
-V7_SCHEMA_SHA256 = "3aa00171fa58a56034c501433606eefb49d89f382393327728fbe6265a07b603"
-V6_SCHEMA_SHA256 = "f0177a07384d8546a9d8f7971015e1b0d2a399215557882b9b2f10c2fe6fd195"
-V5_SCHEMA_SHA256 = "8dfd3296120e6d859a77a4cb1141c3cca73dbe09836372791d36cafa91c8d1d5"
-V4_SCHEMA_SHA256 = "f0971db85da6eb32727725b2163f96167576b8bf29a55fcc3d75c263b8961697"
-V3_SCHEMA_SHA256 = "663acf981b7b5379bde50f9446d12bee922c81bcbdcc1b4e7f15f6c4e5ea007f"
-V2_SCHEMA_SHA256 = "bbd7b68bdc66e6bc626f6f5d556e0efa3c9398476eb78b3f3ad75400ade29779"
-
-#: Tables this schema owns. The set is asserted by the tests, so a RunLedger
-#: mirror cannot be added without the boundary test failing.
-TABLES: tuple[str, ...] = (
-    "admission_decisions",
-    "attempt_abandonments",
-    "attempt_retirements",
-    "attempt_retries",
-    "attempt_submissions",
-    "attempts",
-    "contract_revisions",
-    "contract_source_attributions",
-    "entitled_sources",
-    "final_assurance",
-    "schema_meta",
-    "work_unit_dispositions",
-    "work_unit_submissions",
-    "work_units",
-    "worktree_assignments",
-)
-
-SCHEMA_SQL = """
 CREATE TABLE schema_meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -280,9 +222,7 @@ CREATE TRIGGER worktree_assignments_no_delete BEFORE DELETE ON worktree_assignme
 BEGIN
     SELECT RAISE(ABORT, 'worktree ownership is durable');
 END;
-"""
 
-SUBMISSION_SQL = """
 CREATE TABLE attempt_submissions (
     attempt_id TEXT PRIMARY KEY REFERENCES attempts (attempt_id),
     submission_key TEXT NOT NULL UNIQUE,
@@ -309,9 +249,7 @@ CREATE TRIGGER attempt_submissions_no_delete BEFORE DELETE ON attempt_submission
 BEGIN
     SELECT RAISE(ABORT, 'submission identity is durable');
 END;
-"""
 
-ASSURANCE_SQL = """
 CREATE TABLE final_assurance (
     attempt_id TEXT PRIMARY KEY REFERENCES attempts (attempt_id),
     zeroshot_run_id TEXT NOT NULL UNIQUE,
@@ -346,9 +284,7 @@ CREATE TRIGGER final_assurance_no_delete BEFORE DELETE ON final_assurance
 BEGIN
     SELECT RAISE(ABORT, 'final assurance custody is durable');
 END;
-"""
 
-ABANDONMENT_SQL = """
 CREATE TABLE attempt_abandonments (
     attempt_id TEXT PRIMARY KEY REFERENCES attempts (attempt_id),
     reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
@@ -424,9 +360,7 @@ WHEN NOT EXISTS (
 BEGIN
     SELECT RAISE(ABORT, 'only a current Attempt may acknowledge provisioning');
 END;
-"""
 
-RETIREMENT_SQL = """
 CREATE TABLE attempt_retirements (
     attempt_id TEXT PRIMARY KEY REFERENCES attempt_abandonments (attempt_id),
     ceased_at TEXT NOT NULL,
@@ -454,9 +388,7 @@ CREATE TRIGGER attempt_retirements_no_delete BEFORE DELETE ON attempt_retirement
 BEGIN
     SELECT RAISE(ABORT, 'cessation and retirement facts are durable');
 END;
-"""
 
-RETRY_SQL = """
 CREATE TABLE attempt_retries (
     retry_id TEXT PRIMARY KEY CHECK (length(trim(retry_id)) > 0),
     predecessor_attempt_id TEXT NOT NULL UNIQUE REFERENCES attempt_retirements (attempt_id),
@@ -521,24 +453,15 @@ AND NOT EXISTS (
 BEGIN
     SELECT RAISE(ABORT, 'an abandoned Work Unit requires explicit safe replacement authority');
 END;
-"""
 
-DISPOSITION_TABLE_SQL = """
 CREATE TABLE work_unit_dispositions (
-    work_unit_id TEXT NOT NULL REFERENCES work_units (work_unit_id),
+    work_unit_id TEXT PRIMARY KEY REFERENCES work_units (work_unit_id),
     contract_revision_id TEXT NOT NULL REFERENCES contract_revisions (contract_revision_id),
-    attempt_id TEXT PRIMARY KEY NOT NULL REFERENCES final_assurance (attempt_id),
+    attempt_id TEXT NOT NULL UNIQUE REFERENCES final_assurance (attempt_id),
     outcome TEXT NOT NULL CHECK (outcome = 'SUCCEEDED'),
     completed_at TEXT NOT NULL
 ) STRICT;
-"""
 
-DISPOSITION_WORK_UNIT_INDEX_SQL = """
-CREATE INDEX work_unit_dispositions_by_work_unit
-    ON work_unit_dispositions (work_unit_id);
-"""
-
-DISPOSITION_BOUND_SQL = """
 CREATE TRIGGER work_unit_dispositions_bound BEFORE INSERT ON work_unit_dispositions
 WHEN NOT EXISTS (
     SELECT 1 FROM attempts AS a
@@ -594,25 +517,20 @@ WHEN NOT EXISTS (
 BEGIN
     SELECT RAISE(ABORT, 'disposition requires the current PR-authorized Attempt and matching stable Zeroshot receipt');
 END;
-"""
 
-ATTEMPT_ABANDONMENTS_NO_COMPLETED_SQL = """
 CREATE TRIGGER attempt_abandonments_no_completed BEFORE INSERT ON attempt_abandonments
 WHEN EXISTS (SELECT 1 FROM work_unit_dispositions WHERE attempt_id = NEW.attempt_id)
 BEGIN
     SELECT RAISE(ABORT, 'completed disposition cannot be abandoned');
 END;
-"""
 
-ATTEMPTS_NO_COMPLETED_WORK_UNIT_SQL = """
 CREATE TRIGGER attempts_no_completed_work_unit BEFORE INSERT ON attempts
 WHEN EXISTS (SELECT 1 FROM work_unit_dispositions WHERE work_unit_id = NEW.work_unit_id)
 BEGIN
     SELECT RAISE(ABORT, 'completed Work Unit cannot acquire new Attempt authority');
 END;
-"""
 
-ATTEMPTS_DISPOSITION_IMMUTABILITY_SQL = """
+DROP TRIGGER attempts_no_update;
 CREATE TRIGGER attempts_no_update BEFORE UPDATE ON attempts
 WHEN OLD.attempt_id <> NEW.attempt_id
   OR OLD.work_unit_id <> NEW.work_unit_id
@@ -628,112 +546,22 @@ WHEN OLD.attempt_id <> NEW.attempt_id
 BEGIN
     SELECT RAISE(ABORT, 'Attempt bindings are immutable; only abandonment or disposition removes currentness');
 END;
-"""
 
-DISPOSITION_REMOVE_CURRENT_SQL = """
 CREATE TRIGGER work_unit_dispositions_remove_current AFTER INSERT ON work_unit_dispositions
 BEGIN
     UPDATE attempts SET is_current = 0 WHERE attempt_id = NEW.attempt_id;
 END;
-"""
 
-DISPOSITION_ROW_GUARDS_SQL = ""
-for _table, _identity in (
-    (
-        "work_unit_dispositions",
-        "attempt_id = NEW.attempt_id",
-    ),
-):
-    DISPOSITION_ROW_GUARDS_SQL += f"""
-CREATE TRIGGER {_table}_no_replace BEFORE INSERT ON {_table}
-WHEN EXISTS (SELECT 1 FROM {_table} WHERE {_identity})
+CREATE TRIGGER work_unit_dispositions_no_replace BEFORE INSERT ON work_unit_dispositions
+WHEN EXISTS (SELECT 1 FROM work_unit_dispositions WHERE work_unit_id = NEW.work_unit_id OR attempt_id = NEW.attempt_id)
 BEGIN
-    SELECT RAISE(ABORT, '{_table} cannot be replaced');
+    SELECT RAISE(ABORT, 'work_unit_dispositions cannot be replaced');
 END;
-CREATE TRIGGER {_table}_no_update BEFORE UPDATE ON {_table}
+CREATE TRIGGER work_unit_dispositions_no_update BEFORE UPDATE ON work_unit_dispositions
 BEGIN
-    SELECT RAISE(ABORT, '{_table} is immutable');
+    SELECT RAISE(ABORT, 'work_unit_dispositions is immutable');
 END;
-CREATE TRIGGER {_table}_no_delete BEFORE DELETE ON {_table}
+CREATE TRIGGER work_unit_dispositions_no_delete BEFORE DELETE ON work_unit_dispositions
 BEGIN
-    SELECT RAISE(ABORT, '{_table} is durable');
+    SELECT RAISE(ABORT, 'work_unit_dispositions is durable');
 END;
-"""
-
-DISPOSITION_SQL = (
-    DISPOSITION_TABLE_SQL
-    + DISPOSITION_WORK_UNIT_INDEX_SQL
-    + DISPOSITION_BOUND_SQL
-    + ATTEMPT_ABANDONMENTS_NO_COMPLETED_SQL
-    + ATTEMPTS_NO_COMPLETED_WORK_UNIT_SQL
-    + "DROP TRIGGER attempts_no_update;\n"
-    + ATTEMPTS_DISPOSITION_IMMUTABILITY_SQL
-    + DISPOSITION_REMOVE_CURRENT_SQL
-    + DISPOSITION_ROW_GUARDS_SQL
-)
-
-SCHEMA_SQL += (
-    SUBMISSION_SQL
-    + ASSURANCE_SQL
-    + ABANDONMENT_SQL
-    + RETIREMENT_SQL
-    + RETRY_SQL
-    + DISPOSITION_SQL
-)
-
-#: Digest of the exact DDL this build initializes. Recorded in ``schema_meta`` so
-#: a store written by a different DDL text is detected on reopen.
-SCHEMA_SHA256 = hashlib.sha256(SCHEMA_SQL.encode("utf-8")).hexdigest()
-
-# v8's observer marker is no longer required. Old custody/dispositions remain
-# historical; the new insertion trigger requires the current custody format.
-RESULT_MIGRATION_SQL = (
-    "DROP TRIGGER work_unit_dispositions_bound;\n"
-    + DISPOSITION_SQL[
-        DISPOSITION_SQL.index(
-            "CREATE TRIGGER work_unit_dispositions_bound"
-        ) : DISPOSITION_SQL.index("CREATE TRIGGER attempt_abandonments_no_completed")
-    ]
-    + "DROP TABLE attempt_finalizations;\n"
-)
-
-# v9 introduced native-result disposition but accepted only no-effect v2 rows.
-# Replace that insertion boundary without touching historical rows.
-DELIVERY_RESULT_MIGRATION_SQL = (
-    "DROP TRIGGER work_unit_dispositions_bound;\n"
-    + DISPOSITION_SQL[
-        DISPOSITION_SQL.index(
-            "CREATE TRIGGER work_unit_dispositions_bound"
-        ) : DISPOSITION_SQL.index("CREATE TRIGGER attempt_abandonments_no_completed")
-    ]
-)
-
-# Rebuild the result table around Attempt identity while leaving each legacy
-# custody/disposition row untouched. External triggers are dropped briefly
-# because SQLite refuses to drop a table referenced by another trigger.
-RESULT_CARDINALITY_MIGRATION_SQL = (
-    "DROP TRIGGER attempt_abandonments_no_completed;\n"
-    "DROP TRIGGER attempts_no_completed_work_unit;\n"
-    "DROP TRIGGER attempts_no_update;\n"
-    + DISPOSITION_TABLE_SQL.replace(
-        "CREATE TABLE work_unit_dispositions (",
-        "CREATE TABLE work_unit_dispositions_v11 (",
-        1,
-    )
-    + """
-INSERT INTO work_unit_dispositions_v11 (
-    work_unit_id, contract_revision_id, attempt_id, outcome, completed_at
-)
-SELECT work_unit_id, contract_revision_id, attempt_id, outcome, completed_at
-FROM work_unit_dispositions;
-DROP TABLE work_unit_dispositions;
-ALTER TABLE work_unit_dispositions_v11 RENAME TO work_unit_dispositions;
-"""
-    + DISPOSITION_WORK_UNIT_INDEX_SQL
-    + DISPOSITION_BOUND_SQL
-    + ATTEMPT_ABANDONMENTS_NO_COMPLETED_SQL
-    + ATTEMPTS_NO_COMPLETED_WORK_UNIT_SQL
-    + ATTEMPTS_DISPOSITION_IMMUTABILITY_SQL
-    + DISPOSITION_REMOVE_CURRENT_SQL
-    + DISPOSITION_ROW_GUARDS_SQL
-)

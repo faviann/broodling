@@ -81,9 +81,9 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
 - Quarantine after dispatch: native terminal/stop labels never authorize worktree
   deletion or replacement. Never-dispatched retirement/retry still checks exact
   Broodling ownership.
-- Explicit SQLite schema upgrades preserve known historical records without
-  treating old proof rows as new workflow results; ordinary open refuses missing,
-  unrecognized and historical stores.
+- Explicit SQLite schema upgrades preserve historical result, disposition and
+  Attempt bindings, with successful results retained by exact Attempt; ordinary
+  open refuses missing, unrecognized and historical stores.
 
 `test_workflow_result.py` exercises no-effect execution against the released SDK
 and bundled native executable, and PR receipt handling through the same public

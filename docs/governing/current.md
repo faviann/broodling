@@ -70,7 +70,7 @@ the actual target image and GitHub CLI dependency.
 | Frozen effect authority | Supported behavior |
 | --- | --- |
 | Empty required-effect set | LocalTarget execution is permitted, but native success returns no stable accepted result; Broodling therefore refuses successful disposition. |
-| Exactly one `pull_request` effect with a target branch for a GitHub Work Unit | DirectTarget native PR delivery. A matching successful `v1/pr/opened` receipt supplies the stable non-B1 `headRevision`; receipt and disposition commit atomically. |
+| Exactly one `pull_request` effect with a target branch for a GitHub Work Unit | DirectTarget native PR delivery. A matching successful `v1/pr/opened` receipt supplies the stable non-B1 `headRevision`; the disposition for that exact Attempt commits atomically with the receipt. |
 | Other, mixed, multiple or underspecified effects | Refusal. Merge, standalone push, issue mutation, deployment and generic effect execution are unsupported. |
 
 PR delivery includes native commit, push and open-or-update. It promises neither

@@ -80,7 +80,9 @@ Retain `status.revision.contract_revision_id` and
 a newer revision. For the requested revision it selects its current Attempt, or
 its last admitted Attempt when none remains current. Thus terminal lineage stays
 inspectable after success or abandonment. Work Unit identity is shared across
-revisions, but revision/Attempt/result bindings remain exact.
+revisions, but revision/Attempt/result bindings remain exact. A disposition is
+looked up by its exact Attempt id, so a Work Unit's later revisions do not
+replace earlier successful results.
 
 On successful authorized PR delivery, `disposition.outcome == "SUCCEEDED"` and
 `disposition.result` retains `attemptId`, `contractRevisionId`, `runId`, native
