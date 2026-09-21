@@ -1,9 +1,9 @@
 """The minimal local Git surface Broodling needs for administrative setup.
 
-Provisioning a worktree is host-local administrative setup, not an authoritative
-delivery effect: nothing here pushes, publishes, fetches or mutates a remote, and
-nothing here writes to shared Git metadata beyond the worktree registration that
-``git worktree add`` performs.
+Provisioning a worktree and retaining an exact commit are host-local
+administrative operations, not authoritative delivery effects: nothing here
+pushes, publishes, fetches or mutates a remote. Shared Git metadata changes only
+through worktree registration and retained refs under ``refs/broodling/``.
 
 Every command runs with a sanitized environment. Inherited ``GIT_*`` variables
 can silently redirect a command at a different repository, index or worktree, so
@@ -33,16 +33,21 @@ _SAFE_ENVIRONMENT_OVERRIDES = {
 }
 
 
-def _environment() -> dict[str, str]:
+def _environment(*, no_lazy_fetch: bool = False) -> dict[str, str]:
     env = {
         key: value for key, value in os.environ.items() if not key.startswith("GIT_")
     }
     env.update(_SAFE_ENVIRONMENT_OVERRIDES)
+    if no_lazy_fetch:
+        env["GIT_NO_LAZY_FETCH"] = "1"
     return env
 
 
 def run(
-    repository: Path | str, *arguments: str, inherited_fds: tuple[int, ...] = ()
+    repository: Path | str,
+    *arguments: str,
+    inherited_fds: tuple[int, ...] = (),
+    no_lazy_fetch: bool = False,
 ) -> str:
     """Run one Git command inside ``repository`` and return its stdout.
 
@@ -55,7 +60,7 @@ def run(
         [GIT, "-C", str(repository), *arguments],
         capture_output=True,
         text=True,
-        env=_environment(),
+        env=_environment(no_lazy_fetch=no_lazy_fetch),
         pass_fds=inherited_fds,
         check=False,
     )
@@ -171,6 +176,106 @@ def resolve_commit(repository: Path, revision: str) -> str | None:
 
 def _is_hex(value: str) -> bool:
     return all(character in "0123456789abcdef" for character in value)
+
+
+def retain_commit(repository: Path | str, reference: str, commit_oid: str) -> None:
+    """Retain one exact commit through a direct Broodling-owned ref.
+
+    The full SHA-1 must name a commit whose own tree/blob objects are available
+    locally. Validation checks the selected snapshot without traversing parents,
+    and disables replacement refs and lazy fetching. Creation is an atomic
+    create-if-absent update; an identical direct ref is idempotent, while
+    conflicting and symbolic refs are refusals.
+    """
+
+    if len(commit_oid) != 40 or not _is_hex(commit_oid):
+        raise ValueError("a full pinned Git commit id is required")
+    if not reference.startswith("refs/broodling/"):
+        raise ValueError("retained refs must be under refs/broodling/")
+    run(repository, "check-ref-format", reference)
+
+    object_type = run(
+        repository,
+        "--no-replace-objects",
+        "cat-file",
+        "-t",
+        commit_oid,
+        no_lazy_fetch=True,
+    ).strip()
+    if object_type != "commit":
+        raise GitCommandError(
+            f"retained object {commit_oid} in {repository} is {object_type}, not a commit"
+        )
+    _verify_commit_snapshot_objects(repository, commit_oid)
+
+    existing = _retention_ref_oid(repository, reference)
+    if existing is not None:
+        if existing == commit_oid:
+            return
+        raise _retention_conflict(reference, existing, commit_oid)
+
+    try:
+        run(
+            repository,
+            "-c",
+            "core.hooksPath=/dev/null",
+            "update-ref",
+            "--no-deref",
+            reference,
+            commit_oid,
+            "0" * len(commit_oid),
+        )
+    except GitCommandError as error:
+        # Another pin may have won after the initial read. Accept only the same
+        # direct object; never follow or overwrite a symbolic/conflicting ref.
+        existing = _retention_ref_oid(repository, reference)
+        if existing == commit_oid:
+            return
+        if existing is not None:
+            raise _retention_conflict(reference, existing, commit_oid) from error
+        raise
+
+
+def _verify_commit_snapshot_objects(repository: Path | str, commit_oid: str) -> None:
+    arguments = (
+        "--no-replace-objects",
+        "rev-list",
+        "--objects",
+        "--no-walk",
+        "--missing=error",
+        commit_oid,
+    )
+    completed = subprocess.run(
+        [GIT, "-C", str(repository), *arguments],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=_environment(no_lazy_fetch=True),
+        check=False,
+    )
+    if completed.returncode:
+        raise GitCommandError(
+            f"git {' '.join(arguments)} failed in {repository} "
+            f"({completed.returncode}): {completed.stderr.strip()}"
+        )
+
+
+def _retention_ref_oid(repository: Path | str, reference: str) -> str | None:
+    symbolic = _try(repository, "symbolic-ref", "--quiet", reference)
+    if symbolic is not None:
+        raise GitCommandError(
+            f"Broodling retention ref {reference} is symbolic to {symbolic.strip()}; "
+            "a direct ref is required"
+        )
+    output = _try(repository, "show-ref", "--verify", "--hash", reference)
+    return None if output is None else output.strip()
+
+
+def _retention_conflict(reference: str, existing: str, requested: str) -> GitCommandError:
+    return GitCommandError(
+        f"Broodling retention ref {reference} already points to {existing}, not "
+        f"{requested}; refusing to move it"
+    )
 
 
 def uncommitted_entries(repository: Path) -> tuple[str, ...]:

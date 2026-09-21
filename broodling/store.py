@@ -976,9 +976,10 @@ class BroodlingStore:
     ) -> AttemptRecord:
         """Admit the current Attempt for an admitted Contract revision.
 
-        Allocates the Attempt identity, pins B1, and reserves a unique worktree
-        path and branch — all in one transaction, before any host-side directory
-        exists. Nothing is provisioned here.
+        Records the Attempt identity and B1 and reserves a unique worktree path
+        and branch — all in one transaction, before any host-side directory
+        exists. Git object retention is owned by AttemptProvisioner; nothing is
+        provisioned here.
 
         Repeating the identical request returns the same Attempt, with the
         allocation it already owns — a later call naming a different workspace

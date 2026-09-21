@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import sqlite3
+import subprocess
 import unittest
 
 from broodling import (
     AttemptAdmissionError,
     AttemptConflict,
+    GitCommandError,
     UnsupportedStartingState,
     UnsupportedWorkspaceRoot,
 )
@@ -86,9 +88,51 @@ class RepeatedAndConflictingAdmissionTests(AttemptTestCase):
     def test_repeating_the_identical_request_returns_the_same_attempt(self) -> None:
         provisioner = self.provisioner()
         first = provisioner.admit(self.revision.contract_revision_id, self.repository)
+        starting_ref = f"refs/broodling/starting/{self.b1}"
+        self.assertEqual(
+            git(self.repository, "show-ref", "--verify", "--hash", starting_ref),
+            self.b1,
+        )
         second = provisioner.admit(self.revision.contract_revision_id, self.repository)
         self.assertEqual(first, second)
+        self.assertEqual(
+            git(self.repository, "show-ref", "--verify", "--hash", starting_ref),
+            self.b1,
+        )
         self.assertEqual(self.attempt_count(), 1)
+
+    def test_a_conflicting_starting_pin_refuses_without_admitting_an_attempt(self) -> None:
+        other_commit = move_head(self.repository)
+        starting_ref = f"refs/broodling/starting/{self.b1}"
+        git(self.repository, "update-ref", starting_ref, other_commit)
+
+        with self.assertRaisesRegex(GitCommandError, "already points"):
+            self.provisioner().admit(
+                self.revision.contract_revision_id, self.repository, self.b1
+            )
+
+        self.assertEqual(
+            git(self.repository, "show-ref", "--verify", "--hash", starting_ref),
+            other_commit,
+        )
+        self.assertIsNone(self.store.current_attempt(self.work_unit.work_unit_id))
+        self.assertEqual(self.attempt_count(), 0)
+
+    def test_a_symbolic_starting_ref_is_not_treated_as_a_retained_pin(self) -> None:
+        starting_ref = f"refs/broodling/starting/{self.b1}"
+        git(self.repository, "symbolic-ref", starting_ref, "refs/heads/main")
+
+        with self.assertRaisesRegex(GitCommandError, "symbolic"):
+            self.provisioner().admit(
+                self.revision.contract_revision_id, self.repository
+            )
+
+        self.assertEqual(
+            git(self.repository, "symbolic-ref", "--quiet", starting_ref),
+            "refs/heads/main",
+        )
+        self.assertIsNone(self.store.current_attempt(self.work_unit.work_unit_id))
+        self.assertEqual(self.attempt_count(), 0)
 
     def test_repeating_it_keeps_the_original_worktree_allocation(self) -> None:
         provisioner = self.provisioner()
@@ -152,6 +196,38 @@ class RepeatedAndConflictingAdmissionTests(AttemptTestCase):
             "SELECT count(*) AS total FROM attempts"
         ).fetchone()
         return int(row["total"])
+
+
+class MissingStartingObjectTests(AttemptTestCase):
+    def test_admission_refuses_when_a_tracked_blob_is_missing(self) -> None:
+        blob_oid = git(self.repository, "rev-parse", f"{self.b1}:README.md")
+        self.assertEqual(git(self.repository, "cat-file", "-t", self.b1), "commit")
+        self.assertIn(blob_oid, git(self.repository, "ls-tree", "-r", self.b1))
+
+        blob_path = self.repository / ".git" / "objects" / blob_oid[:2] / blob_oid[2:]
+        blob_path.unlink()
+        self.assertEqual(git(self.repository, "cat-file", "-t", self.b1), "commit")
+        self.assertIn(blob_oid, git(self.repository, "ls-tree", "-r", self.b1))
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            git(
+                self.repository,
+                "--no-replace-objects",
+                "rev-list",
+                "--objects",
+                "--missing=error",
+                self.b1,
+            )
+        with self.assertRaises(GitCommandError):
+            self.provisioner().admit(
+                self.revision.contract_revision_id, self.repository
+            )
+
+        self.assertIsNone(self.store.current_attempt(self.work_unit.work_unit_id))
+        count = self.store.connection.execute(
+            "SELECT count(*) AS total FROM attempts"
+        ).fetchone()["total"]
+        self.assertEqual(count, 0)
 
 
 class UnsupportedAdmissionTests(AttemptTestCase):

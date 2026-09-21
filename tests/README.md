@@ -58,7 +58,11 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
   validation plan is not an admission precondition; effect-dependent evidence and
   unsatisfied prerequisites remain refusals.
 - Exact original B1 provisioning and exclusive ownership of disposable
-  worktrees, including Broodling's own concurrent-call/crash boundaries.
+  worktrees, including Broodling's own concurrent-call/crash boundaries and
+  retention of the selected commit and its tree/blob objects through
+  Broodling refs after source/worktree refs, reflogs and history disappear and
+  Git garbage collection runs. Missing objects and conflicting/symbolic pins
+  refuse admission before an Attempt is acknowledged.
 - Immutable invocation preparation, durable dispatch/correlation, acknowledgement
   loss (including unchanged-worktree DirectTarget replay), current PR credentials
   checks, and refusal of conflicting target, forge, or source identities.

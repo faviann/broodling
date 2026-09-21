@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import sqlite3
+import subprocess
 import unittest
 
 from broodling import (
@@ -12,6 +13,8 @@ from broodling import (
     StoreLocationError,
     WorktreeOwnershipConflict,
 )
+from broodling.git import read_object
+from broodling.starting_state import resolve_starting_state
 from support import AttemptTestCase, git, move_head, tracked_files, work_reference
 
 
@@ -73,6 +76,70 @@ class ProvisioningTests(AttemptTestCase):
         self.assertIsNotNone(assignment.provisioned_at)
 
 
+class AncestorOnlyObjectProvisioningTests(AttemptTestCase):
+    def test_missing_ancestor_only_blob_does_not_block_b1_retention_or_checkout(
+        self,
+    ) -> None:
+        ancestor_only_path = self.repository / "ancestor-only.txt"
+        ancestor_only_path.write_text(
+            "only present in an ancestor\n", encoding="utf-8"
+        )
+        git(self.repository, "add", "ancestor-only.txt")
+        git(self.repository, "commit", "--quiet", "-m", "add ancestor-only file")
+        ancestor_blob_oid = git(
+            self.repository, "rev-parse", "HEAD:ancestor-only.txt"
+        )
+
+        ancestor_only_path.unlink()
+        git(self.repository, "add", "-A")
+        git(
+            self.repository,
+            "commit",
+            "--quiet",
+            "-m",
+            "select B1 without ancestor file",
+        )
+        self.b1 = git(self.repository, "rev-parse", "HEAD")
+
+        ancestor_blob_path = (
+            self.repository
+            / ".git"
+            / "objects"
+            / ancestor_blob_oid[:2]
+            / ancestor_blob_oid[2:]
+        )
+        self.assertTrue(ancestor_blob_path.is_file())
+        ancestor_blob_path.unlink()
+        with self.assertRaises(subprocess.CalledProcessError):
+            git(self.repository, "cat-file", "-e", ancestor_blob_oid)
+        self.assertEqual(git(self.repository, "cat-file", "-t", self.b1), "commit")
+        self.assertEqual(
+            git(self.repository, "ls-tree", "-r", "--name-only", self.b1),
+            "README.md",
+        )
+
+        provisioned = self.provisioner().admit_and_provision(
+            self.revision.contract_revision_id, self.repository
+        )
+
+        starting_ref = f"refs/broodling/starting/{self.b1}"
+        self.assertEqual(
+            git(self.repository, "show-ref", "--verify", "--hash", starting_ref),
+            self.b1,
+        )
+        self.assertEqual(git(provisioned.path, "rev-parse", "HEAD"), self.b1)
+        self.assertEqual(
+            (provisioned.path / "README.md").read_bytes(),
+            b"original admitted state\n",
+        )
+        self.assertFalse((provisioned.path / "ancestor-only.txt").exists())
+        self.assertTrue(
+            self.store.worktree_assignment(
+                provisioned.attempt.attempt_id
+            ).provisioned
+        )
+
+
 class IdempotentProvisioningTests(AttemptTestCase):
     def setUp(self) -> None:
         super().setUp()
@@ -119,12 +186,119 @@ class IdempotentProvisioningTests(AttemptTestCase):
         self.assertFalse((again.path / "candidate.txt").exists())
         self.assertEqual(git(again.path, "status", "--porcelain", "-uall"), "")
 
+    def test_b1_survives_gc_after_other_refs_worktrees_history_and_reflogs_are_gone(
+        self,
+    ) -> None:
+        starting_ref = f"refs/broodling/starting/{self.b1}"
+        tree_oid = git(self.repository, "rev-parse", f"{self.b1}^{{tree}}")
+        blob_oid = git(self.repository, "rev-parse", f"{self.b1}:README.md")
+        tree_bytes = read_object(self.repository, tree_oid, "tree")
+        blob_bytes = read_object(self.repository, blob_oid, "blob")
+        self.assertEqual(blob_bytes, b"original admitted state\n")
+
+        git(
+            self.repository,
+            "worktree",
+            "remove",
+            "--force",
+            str(self.provisioned.path),
+        )
+        git(self.repository, "branch", "-D", self.provisioned.branch)
+        git(self.repository, "checkout", "--orphan", "replacement-history")
+        (self.repository / "README.md").write_text(
+            "unrelated replacement history\n", encoding="utf-8"
+        )
+        git(self.repository, "add", "-A")
+        git(self.repository, "commit", "--quiet", "-m", "replacement history")
+        git(self.repository, "branch", "-D", "main")
+        git(self.repository, "branch", "-m", "main")
+        current_head = git(self.repository, "rev-parse", "HEAD")
+        self.assertNotEqual(current_head, self.b1)
+        with self.assertRaises(subprocess.CalledProcessError):
+            git(self.repository, "merge-base", "--is-ancestor", self.b1, current_head)
+
+        git(self.repository, "worktree", "prune", "--expire=now")
+        worktrees = git(self.repository, "worktree", "list", "--porcelain")
+        self.assertNotIn(str(self.provisioned.path), worktrees)
+        self.assertEqual(self.worktree_count(), 1)
+        worktree_metadata = self.repository / ".git" / "worktrees"
+        self.assertFalse(
+            worktree_metadata.exists() and any(worktree_metadata.iterdir())
+        )
+
+        git(
+            self.repository,
+            "reflog",
+            "expire",
+            "--expire=now",
+            "--expire-unreachable=now",
+            "--all",
+        )
+        reflog_oids = git(self.repository, "reflog", "--all", "--format=%H")
+        self.assertNotIn(self.b1, reflog_oids.splitlines())
+        reachable_refs = git(
+            self.repository,
+            "for-each-ref",
+            "--contains",
+            self.b1,
+            "--format=%(refname)",
+        ).splitlines()
+        self.assertFalse(
+            any(not ref.startswith("refs/broodling/") for ref in reachable_refs),
+            reachable_refs,
+        )
+
+        git(self.repository, "gc", "--prune=now", "--aggressive")
+
+        self.assertEqual(git(self.repository, "cat-file", "-t", self.b1), "commit")
+        self.assertEqual(git(self.repository, "cat-file", "-t", tree_oid), "tree")
+        self.assertEqual(git(self.repository, "cat-file", "-t", blob_oid), "blob")
+        self.assertEqual(read_object(self.repository, tree_oid, "tree"), tree_bytes)
+        self.assertEqual(read_object(self.repository, blob_oid, "blob"), blob_bytes)
+        self.assertEqual(
+            git(self.repository, "show-ref", "--verify", "--hash", starting_ref),
+            self.b1,
+        )
+        self.assertEqual(reachable_refs, [starting_ref])
+
+        recovered = self.provisioner_.provision(self.provisioned.attempt.attempt_id)
+        self.assertEqual(recovered.commit_oid, self.b1)
+        self.assertEqual(git(recovered.path, "rev-parse", "HEAD"), self.b1)
+        self.assertEqual(
+            (recovered.path / "README.md").read_bytes(),
+            b"original admitted state\n",
+        )
+
     def worktree_count(self) -> int:
         listing = git(self.repository, "worktree", "list", "--porcelain")
         return sum(1 for line in listing.splitlines() if line.startswith("worktree "))
 
     def branch_count(self) -> int:
         return len(git(self.repository, "branch", "--format=%(refname:short)").split())
+
+
+class ExistingAttemptProvisioningTests(AttemptTestCase):
+    def test_provisioning_pins_the_recorded_b1_without_resolving_live_head(self) -> None:
+        attempt = self.store.admit_attempt(
+            self.revision.contract_revision_id,
+            resolve_starting_state(self.repository, self.b1),
+            workspace_root=self.workspace_root,
+        )
+        live_head = move_head(self.repository)
+        self.assertNotEqual(live_head, self.b1)
+
+        provisioned = self.provisioner().provision(attempt.attempt_id)
+
+        starting_ref = f"refs/broodling/starting/{attempt.b1_commit_oid}"
+        self.assertEqual(
+            git(self.repository, "show-ref", "--verify", "--hash", starting_ref),
+            attempt.b1_commit_oid,
+        )
+        self.assertEqual(git(self.repository, "rev-parse", "HEAD"), live_head)
+        self.assertEqual(git(provisioned.path, "rev-parse", "HEAD"), self.b1)
+        self.assertTrue(
+            self.store.worktree_assignment(attempt.attempt_id).provisioned
+        )
 
 
 class ExclusiveOwnershipTests(AttemptTestCase):

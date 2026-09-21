@@ -98,6 +98,16 @@ meaning produce a different immutable revision; they never amend the earlier
 Attempt. Another revision cannot displace a current Attempt: existing admission
 and conflict rules still apply.
 
+Attempt admission verifies that the selected commit and its own tree/blob
+objects are available locally, without requiring objects reachable only through
+its ancestors. It then creates a direct Broodling ref at
+`refs/broodling/starting/<commit_oid>` before the Attempt is committed to the
+store. This pins B1 independently of source branches, disposable worktrees and
+reflogs. Provisioning repeats the same retention operation from the recorded
+repository and B1 object id before materializing or acknowledging the worktree;
+it does not resolve current `HEAD`. The operation refuses a conflicting or
+symbolic ref and does not fetch missing objects.
+
 Use `resume(revision_id)` to continue exactly recorded authority after reopening
 the store. Before first Attempt admission, provide `repository` and optionally
 `revision` to select B1. Once admitted, the retained repository/B1 govern recovery.
