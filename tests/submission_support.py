@@ -8,6 +8,7 @@ from pathlib import Path
 
 from support import AttemptTestCase, git
 
+from broodling import BroodlingStore
 from broodling.submission import SubmissionCoordinator
 from broodling.zeroshot_sdk import ZeroshotSubmitter
 
@@ -78,6 +79,11 @@ class SubmissionCase(AttemptTestCase):
 
     def restart(self):
         self.reopen()
+        self.coordinator = SubmissionCoordinator(self.store, self.adapter)
+
+    def upgrade(self):
+        self.store.close()
+        self.store = BroodlingStore.upgrade(self.store_path)
         self.coordinator = SubmissionCoordinator(self.store, self.adapter)
 
 

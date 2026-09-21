@@ -71,7 +71,7 @@ class StoreTestCase(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp(prefix="broodling-p2-"))
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         self.store_path = self.root / "state" / "broodling.sqlite3"
-        self.store = BroodlingStore.open(self.store_path)
+        self.store = BroodlingStore.initialize(self.store_path)
         # `reopen` closes the store it replaces, so closing whichever store is
         # current at teardown closes them all, however many times a test
         # reopened and whether or not the body raised. Registered after the

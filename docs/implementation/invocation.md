@@ -19,6 +19,10 @@ retry policy or semantic success rule. Zeroshot still owns execution.
 Construct `Broodling(store, submitter, workspace_root)` with an open
 `BroodlingStore`, the existing `ZeroshotSubmitter` and a durable workspace root.
 The caller owns the store's lifetime. Keep it open while awaiting operations.
+Create a new store explicitly with `BroodlingStore.initialize(path)`. Normal
+`open(path)` requires an existing current store; it never creates or migrates
+one. Apply a supported historical schema with `BroodlingStore.upgrade(path)`
+before constructing the facade.
 The [README example](../../README.md#install-and-use) shows the complete minimal
 configuration and a caller-supplied typed proposer.
 

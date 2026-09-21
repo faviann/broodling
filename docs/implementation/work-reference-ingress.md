@@ -60,6 +60,10 @@ sections verbatim and represent other obligations and prerequisites using the
 existing Contract fields. It must inspect the complete request, including scope
 restrictions; unsupported requirements must remain visible to admission.
 
+Initialize a new store explicitly with `BroodlingStore.initialize(path)` before
+using this sample. `BroodlingStore.open(path)` only opens an existing current
+store; use `BroodlingStore.upgrade(path)` for a supported historical schema.
+
 ```python
 import json
 

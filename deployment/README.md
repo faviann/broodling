@@ -83,17 +83,34 @@ BROODLING_REVISION=FULL_REVIEWED_40_CHARACTER_COMMIT_ID
 git checkout --detach "$BROODLING_REVISION"
 python3 deployment/install.py --root /srv/broodling \
   --revision "$BROODLING_REVISION" --container broodling-target --port 18770
+/srv/broodling/bin/broodling initialize-store
 docker start broodling-target
 /srv/broodling/bin/check-target
 ```
 
 `install.py` archives only committed package/deployment files, installs a
-non-editable release, initializes the store and creates a stopped container.
-It submits no work and reads no credentials. Repeating it with the same root,
-revision, account, container and port returns the existing inventory; it never
-replaces a container, reinitializes a database or upgrades an installation.
-A differing or incomplete installation is refused. Preserve a partial
-installation for inspection before choosing a new empty root/container.
+non-editable release and creates a stopped container. It creates the state
+directory but leaves application-store initialization to the explicit
+`initialize-store` command above. The command creates a new store only when its
+path is absent; it refuses to replace an existing file. Ordinary invocation
+commands open an existing compatible store and refuse missing, unrecognized or
+historical schemas.
+
+For a recognized historical schema supported by the installed release, stop
+Broodling callers, make a consistent backup, then run
+`/srv/broodling/bin/broodling upgrade-store` before ordinary use. The command
+applies the existing migration transaction explicitly. A refused or interrupted
+upgrade leaves the old schema unadvertised as current; inspect or restore the
+store before retrying. If a previously used store is missing, restore it from
+backup rather than creating an empty store with `initialize-store`.
+
+The installer submits no work and reads no credentials. Repeating it with the
+same root, revision, account, container and port returns the existing inventory;
+it never replaces a container or creates, reinitializes, or upgrades application
+state. A missing database is allowed on installer replay because the installer
+does not own its initialization. A differing or incomplete installation is
+otherwise refused. Preserve a partial installation for inspection before
+choosing a new empty root/container.
 
 `check-target` must pass before initial submission. It checks the running
 container's image, mounts, local port, dependency versions/hashes and native

@@ -88,12 +88,12 @@ class DeploymentInstallTests(unittest.TestCase):
                 for name, content in retained.items():
                     self.assertEqual((self.root / name).read_bytes(), content, name)
 
-    def test_missing_store_does_not_silently_reinitialize_semantic_authority(self):
-        _, retained = self.retained_installation()
+    def test_install_replay_leaves_store_initialization_to_the_operator(self):
+        record, retained = self.retained_installation()
         missing = self.root / "state/broodling.sqlite3"
         missing.unlink()
-        with self.assertRaisesRegex(ValueError, "existing installation is incomplete"):
-            installer.install(self.root, REVISION, PORT, CONTAINER)
+
+        self.assertEqual(installer.install(self.root, REVISION, PORT, CONTAINER), record)
         self.assertFalse(missing.exists())
         self.assertEqual(
             (self.root / "target-state/native-state").read_bytes(),

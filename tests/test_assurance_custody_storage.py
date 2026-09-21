@@ -61,7 +61,7 @@ class AssuranceStorageTests(SubmissionCase):
         self.correlate()
         before = self.coordinator.record(self.attempt_id)
         self.make_v3()
-        self.restart()
+        self.upgrade()
         self.assertEqual(self.coordinator.record(self.attempt_id), before)
         self.assertEqual(
             self.store.schema_meta()["schema_version"], str(SCHEMA_VERSION)
@@ -75,16 +75,18 @@ class AssuranceStorageTests(SubmissionCase):
         )
         self.insert()
 
-    def test_concurrent_v3_openers_migrate_once(self):
+    def test_concurrent_v3_upgraders_migrate_once(self):
         self.make_v3()
         self.store.close()
 
-        def open_store(_):
-            with BroodlingStore.open(self.store_path) as store:
+        def upgrade_store(_):
+            with BroodlingStore.upgrade(self.store_path) as store:
                 return store.schema_meta()["schema_sha256"]
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            self.assertEqual(list(pool.map(open_store, range(2))), [SCHEMA_SHA256] * 2)
+            self.assertEqual(
+                list(pool.map(upgrade_store, range(2))), [SCHEMA_SHA256] * 2
+            )
 
     def test_unknown_v3_definition_does_not_gain_custody_schema(self):
         self.make_v3()
@@ -92,7 +94,7 @@ class AssuranceStorageTests(SubmissionCase):
             "UPDATE schema_meta SET value = 'foreign' WHERE key = 'schema_sha256'"
         )
         with self.assertRaises(SchemaVersionMismatch):
-            BroodlingStore.open(self.store_path)
+            BroodlingStore.upgrade(self.store_path)
         self.assertFalse(
             self.store.connection.execute(
                 "SELECT name FROM sqlite_schema WHERE name = 'final_assurance'"

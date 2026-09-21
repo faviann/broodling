@@ -39,7 +39,7 @@ class RetirementTests(SubmissionCase):
             "INSERT INTO attempt_abandonments VALUES (?, 'old reason', 'old time')",
             (self.attempt_id,),
         )
-        self.restart()
+        self.upgrade()
         self.administrator = AbandonmentCoordinator(self.store, self.adapter)
         self.assertFalse(self.store.get_attempt(self.attempt_id).is_current)
         self.assertEqual(self.store.abandonment(self.attempt_id).reason, "old reason")

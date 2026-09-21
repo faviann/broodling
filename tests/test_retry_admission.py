@@ -205,7 +205,7 @@ class RetryAdmissionTests(SubmissionCase):
             )
             for name in tables
         }
-        self.reopen()
+        self.upgrade()
         for name, rows in before.items():
             self.assertEqual(
                 list(

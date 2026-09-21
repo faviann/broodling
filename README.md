@@ -58,6 +58,16 @@ operator CLI, with the actual-target dependency check and restart/recovery
 instructions. The [deployment validation record](deployment/validation.md)
 identifies what was exercised. The Python API remains available below.
 
+Installation does not initialize application state. After installing a new
+release, create its store deliberately with
+`/srv/broodling/bin/broodling initialize-store`. Ordinary commands open only an
+existing compatible store. For a supported historical schema, run
+`/srv/broodling/bin/broodling upgrade-store` deliberately before normal use; if
+a previously used store is missing, restore it instead of initializing an empty
+replacement. The Python API exposes the same lifecycle as
+`BroodlingStore.initialize(path)`, `BroodlingStore.open(path)` and
+`BroodlingStore.upgrade(path)`.
+
 Use Python 3.13+, SQLite 3.37+, and Git:
 
 ```bash

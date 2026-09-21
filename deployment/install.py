@@ -2,7 +2,8 @@
 """Install one immutable Broodling release and create its local native target.
 
 Run as the dedicated host account with Docker access. No work is submitted and
-no credentials are read. Docker and Zeroshot own process lifecycle.
+no credentials are read. Application state is initialized separately through the
+installed CLI. Docker and Zeroshot own process lifecycle.
 """
 
 from __future__ import annotations
@@ -62,7 +63,7 @@ def install(root: Path, revision: str, port: int, container: str) -> dict:
                     "container_name": container, "host_uid": os.getuid(), "host_gid": os.getgid()}
         if any(existing.get(key) != value for key, value in expected.items()):
             raise ValueError("existing installation differs; in-place upgrades/moves are unsupported")
-        if not all((root / name).is_file() for name in ("config.json", "state/broodling.sqlite3", "bin/broodling")):
+        if not all((root / name).is_file() for name in ("config.json", "bin/broodling")):
             raise ValueError("existing installation is incomplete; restore retained files before use")
         return existing
     if root.exists() and any(root.iterdir()):
@@ -119,8 +120,6 @@ def install(root: Path, revision: str, port: int, container: str) -> dict:
             "--mount", f"type=bind,src={root / 'target-home'},dst=/home/node",
             image, "--listen", f"0.0.0.0:{port}", "--public-origin", origin, "--storage", "/state")
     write_json(root / "config.json", {"direct_target_origin": origin})
-    command(python, "-I", "-c", "import sys; from broodling import BroodlingStore; "
-            "BroodlingStore.open(sys.argv[1]).close()", str(root / "state/broodling.sqlite3"))
     for name, argv in {
         "broodling": [python, "-I", "-m", "broodling.cli", "--root", str(root)],
         "check-target": [python, "-I", str(root / "release/deployment/check_target.py"), "--root", str(root)],
