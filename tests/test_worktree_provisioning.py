@@ -76,6 +76,70 @@ class ProvisioningTests(AttemptTestCase):
         self.assertIsNotNone(assignment.provisioned_at)
 
 
+class AncestorOnlyObjectProvisioningTests(AttemptTestCase):
+    def test_missing_ancestor_only_blob_does_not_block_b1_retention_or_checkout(
+        self,
+    ) -> None:
+        ancestor_only_path = self.repository / "ancestor-only.txt"
+        ancestor_only_path.write_text(
+            "only present in an ancestor\n", encoding="utf-8"
+        )
+        git(self.repository, "add", "ancestor-only.txt")
+        git(self.repository, "commit", "--quiet", "-m", "add ancestor-only file")
+        ancestor_blob_oid = git(
+            self.repository, "rev-parse", "HEAD:ancestor-only.txt"
+        )
+
+        ancestor_only_path.unlink()
+        git(self.repository, "add", "-A")
+        git(
+            self.repository,
+            "commit",
+            "--quiet",
+            "-m",
+            "select B1 without ancestor file",
+        )
+        self.b1 = git(self.repository, "rev-parse", "HEAD")
+
+        ancestor_blob_path = (
+            self.repository
+            / ".git"
+            / "objects"
+            / ancestor_blob_oid[:2]
+            / ancestor_blob_oid[2:]
+        )
+        self.assertTrue(ancestor_blob_path.is_file())
+        ancestor_blob_path.unlink()
+        with self.assertRaises(subprocess.CalledProcessError):
+            git(self.repository, "cat-file", "-e", ancestor_blob_oid)
+        self.assertEqual(git(self.repository, "cat-file", "-t", self.b1), "commit")
+        self.assertEqual(
+            git(self.repository, "ls-tree", "-r", "--name-only", self.b1),
+            "README.md",
+        )
+
+        provisioned = self.provisioner().admit_and_provision(
+            self.revision.contract_revision_id, self.repository
+        )
+
+        starting_ref = f"refs/broodling/starting/{self.b1}"
+        self.assertEqual(
+            git(self.repository, "show-ref", "--verify", "--hash", starting_ref),
+            self.b1,
+        )
+        self.assertEqual(git(provisioned.path, "rev-parse", "HEAD"), self.b1)
+        self.assertEqual(
+            (provisioned.path / "README.md").read_bytes(),
+            b"original admitted state\n",
+        )
+        self.assertFalse((provisioned.path / "ancestor-only.txt").exists())
+        self.assertTrue(
+            self.store.worktree_assignment(
+                provisioned.attempt.attempt_id
+            ).provisioned
+        )
+
+
 class IdempotentProvisioningTests(AttemptTestCase):
     def setUp(self) -> None:
         super().setUp()

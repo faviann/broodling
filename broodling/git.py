@@ -181,10 +181,11 @@ def _is_hex(value: str) -> bool:
 def retain_commit(repository: Path | str, reference: str, commit_oid: str) -> None:
     """Retain one exact commit through a direct Broodling-owned ref.
 
-    The full SHA-1 must name a commit whose complete tree/blob closure is
-    available locally. Validation disables replacement refs and lazy fetching.
-    Creation is an atomic create-if-absent update; an identical direct ref is
-    idempotent, while conflicting and symbolic refs are refusals.
+    The full SHA-1 must name a commit whose own tree/blob objects are available
+    locally. Validation checks the selected snapshot without traversing parents,
+    and disables replacement refs and lazy fetching. Creation is an atomic
+    create-if-absent update; an identical direct ref is idempotent, while
+    conflicting and symbolic refs are refusals.
     """
 
     if len(commit_oid) != 40 or not _is_hex(commit_oid):
@@ -205,7 +206,7 @@ def retain_commit(repository: Path | str, reference: str, commit_oid: str) -> No
         raise GitCommandError(
             f"retained object {commit_oid} in {repository} is {object_type}, not a commit"
         )
-    _verify_commit_object_closure(repository, commit_oid)
+    _verify_commit_snapshot_objects(repository, commit_oid)
 
     existing = _retention_ref_oid(repository, reference)
     if existing is not None:
@@ -235,11 +236,12 @@ def retain_commit(repository: Path | str, reference: str, commit_oid: str) -> No
         raise
 
 
-def _verify_commit_object_closure(repository: Path | str, commit_oid: str) -> None:
+def _verify_commit_snapshot_objects(repository: Path | str, commit_oid: str) -> None:
     arguments = (
         "--no-replace-objects",
         "rev-list",
         "--objects",
+        "--no-walk",
         "--missing=error",
         commit_oid,
     )

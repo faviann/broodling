@@ -59,7 +59,7 @@ physical cleanup. The `signal` method allows normal fixture cleanup to run.
   unsatisfied prerequisites remain refusals.
 - Exact original B1 provisioning and exclusive ownership of disposable
   worktrees, including Broodling's own concurrent-call/crash boundaries and
-  retention of the commit/tree/blob closure through
+  retention of the selected commit and its tree/blob objects through
   Broodling refs after source/worktree refs, reflogs and history disappear and
   Git garbage collection runs. Missing objects and conflicting/symbolic pins
   refuse admission before an Attempt is acknowledged.
