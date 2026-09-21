@@ -25,6 +25,19 @@ from broodling.schema import (
 
 
 def published_schema(version):
+    if version == 10:
+        raw = (
+            Path(__file__)
+            .with_name("fixtures")
+            .joinpath("schema-v10.sql")
+            .read_bytes()
+        )
+        expected = V10_SCHEMA_SHA256
+        # Hash the fixture's raw bytes before its digest can be stamped into a
+        # restored database.
+        assert hashlib.sha256(raw).hexdigest() == expected
+        return raw.decode("utf-8"), expected
+
     v7 = SCHEMA_SQL.removesuffix(DISPOSITION_SQL)
     v6 = v7.removesuffix(RETRY_SQL)
     v5 = v6.removesuffix(RETIREMENT_SQL)
@@ -98,17 +111,11 @@ def restore_published_schema(store, version):
 
 
 def _restore_v10_schema(store):
-    """Build v10 from frozen DDL, preserving the current database's exact rows."""
-    definition, _ = published_schema(9)
+    """Restore frozen v10 DDL while preserving the current database's rows."""
+    definition, expected = published_schema(10)
     previous = store.connection
     with sqlite3.connect(":memory:") as old:
         old.executescript(definition)
-        old.executescript(
-            Path(__file__)
-            .with_name("fixtures")
-            .joinpath("schema-v10-result-migration.sql")
-            .read_text()
-        )
         triggers = old.execute(
             "SELECT name, sql FROM sqlite_schema WHERE type = 'trigger'"
         ).fetchall()
@@ -143,7 +150,7 @@ def _restore_v10_schema(store):
             "UPDATE schema_meta SET value = ? WHERE key = ?",
             (
                 ("10", "schema_version"),
-                (V10_SCHEMA_SHA256, "schema_sha256"),
+                (expected, "schema_sha256"),
             ),
         )
         old.commit()
