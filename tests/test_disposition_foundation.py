@@ -11,10 +11,15 @@ from schema_support import restore_published_schema
 from submission_support import SubmissionCase, configured_adapter
 from support import work_reference
 
-from broodling import BroodlingStore, RequiredEffect, SchemaVersionMismatch
+from broodling import Broodling, BroodlingStore, RequiredEffect, SchemaVersionMismatch
 from broodling.disposition import WorkUnitDispositionCoordinator
 from broodling.errors import SubmissionNotReady
-from broodling.schema import SCHEMA_SHA256, SCHEMA_VERSION, V9_SCHEMA_SHA256
+from broodling.schema import (
+    SCHEMA_SHA256,
+    SCHEMA_VERSION,
+    V9_SCHEMA_SHA256,
+    V10_SCHEMA_SHA256,
+)
 from broodling.zeroshot_sdk import V1_GATEWAY_BASE_URL
 
 
@@ -321,6 +326,55 @@ class StableReceiptDatabaseTests(SubmissionCase):
             payload,
         )
         self.assertIsNone(self.store.current_attempt(self.attempt.work_unit_id))
+
+    def test_v10_migration_preserves_result_by_exact_attempt_and_history(self):
+        payload = self.payload()
+        self.insert_result(payload)
+        disposition = WorkUnitDispositionCoordinator(self.store, self.adapter)
+        before = disposition.record(self.attempt_id)
+        before_history = Broodling(
+            self.store, self.adapter, self.workspace_root
+        ).history(work_reference())
+        self.assertEqual(len(before_history), 1)
+        self.assertEqual(before_history[0].disposition, before)
+
+        tables = (
+            "contract_revisions",
+            "attempts",
+            "final_assurance",
+            "work_unit_dispositions",
+        )
+        rows_before = {
+            table: [
+                tuple(row)
+                for row in self.store.connection.execute(f"SELECT * FROM {table}")
+            ]
+            for table in tables
+        }
+        restore_published_schema(self.store, 10)
+        self.assertEqual(self.store.schema_meta()["schema_version"], "10")
+        self.assertEqual(
+            self.store.schema_meta()["schema_sha256"], V10_SCHEMA_SHA256
+        )
+        self.upgrade()
+
+        self.assertEqual(self.store.schema_meta()["schema_version"], "11")
+        rows_after = {
+            table: [
+                tuple(row)
+                for row in self.store.connection.execute(f"SELECT * FROM {table}")
+            ]
+            for table in tables
+        }
+        self.assertEqual(rows_after, rows_before)
+        migrated = WorkUnitDispositionCoordinator(self.store, self.adapter)
+        self.assertEqual(migrated.record(self.attempt_id), before)
+        self.assertEqual(migrated.justification(self.attempt_id), payload)
+        after_history = Broodling(
+            self.store, self.adapter, self.workspace_root
+        ).history(work_reference())
+        self.assertEqual(after_history, before_history)
+        self.assertEqual(after_history[0].attempt.attempt_id, self.attempt_id)
 
     def test_missing_custody_cannot_complete_at_database_boundary(self):
         with self.assertRaisesRegex(sqlite3.IntegrityError, "disposition requires"):

@@ -20,6 +20,7 @@ from broodling.schema import (
     V7_SCHEMA_SHA256,
     V8_SCHEMA_SHA256,
     V9_SCHEMA_SHA256,
+    V10_SCHEMA_SHA256,
 )
 
 
@@ -61,6 +62,9 @@ def published_schema(version):
 
 def restore_published_schema(store, version):
     """Replace this fixture with its exact old schema and surviving old facts."""
+    if version == 10:
+        _restore_v10_schema(store)
+        return
     definition, expected = published_schema(version)
     previous = store.connection
     with sqlite3.connect(":memory:") as old:
@@ -87,6 +91,59 @@ def restore_published_schema(store, version):
             (
                 (str(version), "schema_version"),
                 (expected, "schema_sha256"),
+            ),
+        )
+        old.commit()
+        old.backup(previous)
+
+
+def _restore_v10_schema(store):
+    """Build v10 from frozen DDL, preserving the current database's exact rows."""
+    definition, _ = published_schema(9)
+    previous = store.connection
+    with sqlite3.connect(":memory:") as old:
+        old.executescript(definition)
+        old.executescript(
+            Path(__file__)
+            .with_name("fixtures")
+            .joinpath("schema-v10-result-migration.sql")
+            .read_text()
+        )
+        triggers = old.execute(
+            "SELECT name, sql FROM sqlite_schema WHERE type = 'trigger'"
+        ).fetchall()
+        # Copy historical rows verbatim, then reinstate their DDL constraints.
+        for name, _ in triggers:
+            old.execute(f'DROP TRIGGER "{name}"')
+        tables = [
+            row[0]
+            for row in old.execute(
+                "SELECT name FROM sqlite_schema WHERE type = 'table'"
+            )
+        ]
+        for table in tables:
+            if (
+                previous.execute(
+                    "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?",
+                    (table,),
+                ).fetchone()
+                is None
+            ):
+                continue
+            rows = [
+                tuple(row)
+                for row in previous.execute(f"SELECT * FROM {table}")
+            ]
+            if rows:
+                placeholders = ",".join("?" for _ in rows[0])
+                old.executemany(f"INSERT INTO {table} VALUES ({placeholders})", rows)
+        for _, statement in triggers:
+            old.execute(statement)
+        old.executemany(
+            "UPDATE schema_meta SET value = ? WHERE key = ?",
+            (
+                ("10", "schema_version"),
+                (V10_SCHEMA_SHA256, "schema_sha256"),
             ),
         )
         old.commit()

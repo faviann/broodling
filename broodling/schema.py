@@ -7,10 +7,10 @@ deliberately *not* a Zeroshot RunLedger mirror — there is no table for runs, n
 occurrences, provider sessions, candidate seals or effect intents. A
 Zeroshot-produced delivery receipt is retained as the final result, but there are no
 completed-occurrence projections. One final_assurance row retains a successful
-run's stable result (or historical evidence). One
-immutable disposition references that custody,
-without tracking the lifetime of callers waiting for results. Immutable
-abandonment removes current authority without asserting runtime cessation.
+run's stable result (or historical evidence) for its exact Attempt. An immutable
+disposition references that custody, without tracking the lifetime of callers
+waiting for results. Immutable abandonment removes current authority without
+asserting runtime cessation.
 
 Immutability is enforced in the database, not only in Python: append-only tables
 carry ``BEFORE UPDATE``/``BEFORE DELETE`` triggers, so a direct SQL amendment of
@@ -24,7 +24,9 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
+# SHA-256 of the v10 DDL, accepted only by the explicit upgrade path.
+V10_SCHEMA_SHA256 = "012626aba1930ac0fc62159f09dc7875ee6380323dda44fa2dac87845c60e6f2"
 V9_SCHEMA_SHA256 = "6a81e64fd6cc9136792cfdbd9e06dcc00309384d0d244f68d3a8024ca3b256d8"
 V8_SCHEMA_SHA256 = "0f1935c42baada28b56ad626bbd5c416118d98c9911fcf5949c58aa26127abf6"
 V7_SCHEMA_SHA256 = "3aa00171fa58a56034c501433606eefb49d89f382393327728fbe6265a07b603"
@@ -521,15 +523,22 @@ BEGIN
 END;
 """
 
-DISPOSITION_SQL = """
+DISPOSITION_TABLE_SQL = """
 CREATE TABLE work_unit_dispositions (
-    work_unit_id TEXT PRIMARY KEY REFERENCES work_units (work_unit_id),
+    work_unit_id TEXT NOT NULL REFERENCES work_units (work_unit_id),
     contract_revision_id TEXT NOT NULL REFERENCES contract_revisions (contract_revision_id),
-    attempt_id TEXT NOT NULL UNIQUE REFERENCES final_assurance (attempt_id),
+    attempt_id TEXT PRIMARY KEY NOT NULL REFERENCES final_assurance (attempt_id),
     outcome TEXT NOT NULL CHECK (outcome = 'SUCCEEDED'),
     completed_at TEXT NOT NULL
 ) STRICT;
+"""
 
+DISPOSITION_WORK_UNIT_INDEX_SQL = """
+CREATE INDEX work_unit_dispositions_by_work_unit
+    ON work_unit_dispositions (work_unit_id);
+"""
+
+DISPOSITION_BOUND_SQL = """
 CREATE TRIGGER work_unit_dispositions_bound BEFORE INSERT ON work_unit_dispositions
 WHEN NOT EXISTS (
     SELECT 1 FROM attempts AS a
@@ -585,20 +594,25 @@ WHEN NOT EXISTS (
 BEGIN
     SELECT RAISE(ABORT, 'disposition requires the current PR-authorized Attempt and matching stable Zeroshot receipt');
 END;
+"""
 
+ATTEMPT_ABANDONMENTS_NO_COMPLETED_SQL = """
 CREATE TRIGGER attempt_abandonments_no_completed BEFORE INSERT ON attempt_abandonments
 WHEN EXISTS (SELECT 1 FROM work_unit_dispositions WHERE attempt_id = NEW.attempt_id)
 BEGIN
     SELECT RAISE(ABORT, 'completed disposition cannot be abandoned');
 END;
+"""
 
+ATTEMPTS_NO_COMPLETED_WORK_UNIT_SQL = """
 CREATE TRIGGER attempts_no_completed_work_unit BEFORE INSERT ON attempts
 WHEN EXISTS (SELECT 1 FROM work_unit_dispositions WHERE work_unit_id = NEW.work_unit_id)
 BEGIN
     SELECT RAISE(ABORT, 'completed Work Unit cannot acquire new Attempt authority');
 END;
+"""
 
-DROP TRIGGER attempts_no_update;
+ATTEMPTS_DISPOSITION_IMMUTABILITY_SQL = """
 CREATE TRIGGER attempts_no_update BEFORE UPDATE ON attempts
 WHEN OLD.attempt_id <> NEW.attempt_id
   OR OLD.work_unit_id <> NEW.work_unit_id
@@ -614,20 +628,23 @@ WHEN OLD.attempt_id <> NEW.attempt_id
 BEGIN
     SELECT RAISE(ABORT, 'Attempt bindings are immutable; only abandonment or disposition removes currentness');
 END;
+"""
 
+DISPOSITION_REMOVE_CURRENT_SQL = """
 CREATE TRIGGER work_unit_dispositions_remove_current AFTER INSERT ON work_unit_dispositions
 BEGIN
     UPDATE attempts SET is_current = 0 WHERE attempt_id = NEW.attempt_id;
 END;
 """
 
+DISPOSITION_ROW_GUARDS_SQL = ""
 for _table, _identity in (
     (
         "work_unit_dispositions",
-        "work_unit_id = NEW.work_unit_id OR attempt_id = NEW.attempt_id",
+        "attempt_id = NEW.attempt_id",
     ),
 ):
-    DISPOSITION_SQL += f"""
+    DISPOSITION_ROW_GUARDS_SQL += f"""
 CREATE TRIGGER {_table}_no_replace BEFORE INSERT ON {_table}
 WHEN EXISTS (SELECT 1 FROM {_table} WHERE {_identity})
 BEGIN
@@ -642,6 +659,18 @@ BEGIN
     SELECT RAISE(ABORT, '{_table} is durable');
 END;
 """
+
+DISPOSITION_SQL = (
+    DISPOSITION_TABLE_SQL
+    + DISPOSITION_WORK_UNIT_INDEX_SQL
+    + DISPOSITION_BOUND_SQL
+    + ATTEMPT_ABANDONMENTS_NO_COMPLETED_SQL
+    + ATTEMPTS_NO_COMPLETED_WORK_UNIT_SQL
+    + "DROP TRIGGER attempts_no_update;\n"
+    + ATTEMPTS_DISPOSITION_IMMUTABILITY_SQL
+    + DISPOSITION_REMOVE_CURRENT_SQL
+    + DISPOSITION_ROW_GUARDS_SQL
+)
 
 SCHEMA_SQL += (
     SUBMISSION_SQL
@@ -677,4 +706,34 @@ DELIVERY_RESULT_MIGRATION_SQL = (
             "CREATE TRIGGER work_unit_dispositions_bound"
         ) : DISPOSITION_SQL.index("CREATE TRIGGER attempt_abandonments_no_completed")
     ]
+)
+
+# Rebuild the result table around Attempt identity while leaving each legacy
+# custody/disposition row untouched. External triggers are dropped briefly
+# because SQLite refuses to drop a table referenced by another trigger.
+RESULT_CARDINALITY_MIGRATION_SQL = (
+    "DROP TRIGGER attempt_abandonments_no_completed;\n"
+    "DROP TRIGGER attempts_no_completed_work_unit;\n"
+    "DROP TRIGGER attempts_no_update;\n"
+    + DISPOSITION_TABLE_SQL.replace(
+        "CREATE TABLE work_unit_dispositions (",
+        "CREATE TABLE work_unit_dispositions_v11 (",
+        1,
+    )
+    + """
+INSERT INTO work_unit_dispositions_v11 (
+    work_unit_id, contract_revision_id, attempt_id, outcome, completed_at
+)
+SELECT work_unit_id, contract_revision_id, attempt_id, outcome, completed_at
+FROM work_unit_dispositions;
+DROP TABLE work_unit_dispositions;
+ALTER TABLE work_unit_dispositions_v11 RENAME TO work_unit_dispositions;
+"""
+    + DISPOSITION_WORK_UNIT_INDEX_SQL
+    + DISPOSITION_BOUND_SQL
+    + ATTEMPT_ABANDONMENTS_NO_COMPLETED_SQL
+    + ATTEMPTS_NO_COMPLETED_WORK_UNIT_SQL
+    + ATTEMPTS_DISPOSITION_IMMUTABILITY_SQL
+    + DISPOSITION_REMOVE_CURRENT_SQL
+    + DISPOSITION_ROW_GUARDS_SQL
 )
