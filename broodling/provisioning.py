@@ -3,15 +3,19 @@
 Two operations, deliberately separated by a durable commit:
 
 ``admit``
-    resolves B1, allocates the Attempt identity and reserves a unique worktree
-    path and branch — all in the store, before anything exists on the host.
+    resolves B1, retains its exact Git object closure through a Broodling-owned
+    ref, then allocates the Attempt identity and reserves a unique worktree path
+    and branch in the store.
 
 ``provision``
-    makes the host match that reservation: one dedicated attached Git worktree,
-    on a unique local branch, checked out at exactly B1.
+    repeats the exact B1 retention from the recorded Attempt fields, then makes
+    the host match that reservation: one dedicated attached Git worktree, on a
+    unique local branch, checked out at exactly B1.
 
-The order is the crash-safety argument. Because the identity is durable *first*,
-a crash anywhere in provisioning leaves one recoverable Attempt to converge on:
+The order is the crash-safety argument. The starting commit is retained before
+the Attempt row becomes durable; a crash after admission therefore leaves both
+the recorded identity and its Git objects recoverable. A crash anywhere in
+provisioning leaves one Attempt to converge on:
 re-running ``provision`` finds the same path, the same branch and the same
 commit, adopts whatever the interrupted run had already created, and never
 allocates a replacement. Where the host state cannot be recognized as this
@@ -106,6 +110,11 @@ class AttemptProvisioner:
 
         starting_state = resolve_starting_state(repository, revision)
         self._assert_root_outside_repository(repository, starting_state)
+        git.retain_commit(
+            starting_state.repository,
+            f"refs/broodling/starting/{starting_state.commit_oid}",
+            starting_state.commit_oid,
+        )
         return self.store.admit_attempt(
             contract_revision_id,
             starting_state,
@@ -172,6 +181,11 @@ class AttemptProvisioner:
         """Bring the host in line with the reservation. Runs single-writer."""
 
         repository = Path(attempt.b1_repository)
+        git.retain_commit(
+            attempt.b1_repository,
+            f"refs/broodling/starting/{attempt.b1_commit_oid}",
+            attempt.b1_commit_oid,
+        )
         assert_supported_checkout(repository, attempt.b1_commit_oid)
         path = assignment.path
         entry = git.find_worktree(repository, path)

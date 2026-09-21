@@ -13,8 +13,10 @@ quietly reclassified as environment state: silently dropping starting material i
 the failure this refusal exists to prevent. Committing it would be Broodling
 inventing admitted material no authority entitled.
 
-This is not a general source snapshot or sealing system, and V1 does not need
-one: B1 is a commit, and the commit is already immutable.
+This is not a general source snapshot or sealing system. B1 is an immutable
+commit; Attempt admission also retains its exact local Git object closure through
+a Broodling-owned ref so branch deletion and ordinary garbage collection do not
+erase the selected starting state.
 """
 
 from __future__ import annotations
