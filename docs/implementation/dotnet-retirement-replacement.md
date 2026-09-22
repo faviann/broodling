@@ -105,6 +105,10 @@ the ordinary abandoned-work insertion guard with the safe-retry exception.
 outcomes, ownership refusals, dirty deletion, lock inode and lifecycle SQL.
 `ReplacementTests` owns original material, atomic allocation, same-key
 concurrency, historical replay, target enforcement and SQL binding refusals.
+`ReplacementCompletionTests` checks the integrated completed-Work-Unit refusal
+at API and SQL boundaries, plus completed retry-key identity handback without
+renewed authority. Its historical seed bypasses only ordinary admission while
+constructing the fixture; every guard is restored before testing safe retry.
 `RetirementProcessTests` drives real SQLite/Git with the test-only caller: SIGKILL
 before/after retirement removal, orphan exclusion, premature retry refusal and
 retry allocation/preparation transaction deaths. `InvocationTests` adds one
@@ -127,6 +131,38 @@ of `/home/faviann/.cache/broodling-tests`.
 `MSBUILDDISABLENODEREUSE=1 DOTNET_CLI_USE_MSBUILD_SERVER=0 UseSharedCompilation=false`;
 an earlier invocation failed on sandbox-incompatible reused build nodes before
 the successful complete run.
+
+Integration onto G's exact merge `cacc268708d2785bb9344c3bf2793447ccfe0138`
+preserved every v1–v6 SQL definition, G's authentic prepared v5 fixture, both
+host wait/stop branches, completion handback and quarantine inspection. H's
+ended-work SQL guard retains its safe-retry exception; G's completed-work guard
+remains unconditional. G's two-result historical fixture now temporarily
+bypasses both ordinary-admission guards during seeding, then restores them.
+
+The first two-test integration run reproduced one failure: SQL correctly
+refused completed-work retry, but the API exposed `SqliteException` instead of
+`StaleAttempt`. The application now shares G's completed-work check for new
+retry requests, after historical-key handback and before material validation or
+allocation. Both integration tests then passed in 3.992 seconds. That focused
+filter ran only those two tests; upgrade coverage comes from the full suite.
+
+Final integration validation on the rebased H plus uncommitted repairs, using
+the same environment above:
+
+- `dotnet test --solution Broodling.sln`: **257 passed, 0 failed, 0 skipped**,
+  30.241 seconds, including authentic v1–v6 upgrades and both integration tests.
+- `dotnet build Broodling.sln --configuration Release`: **0 warnings, 0 errors**,
+  22.47 seconds.
+- Unchanged Python reference: **404 passed**, 120.48 seconds.
+- `git diff --check`: clean. G5/G6 SQL fixture hashes match their provenance;
+  every G v1–v6 SQL definition is unchanged.
+
+The conflict-only candidate had passed 254 tests in 26.147 seconds and Release
+in 26.34 seconds. A pre-final integrated run passed 257 tests in 26.974 seconds
+with one test assertion style warning, corrected before the final clean run.
+G's earlier unexplained Git/provider failures and bounded nonrecurrence evidence
+remain in its [completion record](dotnet-receipt-completion.md); these integration
+passes establish neither their cause nor a repair.
 
 Controlled transport/PR receipt stubs do not establish real DirectTarget PR
 delivery. No live gateway/GitHub mutation/provider/deployment/evaluation or

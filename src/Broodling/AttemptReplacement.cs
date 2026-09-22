@@ -38,6 +38,7 @@ public sealed partial class BroodlingStore
             transaction.Commit();
             return historical; // Historical identity only; never restore authority or materialize here.
         }
+        RequireIncompleteWorkUnit(predecessor.WorkUnitId, transaction);
         if (predecessor.Abandonment is null || ReadRetirement(predecessorId, transaction)?.RetiredAt is null)
             throw new AttemptAdmissionError("Replacement requires abandonment and completed safe retirement.");
         RequireRetirementSafety(predecessor, transaction);

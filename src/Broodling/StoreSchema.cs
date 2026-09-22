@@ -153,8 +153,7 @@ internal static class StoreSchema
 
         DROP TRIGGER attempts_no_abandoned_work;
         CREATE TRIGGER attempts_no_abandoned_work BEFORE INSERT ON attempts
-        WHEN EXISTS (SELECT 1 FROM attempts JOIN attempt_abandonments USING (attempt_id)
-            WHERE work_unit_id = NEW.work_unit_id)
+        WHEN EXISTS (SELECT 1 FROM attempts WHERE work_unit_id = NEW.work_unit_id AND is_current = 0)
           AND NOT EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id)
         BEGIN SELECT RAISE(ABORT, 'ended Work Unit requires explicit safe replacement'); END;
         CREATE TRIGGER retry_preserves_bindings BEFORE INSERT ON attempts

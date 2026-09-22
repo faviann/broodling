@@ -71,7 +71,8 @@ completion facts; Ctrl+C from wait returns caller-detached handback.
 
 ## Durable authority and upgrades
 
-Schema **6** uses one immutable `attempt_completions` row for the receipt and
+G introduced schema **6**, retained unchanged within H's schema **7**. It uses
+one immutable `attempt_completions` row for the receipt and
 successful disposition. A single row avoids intermediate receipt-only custody;
 an insertion trigger removes current authority in the same transaction. The
 Attempt primary key and unique run ID prevent duplicate result identity. The
@@ -83,7 +84,7 @@ key and delivery selectors against the receipt. The application additionally
 reconstructs the entire invocation. SQL independently refuses unjustified
 currentness loss, abandonment of a completed Attempt, and admission of any new
 Attempt for a completed Work Unit. Ordinary admission has the same Work Unit
-guard. These guards must survive H's later explicit replacement work; result
+guard. H's explicit replacement preserves these guards; result
 cardinality is not permission to reopen completed work.
 
 The schema-6 upgrade also repairs a baseline parity gap found by an independent
@@ -94,7 +95,7 @@ depending on connection-specific recursive-delete triggers. Original schema
 definitions remain frozen. Replacement hardening for provisioning/submission
 rows is not included: the same mutations were permitted by the Python baseline.
 
-Ordinary open refuses schemas 1–5. Deliberate upgrade retains their original
+Ordinary open now refuses schemas 1–6. Deliberate upgrade retains their original
 definition hashes and applies missing schema changes atomically without
 reinterpreting old facts. The authentic pre-G schema-5 fixture was captured
 from F's public API before these edits; see its
@@ -120,8 +121,8 @@ handback, without duplicating boundary failure matrices.
 PR receipts here come from controlled native-result boundaries, not real
 DirectTarget PR delivery. F's released-SDK transport evidence remains distinct.
 No live provider, gateway, GitHub mutation, deployment or evaluation is involved.
-Python production code and tests are unchanged. H still owns stop/retirement/
-replacement. Every dispatched Attempt remains quarantined after native terminal
+Python production code and tests are unchanged. [H implements stop/retirement/
+replacement](dotnet-retirement-replacement.md). Every dispatched Attempt remains quarantined after native terminal
 success or failure; completion supplies no physical-cessation proof.
 
 The [P5 scoped FAIL](../../evaluation/p5/README.md) and supervised-use limit

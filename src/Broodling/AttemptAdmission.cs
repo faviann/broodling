@@ -56,12 +56,17 @@ public sealed partial class BroodlingStore
 
     private void RequireOrdinaryAttemptAuthority(string workUnitId, SqliteTransaction transaction)
     {
-        using var completed = Command("SELECT 1 FROM attempt_completions WHERE work_unit_id = $p0 LIMIT 1", transaction, workUnitId);
-        if (completed.ExecuteScalar() is not null)
-            throw new StaleAttempt("Completed Work Units cannot acquire new Attempt authority.");
+        RequireIncompleteWorkUnit(workUnitId, transaction);
         var previous = ReadAttempts("work_unit_id = $p0", workUnitId, transaction);
         if (previous.Any(attempt => attempt.Abandonment is not null || !attempt.IsCurrent))
             throw new StaleAttempt("Ordinary admission cannot restore ended authority or authorize replacement.");
+    }
+
+    private void RequireIncompleteWorkUnit(string workUnitId, SqliteTransaction transaction)
+    {
+        using var completed = Command("SELECT 1 FROM attempt_completions WHERE work_unit_id = $p0 LIMIT 1", transaction, workUnitId);
+        if (completed.ExecuteScalar() is not null)
+            throw new StaleAttempt("Completed Work Units cannot acquire new Attempt authority.");
     }
 
     public AttemptRecord GetAttempt(string attemptId) => ReadAttempt(attemptId);

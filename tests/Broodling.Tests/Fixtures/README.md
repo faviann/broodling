@@ -62,6 +62,30 @@ upgrade, and exercise the new currentness guard.
 - Original manifest hash: `b2ae125490e59a61100a2afd06ff17709f79986b928a80fcf94f573d5ec14a99`.
 - SQL fixture SHA-256: `3fe7cf1f409f45ec7314bd65466e1676584b3cccce099b322aa0071dbcb01555`.
 
+`dotnet-v6.sql` is the verbatim root capture of G's actual pre-H public API on
+22 September 2026. The assembly was built at
+`8f02de76806a73d60177480b79687867ede42fcd`; production was unchanged through
+`fdc1db5b6ae64aa0addab085435e8364291098a7`, merged as
+`cacc268708d2785bb9344c3bf2793447ccfe0138`. Public APIs initialized the store,
+admitted binary issue sources `00 ff 0d 0a` and PR Contracts for `acme/widget#12`
+and `#13`, provisioned owned Git worktrees, and dispatched through a controlled
+transport. Issue 12 retained receipt-backed completion; issue 13 retained
+correlated abandonment. No real native dispatch, provider or external effect
+occurred. H's schema builder did not construct this fixture.
+
+The capture helper was `/tmp/broodling-139-v6-capture.mYiojM`; the owned capture
+root `/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT` was removed after
+capture. Old Git/worktree/native paths are evidence only. The consolidated
+Restore helper disables foreign keys only for dump ordering. Upgrade tests
+compare every old fact row, refuse ordinary open without modifying the file,
+upgrade to schema 7, reopen, repeat upgrade and replay the exact completion
+without native access. The prepared v5 fixture above is preserved unchanged.
+
+- Assembly SHA-256: `51dd42d49beb6c88738fa48055e353520e9572c22b35167b7665e03afec9b229`.
+- Original definition hash: `ee2c514222e63e6b1f9311b5bad12874255b230bd8e8b2718dfa6320146d875a`.
+- Original manifest hash: `9e90c11e420be0274beb506c0dd44702f04dad402e0a945f4d21a68cc6d65881`.
+- SQL fixture SHA-256: `b41038ccdf01327e6e71273579762c20870745227910dd37441dda901f580567`.
+
 The F Python files here are test fixtures only. `receipt-sdk.py` substitutes SDK
 constructors/results around the production translator and proves precise PR
 receipt transport, not real DirectTarget delivery. `corrupt-submit.py` succeeds

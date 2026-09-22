@@ -114,7 +114,8 @@ this is distinct from the independently recorded
 - [G completion](dotnet-receipt-completion.md) adds the baseline's Work-Unit-wide
   completed-result admission refusal in both the store and schema. Exact-Attempt
   result retention never allows completed work to acquire fresh authority.
-- H owns native stop, retirement and explicit replacement from original B1;
+- [H lifecycle](dotnet-retirement-replacement.md) implements native stop,
+  retirement and explicit replacement from original B1;
   ordinary admission and abandonment here grant none of those operations.
 
 The supported profile excludes concurrent hostile mutation of repository

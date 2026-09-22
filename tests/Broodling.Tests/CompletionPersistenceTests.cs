@@ -88,17 +88,18 @@ public sealed class CompletionPersistenceTests
         using var fixture = new CompletionFixture();
         await fixture.Dispatch();
         var first = await fixture.Wait();
-        // Seed a second historical Attempt, bypassing only today's new-admission guard.
+        // Seed a second historical Attempt, bypassing only today's completed/ended admission guards.
         // This is retained-data cardinality evidence, not authorization to reopen completed work.
         using var connection = fixture.Git.State.Connect();
         string guard;
         using (var read = connection.CreateCommand())
         {
-            read.CommandText = "SELECT sql FROM sqlite_schema WHERE name = 'attempts_no_completed_work'";
+            read.CommandText = "SELECT group_concat(sql, ';') FROM sqlite_schema WHERE name IN ('attempts_no_completed_work', 'attempts_no_abandoned_work')";
             guard = (string)read.ExecuteScalar()!;
         }
         fixture.Git.State.Execute($"""
             DROP TRIGGER attempts_no_completed_work;
+            DROP TRIGGER attempts_no_abandoned_work;
             INSERT INTO attempts SELECT 'historical-second', work_unit_id, contract_revision_id, 1,
                 b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, workspace_root,
                 enclosure || '-second', worktree_path || '-second', branch || '-second', admitted_at FROM attempts;
