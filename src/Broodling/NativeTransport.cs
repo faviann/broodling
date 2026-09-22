@@ -78,7 +78,7 @@ public sealed class ZeroshotTransport : INativeTransport
             var kind = RequiredString(response, "error");
             if (kind == "submission_conflict")
                 throw new SubmissionConflict("Native submission conflicts with its existing key.",
-                    response.TryGetProperty("existingRunId", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString() : null);
+                    RequiredString(response, "existingRunId"));
             // Only allow known public SDK facts into diagnostics, never arbitrary returned strings.
             throw new NativeTransportError(kind is "RunNotFoundError" or "TargetError" ? kind : "sdk_failed");
         }

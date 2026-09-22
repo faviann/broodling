@@ -169,6 +169,9 @@ public sealed class CodexProfile
 
     internal JsonObject Identity()
     {
+        // The pinned native runtime resolves the literal command "codex" through PATH.
+        if (Path.GetFileName(Launcher) != "codex" || Path.GetDirectoryName(Launcher)!.Contains(Path.PathSeparator))
+            throw new UnsupportedRuntime("The validated launcher must be the native codex command.");
         foreach (var path in new[] { RealCodex, ProfileHome, CodexHome, Launcher })
             if (PhysicalPaths.Resolve(path) != path) throw new UnsupportedRuntime("Provider paths must remain canonical.");
         var directory = Path.GetDirectoryName(Launcher)!;

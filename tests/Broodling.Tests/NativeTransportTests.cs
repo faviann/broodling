@@ -34,6 +34,11 @@ public sealed class NativeTransportTests
     [Arguments("{\"ok\":\"true\",\"runId\":\"fake\"}")]
     [Arguments("{\"ok\":true,\"runId\":\" \"}")]
     [Arguments("{\"ok\":true,\"runId\":42}")]
+    [Arguments("{\"ok\":false,\"error\":\"submission_conflict\"}")]
+    [Arguments("{\"ok\":false,\"error\":\"submission_conflict\",\"existingRunId\":null}")]
+    [Arguments("{\"ok\":false,\"error\":\"submission_conflict\",\"existingRunId\":42}")]
+    [Arguments("{\"ok\":false,\"error\":\"submission_conflict\",\"existingRunId\":\"\"}")]
+    [Arguments("{\"ok\":false,\"error\":\"submission_conflict\",\"existingRunId\":\" \"}")]
     public async Task CorruptSubmitResponseLeavesDurableUnresolvedIntentAndOnlyIdenticalReplay(string response)
     {
         using var fixture = new NativeFixture();

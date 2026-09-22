@@ -3,6 +3,14 @@ namespace Broodling;
 /// <summary>One explicit work reference. No completion, retirement or replacement policy.</summary>
 public sealed class Invocation(BroodlingStore store, string workspaceRoot, NativeProfile profile, INativeTransport transport)
 {
+    /// <summary>Retained handback needs neither dispatch configuration nor the old workspace.</summary>
+    public static bool CanResumeWithoutDispatch(AdmissionStatus status)
+    {
+        var attempt = status.Attempts.LastOrDefault();
+        return status.Decision is { Admitted: false } || attempt is { IsCurrent: false }
+            || status.Submissions.Any(submission => submission.AttemptId == attempt?.AttemptId && submission.State == "correlated");
+    }
+
     public async Task<AdmissionStatus> SubmitAsync(WorkReference reference, Func<ContractProposalInput, Contract> propose,
         IEnumerable<RequiredEffect> requiredEffects, string repository, string revision = "HEAD",
         IEnumerable<SourceSubmission>? additionalSources = null, string constructedBy = "model_extraction",
@@ -16,10 +24,13 @@ public sealed class Invocation(BroodlingStore store, string workspaceRoot, Nativ
         DispatchCredentials? credentials = null, CancellationToken cancellationToken = default)
     {
         var status = store.Status(revisionId);
-        var decision = status.Decision ?? store.Admit(revisionId);
-        if (!decision.Admitted) return store.Status(revisionId);
+        if (status.Decision is null)
+        {
+            store.Admit(revisionId);
+            status = store.Status(revisionId);
+        }
+        if (CanResumeWithoutDispatch(status)) return status;
         var attempt = status.Attempts.LastOrDefault();
-        if (attempt?.Abandonment is not null || attempt is { IsCurrent: false }) return status;
         if (attempt is null)
         {
             if (repository is null) throw new AttemptAdmissionError("A source repository is required before first Attempt allocation.");

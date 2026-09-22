@@ -79,7 +79,9 @@ submit identical requests; native submission-key idempotency owns duplicate
 prevention. Correlation requires their acknowledged run identities to converge.
 An empty/blank identity, empty stdout, malformed JSON/envelope, transport loss,
 cancellation or caller death leaves durable unresolved dispatch. A genuine
-typed conflict becomes `blocked`. Recovery of a conflict's existing identity
+typed conflict with a nonblank run identity becomes `blocked`. A conflict
+envelope missing that identity, or carrying a nonstring/blank identity, is
+malformed transport and remains replayable. Recovery of a conflict's existing identity
 requires unchanged persisted invocation, validated owned source/branch/origin,
 and HEAD drift from original B1, checked again after the call. Dirty files alone,
 an error message, or a run ID alone cannot establish recovery.
@@ -124,7 +126,11 @@ baseline, ambiguous local replay repeats the initial-home validation; this does
 not claim qualification of a real populated post-Codex home. Native state stays
 canonical and separate from candidate/shared Git.
 
-`Broodling.Codex` is the C# `codex` launcher. It applies the baseline sandbox,
+`Broodling.Codex` is the C# `codex` launcher. Validation requires that exact
+filename and a directory without the PATH separator: native resolves `codex`
+through that prepended directory, so a renamed launcher or split search-path
+component cannot silently fall through to an ambient executable.
+It applies the baseline sandbox,
 approval, networking, user-config/rules, search, apps/plugins/hooks and notify
 policy, refuses app-server probing, preserves native same-execution resume, then
 calls libc `execve`. The provider retains that same PID and stdin. There is no
@@ -249,3 +255,14 @@ configuration fields and noncanonical/nonloopback origins, plus safe ordinary
 process-error handback. The focused witnesses first reproduced eight accepted
 invalid configurations and an escaping synthetic `Win32Exception`; the repair
 rejects them before allocation and never emits exception text.
+
+Independent review identified launcher/PATH binding and malformed-conflict
+classification defects. Six added cases first reproduced both failures with
+the existing 192 tests still passing. Repairs require the exact native-resolved
+launcher and treat missing/nonstring/blank conflict run identities as unresolved
+transport. A further case covers a launcher directory containing the PATH
+separator. The shared application handback predicate also removes duplicated
+operator resume policy.
+The final repaired candidate passed **199 tests, 0 failed, 0 skipped** in
+62.907 seconds and its Release build passed with **0 warnings, 0 errors** in
+7.38 seconds.

@@ -61,15 +61,40 @@ public sealed class NativePolicyTests
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
         var attempt = fixture.Provision(store);
-        var directory = Directory.CreateDirectory(Path.Combine(fixture.Root, "launcher")).FullName;
-        foreach (var name in new[] { "codex", "codex.dll", "codex.runtimeconfig.json", "codex.deps.json", "Broodling.dll" })
-            File.Copy(Path.Combine(Path.GetDirectoryName(NativeFixture.Launcher)!, name), Path.Combine(directory, name));
+        var directory = CopyLauncher(fixture);
         var profile = new NativeProfile(fixture.NativeState, new(fixture.Codex.RealCodex, fixture.Home, fixture.CodexHome, Path.Combine(directory, "codex")), toolPath: "/usr/bin:/bin");
         store.PrepareSubmission(attempt.AttemptId, profile);
         File.AppendAllText(Path.Combine(directory, "codex.dll"), "changed-managed-launcher");
         var transport = new ControlledTransport();
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, profile, transport)).Throws<SubmissionConflict>();
         await Assert.That(transport.Calls).IsEqualTo(0);
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ProfileRefusesALauncherThatNativeWouldNotResolve(bool pathSeparator)
+    {
+        using var fixture = new NativeFixture();
+        using var store = fixture.Git.State.Open();
+        var attempt = fixture.Provision(store);
+        var directory = CopyLauncher(fixture, pathSeparator ? "launcher:split" : "launcher");
+        var configured = Path.Combine(directory, pathSeparator ? "codex" : "policy-launcher");
+        if (!pathSeparator) File.Move(Path.Combine(directory, "codex"), configured);
+        var profile = new NativeProfile(fixture.NativeState,
+            new(fixture.Codex.RealCodex, fixture.Home, fixture.CodexHome, configured), toolPath: "/usr/bin:/bin");
+        var transport = new ControlledTransport();
+        await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, profile, transport)).Throws<UnsupportedRuntime>();
+        await Assert.That(transport.Calls).IsEqualTo(0);
+        await Assert.That(store.FindSubmission(attempt.AttemptId)).IsNull();
+    }
+
+    private static string CopyLauncher(NativeFixture fixture, string directoryName = "launcher")
+    {
+        var directory = Directory.CreateDirectory(Path.Combine(fixture.Root, directoryName)).FullName;
+        foreach (var name in new[] { "codex", "codex.dll", "codex.runtimeconfig.json", "codex.deps.json", "Broodling.dll" })
+            File.Copy(Path.Combine(Path.GetDirectoryName(NativeFixture.Launcher)!, name), Path.Combine(directory, name));
+        return directory;
     }
 
     [Test]

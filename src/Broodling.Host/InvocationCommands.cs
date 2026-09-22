@@ -25,8 +25,7 @@ public static class InvocationCommands
             {
                 status = store.Status(args[2]);
                 // Inspection/reconnection handles do not need configuration or old dispatch credentials.
-                if (status.Decision is { Admitted: false } || status.Attempts.LastOrDefault() is { IsCurrent: false }
-                    || status.Submissions.LastOrDefault()?.State == "correlated")
+                if (Invocation.CanResumeWithoutDispatch(status))
                 {
                     Write(status, output);
                     return 0;
