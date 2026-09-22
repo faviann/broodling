@@ -4,6 +4,11 @@
 [current architecture and operating status](../governing/current.md) governs
 scope; this document supplies the detailed native boundary.
 
+The .NET migration's [F dispatch seam](dotnet-native-dispatch.md) implements the
+frozen invocation, C# execution policy, narrow SDK transport and correlation.
+Its result/retirement application policies remain allocated to G/H; Python
+continues to define the deployed lifecycle until the separate cutover.
+
 Decision date: 16 September 2026. This is the current implementation boundary.
 It supersedes the removed custom execution/proof requirements and recovery
 capability claims. Immutable admission, source entitlement, current-Attempt

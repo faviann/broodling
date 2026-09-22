@@ -65,13 +65,15 @@ public sealed class AdmissionDecision(string decisionId, string contractRevision
 
 /// <summary>Retained facts for one exact revision; null decision grants no admission.</summary>
 public sealed class AdmissionStatus(WorkUnit workUnit, IEnumerable<EntitledSource> sources,
-    ContractRevision revision, AdmissionDecision? decision, IEnumerable<AttemptRecord>? attempts = null)
+    ContractRevision revision, AdmissionDecision? decision, IEnumerable<AttemptRecord>? attempts = null,
+    IEnumerable<NativeSubmission>? submissions = null)
 {
     public WorkUnit WorkUnit { get; } = workUnit;
     public IReadOnlyList<EntitledSource> Sources { get; } = Array.AsReadOnly(sources.ToArray());
     public ContractRevision Revision { get; } = revision;
     public AdmissionDecision? Decision { get; } = decision;
     public IReadOnlyList<AttemptRecord> Attempts { get; } = Array.AsReadOnly((attempts ?? []).ToArray());
+    public IReadOnlyList<NativeSubmission> Submissions { get; } = Array.AsReadOnly((submissions ?? []).ToArray());
 }
 
 public sealed partial class BroodlingStore
@@ -251,8 +253,9 @@ public sealed partial class BroodlingStore
         var revision = ReadRevision(revisionId, transaction) ?? throw new UnknownRecord("Unknown Contract revision.");
         var work = ReadWorkUnit(revision.WorkUnitId, transaction)!;
         var sources = revision.Contract.SourceAttribution.Select(pin => ReadSource(pin.SourceId, transaction)).ToArray();
-        var result = new AdmissionStatus(work, sources, revision, ReadDecision(revisionId, transaction),
-            ReadAttempts("contract_revision_id = $p0", revisionId, transaction));
+        var attempts = ReadAttempts("contract_revision_id = $p0", revisionId, transaction);
+        var result = new AdmissionStatus(work, sources, revision, ReadDecision(revisionId, transaction), attempts,
+            attempts.Select(attempt => ReadSubmission(attempt.AttemptId, transaction)).OfType<NativeSubmission>());
         transaction.Commit();
         return result;
     }

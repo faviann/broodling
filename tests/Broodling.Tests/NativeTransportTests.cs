@@ -1,0 +1,211 @@
+using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using TUnit.Assertions;
+using TUnit.Core;
+
+namespace Broodling.Tests;
+
+public sealed class NativeTransportTests
+{
+    [Test]
+    [Arguments("wrong-sdk", "zeroshot 10.3.0")]
+    [Arguments("10.3.0.post1", "zeroshot wrong-native")]
+    public async Task CSharpRejectsWrongSdkOrBundledNativeBeforeSubmit(string sdk, string native)
+    {
+        using var fixture = new NativeFixture();
+        var script = Path.Combine(fixture.Root, "corrupt-submit.py");
+        File.Copy(NativeFixture.Fixture("corrupt-submit.py"), script);
+        File.WriteAllText(Path.ChangeExtension(script, ".version"), JsonSerializer.Serialize(new { ok = true, sdkVersion = sdk, nativeVersion = native }));
+        // No .response exists: passing the version check would cross submit and fail with a different error.
+        using var store = fixture.Git.State.Open();
+        var attempt = fixture.Provision(store);
+        await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile,
+            new ZeroshotTransport(NativeFixture.Python, script))).Throws<UnsupportedRuntime>();
+        await Assert.That(store.FindSubmission(attempt.AttemptId)!.State).IsEqualTo("dispatched");
+    }
+
+    [Test]
+    [Arguments("")]
+    [Arguments("{")]
+    [Arguments("null")]
+    [Arguments("[]")]
+    [Arguments("{\"ok\":true}")]
+    [Arguments("{\"ok\":\"true\",\"runId\":\"fake\"}")]
+    [Arguments("{\"ok\":true,\"runId\":\" \"}")]
+    [Arguments("{\"ok\":true,\"runId\":42}")]
+    [Arguments("{\"ok\":false,\"error\":\"submission_conflict\"}")]
+    [Arguments("{\"ok\":false,\"error\":\"submission_conflict\",\"existingRunId\":null}")]
+    [Arguments("{\"ok\":false,\"error\":\"submission_conflict\",\"existingRunId\":42}")]
+    [Arguments("{\"ok\":false,\"error\":\"submission_conflict\",\"existingRunId\":\"\"}")]
+    [Arguments("{\"ok\":false,\"error\":\"submission_conflict\",\"existingRunId\":\" \"}")]
+    public async Task CorruptSubmitResponseLeavesDurableUnresolvedIntentAndOnlyIdenticalReplay(string response)
+    {
+        using var fixture = new NativeFixture();
+        var script = Path.Combine(fixture.Root, "corrupt-submit.py");
+        File.Copy(NativeFixture.Fixture("corrupt-submit.py"), script);
+        File.WriteAllText(Path.ChangeExtension(script, ".response"), response);
+        NativeSubmission retained;
+        using (var store = fixture.Git.State.Open())
+        {
+            var attempt = fixture.Provision(store);
+            await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile,
+                new ZeroshotTransport(NativeFixture.Python, script))).Throws<NativeTransportError>();
+            retained = store.FindSubmission(attempt.AttemptId)!;
+            await Assert.That(retained.State).IsEqualTo("dispatched");
+            await Assert.That(retained.RunId).IsNull();
+        }
+        using var reopened = fixture.Git.State.Open();
+        File.WriteAllText(Path.ChangeExtension(script, ".response"), "{\"ok\":true,\"runId\":\"recovered-native-run\"}");
+        var result = await reopened.DispatchAsync(retained.AttemptId, fixture.Profile, new ZeroshotTransport(NativeFixture.Python, script));
+        await Assert.That(result.RequestJson).IsEqualTo(retained.RequestJson);
+        await Assert.That(result.SubmissionKey).IsEqualTo(retained.SubmissionKey);
+        await Assert.That(result.RunId).IsEqualTo("recovered-native-run");
+    }
+
+    [Test]
+    public async Task ReleasedSdkReplayConflictsOwnedHeadRecoveryAndNullOutput()
+    {
+        using var fixture = new NativeFixture();
+        using var store = fixture.Git.State.Open();
+        var attempt = fixture.Provision(store);
+        var transport = NativeFixture.Transport();
+        var prepared = store.PrepareSubmission(attempt.AttemptId, fixture.Profile);
+        // Accept through the real released SDK, then lose only the caller's acknowledgment.
+        string? acceptedId = null;
+        var lostAck = new ControlledTransport { Submit = async (request, credentials) =>
+        {
+            acceptedId = await transport.SubmitAsync(request, credentials);
+            throw new NativeTransportError();
+        } };
+        await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, lostAck)).Throws<NativeTransportError>();
+        var result = await transport.WaitAsync(prepared.Locator, acceptedId!);
+        await Assert.That(result.Succeeded).IsTrue();
+        await Assert.That(result.Output.ValueKind).IsEqualTo(JsonValueKind.Null);
+        await Assert.That(result.Failure).IsNull();
+        await Assert.That(await transport.SubmitAsync(prepared.RequestJson, new Dictionary<string, string>())).IsEqualTo(acceptedId);
+        var different = JsonNode.Parse(prepared.RequestJson)!;
+        different["task"] = "Actually different task";
+        var realConflict = await Assert.ThrowsAsync<SubmissionConflict>(async () => await transport.SubmitAsync(different.ToJsonString(), new Dictionary<string, string>()));
+        await Assert.That(realConflict!.ExistingRunId).IsEqualTo(acceptedId);
+        File.WriteAllText(Path.Combine(attempt.Allocation.WorktreePath, "original.txt"), "owned native progress\n");
+        AttemptFixture.RunGit(attempt.Allocation.WorktreePath, "add", ".");
+        AttemptFixture.RunGit(attempt.Allocation.WorktreePath, "commit", "-m", "owned native progress");
+        var driftConflict = await Assert.ThrowsAsync<SubmissionConflict>(async () => await transport.SubmitAsync(prepared.RequestJson, new Dictionary<string, string>()));
+        await Assert.That(driftConflict!.ExistingRunId).IsEqualTo(realConflict.ExistingRunId);
+        await Assert.That(driftConflict.Message).IsEqualTo(realConflict.Message);
+        var correlated = await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
+        await Assert.That(correlated.RunId).IsEqualTo(acceptedId);
+        // Locator-only reconnect survives loss of every dispatch-time path/profile.
+        Directory.Delete(attempt.Allocation.WorktreePath, true);
+        Directory.Delete(fixture.Home, true);
+        Directory.Delete(fixture.CodexHome, true);
+        File.Delete(fixture.Codex.RealCodex);
+        var repeated = await transport.WaitAsync(correlated.Locator, acceptedId!);
+        await Assert.That(repeated.RunId).IsEqualTo(result.RunId);
+        await Assert.That(repeated.Output.GetRawText()).IsEqualTo(result.Output.GetRawText());
+        await Assert.That((await transport.StopAsync(correlated.Locator, acceptedId!)).RunId).IsEqualTo(acceptedId);
+        await Assert.That((await store.DispatchAsync(attempt.AttemptId, new NativeProfile("/missing"), transport)).RunId).IsEqualTo(acceptedId);
+        var unknown = await Assert.ThrowsAsync<NativeTransportError>(async () => await transport.WaitAsync(correlated.Locator, "01a00000-0000-7000-8000-000000000000"));
+        await Assert.That(unknown!.Kind).IsEqualTo("RunNotFoundError");
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task CancelOrKillWaiterDetachesWhileTheNativeRunContinues(bool kill)
+    {
+        using var fixture = new NativeFixture(NativeFixture.Fixture("slow-codex"));
+        using var store = fixture.Git.State.Open();
+        var attempt = fixture.Provision(store);
+        var transport = NativeFixture.Transport();
+        var submission = await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
+        if (kill)
+        {
+            using var waiter = transport.Start(new { op = "wait", locator = submission.Locator.Json(), runId = submission.RunId });
+            await Task.Delay(1000);
+            waiter.Kill(entireProcessTree: false);
+            await waiter.WaitForExitAsync();
+        }
+        else
+        {
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+            await Assert.That(async () => await transport.WaitAsync(submission.Locator, submission.RunId!, cancellation.Token)).Throws<OperationCanceledException>();
+        }
+        var clock = Stopwatch.StartNew();
+        var result = await transport.WaitAsync(submission.Locator, submission.RunId!);
+        await Assert.That(clock.Elapsed).IsGreaterThan(TimeSpan.FromSeconds(3));
+        await Assert.That(result.RunId).IsEqualTo(submission.RunId);
+        await Assert.That(result.Succeeded).IsTrue();
+        await Assert.That(store.GetAttempt(attempt.AttemptId).Abandonment).IsNull();
+    }
+
+    [Test]
+    public async Task ExplicitNativeStopIsSeparateAndReturnsStableFailureWithoutApplicationDisposition()
+    {
+        using var fixture = new NativeFixture(NativeFixture.Fixture("slow-codex"));
+        using var store = fixture.Git.State.Open();
+        var attempt = fixture.Provision(store);
+        var transport = NativeFixture.Transport();
+        var submission = await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
+        await Task.Delay(1000);
+        var stopped = await transport.StopAsync(submission.Locator, submission.RunId!);
+        var replay = await transport.WaitAsync(submission.Locator, submission.RunId!);
+        await Assert.That(stopped.Succeeded).IsFalse();
+        await Assert.That(stopped.Failure).IsEqualTo("force_stopped");
+        await Assert.That(replay.Failure).IsEqualTo(stopped.Failure);
+        await Assert.That(replay.RunId).IsEqualTo(stopped.RunId);
+        await Assert.That(store.GetAttempt(attempt.AttemptId).IsCurrent).IsTrue(); // H owns abandonment, not this transport.
+    }
+
+    [Test]
+    public async Task PreciseStubSdkChecksDirectDispatchAndUnchangedReceiptButProvesNoRealDelivery()
+    {
+        using var fixture = new NativeFixture();
+        using var store = fixture.Git.State.Open();
+        var admitted = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose,
+            [new("pr", "Deliver PR", "pull_request", "main")]);
+        var attempt = store.ProvisionAttempt(store.AdmitAttempt(admitted.Revision.ContractRevisionId, fixture.Git.Repository, fixture.Git.Workspaces).AttemptId);
+        var profile = new NativeProfile(fixture.NativeState, directOrigin: "http://stub-target.invalid/receipt", toolPath: "/usr/bin:/bin");
+        var transport = new ZeroshotTransport(NativeFixture.Python, NativeFixture.Fixture("receipt-sdk.py"));
+        var submission = await store.DispatchAsync(attempt.AttemptId, profile, transport,
+            new("SYNTHETIC_GH_SECRET", NativeProfile.GatewayBaseUrl, "SYNTHETIC_GATEWAY_SECRET"));
+        Directory.Delete(attempt.Allocation.WorktreePath, true);
+        var result = await transport.WaitAsync(submission.Locator, submission.RunId!);
+        await Assert.That(result.Output.GetProperty("headRevision").GetString()).IsEqualTo(new string('b', 40));
+        await Assert.That(result.Output.GetProperty("pullRequestId").GetString()).IsEqualTo("50");
+        await Assert.That(result.Output.EnumerateObject().Count()).IsEqualTo(7);
+        await Assert.That((await transport.StopAsync(submission.Locator, submission.RunId!)).Failure).IsEqualTo("force_stopped");
+        foreach (var kind in new[] { "null", "false", "number", "string", "array" })
+        {
+            var value = await transport.WaitAsync(new("direct", "http://stub-target.invalid/" + kind), submission.RunId!);
+            await Assert.That(value.Output.GetRawText()).IsEqualTo(kind switch
+            {
+                "null" => "null", "false" => "false", "number" => "12.5", "string" => "\"unchanged\"", _ => "[false, null, 7]"
+            });
+        }
+    }
+
+    [Test]
+    public async Task ReconnectRejectsReboundLocalStateAndDirectUnknownTargetReachesTransportWithoutCredentials()
+    {
+        using var fixture = new NativeFixture();
+        Directory.CreateDirectory(fixture.NativeState);
+        var locator = new NativeLocator("local", fixture.NativeState);
+        Directory.Delete(fixture.NativeState);
+        Directory.CreateSymbolicLink(fixture.NativeState, fixture.Root);
+        try
+        {
+            await Assert.That(async () => await NativeFixture.Transport().WaitAsync(locator, "unknown")).Throws<UnsupportedRuntime>();
+        }
+        finally { Directory.Delete(fixture.NativeState); }
+        // Reserve an unavailable local endpoint; no forge/provider target is contacted.
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        var error = await Assert.ThrowsAsync<NativeTransportError>(async () => await NativeFixture.Transport().WaitAsync(
+            new("direct", "http://127.0.0.1:" + port), "01a00000-0000-7000-8000-000000000000"));
+        await Assert.That(error!.Kind).IsEqualTo("TargetError");
+    }
+}
