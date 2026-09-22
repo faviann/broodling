@@ -45,6 +45,33 @@ try
         return 99;
     }
     using var store = new BroodlingApplication().OpenStore(args[1]);
+    if (args[0] == "retire")
+    {
+        if (args.Length > 3) File.WriteAllText(args[3], "retirement-started");
+        Console.WriteLine(JsonSerializer.Serialize(store.RetireAttempt(args[2])));
+        return 0;
+    }
+    if (args[0] == "retry-crash")
+    {
+        var mode = args[3];
+        var profile = new NativeProfile(args[5], new CodexProfile(args[6], args[7], args[8], args[9]), toolPath: "/usr/bin:/bin");
+        if (mode is "allocation-write" or "prepare-write")
+        {
+            var connection = (Microsoft.Data.Sqlite.SqliteConnection)typeof(BroodlingStore)
+                .GetField("connection", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(store)!;
+            connection.CreateFunction("crash_gate", () => { CrashTransport.Gate(mode); return 1; });
+            using var command = connection.CreateCommand();
+            command.CommandText = mode == "allocation-write"
+                ? "CREATE TEMP TRIGGER crash_gate AFTER INSERT ON attempts BEGIN SELECT crash_gate(); END;"
+                : "CREATE TEMP TRIGGER crash_gate AFTER INSERT ON native_submissions BEGIN SELECT crash_gate(); END;";
+            command.ExecuteNonQuery();
+        }
+        if (mode is "allocation-write" or "allocated")
+            store.AdmitRetry(args[2], "process-retry", args[4], profile);
+        else store.PrepareRetry(args[2], "process-retry", args[4], profile);
+        CrashTransport.Gate(mode);
+        return 99;
+    }
     if (args[0] == "pipe-cleanup")
     {
         var attempt = store.GetAttempt(args[2]);

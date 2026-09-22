@@ -7,6 +7,44 @@ namespace Broodling.Tests;
 
 public sealed class InvocationTests
 {
+    [Test]
+    public async Task ThinStopHandsBackQuarantineAndSubmitResumeStatusHistoryRetainAbandonment()
+    {
+        using var fixture = new NativeFixture();
+        using var gh = new IssueFixture(fixture.Root);
+        using var store = fixture.Git.State.Open();
+        var submissionTransport = new ControlledTransport();
+        var invocation = new Invocation(store, fixture.Git.Workspaces, fixture.Profile, submissionTransport);
+        var submitted = await invocation.SubmitAsync(ContractIngressTests.Reference, new ReviewedIssueProposal(Issue).Propose,
+            [], fixture.Git.Repository, source: gh.Source);
+        var attempt = submitted.Attempts.Single();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var stopTransport = new StopTransport((_, _) => throw new NativeTransportError());
+        var code = await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop", "/unavailable-python"],
+            fixture.Git.State.Application, output, error, transport: stopTransport);
+        await Assert.That(code).IsEqualTo(1);
+        using var handback = JsonDocument.Parse(output.ToString());
+        await Assert.That(handback.RootElement.GetProperty("quarantined").GetBoolean()).IsTrue();
+        await Assert.That(handback.RootElement.GetProperty("attempt").GetProperty("abandonment").GetProperty("reason").GetString()).IsEqualTo("operator requested stop");
+        var repeated = await invocation.SubmitAsync(ContractIngressTests.Reference, new ReviewedIssueProposal(Issue).Propose,
+            [], fixture.Git.Repository, source: gh.Source);
+        await Assert.That(repeated.Attempts.Single().AttemptId).IsEqualTo(attempt.AttemptId);
+        await Assert.That(submissionTransport.Calls).IsEqualTo(1);
+        output.GetStringBuilder().Clear();
+        await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.Git.State.Path, attempt.ContractRevisionId],
+            fixture.Git.State.Application, output, error)).IsEqualTo(0);
+        using var resumed = JsonDocument.Parse(output.ToString());
+        await Assert.That(resumed.RootElement.GetProperty("quarantinedAttemptIds")[0].GetString()).IsEqualTo(attempt.AttemptId);
+        gh.RemoveExecutable();
+        Directory.Delete(attempt.Allocation.WorktreePath, true);
+        using var reopened = fixture.Git.State.Open();
+        var status = reopened.Status(attempt.ContractRevisionId);
+        await Assert.That(status.Attempts.Single().Abandonment!.Reason).IsEqualTo("operator requested stop");
+        await Assert.That(reopened.History(ContractIngressTests.Reference).Last().Attempts.Single()).IsEqualTo(status.Attempts.Single());
+        await Assert.That(reopened.CurrentAttempt(attempt.WorkUnitId)).IsNull();
+    }
+
     private static readonly byte[] Issue = """
         {"number":12,"node_id":"I_12","html_url":"https://github.com/acme/widget/issues/12",
          "repository_url":"https://api.github.com/repos/acme/widget","title":"Frozen issue","body":"Complete request"}

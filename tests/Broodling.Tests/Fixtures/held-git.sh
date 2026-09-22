@@ -1,7 +1,7 @@
 #!/bin/sh
 # Controlled local Git boundary; product still executes real Git.
 case " $* " in
-  *" worktree add "*)
+  *" worktree ${BROODLING_WITNESS_OPERATION:-add} "*)
     if [ "$BROODLING_WITNESS_MODE" = after ]; then
       "$BROODLING_WITNESS_REAL_GIT" "$@" > "$BROODLING_WITNESS_ENTERED.git-log" 2>&1 || exit $?
     fi

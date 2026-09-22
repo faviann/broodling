@@ -116,8 +116,7 @@ stub PR-receipt transport evidence; neither qualifies live PR delivery or
 semantic correctness. The [F implementation reference](../implementation/dotnet-native-dispatch.md)
 documents complete callable/operator submit/resume, schema 5 and authentic
 schema-4 upgrades. Operator configuration and safe-error witnesses preserve the
-installed loopback and secret-exclusion boundaries. H still owns retirement and
-replacement.
+installed loopback and secret-exclusion boundaries.
 
 G's .NET witnesses are `AttemptCompletionTests`, `CompletionPersistenceTests`,
 the authentic schema-5 upgrade in `StoreLifecycleTests`, and one composed
@@ -132,7 +131,18 @@ and requires abandonment or completion to justify currentness loss. The
 records store/application wait, thin operator wait, completed submit/resume/
 status/history handback, owning witnesses and evidence limits. No-effect stable
 success remains refused; controlled receipts prove neither real DirectTarget
-delivery nor semantic correctness. H must preserve G's guards and schema hashes.
+delivery nor semantic correctness. H preserves G's guards and schema hashes.
+
+H's .NET witnesses are `RetirementTests`, `ReplacementTests`,
+`ReplacementCompletionTests`, `RetirementProcessTests`, the stop handback in `InvocationTests`, and authentic
+schema-6 preservation in `StoreLifecycleTests`. They establish abandon-before-stop,
+permanent dispatched quarantine, narrow safe proof, exact owned dirty retirement,
+lock-inode/child-survival exclusion, removal-before-ack replay, atomic original-B1
+replacement, frozen target enforcement and historical-key identity without
+restored authority. The [H implementation reference](../implementation/dotnet-retirement-replacement.md)
+documents callable stop/retire/retry and thin stop. H integrates after G in
+schema 7 with authentic v6 evidence, preserving every completed-work guard and
+the exact v1–v6 schema definitions.
 
 ## Dependency graph
 

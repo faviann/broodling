@@ -13,7 +13,7 @@ public sealed record AttemptAbandonment(string AttemptId, string Reason, string 
 public sealed record WorktreeProvision(string ProvisionedAt);
 public sealed record AttemptRecord(string AttemptId, string WorkUnitId, string ContractRevisionId, bool IsCurrent,
     OriginalB1 B1, WorkspaceAllocation Allocation, string AdmittedAt, AttemptAbandonment? Abandonment,
-    WorktreeProvision? Provision = null);
+    WorktreeProvision? Provision = null, AttemptRetirement? Retirement = null, AttemptRetry? Retry = null);
 
 public sealed partial class BroodlingStore
 {
@@ -25,8 +25,7 @@ public sealed partial class BroodlingStore
             throw new AttemptAdmissionError("An Attempt requires a committed admitted Contract decision.");
         var state = GitCustody.Resolve(repository, revision);
         var root = GitCustody.WorkspaceRoot(workspaceRoot, repository, state);
-        var material = Digests.Parts(new[] { "broodling.dotnet.admitted-material.v1" }
-            .Concat(contract.Contract.SourceAttribution.SelectMany(pin => new[] { pin.SourceId, pin.ContentSha256 })).ToArray());
+        var material = Digests.AdmittedMaterial(contract.Contract.SourceAttribution);
         var id = "at-" + Digests.Parts("broodling.dotnet.attempt.v1", revisionId, state.Repository, state.CommitOid, material);
         // Git and SQLite cannot share a transaction. A crash may leave a harmless retention pin;
         // it must never leave an acknowledged Attempt without selected-object custody.
@@ -56,12 +55,17 @@ public sealed partial class BroodlingStore
 
     private void RequireOrdinaryAttemptAuthority(string workUnitId, SqliteTransaction transaction)
     {
-        using var completed = Command("SELECT 1 FROM attempt_completions WHERE work_unit_id = $p0 LIMIT 1", transaction, workUnitId);
-        if (completed.ExecuteScalar() is not null)
-            throw new StaleAttempt("Completed Work Units cannot acquire new Attempt authority.");
+        RequireIncompleteWorkUnit(workUnitId, transaction);
         var previous = ReadAttempts("work_unit_id = $p0", workUnitId, transaction);
         if (previous.Any(attempt => attempt.Abandonment is not null || !attempt.IsCurrent))
             throw new StaleAttempt("Ordinary admission cannot restore ended authority or authorize replacement.");
+    }
+
+    private void RequireIncompleteWorkUnit(string workUnitId, SqliteTransaction transaction)
+    {
+        using var completed = Command("SELECT 1 FROM attempt_completions WHERE work_unit_id = $p0 LIMIT 1", transaction, workUnitId);
+        if (completed.ExecuteScalar() is not null)
+            throw new StaleAttempt("Completed Work Units cannot acquire new Attempt authority.");
     }
 
     public AttemptRecord GetAttempt(string attemptId) => ReadAttempt(attemptId);
@@ -116,7 +120,8 @@ public sealed partial class BroodlingStore
                 new(row.GetString(4), row.GetString(5), row.GetString(6), row.GetString(7)),
                 new(row.GetString(8), row.GetString(9), row.GetString(10), row.GetString(11), row.GetString(12)),
                 row.GetString(12), row.IsDBNull(13) ? null : new(row.GetString(0), row.GetString(13), row.GetString(14)),
-                row.IsDBNull(15) ? null : new(row.GetString(15))));
+                row.IsDBNull(15) ? null : new(row.GetString(15)), ReadRetirement(row.GetString(0), transaction),
+                ReadRetry("attempt_id", row.GetString(0), transaction)));
         return result.AsReadOnly();
     }
 }

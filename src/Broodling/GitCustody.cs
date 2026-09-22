@@ -38,9 +38,8 @@ internal static class GitCustody
         string resolved;
         try { resolved = PhysicalPaths.Resolve(root); }
         catch (IOException error) { throw new UnsupportedWorkspaceRoot(error.Message); }
-        foreach (var forbidden in new[] { "/tmp", "/var/tmp", "/dev/shm", "/run" })
-            if (PhysicalPaths.Contains(forbidden, resolved))
-                throw new UnsupportedWorkspaceRoot("The workspace root must be outside temporary or volatile roots.");
+        if (PhysicalPaths.IsWithinTemporaryRoot(resolved))
+            throw new UnsupportedWorkspaceRoot("The workspace root must be outside temporary or volatile roots.");
         if (PhysicalPaths.IsWithinDisposable(resolved))
             throw new UnsupportedWorkspaceRoot("The workspace root cannot be inside a disposable Attempt enclosure.");
         var source = PhysicalPaths.Resolve(repository);

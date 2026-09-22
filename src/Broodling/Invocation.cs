@@ -1,6 +1,6 @@
 namespace Broodling;
 
-/// <summary>One explicit work reference. No retirement or replacement policy.</summary>
+/// <summary>One explicit work reference. Ended authority is handed back without automatic replacement.</summary>
 public sealed class Invocation(BroodlingStore store, string workspaceRoot, NativeProfile profile, INativeTransport transport)
 {
     public Task<AttemptCompletion> WaitAsync(string attemptId, CancellationToken cancellationToken = default) =>

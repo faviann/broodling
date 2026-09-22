@@ -120,4 +120,7 @@ internal static class Digests
 {
     internal static string Bytes(ReadOnlySpan<byte> bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
     internal static string Parts(params string[] parts) => Bytes(Encoding.UTF8.GetBytes(string.Join('\u001f', parts)));
+    internal static string AdmittedMaterial(IReadOnlyList<SourceAttribution> pins) =>
+        Parts(new[] { "broodling.dotnet.admitted-material.v1" }
+            .Concat(pins.SelectMany(pin => new[] { pin.SourceId, pin.ContentSha256 })).ToArray());
 }

@@ -56,8 +56,7 @@ internal static class WorktreeMaterialization
             || a.WorktreePath != System.IO.Path.Combine(a.Enclosure, "worktree")
             || a.Branch != "broodling/" + attempt.AttemptId)
             Refuse("The allocation no longer has its dedicated Attempt identity.");
-        foreach (var forbidden in new[] { "/tmp", "/var/tmp", "/dev/shm", "/run" })
-            if (PhysicalPaths.Contains(forbidden, a.WorkspaceRoot)) Refuse("The allocation is not on durable storage.");
+        if (PhysicalPaths.IsWithinTemporaryRoot(a.WorkspaceRoot)) Refuse("The allocation is not on durable storage.");
         if (PhysicalPaths.IsWithinDisposable(a.WorkspaceRoot)) Refuse("The allocation is nested in another disposable enclosure.");
         var common = attempt.B1.Repository;
         if (Overlaps(a.Enclosure, common) || PhysicalPaths.Contains(a.Enclosure, PhysicalPaths.Resolve(storePath))
@@ -134,18 +133,15 @@ internal static class WorktreeMaterialization
         if (File.Exists(a.WorktreePath) || Directory.Exists(a.WorktreePath) && Directory.EnumerateFileSystemEntries(a.WorktreePath).Any())
             Refuse("The assigned path contains material without a live owned worktree.");
         var reference = "refs/heads/" + a.Branch;
-        var symbolic = GitCustody.Run(repository, ["symbolic-ref", "--quiet", reference]);
-        if (symbolic.ExitCode != 1) Refuse("The assigned branch is symbolic or cannot be inspected.");
-        var exists = GitCustody.Run(repository, ["show-ref", "--verify", "--quiet", reference]);
-        if (exists.ExitCode is not (0 or 1)) Refuse("The assigned branch cannot be inspected.");
-        if (exists.ExitCode == 0 && GitCustody.Text(repository, "show-ref", "--verify", "--hash", reference).Trim() != attempt.B1.CommitOid)
+        var branchExists = BranchExists(attempt);
+        if (branchExists && GitCustody.Text(repository, "show-ref", "--verify", "--hash", reference).Trim() != attempt.B1.CommitOid)
             Refuse("The assigned branch is not at original B1; provisioning will not move it.");
         var args = new List<string> { "worktree", "add" };
         if (entry is not null) args.Add("--force"); // Only the exact missing, registered owned path.
-        if (exists.ExitCode == 1) args.AddRange(["-b", a.Branch]);
+        if (!branchExists) args.AddRange(["-b", a.Branch]);
         args.Add("--");
         args.Add(a.WorktreePath);
-        args.Add(exists.ExitCode == 0 ? a.Branch : attempt.B1.CommitOid);
+        args.Add(branchExists ? a.Branch : attempt.B1.CommitOid);
         var created = GitCustody.Run(repository, args.ToArray(), enclosureLock: enclosureLock);
         if (created.ExitCode != 0)
             throw new WorktreeProvisioningError("Git worktree creation did not complete: " + created.Error.Trim());
@@ -163,6 +159,54 @@ internal static class WorktreeMaterialization
         if (entry?.Branch != attempt.Allocation.Branch || !File.Exists(System.IO.Path.Combine(attempt.Allocation.WorktreePath, ".git")))
             Refuse("The materialized assignment is no longer registered and owned.");
         RequireAttached(attempt);
+    }
+
+    internal static void RequireUnmaterialized(AttemptRecord attempt)
+    {
+        if (Entries(attempt.B1.Repository).Any(entry => entry.Path == attempt.Allocation.WorktreePath || entry.Branch == attempt.Allocation.Branch)
+            || BranchExists(attempt))
+            Refuse("An absent never-materialized enclosure cannot authorize removal of existing Git state.");
+    }
+
+    internal static void RemoveOwned(AttemptRecord attempt, AdministrativeGitProcess.EnclosureLock held)
+    {
+        var a = attempt.Allocation;
+        var entries = Entries(attempt.B1.Repository);
+        // Check every ownership condition before either destructive Git operation.
+        if (entries.Any(entry => entry.Path != a.WorktreePath && entry.Branch == a.Branch))
+            Refuse("The retirement branch is attached to another worktree.");
+        var owned = entries.SingleOrDefault(entry => entry.Path == a.WorktreePath);
+        if (owned is not null)
+        {
+            if (owned.Branch != a.Branch) Refuse("The retirement checkout has a foreign or detached branch.");
+            if (Directory.Exists(a.WorktreePath))
+            {
+                if (!File.Exists(System.IO.Path.Combine(a.WorktreePath, ".git"))) Refuse("The retirement path is not a linked worktree.");
+                RequireAttached(attempt);
+            }
+            else if (File.Exists(a.WorktreePath)) Refuse("The retirement path contains foreign material.");
+        }
+        else if (Directory.Exists(a.WorktreePath) || File.Exists(a.WorktreePath))
+            Refuse("An unregistered retirement path is not disposable proof.");
+        var branchExists = BranchExists(attempt); // Symbolic branch aliases are never deletion authority.
+        if (owned is not null) Remove("worktree", "remove", "--force", "--", a.WorktreePath);
+        if (branchExists) Remove("branch", "-D", "--", a.Branch);
+
+        void Remove(params string[] arguments)
+        {
+            var result = GitCustody.Run(attempt.B1.Repository, arguments, enclosureLock: held);
+            if (result.ExitCode != 0) throw new WorktreeProvisioningError("Owned retirement did not complete: " + result.Error.Trim());
+        }
+    }
+
+    private static bool BranchExists(AttemptRecord attempt)
+    {
+        var reference = "refs/heads/" + attempt.Allocation.Branch;
+        if (GitCustody.Run(attempt.B1.Repository, ["symbolic-ref", "--quiet", reference]).ExitCode != 1)
+            Refuse("The assigned branch is symbolic or cannot be inspected.");
+        var result = GitCustody.Run(attempt.B1.Repository, ["show-ref", "--verify", "--quiet", reference]);
+        if (result.ExitCode is not (0 or 1)) Refuse("The assigned branch cannot be inspected.");
+        return result.ExitCode == 0;
     }
 
     private static void RequireAttached(AttemptRecord attempt)

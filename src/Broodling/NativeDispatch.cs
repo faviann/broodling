@@ -174,8 +174,7 @@ public sealed partial class BroodlingStore
             throw new SubmissionNotReady("The Attempt Contract is not admitted.");
         var work = ReadWorkUnit(attempt.WorkUnitId, transaction)!;
         var pins = revision.Contract.SourceAttribution;
-        var material = Digests.Parts(new[] { "broodling.dotnet.admitted-material.v1" }
-            .Concat(pins.SelectMany(pin => new[] { pin.SourceId, pin.ContentSha256 })).ToArray());
+        var material = Digests.AdmittedMaterial(pins);
         if (material != attempt.B1.MaterialSha256) throw new SubmissionConflict("Admitted B1 source material changed.");
         var instructions = new JsonArray();
         foreach (var pin in pins)
@@ -213,6 +212,9 @@ public sealed partial class BroodlingStore
         {
             ["repository"] = work.Owner + "/" + work.Repository, ["branch"] = effects[0].TargetBranch, ["revision"] = attempt.B1.CommitOid
         };
+        if (ReadRetry("attempt_id", attempt.AttemptId, transaction) is { } retry
+            && !JsonNode.DeepEquals(JsonNode.Parse(retry.TargetJson), request["target"]))
+            throw new AttemptConflict("The replacement target differs from its durable retry request.");
         return request.ToJsonString();
     }
 }

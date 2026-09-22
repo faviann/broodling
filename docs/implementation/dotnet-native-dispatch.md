@@ -210,11 +210,12 @@ Schema lifecycle tests preserve every retained old fact and ordinary-open
 refusal. All native runs use disposable local controlled providers, no live
 gateway, forge, provider account, deployment or evaluation.
 
-[G completion](dotnet-receipt-completion.md) now implements completed-Work-Unit
-guards, receipt validation, result/disposition retention and application wait in
-schema 6, preserving F's schema-5 definition. H owns abandonment/stop composition,
-retirement and replacement. The local null-output stable-result gap, dispatched
-quarantine and independent operator review requirements remain.
+[G completion](dotnet-receipt-completion.md) implements completed-Work-Unit
+guards, receipt validation, result/disposition retention and application wait.
+[H lifecycle](dotnet-retirement-replacement.md) adds abandonment/stop composition,
+retirement and explicit replacement in schema 7, preserving the prior definitions.
+The local null-output stable-result gap, dispatched quarantine and independent
+operator review requirements remain.
 
 ## File and validation handoff
 
