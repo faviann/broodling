@@ -6,11 +6,13 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 2;
+    internal const int Version = 3;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
 
-    internal const string Sql = VersionOneSql + "\n" + AdmissionSql;
+    internal static string VersionTwoDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionTwoSql));
+    internal const string VersionTwoSql = VersionOneSql + "\n" + AdmissionSql;
+    internal const string Sql = VersionTwoSql + "\n" + AttemptSql;
 
     // Separate format and version space from the Python executable reference.
     internal const string VersionOneSql = """
@@ -140,6 +142,70 @@ internal static class StoreSchema
         BEGIN SELECT RAISE(ABORT, 'Admission decisions are immutable'); END;
         CREATE TRIGGER decisions_no_delete BEFORE DELETE ON admission_decisions
         BEGIN SELECT RAISE(ABORT, 'Admission decisions are immutable'); END;
+        """;
+
+    // Allocation is part of the Attempt row: neither can commit without the other.
+    internal const string AttemptSql = """
+        CREATE TABLE attempts (
+            attempt_id TEXT PRIMARY KEY,
+            work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
+            contract_revision_id TEXT NOT NULL REFERENCES contract_revisions(contract_revision_id),
+            is_current INTEGER NOT NULL CHECK (is_current IN (0, 1)),
+            b1_repository TEXT NOT NULL,
+            b1_commit_oid TEXT NOT NULL CHECK (length(b1_commit_oid) = 40 AND b1_commit_oid NOT GLOB '*[^0-9a-f]*'),
+            b1_material_sha256 TEXT NOT NULL CHECK (length(b1_material_sha256) = 64),
+            b1_requested_revision TEXT NOT NULL,
+            workspace_root TEXT NOT NULL,
+            enclosure TEXT NOT NULL UNIQUE,
+            worktree_path TEXT NOT NULL UNIQUE,
+            branch TEXT NOT NULL,
+            admitted_at TEXT NOT NULL,
+            UNIQUE (b1_repository, branch)
+        ) STRICT;
+        CREATE UNIQUE INDEX one_current_attempt ON attempts(work_unit_id) WHERE is_current = 1;
+        CREATE INDEX attempts_by_revision ON attempts(contract_revision_id);
+
+        CREATE TABLE attempt_abandonments (
+            attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
+            reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+            abandoned_at TEXT NOT NULL
+        ) STRICT;
+
+        CREATE TRIGGER attempts_require_admission BEFORE INSERT ON attempts
+        WHEN NEW.is_current <> 1 OR NOT EXISTS (
+            SELECT 1 FROM contract_revisions AS revision
+            JOIN admission_decisions AS decision USING (contract_revision_id)
+            WHERE revision.contract_revision_id = NEW.contract_revision_id
+              AND revision.work_unit_id = NEW.work_unit_id AND decision.outcome = 'admitted'
+        )
+        BEGIN SELECT RAISE(ABORT, 'Attempt requires admitted authority for its Work Unit'); END;
+        CREATE TRIGGER attempts_no_abandoned_work BEFORE INSERT ON attempts
+        WHEN EXISTS (
+            SELECT 1 FROM attempts JOIN attempt_abandonments USING (attempt_id)
+            WHERE work_unit_id = NEW.work_unit_id
+        )
+        BEGIN SELECT RAISE(ABORT, 'abandoned Work Unit cannot acquire ordinary admission'); END;
+        CREATE TRIGGER attempts_binding_stable BEFORE UPDATE ON attempts
+        WHEN OLD.attempt_id <> NEW.attempt_id OR OLD.work_unit_id <> NEW.work_unit_id
+          OR OLD.contract_revision_id <> NEW.contract_revision_id
+          OR OLD.b1_repository <> NEW.b1_repository OR OLD.b1_commit_oid <> NEW.b1_commit_oid
+          OR OLD.b1_material_sha256 <> NEW.b1_material_sha256
+          OR OLD.b1_requested_revision <> NEW.b1_requested_revision
+          OR OLD.workspace_root <> NEW.workspace_root OR OLD.enclosure <> NEW.enclosure
+          OR OLD.worktree_path <> NEW.worktree_path OR OLD.branch <> NEW.branch
+          OR OLD.admitted_at <> NEW.admitted_at OR OLD.is_current < NEW.is_current
+        BEGIN SELECT RAISE(ABORT, 'Attempt bindings are immutable and authority cannot be restored'); END;
+        CREATE TRIGGER attempts_no_delete BEFORE DELETE ON attempts
+        BEGIN SELECT RAISE(ABORT, 'Attempt history is immutable'); END;
+        CREATE TRIGGER abandonment_requires_current BEFORE INSERT ON attempt_abandonments
+        WHEN NOT EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1)
+        BEGIN SELECT RAISE(ABORT, 'only the current Attempt may be abandoned'); END;
+        CREATE TRIGGER abandonment_ends_authority AFTER INSERT ON attempt_abandonments
+        BEGIN UPDATE attempts SET is_current = 0 WHERE attempt_id = NEW.attempt_id; END;
+        CREATE TRIGGER abandonment_no_update BEFORE UPDATE ON attempt_abandonments
+        BEGIN SELECT RAISE(ABORT, 'abandonment is immutable'); END;
+        CREATE TRIGGER abandonment_no_delete BEFORE DELETE ON attempt_abandonments
+        BEGIN SELECT RAISE(ABORT, 'abandonment is irreversible'); END;
         """;
 
     internal static string ManifestHash(SqliteConnection connection, SqliteTransaction? transaction = null)

@@ -63,7 +63,17 @@ and observation while a real SQLite writer is active. `StoreLifecycleTests.cs`
 also checks the deliberate v1→v2 upgrade against actual retained .NET v1 state.
 The [A2 implementation reference](../implementation/dotnet-contract-admission.md)
 records the API and bounded validation evidence. No GitHub acquisition, Attempt,
-native execution or Python state compatibility is implied by this slice.
+native execution or Python state compatibility is implied by that A2 evidence.
+
+B's .NET witnesses are `AttemptAdmissionTests.cs` and `GitCustodyTests.cs`:
+real SQLite/Git admission, immutable B1/allocation, current-authority and
+abandonment races, exact-revision observation, interrupted-write rollback,
+selected-object refusals, permitted ancestor-only loss, retention after GC and
+hook/environment/path boundaries. `StoreLifecycleTests` preserves actual v1/v2
+facts through explicit schema 3 upgrades. The [B implementation reference](../implementation/dotnet-attempt-allocation.md)
+records the APIs, 93-test evidence and C/F/G/H integration obligations. Allocation
+does not materialize a checkout. G must still add completed-Work-Unit admission
+guards when its result/disposition tables land.
 
 D's .NET witness is `GitHubAdmissionTests.cs`: controlled CLI acquisition of only
 the named issue, exact response bytes, identity/transport refusals, explicit

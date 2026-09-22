@@ -29,3 +29,18 @@ public sealed class ContractImmutabilityError(string message)
 
 public sealed class StoreStateException(string code, string message)
     : BroodlingException(code, message);
+
+public sealed class UnsupportedStartingState(string message)
+    : BroodlingException("unsupported_starting_state", message);
+
+public sealed class UnsupportedWorkspaceRoot(string message)
+    : BroodlingException("unsupported_workspace_root", message);
+
+public sealed class AttemptAdmissionError(string message)
+    : BroodlingException("attempt_admission_error", message);
+
+public sealed class AttemptConflict(string message)
+    : BroodlingException("attempt_conflict", message);
+
+public sealed class StaleAttempt(string message)
+    : BroodlingException("stale_attempt", message);

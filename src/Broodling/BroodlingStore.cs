@@ -101,10 +101,12 @@ public sealed partial class BroodlingStore : IDisposable
             store.connection.Open();
             using (var transaction = store.connection.BeginTransaction(deferred: false))
             {
-                store.RequireCurrentSchema(transaction, allowVersionOne: true);
+                store.RequireCurrentSchema(transaction, allowUpgrade: true);
                 if (store.Information.SchemaVersion == 1)
-                {
                     store.Execute(StoreSchema.AdmissionSql, transaction);
+                if (store.Information.SchemaVersion < 3)
+                {
+                    store.Execute(StoreSchema.AttemptSql, transaction);
                     store.Execute("UPDATE store_metadata SET version = $p0, definition_hash = $p1, manifest_hash = $p2 WHERE singleton = 1",
                         transaction, StoreSchema.Version, StoreSchema.DefinitionHash,
                         StoreSchema.ManifestHash(store.connection, transaction));
@@ -129,15 +131,15 @@ public sealed partial class BroodlingStore : IDisposable
 
     public void Dispose() => connection.Dispose();
 
-    private void RequireCurrentSchema(SqliteTransaction? transaction = null, bool allowVersionOne = false)
+    private void RequireCurrentSchema(SqliteTransaction? transaction = null, bool allowUpgrade = false)
     {
         using var command = Command("SELECT format, version, definition_hash, manifest_hash, initialized_at FROM store_metadata WHERE singleton = 1", transaction);
         using var reader = command.ExecuteReader();
         if (!reader.Read()
             || reader.GetValue(0) is not string format || format != StoreSchema.Format
-            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowVersionOne && version == 1))
+            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2))
             || reader.GetValue(2) is not string definition
-                || definition != (version == 1 ? StoreSchema.VersionOneDefinitionHash : StoreSchema.DefinitionHash)
+                || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, _ => StoreSchema.DefinitionHash })
             || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection, transaction)
             || reader.GetValue(4) is not string initializedAt || string.IsNullOrEmpty(initializedAt))
             throw new StoreStateException("incompatible_store", "The store format or schema is incompatible; explicit supported upgrades are required.");
@@ -154,40 +156,11 @@ public sealed partial class BroodlingStore : IDisposable
     {
         if (string.IsNullOrWhiteSpace(path))
             throw new StoreStateException("invalid_store_path", "A filesystem store path is required.");
-        // Resolve all components introduced by link targets too. The framework's
-        // ResolveLinkTarget(true) can leave links in a target's parent path.
-        var followedLinks = 0;
-        string Resolve(string absolute)
-        {
-            var resolved = System.IO.Path.GetPathRoot(absolute)!;
-            foreach (var part in absolute[resolved.Length..].Split(System.IO.Path.DirectorySeparatorChar,
-                StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (part == ".") continue;
-                if (part == "..")
-                {
-                    resolved = System.IO.Path.GetDirectoryName(resolved) ?? resolved;
-                    continue;
-                }
-                var candidate = System.IO.Path.Combine(resolved, part);
-                FileSystemInfo info = Directory.Exists(candidate) ? new DirectoryInfo(candidate) : new FileInfo(candidate);
-                if (info.LinkTarget is not { } target)
-                {
-                    resolved = candidate;
-                    continue;
-                }
-                if (++followedLinks > 40)
-                    throw new StoreStateException("invalid_store_path", "The store path contains too many symbolic links.");
-                resolved = Resolve(System.IO.Path.IsPathRooted(target) ? target : System.IO.Path.Combine(resolved, target));
-            }
-            return resolved;
-        }
-        var current = Resolve(System.IO.Path.IsPathFullyQualified(path) ? path : System.IO.Path.Combine(Environment.CurrentDirectory, path));
-        for (DirectoryInfo? ancestor = new(current); ancestor is not null; ancestor = ancestor.Parent)
-        {
-            if (File.Exists(System.IO.Path.Combine(ancestor.FullName, ".broodling-disposable-worktree")))
-                throw new StoreStateException("invalid_store_location", "The application store must outlive disposable Attempt worktrees.");
-        }
+        string current;
+        try { current = PhysicalPaths.Resolve(path); }
+        catch (IOException error) { throw new StoreStateException("invalid_store_path", error.Message); }
+        if (PhysicalPaths.IsWithinDisposable(current))
+            throw new StoreStateException("invalid_store_location", "The application store must outlive disposable Attempt worktrees.");
         return current;
     }
 

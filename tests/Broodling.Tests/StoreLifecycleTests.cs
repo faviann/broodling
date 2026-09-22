@@ -9,6 +9,41 @@ namespace Broodling.Tests;
 public sealed class StoreLifecycleTests
 {
     [Test]
+    public async Task VersionTwoExplicitUpgradePreservesAllPriorFactsAndCanAllocateAfterReopen()
+    {
+        using var fixture = new AttemptFixture();
+        using var old = new StoreFixture();
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(old.Path)!);
+        using (var connection = new SqliteConnection($"Data Source={old.Path};Pooling=False;Foreign Keys=False"))
+        {
+            connection.Open();
+            using var restore = connection.CreateCommand();
+            restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "dotnet-v2.sql"));
+            restore.ExecuteNonQuery();
+        }
+        string Facts() => RetainedFacts(old, "work_units", "work_submissions", "entitled_sources",
+            "contract_revisions", "contract_sources", "admission_decisions");
+        var before = Facts();
+        await Assert.That(() => old.Open()).Throws<StoreStateException>();
+        using (var upgraded = old.Application.UpgradeStore(old.Path))
+        {
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(3);
+            await Assert.That(Facts()).IsEqualTo(before);
+        }
+        AttemptRecord attempt;
+        using (var reopened = old.Open())
+        {
+            var status = reopened.History(ContractIngressTests.Reference).Single();
+            await Assert.That(status.Decision!.Admitted).IsTrue();
+            await Assert.That(status.Sources.Single().Content.SequenceEqual(new byte[] { 0, 255, 13, 10 })).IsTrue();
+            attempt = reopened.AdmitAttempt(status.Revision.ContractRevisionId, fixture.Repository, fixture.Workspaces);
+        }
+        using var repeated = old.Application.UpgradeStore(old.Path);
+        await Assert.That(repeated.GetAttempt(attempt.AttemptId)).IsEqualTo(attempt);
+        await Assert.That(Facts()).IsEqualTo(before);
+    }
+
+    [Test]
     public async Task VersionOneRequiresExplicitUpgradeAndRetainsEveryIdentitySubmissionAndSourceFact()
     {
         using var fixture = new StoreFixture();
@@ -23,7 +58,8 @@ public sealed class StoreLifecycleTests
             restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "dotnet-v1.sql"));
             restore.ExecuteNonQuery();
         }
-        var before = RetainedVersionOneFacts(fixture);
+        string Facts() => RetainedFacts(fixture, "work_units", "work_submissions", "entitled_sources");
+        var before = Facts();
         var oldFile = File.ReadAllBytes(fixture.Path);
         await Assert.That(() => fixture.Open()).Throws<StoreStateException>();
         await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(oldFile)).IsTrue();
@@ -31,9 +67,9 @@ public sealed class StoreLifecycleTests
         using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
         {
             upgradedInformation = upgraded.Information;
-            await Assert.That(upgradedInformation.SchemaVersion).IsEqualTo(2);
+            await Assert.That(upgradedInformation.SchemaVersion).IsEqualTo(3);
             await Assert.That(upgradedInformation.InitializedAt).IsEqualTo("2026-09-22T15:07:04.8538767+00:00");
-            await Assert.That(RetainedVersionOneFacts(fixture)).IsEqualTo(before);
+            await Assert.That(Facts()).IsEqualTo(before);
             var status = upgraded.AdmitSources(ContractIngressTests.Reference,
                 [ContractIngressTests.Primary([0, 255, 13, 10])], ContractIngressTests.Propose, []);
             await Assert.That(status.Decision!.Admitted).IsTrue();
@@ -48,11 +84,11 @@ public sealed class StoreLifecycleTests
         await Assert.That(reopened.History(ContractIngressTests.Reference).Single().Decision!.Admitted).IsTrue();
     }
 
-    private static string RetainedVersionOneFacts(StoreFixture fixture)
+    private static string RetainedFacts(StoreFixture fixture, params string[] tables)
     {
         using var connection = fixture.Connect();
         var facts = new List<object?[]>();
-        foreach (var table in new[] { "work_units", "work_submissions", "entitled_sources" })
+        foreach (var table in tables)
         {
             using var command = connection.CreateCommand();
             command.CommandText = $"SELECT * FROM {table} ORDER BY 1";
@@ -79,7 +115,7 @@ public sealed class StoreLifecycleTests
         await Assert.That(upgraded.Information).IsEqualTo(information);
         await Assert.That(upgraded.GetWorkUnit(first.WorkUnitId)).IsEqualTo(first);
         await Assert.That(information.Format).IsEqualTo("broodling.dotnet");
-        await Assert.That(information.SchemaVersion).IsEqualTo(2);
+        await Assert.That(information.SchemaVersion).IsEqualTo(3);
     }
 
     [Test]
@@ -201,6 +237,6 @@ public sealed class StoreLifecycleTests
         await Assert.That(error.ToString().Contains("Exception")).IsFalse();
         await Assert.That(StoreCommands.Run(["initialize-store"], fixture.Application, output, error)).IsEqualTo(2);
         using var reopened = fixture.Open();
-        await Assert.That(reopened.Information.SchemaVersion).IsEqualTo(2);
+        await Assert.That(reopened.Information.SchemaVersion).IsEqualTo(3);
     }
 }

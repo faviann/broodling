@@ -2,8 +2,9 @@
 
 [A2 #133](https://github.com/faviann/broodling/issues/133) adds supplied-source
 admission and retained revision inspection to the [A1 store session](dotnet-identity-custody.md).
-It ends at an immutable admission decision. GitHub acquisition, Attempts, Git
-materialization and execution belong to later slices. The deployed application
+It ends at an immutable admission decision. [B adds Attempt allocation and Git
+custody](dotnet-attempt-allocation.md). GitHub acquisition, Git materialization
+and execution belong to other slices. The deployed application
 remains Python until the separate migration cutover.
 
 ## Callable application path
@@ -92,9 +93,10 @@ commands add no HTTP endpoints or deployment workflow.
 
 ## Schema and parity evidence
 
-New state uses .NET schema version 2. Ordinary open refuses version 1.
+The A2 slice introduced .NET schema version 2; [B now uses schema 3](dotnet-attempt-allocation.md).
+Ordinary open refuses historical versions.
 `UpgradeStore(path)` deliberately validates the retained v1 format/definition/
-manifest, adds admission storage in one transaction and preserves all earlier
+manifest, adds missing storage in one transaction and preserves all earlier
 identity, submission, source and initialization facts. Repeating the explicit
 upgrade is idempotent. Python state and unknown schemas remain refused.
 
