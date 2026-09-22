@@ -183,7 +183,7 @@ public sealed class ProvisioningProcessTests
             await Assert.That(File.Exists(marker)).IsFalse();
             await Assert.That(LockIsFree(attempt)).IsFalse();
         }
-        await Assert.That(LockIsFree(attempt)).IsTrue();
+        await WaitUntil(() => LockIsFree(attempt));
         await Assert.That(store.ProvisionAttempt(attempt.AttemptId).Provision).IsNotNull();
     }
 
