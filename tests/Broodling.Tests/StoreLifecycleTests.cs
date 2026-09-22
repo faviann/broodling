@@ -94,20 +94,39 @@ public sealed class StoreLifecycleTests
         Directory.CreateSymbolicLink(link, disposable);
         var nestedLink = System.IO.Path.Combine(fixture.Root, "nested-link");
         Directory.CreateSymbolicLink(nestedLink, nested);
+        var indirectLink = System.IO.Path.Combine(fixture.Root, "indirect-link");
+        Directory.CreateSymbolicLink(indirectLink, System.IO.Path.Combine(link, "nested"));
         var fileLink = System.IO.Path.Combine(fixture.Root, "file-link.sqlite3");
         File.CreateSymbolicLink(fileLink, existing);
-        foreach (var root in new[] { disposable, link, nestedLink })
+        foreach (var root in new[] { disposable, link, nestedLink, indirectLink })
         {
             var path = System.IO.Path.Combine(root, "state", "broodling.sqlite3");
             await Assert.That(() => fixture.Application.InitializeStore(path)).Throws<StoreStateException>();
             await Assert.That(() => fixture.Application.OpenStore(path)).Throws<StoreStateException>();
             await Assert.That(File.Exists(path)).IsFalse();
         }
-        foreach (var path in new[] { existing, System.IO.Path.Combine(nestedLink, "existing.sqlite3"), fileLink })
+        foreach (var path in new[] { existing, System.IO.Path.Combine(nestedLink, "existing.sqlite3"),
+            System.IO.Path.Combine(indirectLink, "existing.sqlite3"), fileLink })
         {
             await Assert.That(() => fixture.Application.OpenStore(path)).Throws<StoreStateException>();
             await Assert.That(() => fixture.Application.UpgradeStore(path)).Throws<StoreStateException>();
         }
+    }
+
+    [Test]
+    public async Task StoreUsesPhysicalPathThroughLinksAndRefusesLinkCycles()
+    {
+        using var fixture = new StoreFixture();
+        var physical = System.IO.Path.Combine(fixture.Root, "physical");
+        Directory.CreateDirectory(System.IO.Path.Combine(physical, "nested"));
+        var link = System.IO.Path.Combine(fixture.Root, "alias");
+        Directory.CreateSymbolicLink(link, System.IO.Path.Combine(physical, "nested"));
+        using (var store = fixture.Application.InitializeStore(System.IO.Path.Combine(link, "..", "state.sqlite3")))
+            await Assert.That(store.Path).IsEqualTo(System.IO.Path.Combine(physical, "state.sqlite3"));
+        var cycle = System.IO.Path.Combine(fixture.Root, "cycle");
+        Directory.CreateSymbolicLink(cycle, cycle);
+        await Assert.That(() => fixture.Application.InitializeStore(System.IO.Path.Combine(cycle, "state.sqlite3")))
+            .Throws<StoreStateException>();
     }
 
     [Test]

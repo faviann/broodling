@@ -119,17 +119,35 @@ public sealed partial class BroodlingStore : IDisposable
     {
         if (string.IsNullOrWhiteSpace(path))
             throw new StoreStateException("invalid_store_path", "A filesystem store path is required.");
-        var full = System.IO.Path.GetFullPath(path);
-        // Resolve existing links before checking the destination's full ancestry:
-        // a link can jump directly into a child of a marked enclosure.
-        var current = System.IO.Path.GetPathRoot(full)!;
-        foreach (var part in full[current.Length..].Split(System.IO.Path.DirectorySeparatorChar))
+        // Resolve all components introduced by link targets too. The framework's
+        // ResolveLinkTarget(true) can leave links in a target's parent path.
+        var followedLinks = 0;
+        string Resolve(string absolute)
         {
-            current = System.IO.Path.Combine(current, part);
-            FileSystemInfo info = Directory.Exists(current) ? new DirectoryInfo(current) : new FileInfo(current);
-            if (info.LinkTarget is not null)
-                current = info.ResolveLinkTarget(returnFinalTarget: true)!.FullName;
+            var resolved = System.IO.Path.GetPathRoot(absolute)!;
+            foreach (var part in absolute[resolved.Length..].Split(System.IO.Path.DirectorySeparatorChar,
+                StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (part == ".") continue;
+                if (part == "..")
+                {
+                    resolved = System.IO.Path.GetDirectoryName(resolved) ?? resolved;
+                    continue;
+                }
+                var candidate = System.IO.Path.Combine(resolved, part);
+                FileSystemInfo info = Directory.Exists(candidate) ? new DirectoryInfo(candidate) : new FileInfo(candidate);
+                if (info.LinkTarget is not { } target)
+                {
+                    resolved = candidate;
+                    continue;
+                }
+                if (++followedLinks > 40)
+                    throw new StoreStateException("invalid_store_path", "The store path contains too many symbolic links.");
+                resolved = Resolve(System.IO.Path.IsPathRooted(target) ? target : System.IO.Path.Combine(resolved, target));
+            }
+            return resolved;
         }
+        var current = Resolve(System.IO.Path.IsPathFullyQualified(path) ? path : System.IO.Path.Combine(Environment.CurrentDirectory, path));
         for (DirectoryInfo? ancestor = new(current); ancestor is not null; ancestor = ancestor.Parent)
         {
             if (File.Exists(System.IO.Path.Combine(ancestor.FullName, ".broodling-disposable-worktree")))
