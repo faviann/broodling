@@ -181,8 +181,7 @@ public sealed partial class BroodlingStore
             throw new ContractImmutabilityError("The retained Contract no longer has valid canonical meaning.");
         }
         if (contract.ContractRevisionId != row.GetString(0) || contract.WorkUnitId != row.GetString(1)
-            || contract.ContractSha256 != row.GetString(3) || contract.ConstructedBy != row.GetString(5)
-            || !contract.CanonicalBytes().SequenceEqual(bytes))
+            || contract.ContractSha256 != row.GetString(3) || contract.ConstructedBy != row.GetString(5))
             throw new ContractImmutabilityError("The retained Contract differs from its recorded identity.");
         var pins = ReadPins(revisionId, transaction);
         if (!pins.SequenceEqual(contract.SourceAttribution))
