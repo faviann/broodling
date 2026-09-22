@@ -144,6 +144,17 @@ documents callable stop/retire/retry and thin stop. H integrates after G in
 schema 7 with authentic v6 evidence, preserving every completed-work guard and
 the exact v1–v6 schema definitions.
 
+H's .NET witnesses are `RetirementTests`, `ReplacementTests`,
+`ReplacementCompletionTests`, `RetirementProcessTests`, and composed stop/handback
+in `InvocationTests`. They cover abandon-before-stop, permanent dispatched
+quarantine, safe versus ambiguous proof, exact owned retirement, caller-death
+and surviving-Git exclusion, atomic original-B1 retry, frozen targets and
+historical-key identity-only replay. Schema 7 preserves authentic v1–v6 facts,
+including G completion and abandonment; completed-work API/SQL guards remain.
+The [H implementation reference](../implementation/dotnet-retirement-replacement.md)
+records callable stop/retire/retry, thin operator stop and bounded evidence. It
+does not establish physical cessation for dispatched work or authorize cutover.
+
 ## Dependency graph
 
 These edges match the GitHub dependency relationships inspected on 22 September.

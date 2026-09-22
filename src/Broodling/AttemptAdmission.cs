@@ -25,8 +25,7 @@ public sealed partial class BroodlingStore
             throw new AttemptAdmissionError("An Attempt requires a committed admitted Contract decision.");
         var state = GitCustody.Resolve(repository, revision);
         var root = GitCustody.WorkspaceRoot(workspaceRoot, repository, state);
-        var material = Digests.Parts(new[] { "broodling.dotnet.admitted-material.v1" }
-            .Concat(contract.Contract.SourceAttribution.SelectMany(pin => new[] { pin.SourceId, pin.ContentSha256 })).ToArray());
+        var material = Digests.AdmittedMaterial(contract.Contract.SourceAttribution);
         var id = "at-" + Digests.Parts("broodling.dotnet.attempt.v1", revisionId, state.Repository, state.CommitOid, material);
         // Git and SQLite cannot share a transaction. A crash may leave a harmless retention pin;
         // it must never leave an acknowledged Attempt without selected-object custody.

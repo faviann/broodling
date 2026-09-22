@@ -174,8 +174,7 @@ public sealed partial class BroodlingStore
             throw new SubmissionNotReady("The Attempt Contract is not admitted.");
         var work = ReadWorkUnit(attempt.WorkUnitId, transaction)!;
         var pins = revision.Contract.SourceAttribution;
-        var material = Digests.Parts(new[] { "broodling.dotnet.admitted-material.v1" }
-            .Concat(pins.SelectMany(pin => new[] { pin.SourceId, pin.ContentSha256 })).ToArray());
+        var material = Digests.AdmittedMaterial(pins);
         if (material != attempt.B1.MaterialSha256) throw new SubmissionConflict("Admitted B1 source material changed.");
         var instructions = new JsonArray();
         foreach (var pin in pins)

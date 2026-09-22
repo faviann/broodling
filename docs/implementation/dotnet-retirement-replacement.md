@@ -164,6 +164,17 @@ G's earlier unexplained Git/provider failures and bounded nonrecurrence evidence
 remain in its [completion record](dotnet-receipt-completion.md); these integration
 passes establish neither their cause nor a repair.
 
+Fresh full integrated review of `4039f41ffbf19ec1ba8400c14160be8dd869ad41`
+passed both axes: Standards reported three nonblocking P3 duplication
+observations; Spec reported zero actionable findings. A bounded cleanup shares
+only the admitted-material fingerprint, temporary-root predicate and existing
+direct-branch inspection. Caller errors, transactions, digest bytes and Git
+ordering remain unchanged. Short source-byte checks stay local because dispatch
+also builds instructions and has a distinct exception classification.
+After that cleanup, the full suite passed **257 tests, 0 failed/skipped**, in
+25.426 seconds; Release passed with **0 warnings/errors** in 26.05 seconds.
+Schema, tests and Python were unchanged; Python was not rerun for this cleanup.
+
 Controlled transport/PR receipt stubs do not establish real DirectTarget PR
 delivery. No live gateway/GitHub mutation/provider/deployment/evaluation or
 production-state operation occurred. The native no-effect stable-result gap and

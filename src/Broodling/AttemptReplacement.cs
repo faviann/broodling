@@ -22,8 +22,7 @@ public sealed partial class BroodlingStore
         if (string.IsNullOrWhiteSpace(retryKey)) throw new AttemptAdmissionError("Replacement requires a nonempty explicit retry key.");
         if (!System.IO.Path.IsPathFullyQualified(workspaceRoot)) throw new UnsupportedWorkspaceRoot("The workspace root must be absolute.");
         var root = PhysicalPaths.Resolve(workspaceRoot);
-        foreach (var forbidden in new[] { "/tmp", "/var/tmp", "/dev/shm", "/run" })
-            if (PhysicalPaths.Contains(forbidden, root)) throw new UnsupportedWorkspaceRoot("Replacement requires durable workspace storage.");
+        if (PhysicalPaths.IsWithinTemporaryRoot(root)) throw new UnsupportedWorkspaceRoot("Replacement requires durable workspace storage.");
         if (PhysicalPaths.IsWithinDisposable(root)) throw new UnsupportedWorkspaceRoot("Replacement cannot be nested in a disposable enclosure.");
         using var transaction = connection.BeginTransaction(deferred: false);
         var predecessor = ReadAttempt(predecessorId, transaction);
@@ -49,8 +48,7 @@ public sealed partial class BroodlingStore
 
         // Never resolve current HEAD, requested spelling, or candidate changes to choose retry material.
         var pins = contract.Contract.SourceAttribution;
-        var material = Digests.Parts(new[] { "broodling.dotnet.admitted-material.v1" }
-            .Concat(pins.SelectMany(pin => new[] { pin.SourceId, pin.ContentSha256 })).ToArray());
+        var material = Digests.AdmittedMaterial(pins);
         if (material != predecessor.B1.MaterialSha256) throw new SourceAttributionError("Original B1 source bindings changed.");
         foreach (var pin in pins)
         {

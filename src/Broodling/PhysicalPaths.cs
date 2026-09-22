@@ -5,6 +5,9 @@ internal static class PhysicalPaths
     internal static bool Contains(string parent, string path) =>
         path == parent || path.StartsWith(parent.TrimEnd('/') + "/", StringComparison.Ordinal);
 
+    internal static bool IsWithinTemporaryRoot(string path) =>
+        new[] { "/tmp", "/var/tmp", "/dev/shm", "/run" }.Any(root => Contains(root, path));
+
     internal static bool IsWithinDisposable(string path)
     {
         for (DirectoryInfo? ancestor = new(path); ancestor is not null; ancestor = ancestor.Parent)

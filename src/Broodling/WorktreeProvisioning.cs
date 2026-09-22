@@ -56,8 +56,7 @@ internal static class WorktreeMaterialization
             || a.WorktreePath != System.IO.Path.Combine(a.Enclosure, "worktree")
             || a.Branch != "broodling/" + attempt.AttemptId)
             Refuse("The allocation no longer has its dedicated Attempt identity.");
-        foreach (var forbidden in new[] { "/tmp", "/var/tmp", "/dev/shm", "/run" })
-            if (PhysicalPaths.Contains(forbidden, a.WorkspaceRoot)) Refuse("The allocation is not on durable storage.");
+        if (PhysicalPaths.IsWithinTemporaryRoot(a.WorkspaceRoot)) Refuse("The allocation is not on durable storage.");
         if (PhysicalPaths.IsWithinDisposable(a.WorkspaceRoot)) Refuse("The allocation is nested in another disposable enclosure.");
         var common = attempt.B1.Repository;
         if (Overlaps(a.Enclosure, common) || PhysicalPaths.Contains(a.Enclosure, PhysicalPaths.Resolve(storePath))
@@ -134,18 +133,15 @@ internal static class WorktreeMaterialization
         if (File.Exists(a.WorktreePath) || Directory.Exists(a.WorktreePath) && Directory.EnumerateFileSystemEntries(a.WorktreePath).Any())
             Refuse("The assigned path contains material without a live owned worktree.");
         var reference = "refs/heads/" + a.Branch;
-        var symbolic = GitCustody.Run(repository, ["symbolic-ref", "--quiet", reference]);
-        if (symbolic.ExitCode != 1) Refuse("The assigned branch is symbolic or cannot be inspected.");
-        var exists = GitCustody.Run(repository, ["show-ref", "--verify", "--quiet", reference]);
-        if (exists.ExitCode is not (0 or 1)) Refuse("The assigned branch cannot be inspected.");
-        if (exists.ExitCode == 0 && GitCustody.Text(repository, "show-ref", "--verify", "--hash", reference).Trim() != attempt.B1.CommitOid)
+        var branchExists = BranchExists(attempt);
+        if (branchExists && GitCustody.Text(repository, "show-ref", "--verify", "--hash", reference).Trim() != attempt.B1.CommitOid)
             Refuse("The assigned branch is not at original B1; provisioning will not move it.");
         var args = new List<string> { "worktree", "add" };
         if (entry is not null) args.Add("--force"); // Only the exact missing, registered owned path.
-        if (exists.ExitCode == 1) args.AddRange(["-b", a.Branch]);
+        if (!branchExists) args.AddRange(["-b", a.Branch]);
         args.Add("--");
         args.Add(a.WorktreePath);
-        args.Add(exists.ExitCode == 0 ? a.Branch : attempt.B1.CommitOid);
+        args.Add(branchExists ? a.Branch : attempt.B1.CommitOid);
         var created = GitCustody.Run(repository, args.ToArray(), enclosureLock: enclosureLock);
         if (created.ExitCode != 0)
             throw new WorktreeProvisioningError("Git worktree creation did not complete: " + created.Error.Trim());
