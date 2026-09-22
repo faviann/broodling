@@ -1,208 +1,83 @@
 # Broodling tests
 
-The [current architecture and operating status](../docs/governing/current.md)
-governs scope. This README describes current validation, not a continuation of
-removed custom-assurance gates or a real-provider quality verdict.
-
-The default suite tests Broodling's own decisions and its public Zeroshot seam.
-It does not maintain a second execution model or prove Zeroshot's graph routing,
-review/repair loops, dependency handling, or process supervision.
+The supported suite is TUnit on .NET 10. The [current authority](../docs/governing/current.md)
+governs scope; these checks establish Broodling-owned behavior and its public
+SDK seam, not provider semantic quality or a validated live deployment.
 
 ## Run
 
-Install the project's pinned release SDK and test dependencies:
+Use Linux x86-64, a .NET 10 SDK (tested with 10.0.401), Git, `cc` and libc headers.
+`global.json` selects the Microsoft.Testing.Platform runner, not an SDK version.
+The administrative Git tests require an ordinary non-PID-1 host with waitable
+children and no competing reaper. Install only the bridge's pinned SDK in a
+dedicated Python 3.13+ environment:
 
 ```bash
-python -m pip install -e '.[test]'
-python -m pytest tests
-```
-
-The .NET migration has a separate TUnit suite, including real SQLite identity,
-source custody, immutable Contract admission, Git/B1 and Attempt allocation, and deliberate state lifecycle/upgrade
-checks. See the [A1 application API](../docs/implementation/dotnet-identity-custody.md)
-and [A2 admission/observation evidence](../docs/implementation/dotnet-contract-admission.md),
-plus [B allocation/custody evidence](../docs/implementation/dotnet-attempt-allocation.md).
-The [C materialization seam](../docs/implementation/dotnet-worktree-materialization.md)
-adds real Git/SQLite provisioning, strict ownership refusals, caller-death and
-orphan-Git exclusion, read-only status/history during a provisioning writer,
-and explicit schema-4 upgrades preserving authentic v1/v2/v3 .NET facts.
-`WorktreeProvisioningTests` owns local materialization scenarios;
-`ProvisioningProcessTests` uses the test-only `Broodling.ProcessWitness` caller
-and gated real Git. Its orphan fixture redirects Git output to an owned log so
-the caller's closed pipes cannot terminate the writer before the lock witness.
-The managed/C administrative seam requires Linux x64, `cc` and libc headers at
-build time; its shared library is copied by ordinary build/test/publish. These
-tests require an ordinary non-PID-1 host with waitable children and no competing
-reaper. No provider, native workflow or deployed state is involved.
-The [D acquisition checks](../docs/implementation/dotnet-github-ingress.md) use a
-controlled local GitHub CLI boundary and retained issue fixtures, without network
-or provider calls.
-The [F dispatch checks](../docs/implementation/dotnet-native-dispatch.md) add real
-SQLite/Git authority and caller-death boundaries, corrupt submit responses,
-controlled released-SDK/native replay/reconnect/waiter-detachment/stop, the C#
-Codex launcher and credential/profile policy, and explicit schema-4 upgrades.
-PR receipt transport uses a precise stub and is not real DirectTarget delivery.
-The [G completion checks](../docs/implementation/dotnet-receipt-completion.md) add
-exact-Attempt receipt/disposition retention, binding/currentness and SQL guards,
-rollback/concurrent finalization/late-success witnesses, detached wait versus
-native failure, authentic schema-5 upgrades, and composed offline completion
-handback. Controlled receipts do not establish real PR delivery or quality.
-The [H lifecycle checks](../docs/implementation/dotnet-retirement-replacement.md)
-cover abandon-before-stop, permanent dispatched quarantine, safe proof versus
-ambiguous provisioning, exact owned dirty retirement, stable lock inode and a
-retirement-specific orphan Git witness. Retry checks original B1/sources, atomic
-lineage/allocation, same-key/historical replay, frozen target and interrupted
-writes. One operator case composes stop and abandoned handback. Deliberate
-upgrades to schema 7 preserve authentic schema-6 completion/abandonment and every
-prior fact, including G's authentic schema-5 prepared fixture.
-The launcher builds with the pinned self-contained Linux x64 .NET 10.0.12 runtime.
-Tests default to the repository's `.venv/bin/python`. Set
-`BROODLING_TEST_PYTHON` to another Python executable with the pinned SDK when
-using a shared environment across worktrees.
-These tests fail, rather than skip, if the SDK/native dependency is unavailable.
-It does not yet replace or reduce the Python parity suite:
-
-```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r src/Broodling/bridge/requirements.txt
+export BROODLING_TEST_PYTHON="$PWD/.venv/bin/python"
+export MSBUILDDISABLENODEREUSE=1
+export DOTNET_CLI_USE_MSBUILD_SERVER=0
+export UseSharedCompilation=false
+export NUGET_HTTP_CACHE_PATH="$PWD/tmp/nuget-http"
 dotnet test --solution Broodling.sln
+dotnet build Broodling.sln --configuration Release
 ```
 
-Python 3.13+, SQLite 3.37+, Git, and the Linux x86-64 release wheel are required.
-The controlled provider fixture needs no credentials or network. There is no
-separate opt-in Zeroshot campaign: the small real-native integration checks run
-in the default suite. Missing SDK dependencies must not be interpreted as a
-successful integration check.
+`BROODLING_TEST_PYTHON` can point to an existing pinned SDK environment shared
+across worktrees; its default is the repository's `.venv/bin/python`.
+Missing SDK/native dependencies fail rather than skip. No real credentials,
+networked provider or opt-in live campaign is required.
 
-Worktree tests use a durable root, by default
-`~/.cache/broodling-tests`. Set `BROODLING_TEST_WORKSPACE_ROOT` to choose another
-durable directory outside temporary roots. Only disposable native runtime
-state/sockets use `/dev/shm`; production runtime state must survive reconnects.
+Durable Git/SQLite fixtures use unique owned children of
+`~/.cache/broodling-tests`; set `BROODLING_TEST_WORKSPACE_ROOT` to another durable
+root outside temporary paths if needed. Only disposable native state/sockets use
+`/dev/shm`. Preserve other runs' directories and production state.
 
-`pytest-timeout` supplies a generous per-phase accidental-hang safety net.
-It reports a stuck boundary; it is not a product deadline or evidence of
-physical cleanup. The `signal` method allows normal fixture cleanup to run.
-`python -m unittest discover -s tests` also runs the suite, without that plugin.
+## Owning boundaries
 
-## What remains
+| Boundary | Tests and detailed reference |
+| --- | --- |
+| Identity, exact source bytes, immutable admission, coherent observation | `IdentityTests`, `SourceCustodyTests`, `ContractIngressTests`, `ContractPolicyTests`, `AdmissionPersistenceTests`: [admission](../docs/implementation/dotnet-contract-admission.md) |
+| Explicit initialization and atomic upgrades | `StoreLifecycleTests`, authentic [.NET v1–v6 fixtures](Broodling.Tests/Fixtures/README.md): [state](../docs/implementation/dotnet-identity-custody.md) |
+| Original B1 custody, allocation, owned materialization and surviving Git children | `AttemptAdmissionTests`, `GitCustodyTests`, `WorktreeProvisioningTests`, `ProvisioningProcessTests`: [materialization](../docs/implementation/dotnet-worktree-materialization.md) |
+| Controlled GitHub acquisition and reviewed bytes | `GitHubAdmissionTests`, [retained issue fixtures](fixtures/ingress/README.md): [ingress](../docs/implementation/dotnet-github-ingress.md) |
+| Frozen dispatch, caller death, launcher policy, released SDK/native transport | `NativeDispatchTests`, `DispatchProcessTests`, `NativePolicyTests`, `NativeTransportTests`: [dispatch](../docs/implementation/dotnet-native-dispatch.md) |
+| Receipt validation, atomic exact-Attempt completion, late results | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
+| Stop/quarantine, safe undispatched retirement, original-B1 replacement | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
+| Composed application/operator recovery and handback | `InvocationTests`: [invocation](../docs/implementation/invocation.md) |
+| Selected-target configuration, dependency and discovery decisions | `TargetReadinessTests`: [readiness](../docs/implementation/dotnet-target-readiness.md) |
 
-- The installed single-host CLI reuses invocation authority and retains exact
-  source/Contract bytes in JSON inspection. Deployment tests cover immutable
-  installation replay/refusal, operator-reviewed issue byte pins, and actual-target
-  configuration/dependency checks. They do not substitute for the separate
-  [installation validation](../deployment/validation.md) or prove provider quality.
-- Caller-facing invocation from explicit GitHub reference through receipt-backed
-  disposition, with pinned lineage/status, repeated and reopened submission,
-  recovery after lost dispatch acknowledgment or interrupted provisioning,
-  admission/abandonment handback, authority conflicts and observation during a
-  lifecycle write. These integration tests compose real Broodling services/local
-  Git and control only the GitHub/SDK boundaries; they do not dispatch live
-  provider work.
-- Explicit GitHub work-reference ingress, exact issue snapshots, explicit caller
-  source grants and effect authority, complete proposal/source attribution,
-  ordering-independent ingress revisions, immutable replay, and deterministic
-  refusal of unsupported capabilities. The
-  [retained issue fixtures](fixtures/ingress/README.md) exercise current structured
-  issue prose with controlled proposers and no network/provider execution.
-- Work Unit identity, entitled source snapshots, immutable Contract/Attempt
-  bindings, criteria-only admission, exact PR/no-effect delivery selection, and one current Attempt. A complete
-  validation plan is not an admission precondition; effect-dependent evidence and
-  unsatisfied prerequisites remain refusals.
-- Exact original B1 provisioning and exclusive ownership of disposable
-  worktrees, including Broodling's own concurrent-call/crash boundaries and
-  retention of the selected commit and its tree/blob objects through
-  Broodling refs after source/worktree refs, reflogs and history disappear and
-  Git garbage collection runs. Missing objects and conflicting/symbolic pins
-  refuse admission before an Attempt is acknowledged.
-- Immutable invocation preparation, durable dispatch/correlation, acknowledgement
-  loss (including unchanged-worktree DirectTarget replay), current PR credentials
-  checks, and refusal of conflicting target, forge, or source identities.
-- Fixed Codex `gateway` PR selection, exact
-  `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`, ephemeral
-  `GATEWAY_API_KEY`/`GH_TOKEN` handoff, suppressed ambient credentials, and
-  rejection of legacy credentials in persisted target configuration. Synthetic
-  credential rotation and process-death replay preserve the same request/key;
-  credential-free wait/stop also cover historical OpenAI requests.
-- Native PR receipt binding and stable `headRevision`; refusal to disposition a
-  null-output no-effect run; reopened completed runs; current-Attempt authority;
-  atomic result/disposition writes; repeatable detached waits; native failure;
-  and refusal of late success after abandonment.
-- Explicit local no-effect/user-configuration policy, direct-target PR source and
-  credential seams, and refusal of legacy selected-material requests.
-- Quarantine after dispatch: native terminal/stop labels never authorize worktree
-  deletion or replacement. Never-dispatched retirement/retry still checks exact
-  Broodling ownership.
-- Explicit SQLite schema upgrades preserve historical result, disposition and
-  Attempt bindings, with successful results retained by exact Attempt; ordinary
-  open refuses missing, unrecognized and historical stores.
+`Broodling.ProcessWitness` is a test-only caller for real process-death and
+Git-lock boundaries. Ordinary build/test/publish copies the C administrative
+shim. The separate C# Codex launcher builds self-contained for Linux x64 using
+the pinned .NET 10.0.12 runtime.
 
-`test_workflow_result.py` exercises no-effect execution against the released SDK
-and bundled native executable, and PR receipt handling through the same public
-result interface. The
-[controlled Codex fixture](fixtures/README.md) substitutes only the provider.
-Tests assert the Broodling outcome and native receipt/run binding, not
-Zeroshot's internal history.
+The retained [controlled Codex provider](fixtures/README.md) replaces only the
+provider; the released SDK and bundled native engine run. The Python files in
+[Fixtures](Broodling.Tests/Fixtures/README.md) control SDK responses, malformed
+transport or profile inspection. None implements another Broodling application
+or authority store. Stub PR receipts are not real DirectTarget delivery.
+Readiness tests control Docker/HTTP boundaries and contact no real target.
 
-`test_invocation.py` covers facade wiring, lineage, recovery handles and handback.
-Exact SDK request fields and replay contents, detailed closability findings, and
-Git/B1 materialization stay in the submission, admission and provisioning suites.
-HEAD drift in invocation recovery tests distinguishes reusing the recorded
-Attempt from incorrectly admitting one again; those tests do not inspect Git
-materialization.
+## Evidence limits and history
 
-Native failure, cancelled waits, foreign-run rejection, the no-effect result gap
-and dispatched cleanup refusals stay at the coordinator seams in
-`test_workflow_result.py`. The invocation stop scenario checks only stop wiring
-and the facade's subsequent abandonment handback from `resume`/`submit`.
-The invocation contention regression reads
-`history`/`status` while real Attempt provisioning holds a lifecycle write
-transaction, so acquiring the writer slot during observation fails immediately.
-History also checks caller-supplied upstream identities through the existing
-store identity rule; its regression covers conflicting/matching/omitted pins
-and unknown references while SQLite is read-only and external calls are refused.
+No-effect native success still refuses stable completion. Terminal labels do
+not prove physical cessation; every dispatched Attempt remains quarantined.
+The suite does not prove hostile sandbox containment, the trusted-host MCP
+precondition, model reliability or authority for automatic merge/deployment.
+[P5 remains scoped FAIL](../evaluation/p5/README.md).
 
-Gateway dispatch tests replace the public SDK client and never connect to
-CLIProxyAPI or GitHub. These checks require no real gateway credentials and
-neither admit nor execute a live evaluation run.
-`test_gateway_runtime.py` materializes the pinned native gateway profile locally
-without connecting to a target, verifying uniform runtime expansion and its
-declared gateway environment names.
+The [baseline record](../docs/migration/130-baseline-validation.md),
+[parity map](../docs/migration/130-parity-map.md) and
+[passed migration review](../docs/migration/130-migration-review.md) distinguish
+exact-baseline Python runs from later candidates and controlled .NET results.
+The [retirement validation](../docs/migration/140-retirement.md) records the
+post-retirement suite and local release smoke. Two tests can fail intermittently
+under concurrent process launches; this predates retirement and is tracked in
+[#151](https://github.com/faviann/broodling/issues/151). Earlier unexplained
+Git/provider and acquisition failures remain in the G and migration review records.
 
-The two bounded Hypothesis modules remain narrowly focused:
-`test_work_reference_properties.py` checks canonical identity/non-aliasing;
-`test_store_state_machine.py` checks immutable admission, repeatable operations,
-irreversible abandonment, and current-Attempt authority. Their deterministic
-settings live in `property_support.py`; Hypothesis is a required test dependency,
-not a product runtime dependency.
-
-## What was removed
-
-Custom assurance-graph, deterministic evidence-leaf, criterion-rationale,
-live-observation, and containment-supervisor campaigns tested responsibilities
-that no longer belong to Broodling. Those tests and their private execution
-fixtures were deleted rather than ported onto the new engine. We do not retain
-an opt-in historical lane as a current acceptance gate.
-
-The current suite does not establish real-provider semantic quality, resistance
-to malicious escaped descendants, or a general physical-cessation guarantee.
-Those are not implied by a green controlled-provider run.
-Nor does it independently verify the supported local profile's trusted-host
-precondition excluding operator-managed effect-capable MCP/extensions.
-
-## Optional test-suite review
-
-The `mutation` extra remains an on-demand tool, not a CI gate or a score target:
-
-```bash
-python -m pip install -e '.[test,mutation]'
-mutmut run
-```
-
-Its default configuration in `pyproject.toml` limits mutation to identity
-canonicalization and its two direct test modules. Widening that scope is a
-deliberate review action, not a hidden part of the normal suite.
-
-## Archived history
-
-Prior qualification outcomes, campaign tooling and old test notes apply only to
-their recorded implementations. They remain available in the
-[pre-cleanup Git tree](https://github.com/faviann/broodling/tree/348e1f469c04fecbc24f4088e6eb438a3934e872)
-and do not define current coverage or transfer a pass to this release.
+Python application tests, pytest tooling and Python schema fixtures are retired.
+Their [frozen baseline](https://github.com/faviann/broodling/tree/b3f61a96c40401722ec16fc361958d1690982e02/tests)
+remains historical evidence, not a second current acceptance gate.

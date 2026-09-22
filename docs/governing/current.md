@@ -1,7 +1,9 @@
 # Current architecture and operating status
 
 **Status: current authority for product scope and responsibility.** Broodling is
-post-MVP and available for limited, operator-supervised internal PR proposals.
+post-MVP, with a .NET 10 application/operator path for limited,
+operator-supervised internal PR proposals. Source/release support does not claim
+a validated live .NET deployment or authorize an existing-state switch.
 Completed phase plans, qualification campaigns and P5 execution protocols are
 not current requirements or a backlog. Git history is their archive.
 
@@ -16,9 +18,10 @@ describe the two public application seams. Production code and the
 a discrepancy rather than restoring an older design.
 
 The root README is current developer/user guidance. The
-[single-host deployment guide](../../deployment/README.md) and its
-[validation record](../../deployment/validation.md) govern the supported deployed
-profile. The concise [P5 outcome](../../evaluation/p5/README.md) explains the
+[release and operations guide](../../deployment/README.md) describes packaging,
+the supported host/target profile and the future owner-approved cutover gate.
+The [#77 validation record](../../deployment/validation.md) is historical Python
+deployment evidence only. The concise [P5 outcome](../../evaluation/p5/README.md) explains the
 quality limitation that still constrains use.
 
 Historical governing plans, implementation designs, qualification harnesses and
@@ -50,22 +53,24 @@ effect-dependent evidence, unsatisfied prerequisites and legacy selected-final-
 material requests are refused. Repository guidance may be execution context but
 cannot amend stored authority.
 
-Source: [admission](../../broodling/closability.py),
-[delivery selection](../../broodling/delivery.py),
-[submission](../../broodling/submission.py),
-[SDK integration](../../broodling/zeroshot_sdk.py),
-[disposition](../../broodling/disposition.py), and
-[abandonment](../../broodling/abandonment.py).
+Source: [admission/delivery policy](../../src/Broodling/Closability.cs),
+[dispatch](../../src/Broodling/NativeDispatch.cs),
+[SDK transport](../../src/Broodling/NativeTransport.cs),
+[completion](../../src/Broodling/AttemptCompletion.cs), and
+[stop/retirement](../../src/Broodling/AttemptRetirement.cs).
 
 ## Supported profile and outcomes
 
-The supported deployment is single-host Linux x86-64, Python 3.13+, SQLite
-3.37+, Git, Zeroshot 10.3.0 / Python SDK 10.3.0.post1 and Codex 0.153.4. The
+The supported source/release profile is single-host Linux x86-64, .NET 10 /
+ASP.NET Core, SQLite through Microsoft.Data.Sqlite, Git, Python 3.13+ solely
+for the Zeroshot 10.3.0 / SDK 10.3.0.post1 bridge, and Codex 0.153.4. The
 authorized-PR path uses an operator-managed DirectTarget, Zeroshot's standard
 `software-change` workflow, one uniform Codex / `gateway` / `gpt-5.6-sol` /
 medium-effort runtime, and exactly
-`https://cliproxy.local.faviann.com/v1`. The deployment package pins and checks
-the actual target image and GitHub CLI dependency.
+`https://cliproxy.local.faviann.com/v1`. Callable `TargetReadiness.CheckAsync`
+and the thin `check-target` command check the selected actual target's image,
+configuration and pinned dependencies, including GitHub CLI. See
+[readiness](../implementation/dotnet-target-readiness.md).
 
 | Frozen effect authority | Supported behavior |
 | --- | --- |
@@ -101,10 +106,13 @@ Broodling `SUCCEEDED`, native acceptance and automated checks certify neither
 semantic correctness nor authority to merge, deploy or release. See the
 [retained outcome summary](../../evaluation/p5/README.md).
 
-The #75–#77 ingress, invocation and deployment path is complete. Current
-development is driven by observed post-MVP use and explicitly scoped open issues,
-not by the removed phase chain. A future-capability issue is not blanket authority
-to implement its whole umbrella.
+The .NET application preserves the #75–#77 callable/operator behavior. The
+[passed migration review](../migration/130-migration-review.md) and
+[parity map](../migration/130-parity-map.md) retain its evidence. Current
+development follows explicitly scoped open issues. Remaining #100 intent is
+unchanged: HTTP intake, bundled proposer, pre-Contract records, automatic
+progression/completion, Compose, maintenance and retention features remain
+unimplemented. The ASP.NET host is not authority to add them.
 
 ## Lifecycle and retention limits
 
@@ -118,6 +126,9 @@ authority.
 
 The Broodling SQLite store, source Git common directories, Attempt worktrees,
 runtime state and DirectTarget state/home are durable operating state. Preserve
-their identities and absolute paths as described by the deployment guide. The
+their identities and absolute paths as described by the operations guide. .NET
+uses deliberate separate fresh state; the owner must choose drain or explicit
+abandon-and-retain for existing Python work before any operational switch.
+There is no import, in-flight takeover or implicit deletion authority. The
 separate #77 smoke environment was disposable and has been removed; its committed
 validation record remains.

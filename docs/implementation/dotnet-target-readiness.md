@@ -1,11 +1,11 @@
 # .NET existing-target readiness
 
-This is the bounded pre-cutover #130 repair for the existing operator readiness
-operation in frozen `deployment/check_target.py` and
-`tests/test_deployment_target.py` at
-`b3f61a96c40401722ec16fc361958d1690982e02`. It closes a missing behavior identified
-by the migration-wide Spec review; it does not start #140 or establish a passed
-migration gate. Python deployment remains unchanged until the separate cutover.
+This callable .NET operation preserves the existing operator readiness boundary
+from frozen [check_target.py](https://github.com/faviann/broodling/blob/b3f61a96c40401722ec16fc361958d1690982e02/deployment/check_target.py)
+and [its witnesses](https://github.com/faviann/broodling/blob/b3f61a96c40401722ec16fc361958d1690982e02/tests/test_deployment_target.py).
+The pre-cutover #130 repair and its dated validation are recorded below. The
+[release guide](../../deployment/README.md#existing-target-readiness) supplies
+current operator use; controlled validation is not a live .NET deployment claim.
 
 ## Operation and input
 
@@ -33,8 +33,8 @@ The new, small inventory shape records only the expected existing target:
 
 Mount sources are canonical absolute host paths; their container destinations
 are fixed to `/state` and `/home/node`. This records paths directly rather than
-reproducing the Python installer's manifest or directory API. #140 release
-guidance can populate this inventory. Readiness creates no directories or files.
+reproducing the retired Python installer's manifest or directory API. The operator
+records the exact selected existing target. Readiness creates no directories or files.
 The separate `config.json` is the existing
 [invocation configuration](dotnet-native-dispatch.md#thin-operator-commands):
 `pythonExecutable`, `stateDirectory`, `workspaceRoot`, and `directOrigin` for the

@@ -4,8 +4,8 @@
 admission and retained revision inspection to the [A1 store session](dotnet-identity-custody.md).
 It ends at an immutable admission decision. [B adds Attempt allocation and Git
 custody](dotnet-attempt-allocation.md). GitHub acquisition, Git materialization
-and execution belong to other slices. The deployed application
-remains Python until the separate migration cutover.
+and execution belong to their owning seams. See the
+[release/cutover guide](../../deployment/README.md) for current operations.
 
 ## Callable application path
 
@@ -93,10 +93,11 @@ commands add no HTTP endpoints or deployment workflow.
 
 ## Schema and parity evidence
 
-The A2 slice introduced .NET schema version 2; [B now uses schema 3](dotnet-attempt-allocation.md).
+The A2 slice introduced .NET schema version 2;
+[H uses schema 7](dotnet-retirement-replacement.md#explicit-replacement-and-schema).
 Ordinary open refuses historical versions.
-`UpgradeStore(path)` deliberately validates the retained v1 format/definition/
-manifest, adds missing storage in one transaction and preserves all earlier
+`UpgradeStore(path)` deliberately validates retained v1–v6 format/definition/
+manifests, adds missing storage in one transaction and preserves all earlier
 identity, submission, source and initialization facts. Repeating the explicit
 upgrade is idempotent. Python state and unknown schemas remain refused.
 

@@ -3,7 +3,7 @@
 [B #134](https://github.com/faviann/broodling/issues/134) extends the
 [Contract admission API](dotnet-contract-admission.md) with local Git custody,
 one current Attempt, immutable workspace allocation and basic abandonment.
-The deployed application remains Python pending the separate migration cutover.
+See the [release/cutover guide](../../deployment/README.md) for current operations.
 
 ## Callable API
 
@@ -79,10 +79,11 @@ status/history commands expose the same facts. Observation uses a coherent
 deferred snapshot without reserving the writer; an admitted later revision does
 not inherit another revision's Attempt.
 
-New stores use .NET schema 3. Explicit `UpgradeStore` recognizes the unchanged
-v1/v2 definition identities, adds missing tables in one transaction and preserves
-all existing facts. Ordinary open refuses old versions. Actual retained
-[v1/v2 fixtures](../../tests/Broodling.Tests/Fixtures/README.md) exercise this;
+B introduced .NET schema 3; [H uses schema 7](dotnet-retirement-replacement.md#explicit-replacement-and-schema).
+Explicit `UpgradeStore` recognizes unchanged v1–v6 definition identities, applies
+missing migrations in one transaction and preserves existing facts. Ordinary
+open refuses old versions. Authentic retained
+[fixtures](../../tests/Broodling.Tests/Fixtures/README.md) exercise this;
 there is no Python schema compatibility or import.
 
 ## Evidence and next slices
@@ -107,8 +108,7 @@ this is distinct from the independently recorded
 - [C materialization](dotnet-worktree-materialization.md) now supplies
   `ProvisionAttempt`, retained provisioning facts, ownership checks and Git
   exclusion surviving caller death. It reuses the checkout-profile and retention
-  seam. Current stores use schema 4 with explicit v1/v2/v3 upgrades; the schema-3
-  and 102-test evidence above describes B's original landing.
+  seam. The schema-3 and 102-test evidence above describes B's original landing.
 - F must check current authority inside dispatch-intent writes; observing current
   authority here does not authorize a later unguarded dispatch.
 - [G completion](dotnet-receipt-completion.md) adds the baseline's Work-Unit-wide

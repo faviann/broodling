@@ -4,7 +4,8 @@ Parity is against Python commit
 `b3f61a96c40401722ec16fc361958d1690982e02`
 (tree `7e061c9314d16785c070483799d0e8057a42ba31`), fixed by
 [#130](https://github.com/faviann/broodling/issues/130). Read baseline source and
-test paths below at that revision. A fresh, analysis-only agent inspected these
+test paths below in that [frozen tree](https://github.com/faviann/broodling/tree/b3f61a96c40401722ec16fc361958d1690982e02).
+A fresh, analysis-only agent inspected these
 responsibilities before behavioral implementation. The #131 .NET landing zone
 is infrastructure, not migrated application behavior.
 
@@ -127,8 +128,8 @@ The [readiness implementation](../implementation/dotnet-target-readiness.md)
 records the callable persistence-independent API and small inventory input shared
 with the selected invocation origin. Evidence uses controlled process/HTTP
 boundaries only; no target lifecycle, real Docker/provider/deployment validation,
-or new cleanup authority is implied. This repair precedes #140; fresh combined
-migration review is still required before that cutover starts.
+or new cleanup authority is implied. This repair preceded #140; the later
+[combined migration review passed](130-migration-review.md#final-gate-status).
 
 G's .NET witnesses are `AttemptCompletionTests`, `CompletionPersistenceTests`,
 the authentic schema-5 upgrade in `StoreLifecycleTests`, and one composed

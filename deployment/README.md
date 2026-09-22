@@ -1,332 +1,273 @@
-# Supported single-host installation
+# .NET release and operations
 
-This is the [#77](https://github.com/faviann/broodling/issues/77) deployment of
-the [#76 invocation API](../docs/implementation/invocation.md), under the
-[#74 first-use decision](https://github.com/faviann/broodling/issues/74).
-Use it for **operator-supervised internal PR proposals**. P5 remains **FAIL**:
-the demonstrated delivery path accepted a semantically incorrect change.
-Every delivered PR needs independent human/operator review of its **exact
-accepted revision**, complete frozen request and admitted Contract, considering
-appropriate tests/CI, before a separate merge decision. Native review,
-automated checks and Broodling `SUCCEEDED` do not authorize merge, deployment,
-release, or reliance on semantic correctness. This review is outside Broodling.
+The supported source and operator path is .NET 10 on Linux x86-64. This guide
+builds an ordinary release artifact and describes the existing callable/operator
+operations. **No live .NET deployment has been validated by this migration.**
+The [#77 validation record](validation.md) and
+[Python installation guide at the frozen baseline](https://github.com/faviann/broodling/blob/b3f61a96c40401722ec16fc361958d1690982e02/deployment/README.md)
+are historical evidence for their own revisions/profile.
 
-## Selected profile
+Use is limited to operator-supervised internal PR proposals. [P5 remains scoped
+FAIL](../evaluation/p5/README.md). Review every exact accepted revision against
+the frozen request and admitted Contract, considering tests/CI, before a separate
+merge decision. Native acceptance and `SUCCEEDED` authorize neither merge,
+deployment nor release.
 
-One Linux x86-64 host runs the Broodling CLI as an unprivileged dedicated account
-and one rootful Docker container runs Zeroshot DirectTarget. The native target
-is unauthenticated; only `127.0.0.1:18770` is published. Local users with access
-to that port, and containers able to reach the target on its Docker bridge,
-are trusted. Do not expose it through a public proxy or network
-bind. Docker access itself grants substantial host authority.
+## Existing Python work and the operational switch
 
-The target runs as root **inside the container**, matching the demonstrated
-profile. Zeroshot allocates its own Linux capsule identities, changes file
-ownership and starts provider processes under those identities. Preserve Docker's
-default capabilities; running the target with `--user`, rootless Docker, or a
-restricted UID/GID mapping is outside this profile. Do not mount the Docker
-socket, host credentials, or source/state directories other than the two mounts
-created by the installer into the target.
+Source retirement can finish without an operational switch. **Before** any
+switch, the owner must record the selected treatment of every existing Python
+Work Unit/Attempt and its durable state:
 
-| Component | Pin |
-| --- | --- |
-| Broodling | Package `0.1.0` plus the full Git commit supplied to `--revision`; recorded in `installation.json` |
-| Python / SQLite | Debian 13 Python 3.13, SQLite 3.37+; installed patch versions recorded |
-| SDK / native engine | `10.3.0.post1` / `10.3.0`, official wheel URL and SHA-256 in `pyproject.toml`; installer checks bundled native SHA-256 |
-| Target base / Node | `node:22-bookworm-slim` at digest `83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5`; Node `22.23.2` |
-| Codex | npm `@openai/codex@0.153.4` |
-| Target GitHub CLI | Official amd64 `2.101.0` package, SHA-256 `f876a3b87bf67c94f773d17becca4dc7340b056dab901473a9260ee2a73e237b` |
-| Build tools | pip `25.1.1`, setuptools `80.9.0`, wheel `0.45.1` |
-| Execution | Native standard `software-change`, DirectTarget, one `UniformRuntime`, Codex / `gateway` / `gpt-5.6-sol` / medium |
-| Gateway | Exactly `https://cliproxy.local.faviann.com/v1`, with current `GATEWAY_API_KEY` |
+1. **Drain:** keep the existing pinned Python release and its original environment
+   available to its owner to finish/inspect the already-authorized work. Preserve
+   exact accepted revisions and receipts; dispatched work remains quarantined.
+2. **Explicitly abandon and retain:** record abandonment through the existing
+   owning implementation, request native stop when correlation is known, and
+   retain unresolved/quarantined state. Abandonment and a terminal/stop label
+   grant no deletion or workspace-replacement authority.
 
-The product Dockerfile pins the compatible target dependencies used by the
-validated profile.
-OS packages receive distribution updates; rebuilds are not claimed to be
-bit-identical. Each installation retains and uses its exact resulting image ID.
-The actual-container check validates the dependencies used by execution,
-including `/usr/bin/gh api graphql --paginate --slurp`.
+Record affected store/Attempt/run identities and the choice before using .NET
+operationally. Preserve the Python store and SQLite sidecars, source Git common
+directories and B1 refs/objects, worktrees, SDK/native state, target image/origin/
+mounts/home and UID ownership, release/configuration, receipt exports and exact
+accepted Git objects at their recorded absolute paths. Retain an appropriate
+consistent backup. Do not run two implementations against that authority.
 
-## Clean host or LXC baseline
+.NET starts with a deliberately chosen **separate fresh store and paths**; there
+is no Python database import, reinterpretation or in-flight takeover. Ordinary
+open refuses missing/foreign/old schemas. Restore a missing existing store;
+do not initialize an empty replacement. Explicit `upgrade-store` applies only
+to supported earlier **.NET** schemas, preserving retained facts.
 
-Use Debian 13 amd64, durable local storage, working DNS/HTTPS access to GitHub,
-the official release/npm/package endpoints and the configured gateway, and
-enough disk for retained native runs and quarantined workspaces. In an LXC,
-the host operator must enable Docker nesting and the UID/GID operations needed
-by rootful Docker. This package does not provision the hypervisor or gateway.
-The gateway must offer `gpt-5.6-sol` through its Responses API.
+The owner decision is a future operational gate, not a prerequisite for finishing
+source retirement. This guide and #140 authorize no deployment, state switch,
+silent replacement, deletion, target creation or new live-provider campaign.
+Remaining #100 product intent is unchanged; URL-only intake, bundled proposer,
+pre-Contract records, automatic execution/completion, Compose, maintenance and
+retention work remain separate.
 
-As host administrator:
+## Build a release artifact
+
+Build from a reviewed full source revision on a compatible Linux x86-64 host.
+Use a .NET 10 SDK (tested with 10.0.401), Git, `cc` and libc development
+headers. The native shim uses the build host's libc; this is not a portable
+glibc/musl or arbitrary-host binary qualification. Runtime host requirements
+include .NET 10 / ASP.NET Core 10, Python 3.13+ for the bridge, Git, and ordinary
+non-PID-1 child ownership as described by
+[materialization](../docs/implementation/dotnet-worktree-materialization.md).
+
+From the repository root, choose a new output directory for each release:
 
 ```bash
-apt-get update
-apt-get install -y python3 python3-venv python3-pip git gh ca-certificates docker.io
-systemctl enable --now docker
-useradd --create-home --shell /bin/bash broodling
-usermod -aG docker broodling
-install -d -o broodling -g broodling -m 0700 /srv/broodling
-su - broodling
+export MSBUILDDISABLENODEREUSE=1
+export DOTNET_CLI_USE_MSBUILD_SERVER=0
+export UseSharedCompilation=false
+export NUGET_HTTP_CACHE_PATH="$PWD/tmp/nuget-http"
+dotnet build Broodling.sln --configuration Release
+dotnet publish src/Broodling.Host --configuration Release --output out/release/host
+dotnet publish src/Broodling.Codex --configuration Release --output out/release/codex
+git rev-parse HEAD > out/release/source-revision.txt
+tar -C out/release -czf out/broodling-linux-x64.tar.gz host codex source-revision.txt
 ```
 
-All subsequent host commands run as `broodling` in a fresh login with its Docker
-group membership. Keep its home and installation inaccessible to other users.
-Do not install into `/tmp`, `/run`, `/dev/shm`, a source checkout, or a symlinked
-path. Use one operator at a time; this profile provides no scheduling or global
-cross-Work-Unit concurrency policy.
+Keep both complete publish directories. `host/` contains the framework-dependent
+`Broodling.Host` entrypoint, managed assemblies, runtime/dependency manifests,
+SQLite native assets, `libbroodling_git.so`, `bridge/zeroshot_bridge.py` and
+`bridge/requirements.txt`. `codex/` is the complete self-contained C# launcher,
+with its pinned .NET **10.0.12** runtime; copying only its `codex` apphost is
+insufficient. Preserve executable modes and package paths. Invoke the host with
+`dotnet /RELEASE/host/Broodling.Host.dll`; its optional `Broodling.Host` apphost
+requires a registered .NET installation or the appropriate `DOTNET_ROOT` when
+the runtime lives in a nonstandard location. Publish neither
+creates application state nor installs a target.
 
-Clone this repository and select the reviewed **full commit ID**, then install:
+Only the bridge needs a Python environment. For development, or a separately
+approved installation, create a dedicated environment and install its dependency
+using the published file:
 
 ```bash
-git clone https://github.com/faviann/broodling.git ~/broodling-source
-cd ~/broodling-source
-BROODLING_REVISION=FULL_REVIEWED_40_CHARACTER_COMMIT_ID
-git checkout --detach "$BROODLING_REVISION"
-python3 deployment/install.py --root /srv/broodling \
-  --revision "$BROODLING_REVISION" --container broodling-target --port 18770
-/srv/broodling/bin/broodling initialize-store
-docker start broodling-target
-/srv/broodling/bin/check-target
+python3 -m venv /CHOSEN/NEW/bridge-venv
+/CHOSEN/NEW/bridge-venv/bin/python -m pip install -r /RELEASE/host/bridge/requirements.txt
 ```
 
-`install.py` archives only committed package/deployment files, installs a
-non-editable release and creates a stopped container. It creates the state
-directory but leaves application-store initialization to the explicit
-`initialize-store` command above. The command creates a new store only when its
-path is absent; it refuses to replace an existing file. Ordinary invocation
-commands open an existing compatible store and refuse missing, unrecognized or
-historical schemas.
+This keeps the exact official SDK **10.3.0.post1** wheel URL and SHA-256. Its
+bundled native is **10.3.0**; Codex is still **0.153.4**. The application refuses
+different SDK/native versions. There is no Python Broodling package, installer
+or importable proposer. Protect and retain the selected release and dependency
+environment for replay; do not relocate a launcher already frozen in an invocation.
 
-For a recognized historical schema supported by the installed release, stop
-Broodling callers, make a consistent backup, then run
-`/srv/broodling/bin/broodling upgrade-store` before ordinary use. The command
-applies the existing migration transaction explicitly. A refused or interrupted
-upgrade leaves the old schema unadvertised as current; inspect or restore the
-store before retrying. If a previously used store is missing, restore it from
-backup rather than creating an empty store with `initialize-store`.
+## State and operator commands
 
-The installer submits no work and reads no credentials. Repeating it with the
-same root, revision, account, container and port returns the existing inventory;
-it never replaces a container or creates, reinitializes, or upgrades application
-state. A missing database is allowed on installer replay because the installer
-does not own its initialization. A differing or incomplete installation is
-otherwise refused. Preserve a partial installation for inspection before
-choosing a new empty root/container.
-
-`check-target` must pass before initial submission. It checks the running
-container's image, mounts, local port, dependency versions/hashes and native
-discovery response. It does not call a provider or prove credentials, model
-availability, repository permissions, or semantic quality. See the retained
-[deployment validation](validation.md) for the actual exercised installation.
-
-## Credentials and authority
-
-The operator supplies `GH_TOKEN`, `GATEWAY_API_KEY` and
-`GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1` to the **CLI process**
-for first dispatch or an ambiguous dispatch replay. Use an existing secret
-source or interactive shell input; do not put values in argv, Git, config.json,
-Docker environment configuration, or shared shell history. For example:
+The examples below describe a future approved fresh installation. Replace
+`/RELEASE` and `/NEW` with its chosen absolute durable paths; they are not
+instructions to switch an existing installation. Keep state, source Git, Attempt
+root and runtime directories separate from the release and source checkout.
 
 ```bash
-read -r -s -p 'GitHub token: ' GH_TOKEN; echo
-read -r -s -p 'Gateway key: ' GATEWAY_API_KEY; echo
-export GH_TOKEN GATEWAY_API_KEY
-export GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1
+dotnet /RELEASE/host/Broodling.Host.dll initialize-store /NEW/state.sqlite3
+dotnet /RELEASE/host/Broodling.Host.dll history /NEW/state.sqlite3 OWNER/REPO 123
 ```
 
-Before dispatch, verify gateway authentication and the selected model from the
-actual target. This probe only lists models; it sends no inference request and
-does not install secrets in the container configuration:
+Initialization exclusively creates a new path. For supported old .NET state,
+stop callers, make a consistent backup and deliberately use
+`dotnet /RELEASE/host/Broodling.Host.dll upgrade-store /EXISTING/DOTNET/state.sqlite3`. Current format is
+`broodling.dotnet`, schema **7**; v1–v6 require explicit upgrade.
+See [state lifecycle](../docs/implementation/dotnet-identity-custody.md).
 
-```bash
-python3 - <<'PY'
-import json, os, subprocess
-assert os.environ["GATEWAY_BASE_URL"] == "https://cliproxy.local.faviann.com/v1"
-probe = '''import json, sys, urllib.request
-credentials = json.load(sys.stdin)
-request = urllib.request.Request(
-    "https://cliproxy.local.faviann.com/v1/models",
-    headers={"Authorization": "Bearer " + credentials["key"]})
-try:
-    with urllib.request.urlopen(request, timeout=30) as response:
-        models = json.load(response)
-    assert any(item.get("id") == "gpt-5.6-sol" for item in models.get("data", []))
-except Exception:
-    sys.exit("Gateway/model preflight failed; fix this profile before dispatch.")
-print("Configured gateway authentication and gpt-5.6-sol availability passed.")
-'''
-subprocess.run(["docker", "exec", "-i", "broodling-target", "python3", "-c", probe],
-    input=json.dumps({"key": os.environ["GATEWAY_API_KEY"]}), text=True, check=True)
-PY
+The host routes commands before HTTP startup. Running it without a command starts
+ASP.NET composition/telemetry; it exposes no #100 HTTP intake or automatic
+progression. No daemon is needed to supervise native runs.
+
+For authorized PR invocation, a secret-free `config.json` selects:
+
+```json
+{
+  "pythonExecutable": "/NEW/bridge-venv/bin/python",
+  "stateDirectory": "/NEW/runtime",
+  "workspaceRoot": "/NEW/attempts",
+  "directOrigin": "http://127.0.0.1:18770"
+}
 ```
 
-Do not fall back to another provider or authentication path if this fails.
+Unknown fields, including credentials, refuse. The operator origin must be exactly
+`http://127.0.0.1:<port>`, with an explicit valid port and no extra components.
+The local no-effect alternative configures `realCodex`, `profileHome`,
+`codexHome` and `launcher` (the published `/RELEASE/codex/codex`); see
+[dispatch policy](../docs/implementation/dotnet-native-dispatch.md#fixed-policy-and-transport).
+Local HOME starts empty and CODEX_HOME auth-only. The trusted-host prerequisite
+excludes operator-managed effect-capable MCP/extensions. This profile still
+cannot produce a stable successful local disposition.
 
-The GitHub identity must read the explicit issue/repository and clone/fetch,
-push a proposal branch, open/update its PR, and perform native delivery's issue
-read/comment and PR/status/check queries. Use repository-scoped credentials
-where available; a classic token with `repo` was used in the demonstrated
-private-repository profile. Permission to execute the task and the exact target
-branch still comes from the operator's admitted effect, independently of broad
-credential privileges. There is no merge effect. Disable automatic merge and
-downstream release triggered solely by this profile's success.
+## Existing-target readiness
 
-No node-local Codex OAuth, `auth.json`, alternate provider or runtime is selected.
-Secrets are passed through the existing SDK at dispatch and are not part of
-Broodling's frozen request. Native execution/session state can contain credentials
-or private task content: protect and back it up accordingly. This package is
-not a secret broker or a hostile-host security boundary.
-
-## Submit a Work Unit
-
-Choose one self-contained GitHub issue whose entire request is a supported
-software change and one explicitly authorized PR. All prerequisites must be
-available within this profile. Linked documents and comments are not implicitly
-entitled. Use the Python ingress API for separately entitled sources or a typed
-proposer that represents additional obligations/prerequisites; do not remove an
-unsupported requirement to make admission pass.
-
-Set these values for the chosen issue and exact target branch:
+`TargetReadiness.CheckAsync` and the thin command preserve actual-target
+configuration/dependency checks without an installer:
 
 ```bash
-REPOSITORY=OWNER/REPOSITORY
-ISSUE=123
-TARGET_BRANCH=main
-mkdir -p /srv/broodling/requests
-gh repo clone "$REPOSITORY" /srv/broodling/repositories/first
-git -C /srv/broodling/repositories/first checkout "$TARGET_BRANCH"
-git -C /srv/broodling/repositories/first rev-parse HEAD
+dotnet /RELEASE/host/Broodling.Host.dll check-target /NEW/target-inventory.json /NEW/config.json
+```
+
+An operator records the **existing selected target's** exact image and canonical
+mount paths in `target-inventory.json`:
+
+```json
+{
+  "containerName": "broodling-target",
+  "imageId": "sha256:EXACT_EXISTING_IMAGE_ID",
+  "directOrigin": "http://127.0.0.1:18770",
+  "stateMount": "/NEW/target-state",
+  "homeMount": "/NEW/target-home"
+}
+```
+
+The [readiness reference](../docs/implementation/dotnet-target-readiness.md) lists
+every check: selected image/container, running/root/isolation/restart settings,
+exact mounts and loopback port, credential exclusion, native/Codex/Node/gh
+pins and binary hashes, `gh api graphql --paginate --slurp`, hosted UID/GID
+transition and native discovery. Both files must select the same origin. It
+creates no target/state and dispatches zero provider tasks.
+
+The retained [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
+unchanged target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
+**2.101.0** and the native **10.3.0** binary hash. Its build context requires the
+official wheel's `zeroshot/_bin/zeroshot` as `zeroshot`. Target provisioning is
+operator-owned and separately authorized; the .NET release process does not
+build or deploy this image.
+
+The supported target is rootful Docker on the same trusted host, root inside the
+container with ordinary capabilities, two durable mounts at `/state` and
+`/home/node`, and unauthenticated native access published only on loopback.
+Local users and containers able to reach its bridge are trusted. Public exposure,
+rootless/altered UID mapping, Docker-socket or extra credential/source mounts are
+outside this profile. Preserve native UID ownership; never recursively chown
+used target storage.
+
+Readiness is a point-in-time dependency/configuration check. Before an authorized
+dispatch, the operator must separately establish actual-target gateway
+authentication/model availability, repository permissions and remote B1
+availability. No fallback provider/runtime is supported. Readiness proves none
+of those, nor PR delivery, semantic quality or physical cessation.
+
+## Invocation and recovery
+
+The caller must review the complete exact GitHub issue response. Capture it with
+the same REST resource/headers as acquisition:
+
+```bash
 gh api --hostname github.com --method GET \
   --header 'Accept: application/vnd.github+json' \
   --header 'X-GitHub-Api-Version: 2022-11-28' \
-  "/repos/$REPOSITORY/issues/$ISSUE" > /srv/broodling/requests/first.json
-cp /srv/broodling/release/deployment/reviewed_issue.py /srv/broodling/requests/first.py
+  /repos/OWNER/REPO/issues/123 > /NEW/reviewed-issue.json
 ```
 
-Review `first.json` in full. The example caller-owned proposer preserves its
-complete title/body as a criterion and refuses if the acquired issue bytes have
-changed. It is only appropriate after the operator confirms that no unsupported
-obligations, unresolved prerequisites or additional effects exist. Deterministic
-admission cannot prove that natural-language interpretation was complete.
-Proposer files are trusted operator Python code.
+`ReviewedIssueProposal` refuses any subsequent byte change. Use it only for a
+self-contained request whose prerequisites and effects the operator has reviewed;
+richer inputs use the [typed .NET proposer](../docs/implementation/dotnet-github-ingress.md).
+Comments and links require separate explicit entitlement. The source repository
+must be clean/committed, match the GitHub origin, support the checkout policy,
+and contain the selected full B1 commit, fetchable by the target.
 
-The source checkout must be clean and committed, have a matching GitHub origin,
-and use the supported Git checkout profile (no transformations/filters). B1 must
-already be fetchable from GitHub by the target; a local-only commit cannot be
-cloned by DirectTarget. Record and pass its full commit ID:
+Initial PR dispatch and acknowledgement replay require current `GH_TOKEN`,
+`GATEWAY_API_KEY` and exactly
+`GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1` in the caller's
+environment. Supply secrets through an appropriate secret source, never argv,
+tracked configuration or Docker environment. The fixed runtime is standard
+`software-change`, Codex / `gateway` / `gpt-5.6-sol` / medium.
+The GitHub identity needs repository/source access and native PR delivery
+permissions; broad credential privileges do not authorize broader effects.
 
-```bash
-B1=$(git -C /srv/broodling/repositories/first rev-parse HEAD)
-/srv/broodling/bin/check-target
-/srv/broodling/bin/broodling submit \
-  --repository "$REPOSITORY" --issue "$ISSUE" \
-  --checkout /srv/broodling/repositories/first --revision "$B1" \
-  --target-branch "$TARGET_BRANCH" --proposer /srv/broodling/requests/first.py \
-  > /srv/broodling/first-submission.json
-unset GH_TOKEN GATEWAY_API_KEY GATEWAY_BASE_URL
+```text
+Broodling.Host submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer>
+Broodling.Host status <store> <contract-revision-id>
+Broodling.Host history <store> <repository> <issue>
+Broodling.Host resume <store> <contract-revision-id> [config.json [checkout [revision]]]
+Broodling.Host wait <store> <attempt-id> [python-executable]
+Broodling.Host stop <store> <attempt-id> <reason> <python-executable>
 ```
 
-Retain `revision.contract_revision_id` and, when admitted, `attempt.attempt_id`
-from the JSON response. The native run ID is `submission.zeroshot_run_id`.
-A rejected admission has no dispatched Attempt; inspect
-the recorded decision/findings. On an error, discover retained identifiers with
-`history` before deciding on the permitted recovery below. Command JSON is a
-view of the existing domain records, not a new result ledger. Source bytes are
-base64 encoded and Contract meaning is included for inspection.
+Here `Broodling.Host` abbreviates `dotnet /RELEASE/host/Broodling.Host.dll`.
+`producer` normally is `caller`; `-` explicitly
+authorizes no effect. Retain JSON `revision.contractRevisionId`,
+`attempts[].attemptId` and `submissions[].runId`. Source/canonical bytes are
+base64; inspect the exact retained material. Errors can follow committed facts:
+use history/status to find handles before choosing recovery.
 
-```bash
-/srv/broodling/bin/broodling history --repository "$REPOSITORY" --issue "$ISSUE"
-/srv/broodling/bin/broodling status CONTRACT_REVISION_ID
-/srv/broodling/bin/broodling wait ATTEMPT_ID > /srv/broodling/first-disposition.json
-```
+Resume the same revision after interruption; repeating submit reacquires bytes.
+Uncorrelated replay needs the same frozen configuration and current credentials.
+Correlated resume and retained status/history need neither. Wait requires the
+pinned SDK Python executable until completion is retained; afterward it works
+offline without that argument. Native failure abandons; transport loss or a
+cancelled wait only detaches. Restore access to the same target and wait again.
 
-`wait` consumes the bound native result and commits the existing atomic Broodling
-disposition. `SUCCEEDED` includes the exact accepted Git revision and full PR
-delivery receipt. Use those retained facts for independent review; do not review
-only a moving branch tip. Retain a Git bundle or another repository-side copy
-of that exact revision if PR refs may disappear.
-
-## Operations and recovery
-
-There is no Broodling daemon. A CLI process owns its store only while running;
-Zeroshot owns native execution. Losing SSH or cancelling `wait` detaches the
-caller and does not cancel the Work Unit. Reopen the store with the commands
-below; do not reconstruct a new submission from a conversation.
-
-| Operation | Procedure |
-| --- | --- |
-| Start target after host boot | `docker start broodling-target`, then `/srv/broodling/bin/check-target` |
-| Target status/log inspection | `docker inspect --format '{{.State.Status}}' broodling-target`; `docker logs --tail 100 broodling-target` (private output) |
-| Retained semantic status | `broodling status CONTRACT_REVISION_ID` or `history --repository OWNER/REPO --issue N`; no native refresh or credentials |
-| Native progress | Use the installed SDK `Client`/`DirectTarget` `get_run(RUN_ID).status()`; example below |
-| Continue an interrupted caller | `broodling resume CONTRACT_REVISION_ID`; before first Attempt admission also supply `--checkout PATH --revision B1` |
-| Consume/reconsume result | `broodling wait ATTEMPT_ID`; after durable run binding, dispatch credentials are unnecessary |
-| Stop this Work Unit | `broodling stop ATTEMPT_ID --reason 'operator reason'`; abandonment is durable, native stop requested when possible, dispatched quarantine refusal is expected |
-| Stop/restart target process | `docker stop broodling-target` / `docker restart broodling-target`; affects all its native runs; does not grant cleanup authority |
-
-Use `/srv/broodling/bin/broodling` for the abbreviated commands in the table.
-For native progress, inspect the already-bound run without submitting work:
-
-```bash
-/srv/broodling/venv/bin/python - RUN_ID <<'PY'
-import asyncio, sys
-from zeroshot import Client, DirectTarget
-async def inspect():
-    async with Client(target=DirectTarget("http://127.0.0.1:18770"), environment={}) as client:
-        run = client.get_run(sys.argv[1])
-        print(await run.status())
-asyncio.run(inspect())
-PY
-```
-
-After durable Attempt/run correlation, `resume`/`wait` use the stored target and
-run even if caller settings change; terminal disposition replay needs no target.
-Before durable acknowledgment, replay can require current dispatch credentials,
-but reuses the frozen request/key. Use `resume` on the **same revision**. Repeating
-`submit` reacquires issue bytes and may make a different Contract revision.
-
-A target process/host restart preserves completed native results. Native
-nonterminal runs interrupted by target loss may become `RuntimeLost`; Zeroshot
-does not resume those provider processes. Reconnect to the existing run and
-consume its failure/abandonment. Do not silently dispatch another run. A new
-container with empty state at the old origin cannot recover the old run. Never
-replace mounts or repoint an active installation at another target.
-
-Transport loss alone is not a success or failure disposition: restore access to
-the same target and wait again. Native failure abandons authority and returns an
-error; inspect retained abandonment. A stop after dispatch normally exits with
-`CessationUnconfirmed` even after native stop: physical cessation is not proven.
-If native access is unavailable, retain abandonment and use host/Docker control
-for emergency containment. No terminal label permits automatic workspace reuse.
+Stop records abandonment first, then requests native stop when the run is known.
+A dispatched Attempt returns cessation refusal/quarantine even after terminal
+stop. Unknown correlation is never redispatched to discover a run. Explicit
+never-dispatched retirement/retry remain [callable operations](../docs/implementation/dotnet-retirement-replacement.md),
+not an automatic CLI recovery sequence.
 
 ## Retention and limitations
 
-| Path under `/srv/broodling` | Role and retention |
-| --- | --- |
-| `state/broodling.sqlite3` and SQLite sidecars | Authoritative sources, Contract revisions, admission, B1/Attempt lineage, submission/run correlation, receipt/disposition/abandonment; retain |
-| `repositories/` | Source Git common directories backing Attempt worktrees and original B1 objects; retain at the same absolute paths |
-| `attempts/` | Dedicated Broodling worktrees; **all dispatched Attempts stay quarantined**, including success, failure and stop |
-| `runtime/` | SDK/native client state; persistent across caller restarts |
-| `target-state/`, `target-home/` | Native runs, results, capsules, sessions and target workspaces; persistent, potentially sensitive, mixed native UID ownership; preserve |
-| `installation.json`, `config.json`, `release/`, `venv/`, `bin/` and Docker image/container | Exact deployed release/configuration and operator entrypoints; retain for repeatability; inventory is not semantic authority |
-| `requests/`, operator JSON exports/Git bundles | Caller proposal inputs and copies for review; SQLite remains authoritative for admitted facts |
-| `build/`, package/download caches | Rebuildable packaging scratch; disposable after successful install, never a source of lifecycle authority |
+Keep the authoritative SQLite store/sidecars, original source common Git and
+B1 objects, Attempt enclosures/worktrees, runtime state, native target state/home,
+exact target image/origin, release/dependency environment and operator inventory
+at their retained paths. Protect native session state and private content as
+sensitive. Retain exact accepted Git objects and full receipts for independent
+review; moving PR branch tips are insufficient.
 
-Plan capacity for indefinite quarantine; there is no automatic retention cleanup.
-Do not recursively chown native target storage after use: its different UIDs
-belong to Zeroshot's capsule isolation.
-Back up the installation, Docker image and target inventory with access restricted
-as for credentials. For a consistent ordinary filesystem backup, stop caller
-processes, quiesce/stop the native target (with the interruption consequences
-above), and preserve ownership, SQLite files/sidecars and absolute paths. Restore
-on the same host boundary with the same account IDs, mounts, image and origin;
-check before reconnecting. Do not run a restored copy alongside the original.
-Live coordinated backups, in-place upgrades, distributed takeover and lost-target
-reconstruction are outside this first package.
+Cancelling the caller does not stop native work. Target restart can preserve
+completed results; interrupted active native runs may become `RuntimeLost`.
+A fresh empty target at an old origin cannot recover them. Reconnect to the
+retained identity and inspect/consume its outcome; do not silently replace it.
 
-No-effect stable completion remains unsupported because Zeroshot supplies no
-stable accepted local result. This CLI packages only explicitly authorized PR
-delivery, including native commit/push/open-or-update; it promises neither passing
-CI nor merge/deployment. No automatic deletion/replacement of any dispatched
-Attempt, fleet scheduling, additional effects, alternate model/runtime selection,
-node-local OAuth, UI, general secret broker, or semantic certification is added.
-External stopping/host containment does not manufacture product cleanup authority.
+For a consistent filesystem backup, stop callers and quiesce/stop the native
+target with those interruption consequences understood. Preserve SQLite
+sidecars, absolute paths, mount/image/origin and account/native UID ownership.
+Restore within the same host boundary; do not run a restored authority copy
+alongside the original. Live coordinated backup, takeover and lost-target
+reconstruction are not provided.
+
+All dispatched Attempts remain permanently ineligible for automatic deletion or
+replacement. Terminal success/failure/stop and external containment create no
+product cleanup override. Plan capacity for indefinite quarantine. There is no
+automatic merge, execution supervisor, maintenance or retention service.

@@ -1,187 +1,50 @@
-# One-work-reference invocation
+# Caller invocation and recovery
 
-`Broodling` implements [#76](https://github.com/faviann/broodling/issues/76) as a
-small Python API over the existing domain services.
+The .NET `Invocation` composes explicit source admission, Attempt allocation,
+owned worktree materialization and frozen native dispatch. It is callable without
+HTTP. The [current authority](../governing/current.md) governs scope; the
+[release guide](../../deployment/README.md) supplies operator configuration and
+commands. The retired Python API is preserved at the
+[frozen baseline](https://github.com/faviann/broodling/blob/b3f61a96c40401722ec16fc361958d1690982e02/docs/implementation/invocation.md).
 
-The .NET migration now exposes callable and thin operator `submit`/`resume`
-through the [F invocation/dispatch seam](dotnet-native-dispatch.md), with
-[G wait/completion and exact-Attempt handback](dotnet-receipt-completion.md).
-[H stop, safe retirement and explicit replacement](dotnet-retirement-replacement.md)
-complete the lifecycle seams; this is not deployment cutover.
-
-The deployed Python path composes:
-
-```text
-explicit GitHub issue → entitled sources → proposed Contract → admission
-  → Attempt + dedicated workspace/B1 → native submission → receipt/disposition
-```
-
-The [current architecture](../governing/current.md), completed
-[#75 ingress](work-reference-ingress.md) and
-[#74 first-use decision](https://github.com/faviann/broodling/issues/74) govern this
-surface. It adds no scheduler, execution graph, provider manager, result ledger,
-retry policy or semantic success rule. Zeroshot still owns execution.
-
-## Invocation shape
-
-Construct `Broodling(store, submitter, workspace_root)` with an open
-`BroodlingStore`, the existing `ZeroshotSubmitter` and a durable workspace root.
-The caller owns the store's lifetime. Keep it open while awaiting operations.
-Create a new store explicitly with `BroodlingStore.initialize(path)`. Normal
-`open(path)` requires an existing current store; it never creates or migrates
-one. Apply a supported historical schema with `BroodlingStore.upgrade(path)`
-before constructing the facade.
-The [README example](../../README.md#install-and-use) shows the complete minimal
-configuration and a caller-supplied typed proposer.
-
-| Method | Existing responsibilities exposed |
+| Operation | Current API and owning reference |
 | --- | --- |
-| `submit(reference, propose, *, repository, required_effects, revision="HEAD", additional_sources=(), constructed_by="model_extraction")` | Capture the GitHub issue, construct/admit the Contract, provision its Attempt and dispatch; return `InvocationStatus`. Rejected admission returns its findings without an Attempt. |
-| `status(contract_revision_id)` | Read the exact revision's retained lineage without GitHub, provider or Zeroshot calls. |
-| `history(reference)` | Read recorded revision statuses for that Work Unit, oldest first; return an empty tuple when none exists. No acquisition or proposal generation. |
-| `resume(contract_revision_id, *, repository=None, revision="HEAD")` | Admit/continue stored authority without source capture or proposal generation; return `InvocationStatus`. A repository is required only before first Attempt admission. |
-| `await wait(attempt_id)` | Reconnect to the bound run, consume its result and return the existing `WorkUnitDisposition`; replay returns the retained disposition. |
-| `await stop(attempt_id, reason)` | Record abandonment and request native stop through the existing coordinator; return `AttemptRetirement` only when the existing cessation requirements permit it. |
+| Initialize, open or explicitly upgrade a store | `BroodlingApplication.InitializeStore/OpenStore/UpgradeStore`: [state lifecycle](dotnet-identity-custody.md) |
+| Submit an explicit GitHub reference with typed proposer and exact effect authority | `Invocation.SubmitAsync`: [native dispatch](dotnet-native-dispatch.md#callable-application) |
+| Resume the exact recorded revision | `Invocation.ResumeAsync`: [native dispatch](dotnet-native-dispatch.md) |
+| Inspect retained revision/lineage without external calls | `BroodlingStore.Status/History`: [admission and observation](dotnet-contract-admission.md#persistence-recovery-and-observation) |
+| Consume the correlated native result or replay retained completion | `Invocation.WaitAsync` / `BroodlingStore.WaitAsync`: [completion](dotnet-receipt-completion.md) |
+| Abandon before requesting native stop | `BroodlingStore.StopAsync`: [lifecycle](dotnet-retirement-replacement.md) |
+| Explicit safe retirement/replacement | `RetireAttempt`, `AdmitRetry`, `PrepareRetry`, `RetryAsync`: [lifecycle](dotnet-retirement-replacement.md) |
 
-`submit`, `resume`, `status` and `history` are synchronous. `wait` and `stop` are
-asynchronous; the README uses `asyncio.run` from synchronous caller code. Call
-`submit`/`resume` outside a running event loop because native dispatch uses the
-existing synchronous SDK adapter. Keep the supported
-single-host ownership model; the facade does not provide an async dispatch
-service or cross-Work-Unit concurrency policy.
+Use one disposable store session per caller. Keep the database, source Git,
+Attempt roots and runtime state at their durable recorded paths. Ordinary open
+never creates or upgrades state.
 
-`reference` is the existing `WorkReference`; `propose` receives
-`ContractProposalInput` and returns the existing typed `Contract`. Proposal
-generation has no bundled model. The caller must explicitly declare
-`required_effects`, including `()` for no effect. Exactly one `pull_request`
-effect must name its target branch. Mixed, multiple or unsupported effects remain
-rejected. Complete captured source material remains authoritative alongside the
-Contract. A proposer must preserve every obligation and cannot self-entitle
-sources or change effect authority. Deterministic admission does not prove that
-natural-language extraction is complete or correct. Additional sources require the explicit caller entitlement
-described by [ingress](work-reference-ingress.md).
+Retain `status.Revision.ContractRevisionId` and the exact Attempt ID from
+`status.Attempts`; `status.Submissions` records native correlation. Status/history
+use coherent reads without reserving SQLite's writer or refreshing native
+progress. Completion belongs to the exact Attempt, not a moving Work Unit tip.
 
-Initial PR dispatch uses the existing fixed native `software-change` /
-DirectTarget / Codex / CLIProxyAPI `gateway` profile, `gpt-5.6-sol` and medium
-reasoning effort. Configure the target origin, current `GH_TOKEN`, exact
-`GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1` and current
-`GATEWAY_API_KEY` through `ZeroshotSubmitter`. Use the pinned dependencies and
-compatible actual-target GitHub CLI checked by the
-[deployment package](../../deployment/README.md).
-The [single-host deployment package](../../deployment/README.md) installs this
-profile and exposes these same methods through the operator CLI. The API itself
-does not provision a target or select another runtime.
+Repeating submit reacquires bytes and reruns the proposer; changed bytes or
+proposal meaning can create another immutable revision. Resume continues only
+the retained revision. Before initial allocation it needs the selected repository
+and B1; afterward stored allocation governs. Interrupted pre-dispatch work can
+continue, while acknowledgement-loss recovery reuses only the frozen request/key
+and still requires current dispatch credentials and authority.
 
-## Status and pinned identity
+After durable correlation, resume needs no dispatch configuration or credentials.
+Wait/stop reconnect using the frozen locator and run ID. A retained completion
+returns without native access. Errors do not undo earlier durable steps: inspect
+history after an interrupted submit to recover exact handles. Rejected,
+abandoned or completed work is handed back without automatic replacement.
 
-`InvocationStatus` groups existing records rather than computing a new lifecycle
-state: `work_unit`, entitled `sources`, exact Contract `revision`, admission
-`decision`, `attempt`, `worktree`, `submission`, `abandonment` and `disposition`.
-Absent records are `None`. A revision recorded before admission can therefore
-have no decision. Submission exposes the retained submission key/state and
-Zeroshot run ID; a run ID alone is not a successful Broodling disposition.
-Each status uses a coherent read snapshot without reserving SQLite's writer slot
-from lifecycle operations. `history` reads each revision's status independently.
+Cancellation/transport loss detaches a waiter. Native failure records abandonment;
+invalid receipts or no-effect stable-result gaps refuse completion. Stop records
+abandonment before requesting native stop. Every dispatched Attempt remains
+quarantined, including unknown-run and terminal cases; stop does not prove
+physical cessation. See the owning seams for detailed refusal codes and witnesses.
 
-Retain `status.revision.contract_revision_id` and
-`status.attempt.attempt_id` when present. `status(revision_id)` never substitutes
-a newer revision. For the requested revision it selects its current Attempt, or
-its last admitted Attempt when none remains current. Thus terminal lineage stays
-inspectable after success or abandonment. Work Unit identity is shared across
-revisions, but revision/Attempt/result bindings remain exact. A disposition is
-looked up by its exact Attempt id, so a Work Unit's later revisions do not
-replace earlier successful results.
-
-On successful authorized PR delivery, `disposition.outcome == "SUCCEEDED"` and
-`disposition.result` retains `attemptId`, `contractRevisionId`, `runId`, native
-`workflow`, stable `acceptedRevision` and the complete `deliveryReceipt`.
-This is the existing receipt-backed lifecycle decision. It adds no separate
-failure or semantic-certification state.
-
-## Repetition, reconnection and handback
-
-Repeating `submit` reacquires source bytes and reruns the proposer. Identical
-source bytes and Contract meaning resolve the same revision, original B1,
-Attempt, frozen submission key and run. A changed local `HEAD` does not replace
-an already admitted B1. Changed issue bytes, even metadata, or changed proposal
-meaning produce a different immutable revision; they never amend the earlier
-Attempt. Another revision cannot displace a current Attempt: existing admission
-and conflict rules still apply.
-
-Attempt admission verifies that the selected commit and its own tree/blob
-objects are available locally, without requiring objects reachable only through
-its ancestors. It then creates a direct Broodling ref at
-`refs/broodling/starting/<commit_oid>` before the Attempt is committed to the
-store. This pins B1 independently of source branches, disposable worktrees and
-reflogs. Provisioning repeats the same retention operation from the recorded
-repository and B1 object id before materializing or acknowledging the worktree;
-it does not resolve current `HEAD`. The operation refuses a conflicting or
-symbolic ref and does not fetch missing objects.
-
-Use `resume(revision_id)` to continue exactly recorded authority after reopening
-the store. Before first Attempt admission, provide `repository` and optionally
-`revision` to select B1. Once admitted, the retained repository/B1 govern recovery.
-An interrupted pre-dispatch operation continues the same Attempt. An ambiguous
-dispatch replays only its frozen request/key under the existing submission
-rules. Prepared or acknowledgement-loss replay still requires valid dispatch
-configuration and current credentials; secrets are not persisted.
-
-After durable run correlation, resume, wait and stop use the frozen run/target
-locator without dispatch credentials, reacquisition, reproposal or reconstruction
-from current runtime settings. They still require the relevant native target to
-be reachable when making a native call. A retained final disposition is returned
-without contacting it. Status never refreshes native execution progress.
-
-The facade preserves domain errors rather than converting every refusal into a
-new result shape:
-
-| Condition | Caller-visible behavior |
-| --- | --- |
-| Source acquisition, entitlement or malformed/authority-changing proposal fails | Existing exception; already captured facts remain retained. |
-| Valid Contract is not closable | Rejected admission and findings in status; no Attempt or dispatch. |
-| Provisioning, configuration or submission fails | Existing exception; retained admission/Attempt/submission facts support inspection and the permitted same-invocation recovery. |
-| Native run fails | `wait` durably abandons the Attempt and raises `SubmissionNotReady`; inspect `status(revision_id).abandonment`. |
-| Receipt, run binding or current Attempt authority is invalid | Existing refusal, with no successful disposition. |
-| Wait is cancelled or loses transport | The caller detaches; await the same Attempt again. Cancellation does not abandon or stop execution. |
-| Explicit stop | Authority is abandoned first. A dispatched Attempt requests native stop when its run is known, then raises `CessationUnconfirmed`; its workspace stays quarantined. Unknown dispatched run identity also remains quarantined. |
-
-Exceptions do not roll back earlier durable steps. If `submit` raises before
-returning identifiers, use `history(reference)` to inspect retained revisions and
-select the exact revision to resume. Failures before a revision was recorded
-leave no revision handle. The facade does not add a separate error ledger.
-
-`history` checks repository and issue identities independently. For either
-identity, it raises `WorkUnitIdentityConflict` only when the caller supplies an ID
-that conflicts with an ID already pinned on the retained Work Unit. Recreation
-at the same path cannot be detected for that identity when the caller omits the
-ID or the retained Work Unit has no previously pinned ID to compare it against.
-It never creates a Work Unit, records ingress or pins a previously unknown ID.
-Unknown references return no history.
-
-`resume` returns existing rejection,
-abandonment or disposition without automatically creating a replacement Attempt.
-Stopping an Attempt that never dispatched can establish the existing retirement
-proof, but this facade does not perform retirement/deletion or retry.
-
-## Operating limitations
-
-The scoped P5 **FAIL** remains. Use only as an operator-supervised internal
-PR-proposal workflow. Every delivered PR requires independent human/operator
-review of the exact accepted revision against the frozen request and Contract,
-with appropriate repository tests/CI, before a separate merge decision. Native
-reviewer acceptance, automated checks and Broodling `SUCCEEDED` do not certify
-semantic correctness or authorize automatic merge, deployment or release. This
-external review remains outside Broodling and is not a pre-disposition step.
-
-No-effect execution remains admissible but cannot produce successful disposition:
-Zeroshot 10.3 supplies no stable accepted local result, so `wait` fails closed with
-`SubmissionNotReady`. The facade does not manufacture a snapshot or open an
-unauthorized PR. Every dispatched Attempt remains ineligible for automatic
-deletion or replacement, even after success or stop. Native terminal labels do
-not establish physical cessation; retain quarantined workspaces/state.
-
-No backlog selection, dependency waiting, scheduling, budgeting, Cerebrate,
-broader effects, alternate runtimes, multi-host coordination or deployment
-packaging is introduced. The focused integration tests use real Broodling
-services/local Git with controlled GitHub and SDK boundaries; they do not claim
-a new provider-quality evaluation or live deployment validation.
+The [P5 human-review requirement](../../evaluation/p5/README.md) applies to every
+accepted revision. No automatic progression, merge, deployment, execution
+supervisor or broader effect authority is introduced by the host.

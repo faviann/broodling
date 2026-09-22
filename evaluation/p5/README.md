@@ -8,8 +8,9 @@ prospective protocol or authorization for another run.
 
 The v5 R01 attempt ended `NOT_DELIVERED / IF` because its DirectTarget GitHub CLI
 could not execute Zeroshot's required `gh api graphql --paginate --slurp` query.
-That dependency is now pinned and checked by the deployment package, but the
-historical run remains an infrastructure failure.
+That dependency was pinned and checked in the historical deployment package;
+the current .NET [target-readiness operation](../../docs/implementation/dotnet-target-readiness.md)
+preserves the check. The historical run remains an infrastructure failure.
 
 The separately accounted v6 R01 used the corrected target. Native execution and
 Broodling disposition succeeded, including exact PR receipt binding, detached
@@ -31,6 +32,9 @@ Therefore:
 - no P5 cohort is active or authorized; and
 - supported use requires independent human review before any merge/deployment
   decision, as stated by current governing and deployment documentation.
+
+That delivery evidence belongs to the recorded Python revisions/profile. It
+does not establish a live .NET deployment; the quality limitation carries forward.
 
 ## Archive references
 

@@ -5,7 +5,8 @@ result from [F's native dispatch](dotnet-native-dispatch.md). Its parity source
 is `b3f61a96c40401722ec16fc361958d1690982e02`, especially `disposition.py`,
 `test_workflow_result.py`, binding/cardinality cases in
 `test_disposition_foundation.py`, and composed completion in `test_invocation.py`.
-This remains a migration candidate, not a deployed Python replacement.
+Current source/release support is .NET; the
+[release guide](../../deployment/README.md) distinguishes that from live deployment.
 
 ## Callable and operator behavior
 

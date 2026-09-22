@@ -1,8 +1,7 @@
 # .NET owned worktree materialization
 
 [C #135](https://github.com/faviann/broodling/issues/135) makes an existing
-[B allocation](dotnet-attempt-allocation.md) match local Git state. Python remains
-the deployed application until the separate migration cutover. This adds no
+[B allocation](dotnet-attempt-allocation.md) match local Git state. This seam adds no
 dispatch, retirement, replacement, execution supervision or operator command.
 
 ## Application API and retained facts
@@ -29,8 +28,9 @@ F now [composes this seam](dotnet-native-dispatch.md) before dispatch and guards
 `ProvisionAttempt` against every dispatched candidate. Its external SDK call
 releases the stable enclosure lock and SQLite writer after durable intent.
 
-C introduced .NET schema 4; [G completion](dotnet-receipt-completion.md) now uses schema 6. Explicit upgrade recognizes unchanged v1/v2/v3
-definition hashes and adds missing tables transactionally; ordinary open still
+C introduced .NET schema 4; [H lifecycle](dotnet-retirement-replacement.md) uses
+schema 7. Explicit upgrade recognizes unchanged v1–v6 definition hashes and
+applies missing migrations transactionally; ordinary open still
 refuses old schemas. The actual pre-C schema-3 fixture retains its B1,
 allocation and abandonment, alongside all earlier Contract/source facts.
 Upgrade neither fabricates past provisioning nor imports Python state.
@@ -101,7 +101,7 @@ keeps Git output available to exercise the harder surviving-writer case.
 The seam supports an ordinary Linux x86-64 .NET 10 host with local filesystem
 `flock`, waitable direct children and no competing reaper for those PIDs. It
 refuses PID 1, explicit ignored SIGCHLD and SA_NOCLDWAIT before enclosure
-mutation. The existing deployment runs the CLI as an unprivileged host process;
+mutation. The supported operator profile runs the CLI as an unprivileged host process;
 the separately managed DirectTarget container is not this application host.
 Arbitrary host signal changes/reapers, fork-only descendants retaining parent
 descriptors, detached helpers discarding the lock, hostile concurrent path or
