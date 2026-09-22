@@ -85,16 +85,28 @@ public sealed class StoreLifecycleTests
     {
         using var fixture = new StoreFixture();
         var disposable = System.IO.Path.Combine(fixture.Root, "disposable");
-        Directory.CreateDirectory(disposable);
+        var nested = System.IO.Path.Combine(disposable, "nested");
+        Directory.CreateDirectory(nested);
+        var existing = System.IO.Path.Combine(nested, "existing.sqlite3");
+        using (fixture.Application.InitializeStore(existing)) { }
         File.WriteAllText(System.IO.Path.Combine(disposable, ".broodling-disposable-worktree"), "attempt");
         var link = System.IO.Path.Combine(fixture.Root, "link");
         Directory.CreateSymbolicLink(link, disposable);
-        foreach (var root in new[] { disposable, link })
+        var nestedLink = System.IO.Path.Combine(fixture.Root, "nested-link");
+        Directory.CreateSymbolicLink(nestedLink, nested);
+        var fileLink = System.IO.Path.Combine(fixture.Root, "file-link.sqlite3");
+        File.CreateSymbolicLink(fileLink, existing);
+        foreach (var root in new[] { disposable, link, nestedLink })
         {
             var path = System.IO.Path.Combine(root, "state", "broodling.sqlite3");
             await Assert.That(() => fixture.Application.InitializeStore(path)).Throws<StoreStateException>();
             await Assert.That(() => fixture.Application.OpenStore(path)).Throws<StoreStateException>();
             await Assert.That(File.Exists(path)).IsFalse();
+        }
+        foreach (var path in new[] { existing, System.IO.Path.Combine(nestedLink, "existing.sqlite3"), fileLink })
+        {
+            await Assert.That(() => fixture.Application.OpenStore(path)).Throws<StoreStateException>();
+            await Assert.That(() => fixture.Application.UpgradeStore(path)).Throws<StoreStateException>();
         }
     }
 

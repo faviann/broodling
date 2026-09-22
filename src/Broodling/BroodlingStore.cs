@@ -120,8 +120,8 @@ public sealed partial class BroodlingStore : IDisposable
         if (string.IsNullOrWhiteSpace(path))
             throw new StoreStateException("invalid_store_path", "A filesystem store path is required.");
         var full = System.IO.Path.GetFullPath(path);
-        // Resolve existing links one component at a time, including parent links,
-        // before looking for the disposable Attempt enclosure marker.
+        // Resolve existing links before checking the destination's full ancestry:
+        // a link can jump directly into a child of a marked enclosure.
         var current = System.IO.Path.GetPathRoot(full)!;
         foreach (var part in full[current.Length..].Split(System.IO.Path.DirectorySeparatorChar))
         {
@@ -129,10 +129,13 @@ public sealed partial class BroodlingStore : IDisposable
             FileSystemInfo info = Directory.Exists(current) ? new DirectoryInfo(current) : new FileInfo(current);
             if (info.LinkTarget is not null)
                 current = info.ResolveLinkTarget(returnFinalTarget: true)!.FullName;
-            if (File.Exists(System.IO.Path.Combine(current, ".broodling-disposable-worktree")))
+        }
+        for (DirectoryInfo? ancestor = new(current); ancestor is not null; ancestor = ancestor.Parent)
+        {
+            if (File.Exists(System.IO.Path.Combine(ancestor.FullName, ".broodling-disposable-worktree")))
                 throw new StoreStateException("invalid_store_location", "The application store must outlive disposable Attempt worktrees.");
         }
-        return full;
+        return current;
     }
 
     private static string Now() => DateTimeOffset.UtcNow.ToString("O");
