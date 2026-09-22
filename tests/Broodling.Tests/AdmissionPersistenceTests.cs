@@ -7,6 +7,20 @@ namespace Broodling.Tests;
 public sealed class AdmissionPersistenceTests
 {
     [Test]
+    public async Task MalformedContractTextCannotBecomeRetainedAuthority()
+    {
+        using var fixture = new StoreFixture();
+        using var store = fixture.Initialize();
+        var work = store.ResolveWorkUnit(ContractIngressTests.Reference);
+        var source = store.EntitleSource(work.WorkUnitId, ContractIngressTests.Primary());
+        var contract = new Contract(work.WorkUnitId, [new(source.SourceId, source.ContentSha256)],
+            [new("c", "Preserve \ud800 exactly")]);
+        await Assert.That(() => store.RecordContractRevision(contract)).Throws<InvalidContractProposal>();
+        await Assert.That(store.History(ContractIngressTests.Reference).Count).IsEqualTo(0);
+        await Assert.That(store.ListEntitledSources(work.WorkUnitId).Count).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task InterruptedRevisionAndDecisionWritesRollBackWhileCommittedUndecidedMeaningSurvivesReopen()
     {
         using var fixture = new StoreFixture();

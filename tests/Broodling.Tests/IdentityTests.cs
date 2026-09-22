@@ -7,6 +7,32 @@ namespace Broodling.Tests;
 public sealed class IdentityTests
 {
     [Test]
+    [Arguments("repository")]
+    [Arguments("issue")]
+    [Arguments("repositoryIdentity")]
+    [Arguments("issueIdentity")]
+    public async Task MalformedCallerTextCannotRewriteIdentityOrSubmission(string field)
+    {
+        using var fixture = new StoreFixture();
+        WorkUnit first;
+        using (var store = fixture.Initialize())
+        {
+            first = store.ResolveWorkUnit(WorkReference.Parse("acme/widget", 12));
+            await Assert.That(() => store.ResolveWorkUnit(WorkReference.Parse(
+                field == "repository" ? "https://\ud800@github.com/acme/widget" : "acme/widget",
+                field == "issue" ? "https://\ud800@github.com/acme/widget/issues/12" : "12",
+                repositoryIdentity: field == "repositoryIdentity" ? "R-\ud800" : "R-valid",
+                issueIdentity: field == "issueIdentity" ? "I-\udc00" : "I-valid")))
+                .Throws<InvalidWorkReference>();
+            await Assert.That(store.GetWorkUnit(first.WorkUnitId)).IsEqualTo(first);
+            await Assert.That(store.ListWorkSubmissions(first.WorkUnitId).Count).IsEqualTo(1);
+        }
+        using var reopened = fixture.Open();
+        await Assert.That(reopened.GetWorkUnit(first.WorkUnitId)).IsEqualTo(first);
+        await Assert.That(reopened.ListWorkSubmissions(first.WorkUnitId).Count).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task CanonicalFormsConvergeAcrossReopenAndRetainEveryRawSubmission()
     {
         using var fixture = new StoreFixture();

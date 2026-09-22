@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using System.Text;
 
 namespace Broodling;
 
@@ -8,6 +9,7 @@ namespace Broodling;
 /// </summary>
 public sealed partial class BroodlingStore : IDisposable
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly SqliteConnection connection;
     public string Path { get; }
     public StoreInformation Information { get; private set; } = null!;
@@ -177,6 +179,18 @@ public sealed partial class BroodlingStore : IDisposable
 
     private SqliteCommand Command(string sql, SqliteTransaction? transaction = null, params object?[] values)
     {
+        // Provider replacement applies to lookup keys as well as retained text.
+        // Validate before binding so malformed callers cannot alias existing facts.
+        try
+        {
+            foreach (var value in values)
+                if (value is string text)
+                    StrictUtf8.GetByteCount(text);
+        }
+        catch (EncoderFallbackException)
+        {
+            throw new BroodlingException("invalid_text", "Store text contains invalid Unicode.");
+        }
         var command = connection.CreateCommand();
         command.CommandText = sql;
         command.Transaction = transaction;

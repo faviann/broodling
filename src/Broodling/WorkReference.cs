@@ -8,6 +8,8 @@ namespace Broodling;
 /// <summary>A parsed reference. Only canonical components determine identity.</summary>
 public sealed class WorkReference
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+
     private WorkReference(string host, string owner, string repository, long issueNumber,
         string submittedRepository, string submittedIssue, string? repositoryIdentity, string? issueIdentity)
     {
@@ -40,6 +42,18 @@ public sealed class WorkReference
     public static WorkReference Parse(string repository, string issue,
         string? repositoryIdentity = null, string? issueIdentity = null)
     {
+        // Validate raw submissions as well as opaque pins: canonicalization
+        // can discard text that is still retained as caller provenance.
+        try
+        {
+            foreach (var text in new[] { repository, issue, repositoryIdentity, issueIdentity })
+                if (text is not null)
+                    StrictUtf8.GetByteCount(text);
+        }
+        catch (EncoderFallbackException)
+        {
+            throw new InvalidWorkReference("Work reference text contains invalid Unicode.");
+        }
         var canonical = ParseRepository(repository);
         if (string.IsNullOrWhiteSpace(issue))
             throw new InvalidWorkReference("An issue number or locator is required.");
@@ -118,8 +132,10 @@ public sealed class WorkReference
 
 internal static class Digests
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+
     internal static string Bytes(ReadOnlySpan<byte> bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
-    internal static string Parts(params string[] parts) => Bytes(Encoding.UTF8.GetBytes(string.Join('\u001f', parts)));
+    internal static string Parts(params string[] parts) => Bytes(StrictUtf8.GetBytes(string.Join('\u001f', parts)));
     internal static string AdmittedMaterial(IReadOnlyList<SourceAttribution> pins) =>
         Parts(new[] { "broodling.dotnet.admitted-material.v1" }
             .Concat(pins.SelectMany(pin => new[] { pin.SourceId, pin.ContentSha256 })).ToArray());

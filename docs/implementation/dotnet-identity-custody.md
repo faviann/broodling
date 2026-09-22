@@ -52,6 +52,16 @@ Payload bytes are never parsed to decide entitlement. A2 applies the
 additional ingress restrictions: supplied sources require explicit caller grants,
 and only actually acquired/validated primary issue bytes get policy acquisition.
 
+Malformed UTF-16 is refused before source hashing/retention and WorkReference
+canonicalization. SQL string parameters are also checked before binding, including
+lookup keys, so a lone surrogate cannot alias a legitimate replacement character
+or change retained provenance. Source/reference refusals use their existing domain
+errors; other malformed SQL text uses `invalid_text`. Payload bytes remain arbitrary.
+Well-formed text, including U+FFFD and supplementary characters, keeps its existing
+identity bytes and remains readable/replayable in existing .NET state. No schema
+change or historical-state rewrite is involved; Contract text already validates
+Unicode before canonical serialization.
+
 Snapshot identity includes Work Unit, source kind, exact locator and byte digest.
 Identical capture returns the first stored snapshot, including its original
 media type, retrieval/recording times, origin and grant. New bytes produce a new

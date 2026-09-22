@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Broodling;
 
 public sealed record SourceEntitlement(string GrantedBy, string Basis);
@@ -7,6 +9,7 @@ public sealed class SourceSubmission(string kind, string locator, byte[] content
     string mediaType = "text/plain; charset=utf-8", string retrievedAt = "",
     string origin = "caller", SourceEntitlement? entitlement = null)
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly byte[] bytes = (byte[])content.Clone();
     public string Kind { get; } = kind;
     public string Locator { get; } = locator;
@@ -18,6 +21,18 @@ public sealed class SourceSubmission(string kind, string locator, byte[] content
 
     internal SourceEntitlement EvaluateEntitlement()
     {
+        // SQLite's text binding replaces lone surrogates. Refuse them before
+        // hashing or retaining provenance; payload bytes remain uninterpreted.
+        try
+        {
+            foreach (var text in new[] { Locator, MediaType, RetrievedAt, Entitlement?.Basis })
+                if (text is not null)
+                    StrictUtf8.GetByteCount(text);
+        }
+        catch (EncoderFallbackException)
+        {
+            throw new SourceNotEntitled("Source metadata contains invalid Unicode.");
+        }
         if (Kind is not ("primary_issue" or "referenced_document" or "repository_file" or "caller_statement"))
             throw new SourceNotEntitled("Unrecognized source kind.");
         if (string.IsNullOrWhiteSpace(Locator))

@@ -9,6 +9,24 @@ namespace Broodling.Tests;
 public sealed class AttemptAdmissionTests
 {
     [Test]
+    public async Task MalformedAbandonmentReasonCannotWithdrawAuthorityOrRewriteRetainedText()
+    {
+        using var fixture = new AttemptFixture();
+        AttemptRecord attempt;
+        using (var store = fixture.State.Open())
+        {
+            attempt = fixture.Admit(store);
+            await Assert.That(() => store.AbandonAttempt(attempt.AttemptId, "reason-\ud800"))
+                .Throws<BroodlingException>();
+            await Assert.That(store.GetAttempt(attempt.AttemptId).Abandonment).IsNull();
+            await Assert.That(store.GetAttempt(attempt.AttemptId).IsCurrent).IsTrue();
+            store.AbandonAttempt(attempt.AttemptId, "reason-\ufffd\U0001f680");
+        }
+        using var reopened = fixture.State.Open();
+        await Assert.That(reopened.GetAttempt(attempt.AttemptId).Abandonment!.Reason).IsEqualTo("reason-\ufffd\U0001f680");
+    }
+
+    [Test]
     public async Task PublicAdmissionRetainsOriginalBindingsAndExactRevisionObservationAcrossReopen()
     {
         using var fixture = new AttemptFixture();
