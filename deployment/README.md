@@ -19,7 +19,8 @@ Source retirement can finish without an operational switch. **Before** any
 switch, the owner must record the selected treatment of every existing Python
 Work Unit/Attempt and its durable state:
 
-1. **Drain:** keep the existing pinned Python release and its original environment
+1. **Drain:** keep the existing pinned Python release (the Python application is
+   unchanged from `b3f61a9` through `da7e156`) and its original environment
    available to its owner to finish/inspect the already-authorized work. Preserve
    exact accepted revisions and receipts; dispatched work remains quarantined.
 2. **Explicitly abandon and retain:** record abandonment through the existing
@@ -56,6 +57,10 @@ glibc/musl or arbitrary-host binary qualification. Runtime host requirements
 include .NET 10 / ASP.NET Core 10, Python 3.13+ for the bridge, Git, and ordinary
 non-PID-1 child ownership as described by
 [materialization](../docs/implementation/dotnet-worktree-materialization.md).
+Run Broodling as an unprivileged dedicated account with access to the local
+rootful Docker socket for the selected DirectTarget. In an LXC, the host
+operator must enable Docker nesting and the UID/GID operations rootful Docker
+needs. No installer checks these host prerequisites; the operator owns them.
 
 From the repository root, choose a new output directory for each release:
 

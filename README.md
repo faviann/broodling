@@ -21,19 +21,8 @@ The application uses SQLite through `Microsoft.Data.Sqlite`. Native Git
 administration requires a non-PID-1 host with waitable children and no competing
 reaper; see [materialization](docs/implementation/dotnet-worktree-materialization.md).
 
-From the repository root, create a dedicated bridge environment if needed:
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r src/Broodling/bridge/requirements.txt
-export BROODLING_TEST_PYTHON="$PWD/.venv/bin/python"
-export MSBUILDDISABLENODEREUSE=1
-export DOTNET_CLI_USE_MSBUILD_SERVER=0
-export UseSharedCompilation=false
-export NUGET_HTTP_CACHE_PATH="$PWD/tmp/nuget-http"
-dotnet test --solution Broodling.sln
-dotnet build Broodling.sln --configuration Release
-```
+Create the pinned bridge environment and run the suite and Release build as
+described in [tests/README.md](tests/README.md#run).
 
 The [TUnit suite](tests/README.md) includes controlled released-SDK/native checks
 and fails when the dependency is unavailable. It makes no live-provider or
@@ -68,7 +57,7 @@ maintenance and retention automation remain separately scoped work.
 
 ## Native boundary and limitations
 
-The only production Python is the [one-call SDK bridge](src/Broodling/bridge/zeroshot_bridge.py):
+The only production Python source file is the [one-call SDK bridge](src/Broodling/bridge/zeroshot_bridge.py):
 it translates version/submit/wait/stop calls to the pinned official SDK and
 returns public results. C# owns authority, policy, recovery, persistence and
 receipt validation. The [bridge dependency file](src/Broodling/bridge/requirements.txt)

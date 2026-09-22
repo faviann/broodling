@@ -32,8 +32,13 @@ Retired 82 tracked paths: the Python `broodling/` application/domain/store/
 lifecycle and launcher, `pyproject.toml` packaging/entrypoint, root pytest setup,
 Python tests/crash/property helpers and Python schema fixtures, and superseded
 `deployment/install.py`, `check_target.py` and `reviewed_issue.py`.
+The installer's host checks (x86-64, non-root account, Python 3.13, SQLite
+3.37+, local rootful Docker socket) were dropped deliberately rather than
+rebuilt: SQLite now ships with `Microsoft.Data.Sqlite`, and the remaining host
+prerequisites are operator-owned in the [release guide](../../deployment/README.md#build-a-release-artifact).
+`TargetReadiness` keeps the target-side checks.
 Each deletion targeted an enumerated tracked file after checking .NET references.
-Virtual environments, caches, other worktrees, user `CONTEXT.md` and operational
+Virtual environments, caches, other worktrees, untracked user files and operational
 state were not retirement targets.
 
 The only production Python file is

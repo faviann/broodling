@@ -39,7 +39,7 @@ and [SDK 10.3.0.post1](https://github.com/the-open-engine/zeroshot/releases/tag/
 remain selected. The Linux x86-64 wheel bundles the native engine; its exact URL
 and SHA-256 live in [bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt).
 
-The sole production Python file is
+The sole production Python source file is
 [zeroshot_bridge.py](../../src/Broodling/bridge/zeroshot_bridge.py). It translates
 one version/submit/wait/stop request into the official SDK, returns public fields
 or typed error classification and exits. It owns no Broodling policy, database,
