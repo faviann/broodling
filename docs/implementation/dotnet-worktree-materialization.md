@@ -29,7 +29,7 @@ F now [composes this seam](dotnet-native-dispatch.md) before dispatch and guards
 `ProvisionAttempt` against every dispatched candidate. Its external SDK call
 releases the stable enclosure lock and SQLite writer after durable intent.
 
-C introduced .NET schema 4; F's current schema is 5. Explicit upgrade recognizes unchanged v1/v2/v3
+C introduced .NET schema 4; [G completion](dotnet-receipt-completion.md) now uses schema 6. Explicit upgrade recognizes unchanged v1/v2/v3
 definition hashes and adds missing tables transactionally; ordinary open still
 refuses old schemas. The actual pre-C schema-3 fixture retains its B1,
 allocation and abandonment, alongside all earlier Contract/source facts.

@@ -216,11 +216,12 @@ public sealed class AttemptAdmissionTests
             [new SourceSubmission("primary_issue", reference.IssueLocator, "other work"u8.ToArray(), entitlement: new("caller", "reviewed"))],
             ContractIngressTests.Propose, []);
         using var connection = fixture.State.Connect();
+        foreach (var insert in new[] { "INSERT", "INSERT OR REPLACE" })
         foreach (var conflict in new[] { "path", "enclosure", "branch", "contract", "current" })
         {
             using var command = connection.CreateCommand();
-            command.CommandText = """
-                INSERT INTO attempts SELECT 'other-attempt', $work, $revision, 1,
+            command.CommandText = $"""
+                {insert} INTO attempts SELECT 'other-attempt', $work, $revision, 1,
                     b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision,
                     workspace_root, $enclosure, $path, $branch, admitted_at FROM attempts
                 """;
@@ -232,6 +233,40 @@ public sealed class AttemptAdmissionTests
             await Assert.That(() => command.ExecuteNonQuery()).Throws<SqliteException>();
         }
         await Assert.That(store.Status(fixture.RevisionId).Attempts.Single()).IsEqualTo(attempt);
+        await Assert.That(store.Status(other.Revision.ContractRevisionId).Attempts.Count).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task SqlReplacementCannotRebindCurrentAttemptOrRestoreAbandonedIdentityUnderValidParents()
+    {
+        using var fixture = new AttemptFixture();
+        using var store = fixture.State.Open();
+        var attempt = fixture.Admit(store);
+        await Assert.That(() => fixture.State.Execute("""
+            INSERT OR REPLACE INTO attempts SELECT attempt_id, work_unit_id, contract_revision_id, is_current,
+                b1_repository, 'cccccccccccccccccccccccccccccccccccccccc', b1_material_sha256,
+                b1_requested_revision, workspace_root, enclosure, worktree_path, branch, admitted_at FROM attempts
+            """)).Throws<SqliteException>();
+        var reference = WorkReference.Parse("acme/widget", 13);
+        var other = store.AdmitSources(reference,
+            [new SourceSubmission("primary_issue", reference.IssueLocator, "other work"u8.ToArray(), entitlement: new("caller", "reviewed"))],
+            ContractIngressTests.Propose, []);
+        store.AbandonAttempt(attempt.AttemptId, "original reason");
+        using var connection = fixture.State.Connect();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT OR REPLACE INTO attempts SELECT attempt_id, $work, $revision, 1,
+                b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision,
+                workspace_root, enclosure, worktree_path, branch, admitted_at FROM attempts
+            """;
+        command.Parameters.AddWithValue("$work", other.WorkUnit.WorkUnitId);
+        command.Parameters.AddWithValue("$revision", other.Revision.ContractRevisionId);
+        await Assert.That(() => command.ExecuteNonQuery()).Throws<SqliteException>();
+        var retained = store.GetAttempt(attempt.AttemptId);
+        await Assert.That(retained.B1).IsEqualTo(attempt.B1);
+        await Assert.That(retained.ContractRevisionId).IsEqualTo(attempt.ContractRevisionId);
+        await Assert.That(retained.IsCurrent).IsFalse();
+        await Assert.That(retained.Abandonment!.Reason).IsEqualTo("original reason");
         await Assert.That(store.Status(other.Revision.ContractRevisionId).Attempts.Count).IsEqualTo(0);
     }
 }
