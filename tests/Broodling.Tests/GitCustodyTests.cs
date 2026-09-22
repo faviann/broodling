@@ -154,7 +154,7 @@ public sealed class GitCustodyTests
         fixture.Git("clone", "--bare", fixture.Repository, bare);
         var sentinel = System.IO.Path.Combine(fixture.State.Root, "hook-ran");
         var hook = System.IO.Path.Combine(bare, "hooks", "reference-transaction");
-        File.WriteAllText(hook, "#!/bin/sh\ntouch '" + sentinel + "'\nexit 1\n");
+        ExecutableFile.Write(hook, "#!/bin/sh\ntouch '" + sentinel + "'\nexit 1\n");
         if (OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("The qualified Git profile requires Linux.");
         File.SetUnixFileMode(hook, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         using var store = fixture.State.Open();

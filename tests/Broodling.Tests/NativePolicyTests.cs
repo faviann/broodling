@@ -93,7 +93,7 @@ public sealed class NativePolicyTests
     {
         var directory = Directory.CreateDirectory(Path.Combine(fixture.Root, directoryName)).FullName;
         foreach (var name in new[] { "codex", "codex.dll", "codex.runtimeconfig.json", "codex.deps.json", "Broodling.dll" })
-            File.Copy(Path.Combine(Path.GetDirectoryName(NativeFixture.Launcher)!, name), Path.Combine(directory, name));
+            ExecutableFile.Copy(Path.Combine(Path.GetDirectoryName(NativeFixture.Launcher)!, name), Path.Combine(directory, name));
         return directory;
     }
 
@@ -110,7 +110,7 @@ public sealed class NativePolicyTests
         var launcher = Path.Combine(directory, "codex");
         var ambient = Directory.CreateDirectory(Path.Combine(fixture.Root, "ambient")).FullName;
         var fallback = Path.Combine(ambient, "codex");
-        File.WriteAllText(fallback, "#!/bin/sh\nprintf ambient-codex\n");
+        ExecutableFile.Write(fallback, "#!/bin/sh\nprintf ambient-codex\n");
         File.SetUnixFileMode(fallback, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         var profile = new NativeProfile(fixture.NativeState,
             new(fixture.Codex.RealCodex, fixture.Home, fixture.CodexHome, launcher), toolPath: ambient + ":/usr/bin:/bin");
@@ -211,7 +211,7 @@ public sealed class NativePolicyTests
             case "rebind":
                 Directory.Move(fixture.Home, fixture.Home + "-original");
                 Directory.CreateSymbolicLink(fixture.Home, fixture.Home + "-original"); break;
-            case "version": File.WriteAllText(fixture.Codex.RealCodex, "#!/bin/sh\nprintf 'codex-cli wrong-version\\n'\n"); break;
+            case "version": ExecutableFile.Write(fixture.Codex.RealCodex, "#!/bin/sh\nprintf 'codex-cli wrong-version\\n'\n"); break;
         }
         var transport = new ControlledTransport();
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<UnsupportedRuntime>();

@@ -285,7 +285,7 @@ public sealed class GitHubAdmissionTests
             if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException("The supported acquisition profile is Linux.");
             SetResponse(content);
             var executable = System.IO.Path.Combine(Root, "gh");
-            File.WriteAllText(executable, "#!/bin/sh\nset -eu\n"
+            ExecutableFile.Write(executable, "#!/bin/sh\nset -eu\n"
                 + $"printf '%s\\n' CALL \"$@\" >> '{Root}/calls'\n"
                 + (waitForGate ? $"while [ ! -e '{Root}/gate' ]; do sleep 0.01; done\n" : "")
                 + $"cat '{Root}/response'\n"

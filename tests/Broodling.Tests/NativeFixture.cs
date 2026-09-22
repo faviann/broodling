@@ -25,7 +25,7 @@ internal sealed class NativeFixture : IDisposable
         Directory.CreateDirectory(CodexHome);
         File.WriteAllText(Path.Combine(CodexHome, "auth.json"), "{\"canary\":\"AUTH_NEVER_PERSIST\"}");
         var executable = Path.Combine(Root, "provider");
-        File.Copy(provider ?? Path.Combine(RepositoryRoot, "tests", "fixtures", "software-change-codex"), executable);
+        ExecutableFile.Copy(provider ?? Path.Combine(RepositoryRoot, "tests", "fixtures", "software-change-codex"), executable);
         File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         Codex = new(executable, Home, CodexHome, Launcher);
         Profile = new(NativeState, Codex, toolPath: "/usr/bin:/bin");
