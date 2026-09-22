@@ -23,6 +23,8 @@ build/
 dist/
 out/
 target/
+bin/
+obj/
 node_modules/
 *.egg-info/
 __pycache__/
@@ -33,6 +35,7 @@ venv/
 # Test / tooling caches
 .cache/
 coverage/
+TestResults/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
