@@ -174,6 +174,11 @@ also builds instructions and has a distinct exception classification.
 After that cleanup, the full suite passed **257 tests, 0 failed/skipped**, in
 25.426 seconds; Release passed with **0 warnings/errors** in 26.05 seconds.
 Schema, tests and Python were unchanged; Python was not rerun for this cleanup.
+Fresh separate repair reviews of `6ac0c4f1cdedde06f44696119a0e41a887acdf93`
+both passed: **Standards 0 findings; Spec 0 findings**. Their bounded inspection
+covered all changed production paths and callers, not a rerun of the suites.
+The final evidence-only edit consolidates duplicate H map prose and records
+these outcomes; production remains identical to that reviewed candidate.
 
 Controlled transport/PR receipt stubs do not establish real DirectTarget PR
 delivery. No live gateway/GitHub mutation/provider/deployment/evaluation or
