@@ -9,6 +9,28 @@ namespace Broodling.Tests;
 public sealed class ReplacementTests
 {
     [Test]
+    [Arguments("find")]
+    [Arguments("admit")]
+    public async Task MalformedRetryKeyCannotReturnLegitimateReplacementCharacterHistory(string operation)
+    {
+        using var fixture = new NativeFixture();
+        using var store = fixture.Git.State.Open();
+        var original = fixture.Git.Admit(store);
+        await SafeRetire(store, original);
+        var successor = store.AdmitRetry(original.AttemptId, "retry-\ufffd", fixture.Git.Workspaces, fixture.Profile);
+        using var reopened = fixture.Git.State.Open();
+        if (operation == "find")
+            await Assert.That(() => reopened.FindRetry("retry-\ud800")).Throws<BroodlingException>();
+        else
+            await Assert.That(() => reopened.AdmitRetry(original.AttemptId, "retry-\ud800",
+                fixture.Git.Workspaces, fixture.Profile)).Throws<BroodlingException>();
+        await Assert.That(reopened.FindRetry("retry-\ufffd")!.AttemptId).IsEqualTo(successor.AttemptId);
+        await Assert.That(reopened.AdmitRetry(original.AttemptId, "retry-\ufffd", fixture.Git.Workspaces, fixture.Profile))
+            .IsEqualTo(successor);
+        await Assert.That(reopened.Status(original.ContractRevisionId).Attempts.Count).IsEqualTo(2);
+    }
+
+    [Test]
     public async Task ExplicitReplacementRequiresCompletedRetirementThenFreezesOriginalMaterialAndNewAllocation()
     {
         using var fixture = new NativeFixture();

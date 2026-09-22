@@ -1,7 +1,11 @@
+using System.Text;
+
 namespace Broodling;
 
 internal static class PhysicalPaths
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+
     internal static bool Contains(string parent, string path) =>
         path == parent || path.StartsWith(parent.TrimEnd('/') + "/", StringComparison.Ordinal);
 
@@ -20,6 +24,13 @@ internal static class PhysicalPaths
     // ResolveLinkTarget(true) can leave symlinks in a target's parent path.
     internal static string Resolve(string path)
     {
+        // Filesystem encoding must not replace a lone surrogate with U+FFFD
+        // before path ownership or existence checks reach the intended file.
+        try { StrictUtf8.GetByteCount(path); }
+        catch (EncoderFallbackException)
+        {
+            throw new IOException("The filesystem path contains invalid Unicode.");
+        }
         var followedLinks = 0;
         string Visit(string absolute)
         {

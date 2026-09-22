@@ -8,6 +8,88 @@ namespace Broodling.Tests;
 public sealed class SourceCustodyTests
 {
     [Test]
+    public async Task WellFormedUnicodeKeepsIdentityProvenanceAndArbitraryPayloadBytes()
+    {
+        using var fixture = new StoreFixture();
+        const string text = "\ufffd\U0001f680";
+        var reference = WorkReference.Parse("https://" + text + "@github.com/acme/widget", 12,
+            repositoryIdentity: "R-" + text, issueIdentity: "I-" + text);
+        var payload = new byte[] { 0, 255, 0xed, 0xa0, 0x80 };
+        var submission = new SourceSubmission("referenced_document", "doc:" + text, payload,
+            mediaType: "type/" + text, retrievedAt: "time-" + text, entitlement: new("caller", "grant-" + text));
+        EntitledSource first;
+        using (var store = fixture.Initialize())
+        {
+            var work = store.ResolveWorkUnit(reference);
+            await Assert.That(work.WorkUnitId).IsEqualTo("wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a");
+            first = store.EntitleSource(work.WorkUnitId, submission);
+            // Existing v1 digest bytes for this well-formed Unicode input.
+            await Assert.That(first.SourceId).IsEqualTo("src-211595d48fc39f5652a72956d32b31b5b625d61628603f57493f4af4fcc8ef3e");
+        }
+        using var reopened = fixture.Open();
+        var restored = reopened.EntitleSource(reference.WorkUnitId, submission);
+        await Assert.That(restored.SourceId).IsEqualTo(first.SourceId);
+        await Assert.That(restored.RecordedAt).IsEqualTo(first.RecordedAt);
+        await Assert.That(restored.Locator).IsEqualTo(submission.Locator);
+        await Assert.That(restored.MediaType).IsEqualTo(submission.MediaType);
+        await Assert.That(restored.RetrievedAt).IsEqualTo(submission.RetrievedAt);
+        await Assert.That(restored.EntitlementBasis).IsEqualTo(submission.Entitlement!.Basis);
+        await Assert.That(restored.Content.SequenceEqual(payload)).IsTrue();
+        var retainedWork = reopened.GetWorkUnit(reference.WorkUnitId);
+        await Assert.That(retainedWork.RepositoryIdentity).IsEqualTo(reference.RepositoryIdentity);
+        await Assert.That(retainedWork.IssueIdentity).IsEqualTo(reference.IssueIdentity);
+        await Assert.That(reopened.ListWorkSubmissions(reference.WorkUnitId).Single().SubmittedRepository)
+            .IsEqualTo(reference.SubmittedRepository);
+    }
+
+    [Test]
+    [Arguments("mediaType")]
+    [Arguments("retrievedAt")]
+    [Arguments("basis")]
+    public async Task MalformedSourceMetadataIsRefusedBeforeRetention(string field)
+    {
+        using var fixture = new StoreFixture();
+        using var store = fixture.Initialize();
+        var work = store.ResolveWorkUnit(WorkReference.Parse("acme/widget", 12));
+        var submission = new SourceSubmission("referenced_document", "doc", [0, 255],
+            mediaType: field == "mediaType" ? "text/\udc00" : "text/plain",
+            retrievedAt: field == "retrievedAt" ? "\ud800" : "",
+            entitlement: new("caller", field == "basis" ? "grant \ud800" : "grant"));
+        await Assert.That(() => store.EntitleSource(work.WorkUnitId, submission)).Throws<SourceNotEntitled>();
+        await Assert.That(store.ListEntitledSources(work.WorkUnitId).Count).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task MalformedLocatorCannotAliasReplacementCharacterOrRewriteProvenance()
+    {
+        using var fixture = new StoreFixture();
+        string workId;
+        EntitledSource valid;
+        using (var store = fixture.Initialize())
+        {
+            workId = store.ResolveWorkUnit(WorkReference.Parse("acme/widget", 12)).WorkUnitId;
+            SourceSubmission Submission(string locator) => new("referenced_document", locator,
+                [0, 255], entitlement: new("caller", "exact grant"));
+            Exception? refusal = null;
+            EntitledSource? malformed = null;
+            try { malformed = store.EntitleSource(workId, Submission("doc:\ud800")); }
+            catch (SourceNotEntitled exception) { refusal = exception; }
+            var retainedAfterMalformed = store.ListEntitledSources(workId).Count;
+            valid = store.EntitleSource(workId, Submission("doc:\ufffd"));
+            Console.WriteLine($"refused={refusal is not null}; retainedAfterMalformed={retainedAfterMalformed}; " +
+                $"aliased={malformed?.SourceId == valid.SourceId}; " +
+                $"returnedLocatorRewritten={malformed is not null && malformed.Locator != "doc:\ud800"}");
+            await Assert.That(refusal).IsNotNull();
+            await Assert.That(retainedAfterMalformed).IsEqualTo(0);
+            await Assert.That(valid.Locator).IsEqualTo("doc:\ufffd");
+        }
+        using var reopened = fixture.Open();
+        await Assert.That(reopened.ListEntitledSources(workId).Count).IsEqualTo(1);
+        await Assert.That(reopened.GetEntitledSource(valid.SourceId).Locator).IsEqualTo("doc:\ufffd");
+        await Assert.That(reopened.GetEntitledSource(valid.SourceId).EntitlementBasis).IsEqualTo("exact grant");
+    }
+
+    [Test]
     public async Task ExactBytesAndFirstProvenanceSurviveReplayChangeAndReopen()
     {
         using var fixture = new StoreFixture();

@@ -118,6 +118,18 @@ documents complete callable/operator submit/resume, schema 5 and authentic
 schema-4 upgrades. Operator configuration and safe-error witnesses preserve the
 installed loopback and secret-exclusion boundaries.
 
+The pre-cutover #130 review repair adds the previously omitted existing-target
+operator readiness operation from `deployment/check_target.py` and
+`test_deployment_target.py`. `TargetReadinessTests` owns selected-container and
+runtime-pin checks, credentials/isolation/mount/loopback refusals, hosted UID/GID
+probe and native discovery, safe diagnostics and thin command composition.
+The [readiness implementation](../implementation/dotnet-target-readiness.md)
+records the callable persistence-independent API and small inventory input shared
+with the selected invocation origin. Evidence uses controlled process/HTTP
+boundaries only; no target lifecycle, real Docker/provider/deployment validation,
+or new cleanup authority is implied. This repair precedes #140; fresh combined
+migration review is still required before that cutover starts.
+
 G's .NET witnesses are `AttemptCompletionTests`, `CompletionPersistenceTests`,
 the authentic schema-5 upgrade in `StoreLifecycleTests`, and one composed
 completion path in `InvocationTests`. They retain result/disposition/currentness

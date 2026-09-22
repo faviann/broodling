@@ -70,8 +70,8 @@ public static class CodexLauncher
             environment["HOME"] = home;
             environment["CODEX_HOME"] = codexHome;
             // No child process, waiter, or supervisor. execve replaces this managed process.
-            using var argv = new NativeStrings([executable, .. filtered]);
-            using var envp = new NativeStrings(environment.Select(pair => pair.Key + "=" + pair.Value));
+            using var argv = new Utf8Vector([executable, .. filtered]);
+            using var envp = new Utf8Vector(environment.Select(pair => pair.Key + "=" + pair.Value));
             Execve(executable, argv.Pointer, envp.Pointer);
         }
         catch (Exception error) when (error is BroodlingException or ArgumentException) { }
@@ -81,18 +81,4 @@ public static class CodexLauncher
 
     [DllImport("libc", EntryPoint = "execve", SetLastError = true)]
     private static extern int Execve([MarshalAs(UnmanagedType.LPUTF8Str)] string path, nint argv, nint envp);
-
-    private sealed class NativeStrings : IDisposable
-    {
-        private readonly nint[] strings;
-        internal nint Pointer { get; }
-        internal NativeStrings(IEnumerable<string> values)
-        {
-            strings = values.Select(Marshal.StringToCoTaskMemUTF8).ToArray();
-            Pointer = Marshal.AllocHGlobal((strings.Length + 1) * IntPtr.Size);
-            for (var i = 0; i < strings.Length; i++) Marshal.WriteIntPtr(Pointer, i * IntPtr.Size, strings[i]);
-            Marshal.WriteIntPtr(Pointer, strings.Length * IntPtr.Size, 0);
-        }
-        public void Dispose() { foreach (var value in strings) Marshal.FreeCoTaskMem(value); Marshal.FreeHGlobal(Pointer); }
-    }
 }

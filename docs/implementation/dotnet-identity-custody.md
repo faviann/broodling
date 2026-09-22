@@ -52,6 +52,16 @@ Payload bytes are never parsed to decide entitlement. A2 applies the
 additional ingress restrictions: supplied sources require explicit caller grants,
 and only actually acquired/validated primary issue bytes get policy acquisition.
 
+Malformed UTF-16 is refused before source hashing/retention and WorkReference
+canonicalization. SQL string parameters are also checked before binding, including
+lookup keys, so a lone surrogate cannot alias a legitimate replacement character
+or change retained provenance. Source/reference refusals use their existing domain
+errors; other malformed SQL text uses `invalid_text`. Payload bytes remain arbitrary.
+Well-formed text, including U+FFFD and supplementary characters, keeps its existing
+identity bytes and remains readable/replayable in existing .NET state. No schema
+change or historical-state rewrite is involved; Contract text already validates
+Unicode before canonical serialization.
+
 Snapshot identity includes Work Unit, source kind, exact locator and byte digest.
 Identical capture returns the first stored snapshot, including its original
 media type, retrieval/recording times, origin and grant. New bytes produce a new
@@ -65,7 +75,11 @@ Initialization exclusively reserves a new filesystem path and creates a distinct
 `broodling.dotnet` schema (currently version 3). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
 Store paths inside a marked disposable Attempt enclosure refuse, including paths
-through parent symlinks. Open uses SQLite read/write mode without create, checks
+through parent symlinks. Caller paths containing malformed UTF-16 refuse with
+`invalid_store_path` before physical path resolution or any filesystem access:
+a lone surrogate cannot create, open or upgrade a legitimate U+FFFD filename.
+Well-formed replacement and supplementary characters remain valid path text.
+Open uses SQLite read/write mode without create, checks
 format/version/definition and retained schema manifest, then configures WAL and
 full synchronization. An incompatible or unknown file is not initialized or
 rewritten. Foreign keys and immediate write transactions enforce custody.

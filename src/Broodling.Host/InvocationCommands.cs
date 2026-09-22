@@ -1,14 +1,10 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Broodling.Host;
 
 /// <summary>Reviewed-source operator input over the callable application. No provider or lifecycle decisions.</summary>
 public static class InvocationCommands
 {
-    private sealed record Configuration(string PythonExecutable, string StateDirectory, string WorkspaceRoot,
-        string? DirectOrigin = null, string? RealCodex = null, string? ProfileHome = null, string? CodexHome = null, string? Launcher = null);
-
     public static async Task<int> RunAsync(string[] args, BroodlingApplication application, TextWriter output, TextWriter error,
         CancellationToken cancellationToken = default, GitHubIssueSource? source = null, INativeTransport? transport = null)
     {
@@ -68,13 +64,7 @@ public static class InvocationCommands
                 if (args.Length < 4) throw new SubmissionNotReady("Dispatch configuration is required for uncorrelated resume.");
             }
             var configPath = args[0] == "submit" ? args[2] : args[3];
-            var config = JsonSerializer.Deserialize<Configuration>(File.ReadAllBytes(configPath), new JsonSerializerOptions(JsonSerializerDefaults.Web)
-                { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow })
-                ?? throw new InvalidContractProposal("Invalid invocation configuration.");
-            // The installed operator profile is loopback-only. The callable API remains separate.
-            if (config.DirectOrigin is { } origin && (!Uri.TryCreate(origin, UriKind.Absolute, out var endpoint)
-                || endpoint.Port is < 1 or > 65535 || origin != $"http://127.0.0.1:{endpoint.Port}"))
-                throw new UnsupportedRuntime("The operator DirectTarget must use a canonical loopback HTTP origin with an explicit port.");
+            var config = InvocationConfiguration.Read(configPath);
             CodexProfile? codex = config.RealCodex is null ? null : new(config.RealCodex, config.ProfileHome!, config.CodexHome!, config.Launcher!);
             var profile = new NativeProfile(config.StateDirectory, codex, config.DirectOrigin);
             var invocation = new Invocation(store, config.WorkspaceRoot, profile, transport ?? new ZeroshotTransport(config.PythonExecutable));

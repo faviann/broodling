@@ -27,7 +27,10 @@ public sealed partial class BroodlingStore
         using var transaction = connection.BeginTransaction(deferred: false);
         var predecessor = ReadAttempt(predecessorId, transaction);
         var contract = ReadRevision(predecessor.ContractRevisionId, transaction)!;
-        var target = profile.Target(contract.Contract.RequiredEffects.Count == 0 ? "none" : "pull_request").ToJsonString();
+        DeliveryAuthorization delivery;
+        try { delivery = Closability.AuthorizeDelivery(contract.Contract); }
+        catch (InvalidContractProposal) { throw new AttemptAdmissionError("The frozen effect authority is unsupported."); }
+        var target = profile.Target(delivery.Mode).ToJsonString();
         if (ReadRetry("retry_key", retryKey, transaction) is { } existing)
         {
             if (existing.PredecessorId != predecessorId || existing.WorkspaceRoot != root

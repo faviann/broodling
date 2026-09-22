@@ -248,6 +248,57 @@ public sealed class StoreLifecycleTests
     }
 
     [Test]
+    [Arguments("initialize")]
+    [Arguments("open")]
+    [Arguments("upgrade")]
+    public async Task MalformedStorePathCannotOperateOnReplacementCharacterFile(string operation)
+    {
+        using var fixture = new StoreFixture();
+        var legitimate = System.IO.Path.Combine(fixture.Root, "state-\uFFFD-\U0001F680.sqlite3");
+        var malformed = System.IO.Path.Combine(fixture.Root, "state-\uD800-\U0001F680.sqlite3");
+        if (operation == "open")
+        {
+            using (fixture.Application.InitializeStore(legitimate)) { }
+        }
+        else if (operation == "upgrade")
+        {
+            Restore(fixture, "dotnet-v1.sql");
+            File.Move(fixture.Path, legitimate);
+        }
+        var before = File.Exists(legitimate) ? File.ReadAllBytes(legitimate) : null;
+        var entries = Directory.GetFileSystemEntries(fixture.Root).Order().ToArray();
+        Exception? refusal = null;
+        try
+        {
+            using var store = operation switch
+            {
+                "initialize" => fixture.Application.InitializeStore(malformed),
+                "open" => fixture.Application.OpenStore(malformed),
+                _ => fixture.Application.UpgradeStore(malformed)
+            };
+        }
+        catch (Exception error) { refusal = error; }
+
+        if (before is null)
+            await Assert.That(File.Exists(legitimate)).IsFalse();
+        else
+            await Assert.That(File.ReadAllBytes(legitimate).SequenceEqual(before)).IsTrue();
+        await Assert.That(Directory.GetFileSystemEntries(fixture.Root).Order().SequenceEqual(entries)).IsTrue();
+        await Assert.That(refusal).IsTypeOf<StoreStateException>();
+        await Assert.That(((StoreStateException)refusal!).Code).IsEqualTo("invalid_store_path");
+
+        if (before is null)
+        {
+            using (fixture.Application.InitializeStore(legitimate)) { }
+        }
+        using var upgraded = fixture.Application.UpgradeStore(legitimate);
+        using var reopened = fixture.Application.OpenStore(legitimate);
+        await Assert.That(reopened.Path).IsEqualTo(legitimate);
+        await Assert.That(reopened.Information).IsEqualTo(upgraded.Information);
+        await Assert.That(reopened.Information.SchemaVersion).IsEqualTo(7);
+    }
+
+    [Test]
     public async Task MissingStoreIsNeverCreatedByOpenOrUpgrade()
     {
         using var fixture = new StoreFixture();

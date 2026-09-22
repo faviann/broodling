@@ -162,6 +162,32 @@ public sealed class ProvisioningProcessTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task GitNulRefusalPrecedesSpawnAndPreservesEnclosureLock(bool inEnvironment)
+    {
+        using var fixture = new AttemptFixture();
+        using var store = fixture.State.Open();
+        var attempt = fixture.Admit(store);
+        WorktreeMaterialization.ClaimEnclosure(attempt);
+        using (var held = AdministrativeGitProcess.EnclosureLock.Acquire(System.IO.Path.Combine(attempt.Allocation.Enclosure, WorktreeMaterialization.LockName)))
+        {
+            var marker = System.IO.Path.Combine(fixture.State.Root, "unexpected-spawn");
+            var start = new ProcessStartInfo("/usr/bin/touch") { WorkingDirectory = fixture.State.Root };
+            start.ArgumentList.Add(marker);
+            if (inEnvironment) start.Environment["BROODLING_TEST_VALUE"] = "before\0after";
+            else start.ArgumentList.Add("before\0after");
+            var error = Assert.Throws<WorktreeProvisioningError>(() => AdministrativeGitProcess.Run(start, held));
+            await Assert.That(error!.Code).IsEqualTo("worktree_provisioning_error");
+            await Assert.That(error.Message).IsEqualTo("Git arguments/environment cannot contain NUL.");
+            await Assert.That(File.Exists(marker)).IsFalse();
+            await Assert.That(LockIsFree(attempt)).IsFalse();
+        }
+        await Assert.That(LockIsFree(attempt)).IsTrue();
+        await Assert.That(store.ProvisionAttempt(attempt.AttemptId).Provision).IsNotNull();
+    }
+
+    [Test]
     public async Task SelectedSpawnFailureClosesDescriptorsAndBothOutputPipesDrainPastCapacity()
     {
         using var fixture = new AttemptFixture();

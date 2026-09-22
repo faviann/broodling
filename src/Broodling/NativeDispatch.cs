@@ -188,9 +188,11 @@ public sealed partial class BroodlingStore
             instructions.Add(new JsonObject { ["sourceId"] = source.SourceId, ["kind"] = source.Kind, ["locator"] = source.Locator,
                 ["mediaType"] = source.MediaType, ["contentSha256"] = source.ContentSha256, ["encoding"] = encoding, ["content"] = content });
         }
-        var effects = revision.Contract.RequiredEffects;
-        var delivery = effects.Count == 0 ? "none" : "pull_request";
-        if (effects.Count > 0 && (effects.Count != 1 || effects[0].Kind != "pull_request" || string.IsNullOrWhiteSpace(effects[0].TargetBranch) || work.Host != "github.com"))
+        DeliveryAuthorization authorization;
+        try { authorization = Closability.AuthorizeDelivery(revision.Contract); }
+        catch (InvalidContractProposal) { throw new SubmissionNotReady("The frozen effect authority is unsupported."); }
+        var delivery = authorization.Mode;
+        if (delivery == "pull_request" && work.Host != "github.com")
             throw new SubmissionNotReady("The frozen effect authority is unsupported.");
         var authority = new JsonObject { ["contract"] = JsonNode.Parse(revision.CanonicalBytes), ["admittedInstructions"] = instructions, ["comparisonBase"] = attempt.B1.CommitOid };
         var task = "Complete this admitted software-development Work Unit. The frozen Contract and entitled source material below govern scope and acceptance. "
@@ -210,7 +212,7 @@ public sealed partial class BroodlingStore
         };
         if (delivery == "pull_request") request["source"] = new JsonObject
         {
-            ["repository"] = work.Owner + "/" + work.Repository, ["branch"] = effects[0].TargetBranch, ["revision"] = attempt.B1.CommitOid
+            ["repository"] = work.Owner + "/" + work.Repository, ["branch"] = authorization.TargetBranch, ["revision"] = attempt.B1.CommitOid
         };
         if (ReadRetry("attempt_id", attempt.AttemptId, transaction) is { } retry
             && !JsonNode.DeepEquals(JsonNode.Parse(retry.TargetJson), request["target"]))
