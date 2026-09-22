@@ -6,11 +6,14 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 1;
+    internal const int Version = 2;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
+    internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
+
+    internal const string Sql = VersionOneSql + "\n" + AdmissionSql;
 
     // Separate format and version space from the Python executable reference.
-    internal const string Sql = """
+    internal const string VersionOneSql = """
         CREATE TABLE store_metadata (
             singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
             format TEXT NOT NULL,
@@ -82,6 +85,61 @@ internal static class StoreSchema
         BEGIN SELECT RAISE(ABORT, 'source snapshots are immutable'); END;
         CREATE TRIGGER sources_no_delete BEFORE DELETE ON entitled_sources
         BEGIN SELECT RAISE(ABORT, 'source snapshots are immutable'); END;
+        """;
+
+    internal const string AdmissionSql = """
+        CREATE TABLE contract_revisions (
+            contract_revision_id TEXT PRIMARY KEY,
+            work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
+            revision_number INTEGER NOT NULL CHECK (revision_number > 0),
+            contract_sha256 TEXT NOT NULL CHECK (length(contract_sha256) = 64),
+            canonical_bytes BLOB NOT NULL,
+            constructed_by TEXT NOT NULL CHECK (constructed_by IN ('caller', 'broodling_policy', 'model_extraction')),
+            supersedes_revision_id TEXT REFERENCES contract_revisions(contract_revision_id),
+            recorded_at TEXT NOT NULL,
+            UNIQUE (work_unit_id, revision_number),
+            UNIQUE (work_unit_id, contract_sha256)
+        ) STRICT;
+
+        CREATE TABLE contract_sources (
+            contract_revision_id TEXT NOT NULL REFERENCES contract_revisions(contract_revision_id),
+            source_id TEXT NOT NULL REFERENCES entitled_sources(source_id),
+            content_sha256 TEXT NOT NULL,
+            PRIMARY KEY (contract_revision_id, source_id)
+        ) STRICT;
+
+        CREATE TABLE admission_decisions (
+            decision_id TEXT PRIMARY KEY,
+            contract_revision_id TEXT NOT NULL UNIQUE REFERENCES contract_revisions(contract_revision_id),
+            outcome TEXT NOT NULL CHECK (outcome IN ('admitted', 'rejected')),
+            findings_json TEXT NOT NULL,
+            policy_version TEXT NOT NULL,
+            decided_at TEXT NOT NULL
+        ) STRICT;
+
+        CREATE TRIGGER contract_sources_match BEFORE INSERT ON contract_sources
+        WHEN NOT EXISTS (
+            SELECT 1 FROM contract_revisions AS revision
+            JOIN entitled_sources AS source ON source.work_unit_id = revision.work_unit_id
+            JOIN json_each(CAST(revision.canonical_bytes AS TEXT), '$.sourceAttribution') AS pin
+            WHERE revision.contract_revision_id = NEW.contract_revision_id
+              AND source.source_id = NEW.source_id AND source.content_sha256 = NEW.content_sha256
+              AND json_extract(pin.value, '$.sourceId') = NEW.source_id
+              AND json_extract(pin.value, '$.contentSha256') = NEW.content_sha256
+        )
+        BEGIN SELECT RAISE(ABORT, 'Contract attribution must pin an entitled source of its Work Unit'); END;
+        CREATE TRIGGER revisions_no_update BEFORE UPDATE ON contract_revisions
+        BEGIN SELECT RAISE(ABORT, 'Contract revisions are immutable'); END;
+        CREATE TRIGGER revisions_no_delete BEFORE DELETE ON contract_revisions
+        BEGIN SELECT RAISE(ABORT, 'Contract revisions are immutable'); END;
+        CREATE TRIGGER contract_sources_no_update BEFORE UPDATE ON contract_sources
+        BEGIN SELECT RAISE(ABORT, 'Contract attribution is immutable'); END;
+        CREATE TRIGGER contract_sources_no_delete BEFORE DELETE ON contract_sources
+        BEGIN SELECT RAISE(ABORT, 'Contract attribution is immutable'); END;
+        CREATE TRIGGER decisions_no_update BEFORE UPDATE ON admission_decisions
+        BEGIN SELECT RAISE(ABORT, 'Admission decisions are immutable'); END;
+        CREATE TRIGGER decisions_no_delete BEFORE DELETE ON admission_decisions
+        BEGIN SELECT RAISE(ABORT, 'Admission decisions are immutable'); END;
         """;
 
     internal static string ManifestHash(SqliteConnection connection, SqliteTransaction? transaction = null)

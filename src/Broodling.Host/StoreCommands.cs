@@ -2,22 +2,39 @@ using System.Text.Json;
 
 namespace Broodling.Host;
 
-/// <summary>Thin lifecycle commands, independent of installation and HTTP startup.</summary>
+/// <summary>Thin state and observation commands, independent of installation and HTTP startup.</summary>
 public static class StoreCommands
 {
     public static int Run(string[] args, BroodlingApplication application, TextWriter output, TextWriter error)
     {
-        if (args.Length != 2 || args[0] is not ("initialize-store" or "upgrade-store"))
+        var valid = args.Length switch
         {
-            error.WriteLine("Usage: initialize-store <new-path> | upgrade-store <existing-path>");
+            2 => args[0] is "initialize-store" or "upgrade-store",
+            3 => args[0] == "status",
+            4 => args[0] == "history",
+            _ => false
+        };
+        if (!valid)
+        {
+            error.WriteLine("Usage: initialize-store <new-path> | upgrade-store <existing-path> | status <path> <revision-id> | history <path> <repository> <issue>");
             return 2;
         }
         try
         {
-            using var store = args[0] == "initialize-store"
-                ? application.InitializeStore(args[1])
-                : application.UpgradeStore(args[1]);
-            output.WriteLine(JsonSerializer.Serialize(new { operation = args[0], store = store.Path, schema = store.Information }));
+            using var store = args[0] switch
+            {
+                "initialize-store" => application.InitializeStore(args[1]),
+                "upgrade-store" => application.UpgradeStore(args[1]),
+                _ => application.OpenStore(args[1])
+            };
+            object result = args[0] switch
+            {
+                "status" => store.Status(args[2]),
+                "history" => store.History(WorkReference.Parse(args[2], args[3])),
+                _ => new { operation = args[0], store = store.Path, schema = store.Information }
+            };
+            // System.Text.Json writes byte arrays as base64, preserving binary source and canonical Contract bytes.
+            output.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             return 0;
         }
         catch (Exception exception) when (exception is BroodlingException or IOException or UnauthorizedAccessException

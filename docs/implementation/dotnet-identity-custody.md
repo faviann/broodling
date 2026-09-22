@@ -3,7 +3,8 @@
 [A1 #132](https://github.com/faviann/broodling/issues/132) is the first behavioral
 slice of [#130](https://github.com/faviann/broodling/issues/130). It supplies
 callable state lifecycle, Work Unit identity and entitled-source custody. It
-grants no Contract, Attempt or execution authority. The supported deployed
+grants no Contract, Attempt or execution authority by itself. [A2](dotnet-contract-admission.md)
+composes these facts into supplied-source Contract admission. The supported deployed
 application remains Python until the separate migration cutover.
 
 ## Application API
@@ -47,7 +48,7 @@ canonical primary issue locator receives the existing implicit policy grant.
 Other kinds (`referenced_document`, `repository_file`, `caller_statement`) require
 an explicit caller/policy grant with a nonempty basis. Unrecognized and model,
 candidate or referenced-material origins refuse even if they claim a valid grant.
-Payload bytes are never parsed to decide entitlement. A2/D must preserve their
+Payload bytes are never parsed to decide entitlement. A2 applies the
 additional ingress restrictions: supplied sources require explicit caller grants,
 and only actually acquired/validated primary issue bytes get policy acquisition.
 
@@ -61,7 +62,7 @@ refuse source updates/deletes, identity rewrites/unpinning and submission rewrit
 ## State lifecycle and persistence decision
 
 Initialization exclusively reserves a new filesystem path and creates a distinct
-`broodling.dotnet` schema version 1. It refuses existing files and orphan SQLite
+`broodling.dotnet` schema (currently version 2). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
 Store paths inside a marked disposable Attempt enclosure refuse, including paths
 through parent symlinks. Open uses SQLite read/write mode without create, checks
@@ -69,9 +70,12 @@ format/version/definition and retained schema manifest, then configures WAL and
 full synchronization. An incompatible or unknown file is not initialized or
 rewritten. Foreign keys and immediate write transactions enforce custody.
 
-There is no historical .NET schema yet: `UpgradeStore` accepts an already-current
-store unchanged and refuses every other format/version. Later slices that change
-the schema must add explicit .NET upgrades preserving existing .NET facts.
+`UpgradeStore` accepts an already-current store unchanged and explicitly upgrades
+the original A1 version 1 to version 2 by adding Contract/admission storage in one
+transaction. Existing identity, submission, source and initialization facts remain
+unchanged; ordinary open refuses version 1. The [A2 reference](dotnet-contract-admission.md)
+records the new schema and upgrade witness. Later schema changes must continue
+to preserve existing .NET facts through explicit upgrades.
 Python databases, migration history and imports are intentionally unsupported;
 they must remain at separate paths and must never be silently replaced.
 

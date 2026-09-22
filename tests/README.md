@@ -18,8 +18,9 @@ python -m pytest tests
 ```
 
 The .NET migration has a separate TUnit suite, including real SQLite identity,
-source custody and deliberate state lifecycle checks. See the
-[A1 application API](../docs/implementation/dotnet-identity-custody.md).
+source custody, immutable Contract admission and deliberate state lifecycle/upgrade
+checks. See the [A1 application API](../docs/implementation/dotnet-identity-custody.md)
+and [A2 admission/observation evidence](../docs/implementation/dotnet-contract-admission.md).
 It does not yet replace or reduce the Python parity suite:
 
 ```bash
