@@ -1,5 +1,16 @@
 namespace Broodling;
 
+public sealed class SubmissionNotReady(string message) : BroodlingException("submission_not_ready", message);
+public sealed class SubmissionConflict(string message, string? existingRunId = null) : BroodlingException("submission_conflict", message)
+{
+    public string? ExistingRunId { get; } = existingRunId;
+}
+public sealed class UnsupportedRuntime(string message) : BroodlingException("unsupported_runtime", message);
+public sealed class NativeTransportError(string kind = "transport_failed") : BroodlingException("native_transport_error", "Native transport did not return a usable response.")
+{
+    public string Kind { get; } = kind;
+}
+
 public sealed class WorktreeProvisioningError(string message) : BroodlingException("worktree_provisioning_error", message);
 public sealed class WorktreeOwnershipConflict(string message) : BroodlingException("worktree_ownership_conflict", message);
 

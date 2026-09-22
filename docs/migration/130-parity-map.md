@@ -105,6 +105,20 @@ reacquiring sources, calling native services or adding upstream pins.
 `test_cli.py` covers exact material inspection and safe errors. Extend these
 operations as facts land; do not defer composition to retirement.
 
+F's .NET witnesses are `NativeDispatchTests`, `DispatchProcessTests`,
+`NativeTransportTests`, `NativePolicyTests` and `InvocationTests`: real
+SQLite/Git dispatch and correlation authority, six actual caller-death windows,
+exact text/binary task material, corrupt acknowledgment refusal, narrow owned
+HEAD-drift recovery, credential separation and locator-only native transport.
+The C# launcher preserves policy, PID and exact prompt bytes. Controlled-native
+replay/conflict/reconnect/detach/stop/null-output checks are distinct from the
+stub PR-receipt transport evidence; neither qualifies live PR delivery or
+semantic correctness. The [F implementation reference](../implementation/dotnet-native-dispatch.md)
+documents complete callable/operator submit/resume, schema 5 and authentic
+schema-4 upgrades. Operator configuration and safe-error witnesses preserve the
+installed loopback and secret-exclusion boundaries. G/H still own completion,
+retirement and replacement.
+
 ## Dependency graph
 
 These edges match the GitHub dependency relationships inspected on 22 September.

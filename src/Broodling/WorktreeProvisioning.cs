@@ -12,6 +12,7 @@ public sealed partial class BroodlingStore
         using (var claim = connection.BeginTransaction(deferred: false))
         {
             attempt = RequireCurrentAttempt(attemptId, claim);
+            RequireUndispatchedMaterialization(attemptId, claim);
             WorktreeMaterialization.ValidatePaths(attempt, Path, inspectGit: false);
             WorktreeMaterialization.ClaimEnclosure(attempt);
             claim.Commit();
@@ -20,6 +21,7 @@ public sealed partial class BroodlingStore
             System.IO.Path.Combine(attempt.Allocation.Enclosure, WorktreeMaterialization.LockName));
         using var transaction = connection.BeginTransaction(deferred: false);
         attempt = RequireCurrentAttempt(attemptId, transaction);
+        RequireUndispatchedMaterialization(attemptId, transaction);
         WorktreeMaterialization.ValidatePaths(attempt, Path);
         WorktreeMaterialization.RequireMarker(attempt);
         WorktreeMaterialization.Materialize(attempt, enclosureLock);
@@ -29,6 +31,12 @@ public sealed partial class BroodlingStore
         var result = ReadAttempt(attemptId, transaction);
         transaction.Commit();
         return result;
+    }
+
+    private void RequireUndispatchedMaterialization(string attemptId, Microsoft.Data.Sqlite.SqliteTransaction transaction)
+    {
+        if (ReadSubmission(attemptId, transaction) is { State: not "prepared" })
+            throw new SubmissionNotReady("A dispatched candidate cannot be reprovisioned.");
     }
 }
 
@@ -144,6 +152,17 @@ internal static class WorktreeMaterialization
         RequireAttached(attempt);
         if (GitCustody.Text(a.WorktreePath, "rev-parse", "HEAD").Trim() != attempt.B1.CommitOid)
             Refuse("The new worktree did not materialize at original B1.");
+    }
+
+    internal static void RequireOwned(AttemptRecord attempt, string storePath)
+    {
+        if (attempt.Provision is null) throw new SubmissionNotReady("The Attempt has no materialization acknowledgment.");
+        ValidatePaths(attempt, storePath);
+        RequireMarker(attempt);
+        var entry = Entries(attempt.B1.Repository).SingleOrDefault(entry => entry.Path == attempt.Allocation.WorktreePath);
+        if (entry?.Branch != attempt.Allocation.Branch || !File.Exists(System.IO.Path.Combine(attempt.Allocation.WorktreePath, ".git")))
+            Refuse("The materialized assignment is no longer registered and owned.");
+        RequireAttached(attempt);
     }
 
     private static void RequireAttached(AttemptRecord attempt)

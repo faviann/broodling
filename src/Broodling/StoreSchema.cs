@@ -6,7 +6,7 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 4;
+    internal const int Version = 5;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
 
@@ -14,7 +14,37 @@ internal static class StoreSchema
     internal const string VersionTwoSql = VersionOneSql + "\n" + AdmissionSql;
     internal static string VersionThreeDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionThreeSql));
     internal const string VersionThreeSql = VersionTwoSql + "\n" + AttemptSql;
-    internal const string Sql = VersionThreeSql + "\n" + ProvisioningSql;
+    internal static string VersionFourDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionFourSql));
+    internal const string VersionFourSql = VersionThreeSql + "\n" + ProvisioningSql;
+    internal const string Sql = VersionFourSql + "\n" + DispatchSql;
+
+    internal const string DispatchSql = """
+        CREATE TABLE native_submissions (
+            attempt_id TEXT PRIMARY KEY REFERENCES worktree_provisions(attempt_id),
+            submission_key TEXT NOT NULL UNIQUE,
+            request_json TEXT NOT NULL CHECK (json_valid(request_json)),
+            state TEXT NOT NULL CHECK (state IN ('prepared', 'dispatched', 'correlated', 'blocked')),
+            run_id TEXT UNIQUE,
+            CHECK ((state = 'correlated' AND run_id IS NOT NULL AND length(trim(run_id)) > 0)
+                OR (state <> 'correlated' AND run_id IS NULL))
+        ) STRICT;
+        CREATE TRIGGER submission_requires_current BEFORE INSERT ON native_submissions
+        WHEN NEW.state <> 'prepared' OR NOT EXISTS (
+            SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1)
+        BEGIN SELECT RAISE(ABORT, 'preparation requires current provisioned authority'); END;
+        CREATE TRIGGER submission_binding_stable BEFORE UPDATE ON native_submissions
+        WHEN OLD.attempt_id <> NEW.attempt_id OR OLD.submission_key <> NEW.submission_key
+          OR OLD.request_json <> NEW.request_json
+          OR NOT ((OLD.state = 'prepared' AND NEW.state = 'dispatched')
+            OR (OLD.state = 'dispatched' AND NEW.state IN ('correlated', 'blocked')))
+        BEGIN SELECT RAISE(ABORT, 'frozen dispatch and correlation are irreversible'); END;
+        CREATE TRIGGER dispatch_requires_current BEFORE UPDATE ON native_submissions
+        WHEN NEW.state = 'dispatched' AND NOT EXISTS (
+            SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1)
+        BEGIN SELECT RAISE(ABORT, 'dispatch requires current authority'); END;
+        CREATE TRIGGER submissions_retained BEFORE DELETE ON native_submissions
+        BEGIN SELECT RAISE(ABORT, 'native dispatch history is immutable'); END;
+        """;
 
     internal const string ProvisioningSql = """
         CREATE TABLE worktree_provisions (

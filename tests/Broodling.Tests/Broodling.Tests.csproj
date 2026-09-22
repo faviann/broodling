@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="../../src/Broodling.Codex/Broodling.Codex.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\src\Broodling\Broodling.csproj" />
     <ProjectReference Include="..\..\src\Broodling.Host\Broodling.Host.csproj" />
     <ProjectReference Include="..\Broodling.ProcessWitness\Broodling.ProcessWitness.csproj" />
@@ -16,7 +17,9 @@
     <None Include="..\fixtures\ingress\issue-*.json" Link="Fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures\dotnet-v2.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures\dotnet-v3.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\dotnet-v4.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures\held-git.sh" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\corrupt-submit.py;Fixtures\receipt-sdk.py;Fixtures\gateway-profile.py;Fixtures\slow-codex;Fixtures\inspect-codex" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -24,6 +27,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
   </PropertyGroup>
 
 </Project>

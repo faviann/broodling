@@ -37,6 +37,16 @@ reaper. No provider, native workflow or deployed state is involved.
 The [D acquisition checks](../docs/implementation/dotnet-github-ingress.md) use a
 controlled local GitHub CLI boundary and retained issue fixtures, without network
 or provider calls.
+The [F dispatch checks](../docs/implementation/dotnet-native-dispatch.md) add real
+SQLite/Git authority and caller-death boundaries, corrupt submit responses,
+controlled released-SDK/native replay/reconnect/waiter-detachment/stop, the C#
+Codex launcher and credential/profile policy, and explicit schema-4 upgrades.
+PR receipt transport uses a precise stub and is not real DirectTarget delivery.
+The launcher builds with the pinned self-contained Linux x64 .NET 10.0.12 runtime.
+Tests default to the repository's `.venv/bin/python`. Set
+`BROODLING_TEST_PYTHON` to another Python executable with the pinned SDK when
+using a shared environment across worktrees.
+These tests fail, rather than skip, if the SDK/native dependency is unavailable.
 It does not yet replace or reduce the Python parity suite:
 
 ```bash

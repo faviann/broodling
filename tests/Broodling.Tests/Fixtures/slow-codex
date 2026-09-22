@@ -1,0 +1,23 @@
+#!/usr/bin/python3
+"""Controlled provider delay for genuine native waiter detachment/stop witnesses."""
+import json
+import sys
+import time
+import uuid
+from pathlib import Path
+
+if sys.argv[1:] == ["--version"]:
+    print("codex-cli 0.153.4")
+    raise SystemExit(0)
+prompt = sys.stdin.read()
+readonly = sys.argv[sys.argv.index("--sandbox") + 1] == "read-only"
+if not readonly:
+    time.sleep(12)
+response = {"output": None, "signals": {"verdict": "accepted"}, "diagnostic": {"message": "Controlled acceptance"}} if readonly else None
+for event in (
+    {"type": "thread.started", "thread_id": str(uuid.uuid4())},
+    {"type": "turn.started"},
+    {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps({"response": response})}},
+    {"type": "turn.completed", "usage": {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}},
+):
+    print(json.dumps(event), flush=True)

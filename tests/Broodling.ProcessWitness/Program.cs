@@ -6,6 +6,31 @@ using System.Text.Json;
 // A local test caller, never a product command or runtime helper.
 try
 {
+    if (args[0] == "native-crash")
+    {
+        using var dispatchStore = new BroodlingApplication().OpenStore(args[1]);
+        var profile = new NativeProfile(args[3], new CodexProfile(args[4], args[5], args[6], args[7]), toolPath: "/usr/bin:/bin");
+        var mode = args[8];
+        if (mode == "during-correlation" || mode == "during-prepare")
+        {
+            var connection = (Microsoft.Data.Sqlite.SqliteConnection)typeof(BroodlingStore)
+                .GetField("connection", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(dispatchStore)!;
+            connection.CreateFunction("crash_gate", () => { CrashTransport.Gate("transaction"); return 1; });
+            using var command = connection.CreateCommand();
+            command.CommandText = mode == "during-correlation"
+                ? "CREATE TEMP TRIGGER crash_gate AFTER UPDATE ON native_submissions WHEN NEW.state = 'correlated' BEGIN SELECT crash_gate(); END;"
+                : "CREATE TEMP TRIGGER crash_gate AFTER INSERT ON native_submissions BEGIN SELECT crash_gate(); END;";
+            command.ExecuteNonQuery();
+        }
+        if (mode is "prepared" or "during-prepare")
+        {
+            dispatchStore.PrepareSubmission(args[2], profile);
+            CrashTransport.Gate("prepared");
+        }
+        var submission = await dispatchStore.DispatchAsync(args[2], profile, new CrashTransport(new ZeroshotTransport(args[9]), mode));
+        CrashTransport.Gate(submission.RunId!);
+        return 99;
+    }
     if (args[0] == "host-profile")
     {
         AdministrativeGitProcess.RequireSupportedHost();
@@ -99,4 +124,23 @@ catch (Exception error)
 internal static class Native
 {
     [DllImport("libc")] internal static extern nint signal(int number, nint handler);
+}
+
+internal sealed class CrashTransport(INativeTransport inner, string mode) : INativeTransport
+{
+    internal static void Gate(string value)
+    {
+        Console.WriteLine(value);
+        Console.Out.Flush();
+        Thread.Sleep(Timeout.Infinite); // Parent SIGKILL, not managed unwinding, exercises each durable boundary.
+    }
+    public async Task<string> SubmitAsync(string request, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default)
+    {
+        if (mode == "before-call") Gate("before-call");
+        var id = await inner.SubmitAsync(request, credentials, cancellationToken);
+        if (mode == "after-accept") Gate(id);
+        return id;
+    }
+    public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => inner.WaitAsync(locator, runId, cancellationToken);
+    public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => inner.StopAsync(locator, runId, cancellationToken);
 }
