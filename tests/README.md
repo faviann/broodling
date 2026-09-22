@@ -47,6 +47,14 @@ exact-Attempt receipt/disposition retention, binding/currentness and SQL guards,
 rollback/concurrent finalization/late-success witnesses, detached wait versus
 native failure, authentic schema-5 upgrades, and composed offline completion
 handback. Controlled receipts do not establish real PR delivery or quality.
+The [H lifecycle checks](../docs/implementation/dotnet-retirement-replacement.md)
+cover abandon-before-stop, permanent dispatched quarantine, safe proof versus
+ambiguous provisioning, exact owned dirty retirement, stable lock inode and a
+retirement-specific orphan Git witness. Retry checks original B1/sources, atomic
+lineage/allocation, same-key/historical replay, frozen target and interrupted
+writes. One operator case composes stop and abandoned handback. Deliberate
+upgrades to schema 7 preserve authentic schema-6 completion/abandonment and every
+prior fact, including G's authentic schema-5 prepared fixture.
 The launcher builds with the pinned self-contained Linux x64 .NET 10.0.12 runtime.
 Tests default to the repository's `.venv/bin/python`. Set
 `BROODLING_TEST_PYTHON` to another Python executable with the pinned SDK when

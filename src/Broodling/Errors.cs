@@ -1,5 +1,7 @@
 namespace Broodling;
 
+public sealed class CessationUnconfirmed(string message) : BroodlingException("cessation_unconfirmed", message);
+
 public sealed class SubmissionNotReady(string message) : BroodlingException("submission_not_ready", message);
 public sealed class SubmissionConflict(string message, string? existingRunId = null) : BroodlingException("submission_conflict", message)
 {

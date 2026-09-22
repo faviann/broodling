@@ -13,7 +13,7 @@ public sealed record AttemptAbandonment(string AttemptId, string Reason, string 
 public sealed record WorktreeProvision(string ProvisionedAt);
 public sealed record AttemptRecord(string AttemptId, string WorkUnitId, string ContractRevisionId, bool IsCurrent,
     OriginalB1 B1, WorkspaceAllocation Allocation, string AdmittedAt, AttemptAbandonment? Abandonment,
-    WorktreeProvision? Provision = null);
+    WorktreeProvision? Provision = null, AttemptRetirement? Retirement = null, AttemptRetry? Retry = null);
 
 public sealed partial class BroodlingStore
 {
@@ -116,7 +116,8 @@ public sealed partial class BroodlingStore
                 new(row.GetString(4), row.GetString(5), row.GetString(6), row.GetString(7)),
                 new(row.GetString(8), row.GetString(9), row.GetString(10), row.GetString(11), row.GetString(12)),
                 row.GetString(12), row.IsDBNull(13) ? null : new(row.GetString(0), row.GetString(13), row.GetString(14)),
-                row.IsDBNull(15) ? null : new(row.GetString(15))));
+                row.IsDBNull(15) ? null : new(row.GetString(15)), ReadRetirement(row.GetString(0), transaction),
+                ReadRetry("attempt_id", row.GetString(0), transaction)));
         return result.AsReadOnly();
     }
 }

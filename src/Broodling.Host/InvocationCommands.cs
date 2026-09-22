@@ -13,9 +13,10 @@ public static class InvocationCommands
         CancellationToken cancellationToken = default, GitHubIssueSource? source = null, INativeTransport? transport = null)
     {
         if (!(args.Length == 10 && args[0] == "submit" || args.Length is >= 3 and <= 6 && args[0] == "resume"
-            || args.Length is 3 or 4 && args[0] == "wait"))
+            || args.Length is 3 or 4 && args[0] == "wait"
+            || args.Length == 5 && args[0] == "stop"))
         {
-            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [python-executable]");
+            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [python-executable] | stop <store> <attempt-id> <reason> <python-executable>");
             return 2;
         }
         try
@@ -32,6 +33,27 @@ public static class InvocationCommands
                 }
                 output.WriteLine(JsonSerializer.Serialize(completion, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return 0;
+            }
+            if (args[0] == "stop")
+            {
+                string? refusal = null;
+                var exitCode = 0;
+                try { await store.StopAsync(args[2], args[3], transport ?? new ZeroshotTransport(args[4]), cancellationToken); }
+                catch (Exception exception)
+                {
+                    refusal = exception is BroodlingException known ? known.Code : exception is OperationCanceledException ? "caller_detached" : "stop_failed";
+                    exitCode = exception is OperationCanceledException ? 130 : 1;
+                }
+                var attempt = store.GetAttempt(args[2]);
+                var submission = store.FindSubmission(args[2]);
+                output.WriteLine(JsonSerializer.Serialize(new
+                {
+                    attempt, submission, quarantined = submission is { State: not "prepared" }, error = refusal,
+                    message = attempt.Abandonment is null ? "Stop refused; inspect retained authority."
+                        : attempt.Retirement is null ? "Attempt abandoned. Cessation unconfirmed; retain the checkout and use operator containment. No automatic retry."
+                        : "Attempt abandoned with retained safe cessation proof. Retirement and replacement remain explicit operations."
+                }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                return exitCode;
             }
             AdmissionStatus? status = null;
             if (args[0] == "resume")

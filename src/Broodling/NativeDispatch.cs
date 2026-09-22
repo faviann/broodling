@@ -213,6 +213,9 @@ public sealed partial class BroodlingStore
         {
             ["repository"] = work.Owner + "/" + work.Repository, ["branch"] = effects[0].TargetBranch, ["revision"] = attempt.B1.CommitOid
         };
+        if (ReadRetry("attempt_id", attempt.AttemptId, transaction) is { } retry
+            && !JsonNode.DeepEquals(JsonNode.Parse(retry.TargetJson), request["target"]))
+            throw new AttemptConflict("The replacement target differs from its durable retry request.");
         return request.ToJsonString();
     }
 }

@@ -75,6 +75,9 @@ public sealed class AdmissionStatus(WorkUnit workUnit, IEnumerable<EntitledSourc
     public IReadOnlyList<AttemptRecord> Attempts { get; } = Array.AsReadOnly((attempts ?? []).ToArray());
     public IReadOnlyList<NativeSubmission> Submissions { get; } = Array.AsReadOnly((submissions ?? []).ToArray());
     public IReadOnlyList<AttemptCompletion> Completions { get; } = Array.AsReadOnly((completions ?? []).ToArray());
+    // Dispatch is irreversible. This is a cleanup limit even while native execution is current.
+    public IReadOnlyList<string> QuarantinedAttemptIds => Submissions.Where(submission => submission.State != "prepared")
+        .Select(submission => submission.AttemptId).ToArray();
 }
 
 public sealed partial class BroodlingStore

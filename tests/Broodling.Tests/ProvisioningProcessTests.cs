@@ -173,7 +173,7 @@ public sealed class ProvisioningProcessTests
         await Assert.That(LockIsFree(attempt)).IsTrue();
     }
 
-    private static bool LockIsFree(AttemptRecord attempt)
+    internal static bool LockIsFree(AttemptRecord attempt)
     {
         var fd = open(System.IO.Path.Combine(attempt.Allocation.Enclosure, WorktreeMaterialization.LockName), 0x80002 /* RDWR | CLOEXEC */);
         if (fd < 0) throw new Exception("Cannot open witness lock");
@@ -190,13 +190,13 @@ public sealed class ProvisioningProcessTests
     [DllImport("libc", SetLastError = true)] private static extern int flock(int fd, int flags);
     [DllImport("libc")] private static extern int close(int fd);
 
-    private static async Task WaitForFile(string path, Caller caller) => await WaitUntil(() =>
+    internal static async Task WaitForFile(string path, Caller caller) => await WaitUntil(() =>
     {
         if (File.Exists(path)) return true;
         if (caller.Process.HasExited) throw new Exception("Caller exited before gate: " + caller.Error.GetAwaiter().GetResult());
         return false;
     });
-    private static async Task WaitUntil(Func<bool> predicate)
+    internal static async Task WaitUntil(Func<bool> predicate)
     {
         var timer = Stopwatch.StartNew();
         while (!predicate())
@@ -206,7 +206,7 @@ public sealed class ProvisioningProcessTests
         }
     }
 
-    private sealed class HeldGit : IDisposable
+    internal sealed class HeldGit : IDisposable
     {
         private readonly AttemptFixture fixture;
         private readonly bool after;
@@ -238,6 +238,7 @@ public sealed class ProvisioningProcessTests
                 start.Environment["BROODLING_WITNESS_ENTERED"] = Entered;
                 start.Environment["BROODLING_WITNESS_GATE"] = Gate;
                 start.Environment["BROODLING_WITNESS_MODE"] = after ? "after" : "before";
+                start.Environment["BROODLING_WITNESS_OPERATION"] = mode == "retire" ? "remove" : "add";
             }
             return new(start);
         }
@@ -245,7 +246,7 @@ public sealed class ProvisioningProcessTests
         public void Dispose() => Release();
     }
 
-    private sealed class Caller : IDisposable
+    internal sealed class Caller : IDisposable
     {
         internal Process Process { get; }
         internal Task<string> Output { get; }

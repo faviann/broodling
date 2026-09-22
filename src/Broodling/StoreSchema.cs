@@ -6,7 +6,7 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 6;
+    internal const int Version = 7;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
 
@@ -18,7 +18,9 @@ internal static class StoreSchema
     internal const string VersionFourSql = VersionThreeSql + "\n" + ProvisioningSql;
     internal static string VersionFiveDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionFiveSql));
     internal const string VersionFiveSql = VersionFourSql + "\n" + DispatchSql;
-    internal const string Sql = VersionFiveSql + "\n" + CompletionSql;
+    internal static string VersionSixDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionSixSql));
+    internal const string VersionSixSql = VersionFiveSql + "\n" + CompletionSql;
+    internal const string Sql = VersionSixSql + "\n" + RetirementSql;
 
     // Result and disposition are one row: no intermediate successful custody can commit.
     internal const string CompletionSql = """
@@ -101,6 +103,76 @@ internal static class StoreSchema
               OR (work_unit_id = NEW.work_unit_id AND is_current = 1 AND NEW.is_current = 1)
         )
         BEGIN SELECT RAISE(ABORT, 'Attempt identity and allocation cannot be replaced'); END;
+        """;
+
+    internal const string RetirementSql = """
+        CREATE TABLE attempt_retirements (
+            attempt_id TEXT PRIMARY KEY REFERENCES attempt_abandonments(attempt_id),
+            basis TEXT NOT NULL CHECK (basis IN ('never_materialized', 'never_dispatched')),
+            ceased_at TEXT NOT NULL,
+            retired_at TEXT
+        ) STRICT;
+        CREATE TRIGGER retirement_requires_safe_history BEFORE INSERT ON attempt_retirements
+        WHEN NEW.retired_at IS NOT NULL
+          OR EXISTS (SELECT 1 FROM attempt_retirements WHERE attempt_id = NEW.attempt_id)
+          OR EXISTS (SELECT 1 FROM native_submissions WHERE attempt_id = NEW.attempt_id AND state <> 'prepared')
+          OR (NEW.basis = 'never_materialized' AND EXISTS (SELECT 1 FROM worktree_provisions WHERE attempt_id = NEW.attempt_id))
+          OR (NEW.basis = 'never_dispatched' AND NOT EXISTS (SELECT 1 FROM worktree_provisions WHERE attempt_id = NEW.attempt_id))
+        BEGIN SELECT RAISE(ABORT, 'retirement requires abandoned never-dispatched history'); END;
+        CREATE TRIGGER retirement_stable BEFORE UPDATE ON attempt_retirements
+        WHEN OLD.attempt_id <> NEW.attempt_id OR OLD.basis <> NEW.basis OR OLD.ceased_at <> NEW.ceased_at
+          OR OLD.retired_at IS NOT NULL OR NEW.retired_at IS NULL
+        BEGIN SELECT RAISE(ABORT, 'cessation proof and retirement acknowledgment are immutable'); END;
+        CREATE TRIGGER retirement_no_delete BEFORE DELETE ON attempt_retirements
+        BEGIN SELECT RAISE(ABORT, 'retirement history is immutable'); END;
+
+        CREATE TABLE attempt_retries (
+            retry_key TEXT PRIMARY KEY CHECK (length(trim(retry_key)) > 0),
+            predecessor_id TEXT NOT NULL UNIQUE REFERENCES attempt_retirements(attempt_id),
+            attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(attempt_id) DEFERRABLE INITIALLY DEFERRED,
+            workspace_root TEXT NOT NULL,
+            target_json TEXT NOT NULL CHECK (json_valid(target_json) AND json_type(target_json) = 'object'),
+            requested_at TEXT NOT NULL,
+            CHECK (predecessor_id <> attempt_id)
+        ) STRICT;
+        CREATE TRIGGER retry_requires_retirement BEFORE INSERT ON attempt_retries
+        WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE retry_key = NEW.retry_key
+            OR predecessor_id = NEW.predecessor_id OR attempt_id = NEW.attempt_id)
+          OR NOT EXISTS (
+            SELECT 1 FROM attempt_retirements AS r JOIN attempt_abandonments USING (attempt_id)
+            JOIN attempts AS a USING (attempt_id)
+            WHERE r.attempt_id = NEW.predecessor_id AND r.retired_at IS NOT NULL AND a.is_current = 0
+              AND NOT EXISTS (SELECT 1 FROM attempts AS current WHERE current.work_unit_id = a.work_unit_id AND current.is_current = 1)
+              AND NOT EXISTS (SELECT 1 FROM native_submissions AS s WHERE s.attempt_id = a.attempt_id AND s.state <> 'prepared')
+        ) OR EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id)
+        BEGIN SELECT RAISE(ABORT, 'retry requires safely retired predecessor and a new successor'); END;
+        CREATE TRIGGER retries_no_update BEFORE UPDATE ON attempt_retries
+        BEGIN SELECT RAISE(ABORT, 'retry identity and parameters are immutable'); END;
+        CREATE TRIGGER retries_no_delete BEFORE DELETE ON attempt_retries
+        BEGIN SELECT RAISE(ABORT, 'retry lineage is immutable'); END;
+
+        DROP TRIGGER attempts_no_abandoned_work;
+        CREATE TRIGGER attempts_no_abandoned_work BEFORE INSERT ON attempts
+        WHEN EXISTS (SELECT 1 FROM attempts JOIN attempt_abandonments USING (attempt_id)
+            WHERE work_unit_id = NEW.work_unit_id)
+          AND NOT EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id)
+        BEGIN SELECT RAISE(ABORT, 'ended Work Unit requires explicit safe replacement'); END;
+        CREATE TRIGGER retry_preserves_bindings BEFORE INSERT ON attempts
+        WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id)
+          AND NOT EXISTS (
+            SELECT 1 FROM attempt_retries AS r JOIN attempts AS p ON p.attempt_id = r.predecessor_id
+            WHERE r.attempt_id = NEW.attempt_id AND NEW.work_unit_id = p.work_unit_id
+              AND NEW.contract_revision_id = p.contract_revision_id AND NEW.b1_repository = p.b1_repository
+              AND NEW.b1_commit_oid = p.b1_commit_oid AND NEW.b1_material_sha256 = p.b1_material_sha256
+              AND NEW.b1_requested_revision = p.b1_requested_revision AND NEW.workspace_root = r.workspace_root
+              AND NEW.enclosure = r.workspace_root || '/' || NEW.attempt_id
+              AND NEW.worktree_path = NEW.enclosure || '/worktree' AND NEW.branch = 'broodling/' || NEW.attempt_id
+        )
+        BEGIN SELECT RAISE(ABORT, 'replacement must preserve original B1 and chosen allocation'); END;
+        CREATE TRIGGER retry_submission_target BEFORE INSERT ON native_submissions
+        WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id
+            AND json(target_json) IS NOT json_extract(NEW.request_json, '$.target'))
+        BEGIN SELECT RAISE(ABORT, 'replacement must preserve its chosen target'); END;
         """;
 
     internal const string DispatchSql = """
