@@ -183,7 +183,7 @@ public sealed class ProvisioningProcessTests
             await Assert.That(File.Exists(marker)).IsFalse();
             await Assert.That(LockIsFree(attempt)).IsFalse();
         }
-        await Assert.That(LockIsFree(attempt)).IsTrue();
+        await WaitUntil(() => LockIsFree(attempt));
         await Assert.That(store.ProvisionAttempt(attempt.AttemptId).Provision).IsNotNull();
     }
 
@@ -247,7 +247,7 @@ public sealed class ProvisioningProcessTests
             bin = Directory.CreateDirectory(System.IO.Path.Combine(fixture.State.Root, "bin")).FullName;
             git = Environment.GetEnvironmentVariable("PATH")!.Split(':').Select(path => System.IO.Path.Combine(path, "git")).First(File.Exists);
             var wrapper = System.IO.Path.Combine(bin, "git");
-            File.Copy(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "held-git.sh"), wrapper);
+            ExecutableFile.Copy(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "held-git.sh"), wrapper);
             if (OperatingSystem.IsLinux()) File.SetUnixFileMode(wrapper, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             Entered = System.IO.Path.Combine(fixture.State.Root, "entered");
             Gate = System.IO.Path.Combine(fixture.State.Root, "gate");

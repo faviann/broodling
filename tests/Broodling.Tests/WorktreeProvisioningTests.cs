@@ -155,7 +155,7 @@ public sealed class WorktreeProvisioningTests
         var attempt = fixture.Admit(store);
         var hook = System.IO.Path.Combine(fixture.GitDirectory, "hooks", "post-checkout");
         var canary = System.IO.Path.Combine(fixture.State.Root, "hook-ran");
-        File.WriteAllText(hook, $"#!/bin/sh\ntouch '{canary}'\n");
+        ExecutableFile.Write(hook, $"#!/bin/sh\ntouch '{canary}'\n");
         if (OperatingSystem.IsLinux()) File.SetUnixFileMode(hook, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         fixture.Git("config", "filter.test.smudge", "touch " + canary);
         await Assert.That(() => store.ProvisionAttempt(attempt.AttemptId)).Throws<UnsupportedStartingState>();

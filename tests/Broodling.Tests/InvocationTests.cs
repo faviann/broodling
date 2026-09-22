@@ -264,7 +264,7 @@ public sealed class InvocationTests
             executable = Path.Combine(root, "gh");
             var response = Path.Combine(root, "issue-response");
             File.WriteAllBytes(response, Issue);
-            File.WriteAllText(executable, "#!/bin/sh\ncat '" + response + "'\n");
+            ExecutableFile.Write(executable, "#!/bin/sh\ncat '" + response + "'\n");
             File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             Source = new(executable);
         }

@@ -121,6 +121,10 @@ before fixture disposal and may affect timing. No reproduction rate, underlying
 exception, cause or repair was established; no production fix or test suppression
 was made. A recurrence should preserve the exact build/report and fixture before
 minimization. This bounded nonrecurrence does not erase the original failure.
+Issue #151 later reproduced `ETXTBSY` in the same freshly written `gh` fixture
+pattern under concurrent process launch, and its fixture repair covers this
+test. The original exception was not retained, so that cause is consistent with
+this failure but unproven.
 
 G's earlier one-off Git-config and provider executable-format failures remain
 separate observations in [its validation record](../implementation/dotnet-receipt-completion.md).
