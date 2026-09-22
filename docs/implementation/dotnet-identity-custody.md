@@ -62,7 +62,7 @@ refuse source updates/deletes, identity rewrites/unpinning and submission rewrit
 ## State lifecycle and persistence decision
 
 Initialization exclusively reserves a new filesystem path and creates a distinct
-`broodling.dotnet` schema (currently version 2). It refuses existing files and orphan SQLite
+`broodling.dotnet` schema (currently version 3). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
 Store paths inside a marked disposable Attempt enclosure refuse, including paths
 through parent symlinks. Open uses SQLite read/write mode without create, checks
@@ -71,10 +71,11 @@ full synchronization. An incompatible or unknown file is not initialized or
 rewritten. Foreign keys and immediate write transactions enforce custody.
 
 `UpgradeStore` accepts an already-current store unchanged and explicitly upgrades
-the original A1 version 1 to version 2 by adding Contract/admission storage in one
-transaction. Existing identity, submission, source and initialization facts remain
-unchanged; ordinary open refuses version 1. The [A2 reference](dotnet-contract-admission.md)
-records the new schema and upgrade witness. Later schema changes must continue
+the original A1 version 1 or A2 version 2 to version 3 by adding missing
+Contract/admission and Attempt storage in one transaction. Existing identity,
+submission, source, Contract and initialization facts remain unchanged; ordinary
+open refuses historical versions. The [B reference](dotnet-attempt-allocation.md)
+records the current schema and upgrade witnesses. Later schema changes must continue
 to preserve existing .NET facts through explicit upgrades.
 Python databases, migration history and imports are intentionally unsupported;
 they must remain at separate paths and must never be silently replaced.

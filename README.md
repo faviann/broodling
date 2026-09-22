@@ -53,10 +53,12 @@ amend Broodling's frozen Contract or entitled source snapshots.
 ## Install and use
 
 The in-progress .NET migration provides callable Work Unit identity, source
-custody and supplied-source/GitHub Contract admission, plus explicit store lifecycle
+custody, supplied-source/GitHub Contract admission and original B1/Attempt allocation,
+plus explicit store lifecycle
 and status/history commands. See the [.NET state guide](docs/implementation/dotnet-identity-custody.md)
 and [admission API](docs/implementation/dotnet-contract-admission.md), including
-[explicit GitHub acquisition and reviewed-source proposals](docs/implementation/dotnet-github-ingress.md).
+[explicit GitHub acquisition and reviewed-source proposals](docs/implementation/dotnet-github-ingress.md), followed by
+[Attempt allocation](docs/implementation/dotnet-attempt-allocation.md).
 It uses separate new state and does not yet replace the deployed Python profile.
 
 For first internal use, follow the [single-host deployment procedure](deployment/README.md).

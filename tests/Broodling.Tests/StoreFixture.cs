@@ -4,7 +4,10 @@ namespace Broodling.Tests;
 
 internal sealed class StoreFixture : IDisposable
 {
-    internal string Root { get; } = Directory.CreateTempSubdirectory("broodling-dotnet-").FullName;
+    internal string Root { get; } = Directory.CreateDirectory(System.IO.Path.Combine(
+        Environment.GetEnvironmentVariable("BROODLING_TEST_WORKSPACE_ROOT")
+            ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "broodling-tests"),
+        "dotnet-" + Guid.NewGuid().ToString("N"))).FullName;
     internal string Path => System.IO.Path.Combine(Root, "state", "broodling.sqlite3");
     internal BroodlingApplication Application { get; } = new();
     internal BroodlingStore Initialize() => Application.InitializeStore(Path);
