@@ -54,8 +54,12 @@ internal static class AdministrativeGitProcess
     {
         RequireSupportedHost();
         var executable = ResolveExecutable(start.FileName, start.Environment["PATH"]);
-        using var arguments = new Utf8Vector(new[] { executable }.Concat(start.ArgumentList));
-        using var environment = new Utf8Vector(start.Environment.Where(pair => pair.Value is not null).Select(pair => pair.Key + "=" + pair.Value));
+        var argumentValues = start.ArgumentList.Prepend(executable);
+        var environmentValues = start.Environment.Where(pair => pair.Value is not null).Select(pair => pair.Key + "=" + pair.Value);
+        if (argumentValues.Concat(environmentValues).Any(value => value.Contains('\0')))
+            throw new WorktreeProvisioningError("Git arguments/environment cannot contain NUL.");
+        using var arguments = new Utf8Vector(argumentValues);
+        using var environment = new Utf8Vector(environmentValues);
         var held = false;
         int pid, stdout, stderr;
         try
@@ -113,30 +117,5 @@ internal static class AdministrativeGitProcess
     private static void Check(int error, string message)
     {
         if (error != 0) throw new WorktreeProvisioningError($"{message}: {new Win32Exception(error).Message} ({error}).");
-    }
-
-    private sealed class Utf8Vector : IDisposable
-    {
-        private readonly List<nint> strings = [];
-        internal nint Pointer { get; private set; }
-        internal Utf8Vector(IEnumerable<string> values)
-        {
-            try
-            {
-                foreach (var value in values)
-                {
-                    if (value.Contains('\0')) throw new WorktreeProvisioningError("Git arguments/environment cannot contain NUL.");
-                    strings.Add(Marshal.StringToCoTaskMemUTF8(value));
-                }
-                Pointer = Marshal.AllocHGlobal((strings.Count + 1) * nint.Size);
-                Marshal.Copy(strings.Append(0).ToArray(), 0, Pointer, strings.Count + 1);
-            }
-            catch { Dispose(); throw; }
-        }
-        public void Dispose()
-        {
-            foreach (var item in strings) Marshal.FreeCoTaskMem(item);
-            if (Pointer != 0) Marshal.FreeHGlobal(Pointer);
-        }
     }
 }
