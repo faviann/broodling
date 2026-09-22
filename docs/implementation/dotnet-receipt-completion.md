@@ -150,9 +150,24 @@ tests: 217 passed, 1 failed**, 57.823 seconds. The replacement checks passed;
 `NoEffectSuccessCannotManufactureStableLocalResult` failed starting its isolated
 provider with `Win32Exception: Exec format error` at `CodexProfile.Validate`.
 An immediate focused rerun passed 1/1 in 1.461 seconds. That rerun does not explain
-the failure; bounded independent diagnosis is in progress. The repaired Release
-build passed with 0 warnings/errors in 22.94 seconds. Independent review and
-final validation must resolve the candidate's readiness before merge.
+the failure. The repaired Release build passed with 0 warnings/errors in 22.94
+seconds. A fresh independent bounded diagnosis subsequently passed 101 focused
+checks (initial plus 100 repetitions) and all 218 tests in 25.223 seconds with
+unchanged test DLL/provider hashes. Neither reported error recurred; no cause,
+relationship between the errors, or repair was established. No speculative
+production change was made for either observation.
+
+Fresh independent Spec review passed with zero findings. Standards review
+identified one nonblocking duplicated fixture-restoration helper; consolidation
+preserved all per-version assertions, and fresh repair review passed with zero
+findings. Production code was unchanged by that consolidation.
+
+Final standard validation on the reviewed implementation and consolidated tests:
+**218 passed, 0 failed, 0 skipped**, 55.741 seconds. Final Release build:
+**0 warnings, 0 errors**, 20.79 seconds. Build-node reuse/shared compilation were
+disabled with `MSBUILDDISABLENODEREUSE=1`, `DOTNET_CLI_USE_MSBUILD_SERVER=0` and
+`UseSharedCompilation=false`. `git diff --check` is clean. These final passes
+remain distinct from the earlier unexplained failures.
 
 An initial .NET run during implementation passed 211 of 212 tests and failed
 the unchanged `PreparedResumeReconcilesFrozenInvocationWithoutRestoringMissingWorkspace`
