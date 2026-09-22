@@ -1,5 +1,6 @@
 using Broodling.Host;
 using Microsoft.Data.Sqlite;
+using System.Text.Json;
 using TUnit.Assertions;
 using TUnit.Core;
 
@@ -7,6 +8,61 @@ namespace Broodling.Tests;
 
 public sealed class StoreLifecycleTests
 {
+    [Test]
+    public async Task VersionOneRequiresExplicitUpgradeAndRetainsEveryIdentitySubmissionAndSourceFact()
+    {
+        using var fixture = new StoreFixture();
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fixture.Path)!);
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = fixture.Path, Pooling = false, ForeignKeys = false
+        }.ToString()))
+        {
+            connection.Open();
+            using var restore = connection.CreateCommand();
+            restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "dotnet-v1.sql"));
+            restore.ExecuteNonQuery();
+        }
+        var before = RetainedVersionOneFacts(fixture);
+        var oldFile = File.ReadAllBytes(fixture.Path);
+        await Assert.That(() => fixture.Open()).Throws<StoreStateException>();
+        await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(oldFile)).IsTrue();
+        StoreInformation upgradedInformation;
+        using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
+        {
+            upgradedInformation = upgraded.Information;
+            await Assert.That(upgradedInformation.SchemaVersion).IsEqualTo(2);
+            await Assert.That(upgradedInformation.InitializedAt).IsEqualTo("2026-09-22T15:07:04.8538767+00:00");
+            await Assert.That(RetainedVersionOneFacts(fixture)).IsEqualTo(before);
+            var status = upgraded.AdmitSources(ContractIngressTests.Reference,
+                [ContractIngressTests.Primary([0, 255, 13, 10])], ContractIngressTests.Propose, []);
+            await Assert.That(status.Decision!.Admitted).IsTrue();
+            await Assert.That(status.WorkUnit.RepositoryIdentity).IsEqualTo("repository-v1");
+            await Assert.That(status.WorkUnit.IssueIdentity).IsEqualTo("issue-v1");
+            await Assert.That(status.Sources.Single().EntitlementBasis).IsEqualTo("Retain reviewed original bytes");
+            await Assert.That(status.Sources.Single().SourceId).IsEqualTo("src-e54323dbacab9b95b3d0ae762814376a97085a1df604b02719de6c81ee3b4692");
+        }
+        using var reopened = fixture.Open();
+        using var repeatedUpgrade = fixture.Application.UpgradeStore(fixture.Path);
+        await Assert.That(repeatedUpgrade.Information).IsEqualTo(upgradedInformation);
+        await Assert.That(reopened.History(ContractIngressTests.Reference).Single().Decision!.Admitted).IsTrue();
+    }
+
+    private static string RetainedVersionOneFacts(StoreFixture fixture)
+    {
+        using var connection = fixture.Connect();
+        var facts = new List<object?[]>();
+        foreach (var table in new[] { "work_units", "work_submissions", "entitled_sources" })
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT * FROM {table} ORDER BY 1";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                facts.Add(Enumerable.Range(0, reader.FieldCount).Select(index => reader.IsDBNull(index) ? null : reader.GetValue(index)).ToArray());
+        }
+        return JsonSerializer.Serialize(facts);
+    }
+
     [Test]
     public async Task InitializationRequiresNewStateAndExplicitUpgradeOfCurrentStorePreservesIdentity()
     {
@@ -23,7 +79,7 @@ public sealed class StoreLifecycleTests
         await Assert.That(upgraded.Information).IsEqualTo(information);
         await Assert.That(upgraded.GetWorkUnit(first.WorkUnitId)).IsEqualTo(first);
         await Assert.That(information.Format).IsEqualTo("broodling.dotnet");
-        await Assert.That(information.SchemaVersion).IsEqualTo(1);
+        await Assert.That(information.SchemaVersion).IsEqualTo(2);
     }
 
     [Test]
@@ -145,6 +201,6 @@ public sealed class StoreLifecycleTests
         await Assert.That(error.ToString().Contains("Exception")).IsFalse();
         await Assert.That(StoreCommands.Run(["initialize-store"], fixture.Application, output, error)).IsEqualTo(2);
         using var reopened = fixture.Open();
-        await Assert.That(reopened.Information.SchemaVersion).IsEqualTo(1);
+        await Assert.That(reopened.Information.SchemaVersion).IsEqualTo(2);
     }
 }

@@ -89,21 +89,56 @@ public sealed partial class BroodlingStore : IDisposable
         }
     }
 
-    // No historical .NET schema exists yet. This explicit operation is an
-    // idempotent current-format check; it never imports or migrates Python state.
-    internal static BroodlingStore Upgrade(string path) => Open(path);
+    /// <summary>Upgrade recognized .NET state explicitly; never import Python state.</summary>
+    internal static BroodlingStore Upgrade(string path)
+    {
+        var target = StorePath(path);
+        if (!File.Exists(target))
+            throw new StoreStateException("store_missing", "The store does not exist; initialize new state explicitly.");
+        var store = new BroodlingStore(target);
+        try
+        {
+            store.connection.Open();
+            using (var transaction = store.connection.BeginTransaction(deferred: false))
+            {
+                store.RequireCurrentSchema(transaction, allowVersionOne: true);
+                if (store.Information.SchemaVersion == 1)
+                {
+                    store.Execute(StoreSchema.AdmissionSql, transaction);
+                    store.Execute("UPDATE store_metadata SET version = $p0, definition_hash = $p1, manifest_hash = $p2 WHERE singleton = 1",
+                        transaction, StoreSchema.Version, StoreSchema.DefinitionHash,
+                        StoreSchema.ManifestHash(store.connection, transaction));
+                }
+                transaction.Commit();
+            }
+            store.RequireCurrentSchema();
+            store.Configure();
+            return store;
+        }
+        catch (SqliteException)
+        {
+            store.Dispose();
+            throw new StoreStateException("incompatible_store", "The file is not a readable, compatible .NET Broodling store.");
+        }
+        catch
+        {
+            store.Dispose();
+            throw;
+        }
+    }
 
     public void Dispose() => connection.Dispose();
 
-    private void RequireCurrentSchema()
+    private void RequireCurrentSchema(SqliteTransaction? transaction = null, bool allowVersionOne = false)
     {
-        using var command = Command("SELECT format, version, definition_hash, manifest_hash, initialized_at FROM store_metadata WHERE singleton = 1");
+        using var command = Command("SELECT format, version, definition_hash, manifest_hash, initialized_at FROM store_metadata WHERE singleton = 1", transaction);
         using var reader = command.ExecuteReader();
         if (!reader.Read()
             || reader.GetValue(0) is not string format || format != StoreSchema.Format
-            || reader.GetValue(1) is not long version || version != StoreSchema.Version
-            || reader.GetValue(2) is not string definition || definition != StoreSchema.DefinitionHash
-            || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection)
+            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowVersionOne && version == 1))
+            || reader.GetValue(2) is not string definition
+                || definition != (version == 1 ? StoreSchema.VersionOneDefinitionHash : StoreSchema.DefinitionHash)
+            || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection, transaction)
             || reader.GetValue(4) is not string initializedAt || string.IsNullOrEmpty(initializedAt))
             throw new StoreStateException("incompatible_store", "The store format or schema is incompatible; explicit supported upgrades are required.");
         Information = new(format, (int)version, initializedAt);

@@ -52,9 +52,10 @@ amend Broodling's frozen Contract or entitled source snapshots.
 
 ## Install and use
 
-The in-progress .NET migration provides callable Work Unit identity and source
-custody, plus explicit store lifecycle commands. See the
-[.NET API and state guide](docs/implementation/dotnet-identity-custody.md).
+The in-progress .NET migration provides callable Work Unit identity, source
+custody and supplied-source Contract admission, plus explicit store lifecycle
+and status/history commands. See the [.NET state guide](docs/implementation/dotnet-identity-custody.md)
+and [admission API](docs/implementation/dotnet-contract-admission.md).
 It uses separate new state and does not yet replace the deployed Python profile.
 
 For first internal use, follow the [single-host deployment procedure](deployment/README.md).

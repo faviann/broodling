@@ -55,6 +55,16 @@ canonical non-aliasing, once-only pins and rollback, concurrent writers, immutab
 bytes/provenance and state refusal. The [A1 implementation reference](../implementation/dotnet-identity-custody.md)
 records the callable API, direct-SQLite decision and initial .NET schema boundary.
 
+A2's .NET witnesses are `ContractIngressTests.cs`, `ContractPolicyTests.cs` and
+`AdmissionPersistenceTests.cs`: supplied-source admission through reopen and
+operator inspection, exact caller authority, optional guidance and preserved
+refusals, atomic revision/binding writes, undecided recovery, concurrent decisions
+and observation while a real SQLite writer is active. `StoreLifecycleTests.cs`
+also checks the deliberate v1→v2 upgrade against actual retained .NET v1 state.
+The [A2 implementation reference](../implementation/dotnet-contract-admission.md)
+records the API and bounded validation evidence. No GitHub acquisition, Attempt,
+native execution or Python state compatibility is implied by this slice.
+
 Status/history use coherent per-revision reads without taking the writer slot,
 reacquiring sources, calling native services or adding upstream pins.
 `test_invocation.py` covers live provisioning contention and identity checks;

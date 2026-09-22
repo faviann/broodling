@@ -18,5 +18,14 @@ public sealed class SourceNotEntitled(string message)
 public sealed class UnknownRecord(string message)
     : BroodlingException("unknown_record", message);
 
+public sealed class InvalidContractProposal(string message)
+    : BroodlingException("invalid_contract_proposal", message);
+
+public sealed class SourceAttributionError(string message)
+    : BroodlingException("source_attribution_error", message);
+
+public sealed class ContractImmutabilityError(string message)
+    : BroodlingException("contract_immutability_error", message);
+
 public sealed class StoreStateException(string code, string message)
     : BroodlingException(code, message);
