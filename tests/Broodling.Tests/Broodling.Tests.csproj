@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Broodling\Broodling.csproj" />
     <ProjectReference Include="..\..\src\Broodling.Host\Broodling.Host.csproj" />
+    <ProjectReference Include="..\Broodling.ProcessWitness\Broodling.ProcessWitness.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -14,6 +15,8 @@
     <None Update="Fixtures\dotnet-v1.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\fixtures\ingress\issue-*.json" Link="Fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures\dotnet-v2.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\dotnet-v3.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\held-git.sh" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

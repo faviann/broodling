@@ -105,8 +105,10 @@ public sealed partial class BroodlingStore : IDisposable
                 if (store.Information.SchemaVersion == 1)
                     store.Execute(StoreSchema.AdmissionSql, transaction);
                 if (store.Information.SchemaVersion < 3)
-                {
                     store.Execute(StoreSchema.AttemptSql, transaction);
+                if (store.Information.SchemaVersion < 4)
+                {
+                    store.Execute(StoreSchema.ProvisioningSql, transaction);
                     store.Execute("UPDATE store_metadata SET version = $p0, definition_hash = $p1, manifest_hash = $p2 WHERE singleton = 1",
                         transaction, StoreSchema.Version, StoreSchema.DefinitionHash,
                         StoreSchema.ManifestHash(store.connection, transaction));
@@ -137,9 +139,9 @@ public sealed partial class BroodlingStore : IDisposable
         using var reader = command.ExecuteReader();
         if (!reader.Read()
             || reader.GetValue(0) is not string format || format != StoreSchema.Format
-            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2))
+            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2 or 3))
             || reader.GetValue(2) is not string definition
-                || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, _ => StoreSchema.DefinitionHash })
+                || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, 3 => StoreSchema.VersionThreeDefinitionHash, _ => StoreSchema.DefinitionHash })
             || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection, transaction)
             || reader.GetValue(4) is not string initializedAt || string.IsNullOrEmpty(initializedAt))
             throw new StoreStateException("incompatible_store", "The store format or schema is incompatible; explicit supported upgrades are required.");

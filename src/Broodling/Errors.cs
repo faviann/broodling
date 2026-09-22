@@ -1,5 +1,8 @@
 namespace Broodling;
 
+public sealed class WorktreeProvisioningError(string message) : BroodlingException("worktree_provisioning_error", message);
+public sealed class WorktreeOwnershipConflict(string message) : BroodlingException("worktree_ownership_conflict", message);
+
 /// <summary>A refused application operation; the code is safe for operator output.</summary>
 public class BroodlingException(string code, string message) : Exception(message)
 {

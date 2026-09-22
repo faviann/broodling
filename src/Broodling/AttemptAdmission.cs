@@ -10,8 +10,10 @@ public sealed record OriginalB1(string Repository, string CommitOid, string Mate
 /// <summary>A reserved identity, not proof of checkout materialization or cleanup authority.</summary>
 public sealed record WorkspaceAllocation(string WorkspaceRoot, string Enclosure, string WorktreePath, string Branch, string AllocatedAt);
 public sealed record AttemptAbandonment(string AttemptId, string Reason, string AbandonedAt);
+public sealed record WorktreeProvision(string ProvisionedAt);
 public sealed record AttemptRecord(string AttemptId, string WorkUnitId, string ContractRevisionId, bool IsCurrent,
-    OriginalB1 B1, WorkspaceAllocation Allocation, string AdmittedAt, AttemptAbandonment? Abandonment);
+    OriginalB1 B1, WorkspaceAllocation Allocation, string AdmittedAt, AttemptAbandonment? Abandonment,
+    WorktreeProvision? Provision = null);
 
 public sealed partial class BroodlingStore
 {
@@ -101,8 +103,9 @@ public sealed partial class BroodlingStore
     private IReadOnlyList<AttemptRecord> ReadAttempts(string predicate, string value, SqliteTransaction? transaction = null)
     {
         using var command = Command($"""
-            SELECT a.*, b.reason, b.abandoned_at FROM attempts AS a
+            SELECT a.*, b.reason, b.abandoned_at, p.provisioned_at FROM attempts AS a
             LEFT JOIN attempt_abandonments AS b USING (attempt_id)
+            LEFT JOIN worktree_provisions AS p USING (attempt_id)
             WHERE {predicate} ORDER BY a.rowid
             """, transaction, value);
         using var row = command.ExecuteReader();
@@ -111,7 +114,8 @@ public sealed partial class BroodlingStore
             result.Add(new(row.GetString(0), row.GetString(1), row.GetString(2), row.GetInt64(3) == 1,
                 new(row.GetString(4), row.GetString(5), row.GetString(6), row.GetString(7)),
                 new(row.GetString(8), row.GetString(9), row.GetString(10), row.GetString(11), row.GetString(12)),
-                row.GetString(12), row.IsDBNull(13) ? null : new(row.GetString(0), row.GetString(13), row.GetString(14))));
+                row.GetString(12), row.IsDBNull(13) ? null : new(row.GetString(0), row.GetString(13), row.GetString(14)),
+                row.IsDBNull(15) ? null : new(row.GetString(15))));
         return result.AsReadOnly();
     }
 }

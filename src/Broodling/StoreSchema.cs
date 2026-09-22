@@ -6,13 +6,29 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 3;
+    internal const int Version = 4;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
 
     internal static string VersionTwoDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionTwoSql));
     internal const string VersionTwoSql = VersionOneSql + "\n" + AdmissionSql;
-    internal const string Sql = VersionTwoSql + "\n" + AttemptSql;
+    internal static string VersionThreeDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionThreeSql));
+    internal const string VersionThreeSql = VersionTwoSql + "\n" + AttemptSql;
+    internal const string Sql = VersionThreeSql + "\n" + ProvisioningSql;
+
+    internal const string ProvisioningSql = """
+        CREATE TABLE worktree_provisions (
+            attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
+            provisioned_at TEXT NOT NULL
+        ) STRICT;
+        CREATE TRIGGER provision_requires_current BEFORE INSERT ON worktree_provisions
+        WHEN NOT EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1)
+        BEGIN SELECT RAISE(ABORT, 'provisioning requires current Attempt authority'); END;
+        CREATE TRIGGER provisions_no_update BEFORE UPDATE ON worktree_provisions
+        BEGIN SELECT RAISE(ABORT, 'first provisioning acknowledgment is immutable'); END;
+        CREATE TRIGGER provisions_no_delete BEFORE DELETE ON worktree_provisions
+        BEGIN SELECT RAISE(ABORT, 'provisioning history is immutable'); END;
+        """;
 
     // Separate format and version space from the Python executable reference.
     internal const string VersionOneSql = """

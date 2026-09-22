@@ -71,9 +71,26 @@ abandonment races, exact-revision observation, interrupted-write rollback,
 selected-object refusals, permitted ancestor-only loss, retention after GC and
 hook/environment/path boundaries. `StoreLifecycleTests` preserves actual v1/v2
 facts through explicit schema 3 upgrades. The [B implementation reference](../implementation/dotnet-attempt-allocation.md)
-records the APIs, 93-test evidence and C/F/G/H integration obligations. Allocation
+records the APIs, 102-test evidence and C/F/G/H integration obligations. Allocation
 does not materialize a checkout. G must still add completed-Work-Unit admission
 guards when its result/disposition tables land.
+
+C's .NET witnesses are `WorktreeProvisioningTests.cs` and
+`ProvisioningProcessTests.cs`: exact recorded B1, unchanged owned candidate
+progress on replay, branch-only/lost-acknowledgment and missing-path convergence,
+foreign ownership and checkout-policy refusals, real caller SIGKILL with a
+surviving Git writer, independent settled callers, abandonment while replay
+waits, and status/history during a real provisioning writer. The test-only
+process caller also checks selected-child lock handoff, close-only disposal,
+unrelated live `Process.Start` exclusion, spawn cleanup and concurrent output
+draining. `StoreLifecycleTests` preserves authentic schema-3 Attempt/allocation/
+abandonment facts through explicit schema 4 upgrade alongside v1/v2 fixtures.
+The [C implementation reference](../implementation/dotnet-worktree-materialization.md)
+records the callable `ProvisionAttempt` API, nullable historical provisioning
+fact, supported non-PID-1 Linux host, native-library packaging and F/H handoff.
+No Python application behavior, native execution or retirement is added here.
+The cumulative C run passed 129 .NET tests with no failures/skips; Release build
+and local host-publish/shim-loading checks also passed. Python was unchanged.
 
 D's .NET witness is `GitHubAdmissionTests.cs`: controlled CLI acquisition of only
 the named issue, exact response bytes, identity/transport refusals, explicit

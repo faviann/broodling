@@ -22,6 +22,18 @@ source custody, immutable Contract admission, Git/B1 and Attempt allocation, and
 checks. See the [A1 application API](../docs/implementation/dotnet-identity-custody.md)
 and [A2 admission/observation evidence](../docs/implementation/dotnet-contract-admission.md),
 plus [B allocation/custody evidence](../docs/implementation/dotnet-attempt-allocation.md).
+The [C materialization seam](../docs/implementation/dotnet-worktree-materialization.md)
+adds real Git/SQLite provisioning, strict ownership refusals, caller-death and
+orphan-Git exclusion, read-only status/history during a provisioning writer,
+and explicit schema-4 upgrades preserving authentic v1/v2/v3 .NET facts.
+`WorktreeProvisioningTests` owns local materialization scenarios;
+`ProvisioningProcessTests` uses the test-only `Broodling.ProcessWitness` caller
+and gated real Git. Its orphan fixture redirects Git output to an owned log so
+the caller's closed pipes cannot terminate the writer before the lock witness.
+The managed/C administrative seam requires Linux x64, `cc` and libc headers at
+build time; its shared library is copied by ordinary build/test/publish. These
+tests require an ordinary non-PID-1 host with waitable children and no competing
+reaper. No provider, native workflow or deployed state is involved.
 The [D acquisition checks](../docs/implementation/dotnet-github-ingress.md) use a
 controlled local GitHub CLI boundary and retained issue fixtures, without network
 or provider calls.

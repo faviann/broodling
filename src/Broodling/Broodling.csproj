@@ -8,6 +8,15 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <None Include="$(BaseIntermediateOutputPath)native/$(Configuration)/libbroodling_git.so"
+          Link="libbroodling_git.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="BuildAdministrativeGitShim" BeforeTargets="PrepareForBuild"
+          Inputs="$(MSBuildProjectDirectory)/native/git_spawn.c"
+          Outputs="$(BaseIntermediateOutputPath)native/$(Configuration)/libbroodling_git.so">
+    <MakeDir Directories="$(BaseIntermediateOutputPath)native/$(Configuration)" />
+    <Exec Command="cc -std=c11 -O2 -fPIC -shared -Wall -Wextra -Werror &quot;$(MSBuildProjectDirectory)/native/git_spawn.c&quot; -o &quot;$(BaseIntermediateOutputPath)native/$(Configuration)/libbroodling_git.so&quot;" />
+  </Target>
 
 </Project>
