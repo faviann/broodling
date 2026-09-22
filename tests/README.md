@@ -17,8 +17,10 @@ python -m pip install -e '.[test]'
 python -m pytest tests
 ```
 
-The .NET migration landing zone has a separate TUnit suite. It does not yet
-replace or reduce the Python parity suite:
+The .NET migration has a separate TUnit suite, including real SQLite identity,
+source custody and deliberate state lifecycle checks. See the
+[A1 application API](../docs/implementation/dotnet-identity-custody.md).
+It does not yet replace or reduce the Python parity suite:
 
 ```bash
 dotnet test --solution Broodling.sln

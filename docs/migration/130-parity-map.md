@@ -49,6 +49,12 @@ paths using real SQLite/Git where their behavior matters.
 restart, current-Attempt and irreversible-abandonment witnesses. It does not
 replace real Git/process checks.
 
+A1's .NET witnesses are `tests/Broodling.Tests/IdentityTests.cs`,
+`SourceCustodyTests.cs` and `StoreLifecycleTests.cs`: real SQLite replay/reopen,
+canonical non-aliasing, once-only pins and rollback, concurrent writers, immutable
+bytes/provenance and state refusal. The [A1 implementation reference](../implementation/dotnet-identity-custody.md)
+records the callable API, direct-SQLite decision and initial .NET schema boundary.
+
 Status/history use coherent per-revision reads without taking the writer slot,
 reacquiring sources, calling native services or adding upstream pins.
 `test_invocation.py` covers live provisioning contention and identity checks;
