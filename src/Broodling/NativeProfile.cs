@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 
 namespace Broodling;
@@ -145,6 +146,9 @@ public sealed class NativeProfile
 
 public sealed class CodexProfile
 {
+    [DllImport("libc", EntryPoint = "faccessat")]
+    private static extern int EffectiveAccess(int directory, [MarshalAs(UnmanagedType.LPUTF8Str)] string path, int mode, int flags);
+
     public const string Version = "codex-cli 0.153.4";
     public string RealCodex { get; }
     public string ProfileHome { get; }
@@ -204,7 +208,8 @@ public sealed class CodexProfile
             throw new UnsupportedRuntime("HOME must start empty and CODEX_HOME auth-only.");
         if (RealCodex == Launcher) throw new UnsupportedRuntime("Codex and launcher must be different executables.");
         foreach (var path in new[] { RealCodex, Launcher })
-            if (!File.Exists(path) || (File.GetUnixFileMode(path) & (UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute)) == 0)
+            // Linux AT_FDCWD, X_OK, AT_EACCESS: check this dispatch identity, not merely any execute bit.
+            if (!File.Exists(path) || EffectiveAccess(-100, path, 1, 0x200) != 0)
                 throw new UnsupportedRuntime("Codex and launcher must be executable.");
         var start = new ProcessStartInfo(RealCodex) { RedirectStandardOutput = true, RedirectStandardError = true };
         start.ArgumentList.Add("--version");

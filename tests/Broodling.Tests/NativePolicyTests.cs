@@ -98,6 +98,51 @@ public sealed class NativePolicyTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ProfileRefusesIneffectiveLauncherPermissionBeforeDispatchOrReplay(bool replay)
+    {
+        if (!OperatingSystem.IsLinux()) throw new InvalidOperationException("This permission witness requires Linux.");
+        using var fixture = new NativeFixture();
+        using var store = fixture.Git.State.Open();
+        var attempt = fixture.Provision(store);
+        var directory = CopyLauncher(fixture);
+        var launcher = Path.Combine(directory, "codex");
+        var ambient = Directory.CreateDirectory(Path.Combine(fixture.Root, "ambient")).FullName;
+        var fallback = Path.Combine(ambient, "codex");
+        File.WriteAllText(fallback, "#!/bin/sh\nprintf ambient-codex\n");
+        File.SetUnixFileMode(fallback, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var profile = new NativeProfile(fixture.NativeState,
+            new(fixture.Codex.RealCodex, fixture.Home, fixture.CodexHome, launcher), toolPath: ambient + ":/usr/bin:/bin");
+        var transport = new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() };
+        if (replay)
+            await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, profile, transport)).Throws<NativeTransportError>();
+        File.SetUnixFileMode(launcher, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherExecute);
+        var probe = new ProcessStartInfo("/bin/sh") { RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (var argument in new[] { "-c", "test -x \"$1\"", "sh", launcher }) probe.ArgumentList.Add(argument);
+        using (var access = Process.Start(probe)!)
+        {
+            await access.WaitForExitAsync();
+            // Privileged runners can execute 0641; remove every execute bit there.
+            // Ordinary owner runs exercise the original any-bit false positive.
+            if (access.ExitCode == 0) File.SetUnixFileMode(launcher, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+        probe.ArgumentList.Clear();
+        probe.ArgumentList.Add("-c");
+        probe.ArgumentList.Add("codex");
+        probe.Environment["PATH"] = directory + ":" + ambient + ":/usr/bin:/bin";
+        using (var search = Process.Start(probe)!)
+        {
+            await search.WaitForExitAsync();
+            await Assert.That(search.ExitCode).IsEqualTo(0);
+            await Assert.That(await search.StandardOutput.ReadToEndAsync()).IsEqualTo("ambient-codex");
+        }
+        await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, profile, transport)).Throws<UnsupportedRuntime>();
+        await Assert.That(transport.Calls).IsEqualTo(replay ? 1 : 0);
+        await Assert.That(store.FindSubmission(attempt.AttemptId)!.State).IsEqualTo(replay ? "dispatched" : "prepared");
+    }
+
+    [Test]
     public async Task LauncherExecsInSamePidPreservesPromptSandboxRuntimeAndNativeResume()
     {
         using var fixture = new NativeFixture(NativeFixture.Fixture("inspect-codex"));

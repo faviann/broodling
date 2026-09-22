@@ -130,6 +130,11 @@ canonical and separate from candidate/shared Git.
 filename and a directory without the PATH separator: native resolves `codex`
 through that prepended directory, so a renamed launcher or split search-path
 component cannot silently fall through to an ambient executable.
+Both launcher and real executable require execute access for the dispatch
+identity, checked with Linux libc `faccessat(AT_EACCESS)`, not the presence of
+an unrelated owner's/group's execute bit. See the
+[Linux access contract](https://man7.org/linux/man-pages/man2/access.2.html).
+This is trusted-host preflight, not a guarantee against later host mutation.
 It applies the baseline sandbox,
 approval, networking, user-config/rules, search, apps/plugins/hooks and notify
 policy, refuses app-server probing, preserves native same-execution resume, then
@@ -263,6 +268,13 @@ launcher and treat missing/nonstring/blank conflict run identities as unresolved
 transport. A further case covers a launcher directory containing the PATH
 separator. The shared application handback predicate also removes duplicated
 operator resume policy.
-The final repaired candidate passed **199 tests, 0 failed, 0 skipped** in
+The first repaired candidate passed **199 tests, 0 failed, 0 skipped** in
 62.907 seconds and its Release build passed with **0 warnings, 0 errors** in
 7.38 seconds.
+
+Fresh repair review then found that an owner-inexecutable `0641` launcher could
+pass the any-execute-bit check. Initial dispatch and replay witnesses reproduced
+the defect, including benign ambient-PATH fallback. The effective-access repair
+passed **201 tests, 0 failed, 0 skipped** in 59.911 seconds. Privileged test runners
+use a no-execute-bit case when their identity can legitimately execute `0641`;
+the recorded run used ordinary UID 1000 and exercised the owner-permission case.
