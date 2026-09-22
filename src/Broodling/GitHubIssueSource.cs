@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 namespace Broodling;
@@ -12,6 +13,8 @@ public sealed record AcquiredIssue(WorkReference Reference, SourceSubmission Sou
 /// <summary>Acquire only the named issue through the operator's authenticated GitHub CLI.</summary>
 public sealed class GitHubIssueSource(string executable = "gh")
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+
     public async Task<AcquiredIssue> AcquireAsync(WorkReference reference, CancellationToken cancellationToken = default)
     {
         if (reference.Host != "github.com")
@@ -74,6 +77,8 @@ public sealed class GitHubIssueSource(string executable = "gh")
     {
         try
         {
+            // JsonDocument defers decoding strings we never access. Validate the complete response too.
+            _ = StrictUtf8.GetCharCount(content);
             using var document = JsonDocument.Parse(content);
             var issue = document.RootElement;
             if (issue.ValueKind != JsonValueKind.Object)
@@ -103,7 +108,7 @@ public sealed class GitHubIssueSource(string executable = "gh")
                 mediaType: "application/json", retrievedAt: DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
                 origin: "broodling_policy"));
         }
-        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or DecoderFallbackException)
         {
             throw new GitHubSourceError("GitHub primary issue response is not valid issue JSON.");
         }

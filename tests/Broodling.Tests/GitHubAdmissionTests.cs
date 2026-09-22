@@ -67,6 +67,9 @@ public sealed class GitHubAdmissionTests
             ("body", new JsonObject()), ("node_id", null), ("node_id", " ")
         };
         var invalid = new List<byte[]> { "{"u8.ToArray(), "[]"u8.ToArray(), "null"u8.ToArray(), new byte[] { 255 } };
+        var invalidBodyEncoding = Issue();
+        invalidBodyEncoding[Array.IndexOf(invalidBodyEncoding, (byte)'S')] = 255;
+        invalid.Add(invalidBodyEncoding);
         foreach (var (field, value) in mutations)
         {
             var issue = JsonNode.Parse(Issue())!;
