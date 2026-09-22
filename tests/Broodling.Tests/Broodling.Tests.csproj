@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <None Update="Fixtures\dotnet-v1.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\ingress\issue-*.json" Link="Fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>
