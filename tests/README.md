@@ -17,6 +17,13 @@ python -m pip install -e '.[test]'
 python -m pytest tests
 ```
 
+The .NET migration landing zone has a separate TUnit suite. It does not yet
+replace or reduce the Python parity suite:
+
+```bash
+dotnet test --solution Broodling.sln
+```
+
 Python 3.13+, SQLite 3.37+, Git, and the Linux x86-64 release wheel are required.
 The controlled provider fixture needs no credentials or network. There is no
 separate opt-in Zeroshot campaign: the small real-native integration checks run
