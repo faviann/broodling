@@ -128,8 +128,49 @@ No common cause, retry policy or suppression is inferred from subsequent passes.
 
 ## Final gate status
 
-**Pending fresh independent repair review.** This record
-does not yet pass the gate or authorize starting #140.
+**PASS on 22 September 2026**, at reviewed implementation candidate
+`5a1f01cd15ad32d5eec028be19c5b9b97d9af903`. Two new independent reviewers compared
+the whole migration, including all eight slices and integrated repairs, against
+the fixed Python baseline. Both completed their assigned scope without relying
+on earlier PASS reports. The candidate was unchanged throughout their reviews.
+
+### Final Standards / simplicity
+
+**COMPLETE / PASS**. No blocking standards violation. The reviewer found the
+single SQLite session, explicit transactions, callable lifecycle operations,
+thin host, SDK bridge and selected-child native shim proportionate to the scope.
+The two remaining P3 observations are nonblocking duplication preferences:
+
+- Retained-material validation remains local for the reasons recorded above;
+  the reviewer explicitly judged retaining these short loops defensible.
+- Canonical loopback validation repeats three conditions in the host config
+  parser and independently callable readiness operation. Both currently agree
+  and have owning refusal witnesses. Sharing solely this small predicate would
+  extend the core/host API while still requiring distinct boundary errors. Keep
+  it local unless an actual policy change or additional caller justifies a shared
+  abstraction. No current defect or documented-standard violation was found.
+
+### Final Spec / parity
+
+**COMPLETE / PASS, zero actionable findings**. The reviewer inspected every
+parity-map row, frozen production and specific baseline witnesses, .NET witnesses
+and cross-slice composition. No missing requirement, incorrect migrated behavior
+or unrequested behavioral expansion requiring repair was found. Independent
+in-memory SQLite probes confirmed currentness/Attempt replacement guards,
+receipt refusal and atomic completion, completed-work refusal, and v1–v6
+definition/manifest hashes with preservation of every retained row through
+upgrades and valid foreign keys. Standards independently checked those fixture
+hashes and row preservation too; these probes supplement managed upgrade tests.
+
+Both reviewers fetched actual issue bodies but could not reach GitHub dependency
+API endpoints. The root independently rechecked the actual #130 subissue list
+(#132–#139 closed, #140 open) and #140's closed G/H dependencies. Neither reviewer
+reran the full suite/build or treated existing pass counts as review proof.
+
+**Combined decision:** the all-eight-slices and fresh parity/simplicity start
+gate is satisfied. #140 may now perform its focused source retirement and
+release/guidance adaptation. It does not inherit authorization for deployment,
+operational state switching, import, takeover or deletion of existing state.
 
 Throughout the migration, controlled released-SDK/native tests, stub PR receipts,
 historical deployment validation and P5 semantic-quality evidence remain distinct.
