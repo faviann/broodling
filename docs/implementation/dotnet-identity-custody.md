@@ -75,7 +75,11 @@ Initialization exclusively reserves a new filesystem path and creates a distinct
 `broodling.dotnet` schema (currently version 3). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
 Store paths inside a marked disposable Attempt enclosure refuse, including paths
-through parent symlinks. Open uses SQLite read/write mode without create, checks
+through parent symlinks. Caller paths containing malformed UTF-16 refuse with
+`invalid_store_path` before physical path resolution or any filesystem access:
+a lone surrogate cannot create, open or upgrade a legitimate U+FFFD filename.
+Well-formed replacement and supplementary characters remain valid path text.
+Open uses SQLite read/write mode without create, checks
 format/version/definition and retained schema manifest, then configures WAL and
 full synchronization. An incompatible or unknown file is not initialized or
 rewritten. Foreign keys and immediate write transactions enforce custody.
