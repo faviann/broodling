@@ -2,8 +2,8 @@
 
 [D #136](https://github.com/faviann/broodling/issues/136) composes the named GitHub
 issue with [A2 admission](dotnet-contract-admission.md). It creates no Attempt,
-worktree or native execution. Python remains the deployed application until the
-separate migration cutover.
+worktree or native execution. See the
+[release/cutover guide](../../deployment/README.md) for current operations.
 
 ## Callable acquisition and admission
 

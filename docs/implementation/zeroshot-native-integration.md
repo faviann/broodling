@@ -1,327 +1,120 @@
-# Thin native Zeroshot integration
+# Native Zeroshot integration
 
-**Current implementation reference.** The
-[current architecture and operating status](../governing/current.md) governs
-scope; this document supplies the detailed native boundary.
+The [current architecture](../governing/current.md) governs product responsibility.
+C# owns the application; the [dispatch seam](dotnet-native-dispatch.md) is the
+detailed reference for frozen invocation, policy, SDK transport and correlation.
+[Completion](dotnet-receipt-completion.md) and
+[stop/retirement/replacement](dotnet-retirement-replacement.md) own lifecycle
+decisions. The [release guide](../../deployment/README.md) describes packaging,
+target readiness and the separate operational cutover gate.
 
-The .NET migration's [F dispatch seam](dotnet-native-dispatch.md) implements the
-frozen invocation, C# execution policy, narrow SDK transport and correlation.
-[G completion](dotnet-receipt-completion.md) adds receipt-backed results and
-application wait. The [H stop/retirement/replacement seam](dotnet-retirement-replacement.md)
-adds safe lifecycle operations. Python continues to define the deployed lifecycle
-until the separate cutover.
+## Responsibility and selected workflow
 
-Decision date: 16 September 2026. This is the current implementation boundary.
-It supersedes the removed custom execution/proof requirements and recovery
-capability claims. Immutable admission, source entitlement, current-Attempt
-authority, and effect authorization remain product requirements.
+Broodling freezes one admitted Work Unit/Attempt with complete entitled sources,
+Contract, original B1, source/workspace identity and exact effect authority.
+Zeroshot's standard `software-change` workflow owns implementation, independent
+acceptance/code review, repair, provider sessions and native delivery.
+Broodling consumes public results without reconstructing graph history or adding
+a supervisor, separate adjudication record or mechanical-evidence execution.
 
-## Decision
+Criteria alone can be admitted. Evidence population, validation action/seam and
+falsifying observation remain optional frozen guidance. Unsupported obligations,
+effect-dependent evidence, unresolved prerequisites and selected-final-material
+requests still refuse; repository guidance cannot amend stored authority.
 
-Broodling prepares one immutable Work Unit/Attempt invocation, selects native
-delivery from that Work Unit's frozen effect authority, submits it to Zeroshot's
-standard `software-change` workflow, consumes the eventual native result, and
-makes its own lifecycle decision.
+| Frozen effects | Native selection and Broodling outcome |
+| --- | --- |
+| Empty | LocalTarget, `delivery=none`. Native success has null output and no stable accepted result; successful disposition refuses. |
+| Exactly one GitHub `pull_request` naming a target branch | DirectTarget, `delivery=pull_request`, with frozen repository, authorized branch and original B1 selectors. A matching `v1/pr/opened` receipt supplies a stable non-B1 `headRevision`. |
+| Other, mixed, multiple or underspecified | Refusal; no implicit fallback or wider effect. |
 
-An empty effect set selects `delivery="none"`; it never acquires PR authority by
-configuration or fallback. Exactly one `pull_request` effect naming a target
-branch selects `delivery="pull_request"`. Every other, mixed, underspecified or
-multiple effect declaration is refused. Because LocalTarget binds delivery to
-the checked-out branch while Broodling uses a synthetic Attempt branch, authorized
-PR work uses a configured DirectTarget and passes the frozen repository, target
-branch and B1 revision through Zeroshot's supported source selectors. PR delivery
-is refused unless the Work Unit's frozen forge host is `github.com`.
+PR delivery includes native commit, push and open-or-update. It promises neither
+passing CI nor merge. Broodling retains the full matching receipt and commits
+completion/current-authority loss atomically for the exact Attempt.
 
-The product owner explicitly selected the standard workflow over Broodling's
-extra mechanical-evidence, separate-adjudication, and criterion-by-criterion
-final-rationale record. The owner also selected blocked cleanup/retry when
-cessation is uncertain over another Broodling execution supervisor.
+## Pinned dependency and bridge
 
-The owner also removed admission preconditions requiring a finite evidence
-population, validation seam, validation action, and falsifying observation for
-every criterion. Acceptance criteria are enough; any already-available validation
-guidance is passed through immutably. Choosing and performing validation belongs
-to the standard workflow, not to an upstream Broodling proof-plan gate.
+The official [Zeroshot 10.3.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.3.0)
+and [SDK 10.3.0.post1](https://github.com/the-open-engine/zeroshot/releases/tag/zeroshot-python-v10.3.0_1)
+remain selected. The Linux x86-64 wheel bundles the native engine; its exact URL
+and SHA-256 live in [bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt).
 
-These are capability decisions, not just renamings. A successful supported
-workflow is the acceptance authority for the frozen task. Broodling no longer
-requires an independently collected execution proof record. It no longer claims
-automatic safe recovery from a dispatched local run.
+The sole production Python source file is
+[zeroshot_bridge.py](../../src/Broodling/bridge/zeroshot_bridge.py). It translates
+one version/submit/wait/stop request into the official SDK, returns public fields
+or typed error classification and exits. It owns no Broodling policy, database,
+lifecycle or recovery. C# validates versions and owns authority, credentials,
+same-key reconciliation and receipt validation. Controlled Python SDK/provider
+fixtures remain test-only.
 
-## Dependency and supported model
+The fixed PR runtime is uniform Codex / `gateway` / `gpt-5.6-sol` / medium /
+small / execution-scoped sessions through exactly
+`https://cliproxy.local.faviann.com/v1`. Codex stays **0.153.4**. The no-effect
+LocalTarget uses Codex/OpenAI. Per-node runtime, model/harness selection,
+node-local OAuth PR delivery and fleet placement remain unsupported.
 
-The adopted stable release is [Zeroshot 10.3.0](https://github.com/the-open-engine/zeroshot/releases/tag/v10.3.0),
-with the matching [Python SDK 10.3.0.post1](https://github.com/the-open-engine/zeroshot/releases/tag/zeroshot-python-v10.3.0_1).
-The Python package is `the-open-engine-zeroshot`, imported as `zeroshot`.
-The official platform wheel bundles the matching Rust executable. Python exposes
-typed requests/results and transport; native Zeroshot owns graph admission,
-workflow expansion, execution, state, and provider behavior. The project pins the
-official Linux x86-64 wheel URL and SHA-256 in [pyproject.toml](../../pyproject.toml).
-It does not rebuild or source-hash the old development SDK.
+## Dispatch, recovery and completion
 
-The material release capabilities used by this integration are:
+Preparation retains the immutable request and submission key. A short transaction
+commits dispatch intent before the external SDK call; no SQLite writer spans it.
+Concurrent callers submit the identical request and converge through native
+submission-key idempotency. An acknowledgement arriving after abandonment is
+retained as factual correlation without restoring authority.
 
-- `Preset("software-change", delivery="none"|"pull_request")` supplies implementation,
-  independent acceptance/code review, and bounded repair. Broodling chooses the
-  preset; it neither authors nor interprets its graph.
-- `UniformRuntime` supplies the provider/model configuration and
-  `session_scope="execution"`. Zeroshot owns occurrence roles and fresh execution
-  sessions; Broodling supplies the explicit local policy described below.
-- `submission_key` provides native idempotency and a typed conflict carrying the
-  existing run identity.
-- `get_run(run_id).wait()` returns the eventual result, including one already
-  completed before Broodling reconnects. Cancellation or a transport failure
-  detaches a waiter; it is not abandonment or an execution restart.
-- `force_stop()` requests native stop. Its terminal result is not a public
-  physical-cessation receipt for a local provider process tree.
+Acknowledgement-loss replay uses only current authority and the exact frozen
+invocation. Native conflict alone cannot establish safe recovery; the narrow
+owned-source/HEAD-drift case is checked in C#. Abandoned unknown-run work is never
+replayed to discover execution.
 
-The deliberately simple V1 authorized-PR execution profile fixes the standard
-`software-change` preset with native `pull_request` delivery through
-`DirectTarget`, and fixes one `UniformRuntime` for every executable workflow
-node: Codex harness, `gateway` provider through CLIProxyAPI at exactly
-`https://cliproxy.local.faviann.com/v1`, `gpt-5.6-sol`, medium reasoning effort,
-small size, and execution-scoped sessions. Broodling does not expose harness,
-provider, model, effort, or per-node runtime selection in V1. Node-local OAuth,
-`RuntimePlan` overrides, skill/tool capability profiles, and fleet scheduling
-remain future profiles rather than latent alternatives in this interface.
+PR dispatch/replay requires current `GH_TOKEN`, `GATEWAY_API_KEY` and the exact
+gateway URL. Values travel separately from the persisted request. After durable
+correlation, wait/stop use only the frozen locator and run identity with an empty
+explicit SDK environment; they need no old workspace or dispatch credentials.
+Cancelling/killing a bridge waiter detaches that caller rather than stopping native
+execution. Completed receipt replay needs no target.
 
-Issue #81 changes only the authorized-PR provider/credential binding. The no-effect
-LocalTarget retains its Codex/OpenAI runtime. Zeroshot 10.3.0 already supports the
-gateway lane: its [connection fields](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_capsule/gateway.rs#L9-L31)
-and [uniform-runtime connection selection](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_cli/execution/submission.rs#L432-L449)
-require `GATEWAY_BASE_URL` and `GATEWAY_API_KEY`; its
-[Codex configuration](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_codex/command.rs#L129-L142)
-uses the gateway Responses API without OpenAI authentication. The pinned
-[gateway authentication policy](https://github.com/the-open-engine/zeroshot/blob/054ad3fd6c763b98d12f5b2e90830b97116561ad/zeroshot/src/native_v2_codex/command.rs#L42-L63)
-rejects conflicting Codex/OpenAI/OpenRouter/Bedrock provider credentials.
-No Zeroshot or SDK upgrade is needed for this supported seam.
-
-Execution-scoped freshness separates provider sessions between occurrences.
-Within an execution, Zeroshot may resume its own session for response correction
-or provider retries. Broodling no longer forces CLI-session disposal, which would
-break that supported behavior. This is one concrete case where the native
-workflow replaces a historical Broodling policy rather than merely translating
-its configuration.
-
-## Responsibilities that remain
-
-No retained responsibility below interprets execution history or replaces native
-control flow. Each protects a Broodling outcome that the supported native model
-does not represent or configure.
-
-| Broodling responsibility | Concrete outcome | Why native behavior alone is insufficient |
-| --- | --- | --- |
-| Entitled source snapshots, immutable Contract revision, and exact delivery authorization | Preserve the exact authorized task and permit only its one declared result effect. | Zeroshot accepts a selected preset; it does not know whether this Work Unit authorized that delivery. |
-| One current Attempt, original B1, and exclusive worktree ownership | A result cannot complete another Attempt; host setup/deletion cannot target somebody else's checkout. | A `LocalTarget` uses a supplied workspace but does not own Broodling's Attempt authority, B1 policy, or disposal entitlement. |
-| Persisted invocation and Attempt-to-run correlation | A repeated call or lost acknowledgement refers to the same admitted work, never a newly invented invocation. | Native idempotency does not persist the caller's Work Unit/Attempt relationship. Local source resolution also includes current HEAD, which can change after accepted work starts. |
-| Explicit no-effect/user-configuration policy | Restrict supported tool/network settings and avoid inheriting ambient Codex user configuration or exec-policy escalation on the declared trusted-host profile. | The local worker defaults enable shell networking and resolve user configuration; the public runtime has no fields for these network/configuration policies. This does not exclude repository guidance or replace the managed-configuration host precondition below. |
-| Current-authority check and atomic stable-result/disposition retention | Only the still-authoritative Attempt can complete, and only from the delivery it authorized. | Zeroshot's run result does not mutate Broodling's lifecycle database or decide its effect policy. |
-| Fail closed when no stable result exists | A null no-effect result cannot be mislabeled as an immutable accepted candidate. | Zeroshot 10.3 has no local commit/artifact delivery; Broodling reports the gap instead of snapshotting or supervising. |
-| Refuse cleanup/retry without safety authority | Do not delete a workspace or start a replacement while an old writer might survive. | `LocalTarget` has no general public physical-cessation receipt, including after controller loss. Broodling declines the operation instead of adding a supervisor. |
-
-Broodling still uses locks and durable transitions for its own SQLite/Git
-administrative operations. Those serialize admission, provisioning, correlation,
-and safe undispatched retirement writes; they do not serialize the external
-Zeroshot submission call or supervise execution.
-
-## Invocation and result
-
-Preparation freezes the canonical Contract, exact entitled instruction snapshots,
-original comparison base B1, workspace/source identity, authorized delivery,
-native preset/runtime, target configuration, and submission key. Callers cannot supply a replacement
-graph or a different per-call task. A criterion may supply only its identity and
-acceptance statement. An evidence population, validation seam/action, and
-falsifying observation are optional task guidance, not Broodling-run evidence
-commands or admission requirements. Historical supplied guidance remains part of
-its immutable Contract. Unsupported effects and external obligations,
-effect-dependent evidence, and unsatisfied prerequisites still fail closed;
-removing the proof-plan gates does not waive those domain restrictions.
-
-Broodling durably marks dispatch before the external call, releases its SQLite
-writer, then stores the returned run ID in a second short transaction.
-Independent Work Units and lifecycle writes therefore remain concurrent with a
-slow native submission. Concurrent callers for one Attempt may both cross the
-SDK seam with the exact persisted request; Zeroshot's submission-key idempotency
-is the duplicate-prevention boundary, and Broodling requires every response to
-converge on one run ID. Reconciliation repeats only the identical invocation. A
-typed native conflict can recover the existing run ID only for the narrow case
-of an already-dispatched request whose owned source assignment still matches and
-whose HEAD has changed from B1. Other source/configuration conflicts fail closed.
-DirectTarget replay uses the same explicit source triple, so an exact retry
-normally returns the existing run without local worktree drift. Because provider
-and delivery credentials are intentionally absent from persisted requests,
-Broodling checks explicit current `GATEWAY_BASE_URL`, `GATEWAY_API_KEY` and
-`GH_TOKEN` inputs again before every initial or replayed PR dispatch, outside the
-SQLite writer transaction. Missing/empty gateway inputs, a base URL other than
-exactly `https://cliproxy.local.faviann.com/v1`, or conflicting legacy provider
-credentials in the dispatch environment fail closed before the SDK dispatch.
-There is no lease, ledger scan, execution discovery, or runtime replay algorithm.
-
-Abandonment may commit while submission is in flight. If Zeroshot subsequently
-acknowledges a run, Broodling retains that factual Attempt-to-run correlation but
-reports that current authority was lost; abandonment still prevents disposition.
-If acknowledgement was lost before abandonment, Broodling does not replay after
-authority is gone. The unresolved dispatched Attempt remains quarantined.
-
-Finalization waits through the public SDK. A successful result must name the
-correlated run, and the Attempt must remain current and bound to the unchanged
-admitted invocation. For PR delivery, the exact native v1/pr/opened receipt must
-match the frozen repository and target branch; its non-B1 `headRevision` is the
-stable accepted result. Broodling retains the whole receipt without re-reading
-the mutable worktree. Native PR delivery owns commit, push, PR creation/update,
-repair and receipt validation.
-
-After durable correlation, Broodling reconnects from the locator already frozen
-in that invocation: LocalTarget uses the canonical native state directory and
-DirectTarget uses the persisted target origin. Waiting and force-stop do not
-reconstruct or revalidate the dispatch-time workspace, Codex profile, runtime,
-provider environment, target configuration, `GATEWAY_BASE_URL`, `GATEWAY_API_KEY`,
-or `GH_TOKEN`.
-Those remain strict requirements for new dispatch and acknowledgement-loss replay only. Completion
-still rechecks current Attempt authority, admitted Contract and delivery
-authority, the immutable Attempt/run/invocation binding, and the native delivery
-receipt.
-
-For no-effect delivery, Zeroshot 10.3 succeeds with `output=None`. Broodling does
-not turn that mutable workspace into a completed result: final disposition fails
-closed with the explicit local-result capability gap. A native failure abandons
-the Attempt but does not grant cleanup authority. Explicit abandonment also
-prevents a later successful result from completing the Work Unit.
-
-Successful result retention and disposition commit together in one SQLite
-transaction. A failed write grants no partial completion; another call may
-consume the same native result. A cancelled/unavailable wait likewise leaves the
-Attempt available for another wait. There is no live observer, completion-window
-marker, or finalization recovery protocol.
-
-The result record retains the Attempt, Contract revision, run identity, preset,
-accepted revision and entire Zeroshot delivery receipt. The old selected-material
-collector is removed: new Contracts that request it are refused rather than
-silently ignored, while historical records remain readable.
+Completion rechecks currentness, admitted Contract, invocation/run binding and
+exact authorized delivery. Native failure records abandonment; invalid receipts,
+late success after abandonment and no-effect stable-result gaps refuse successful
+completion. Store errors grant no partial disposition.
 
 ## Local policy and cleanup limitation
 
-The launcher policy below applies to `delivery="none"` LocalTarget execution.
-Authorized PR delivery uses the configured Zeroshot DirectTarget, whose operator
-owns its provider installation and sandbox profile. Zeroshot 10.3.0 DirectTarget
-has no target-owned connection store or resolver, so Broodling supplies the
-current `GATEWAY_BASE_URL`, `GATEWAY_API_KEY` and `GH_TOKEN` only through the SDK
-environment at dispatch. Zeroshot selects the two gateway fields for the runtime's
-declared `gateway` connection and reserves `GH_TOKEN` for source checkout and the
-native delivery binding. No `OPENAI_API_KEY` is sent. Gateway inputs and credential
-values are absent from persisted Contracts, requests and runtime plans; credential
-values are also excluded from logs and evidence. Reconnect/wait/stop clients use
-an empty explicit environment. The CLIProxyAPI base URL is distinct from the
-Zeroshot DirectTarget origin. The frozen Contract
-authorizes the PR effect, not general provider access or any additional effect.
-Configuring that endpoint is therefore a hard operator trust boundary: Broodling
-freezes its origin into the invocation and refuses a changed endpoint on replay,
-but it cannot qualify or constrain the remote target's installation from the
-local SDK.
+The [C# Codex launcher](../../src/Broodling/CodexLauncher.cs) applies explicit
+workspace-write worker/read-only verifier modes, strips sandbox/approval bypasses,
+disables shell networking, search, apps/plugins/hooks/notifications and excludes
+ambient Codex user config and exec-policy rules. It uses isolated homes, refuses
+app-server probing and `execve`s the configured CLI with the same PID/stdin.
+It interprets no prompts/results and supervises no execution.
 
-The small [Codex launcher](../../broodling/codex_bin/codex) applies explicit
-workspace-write worker/read-only verifier sandbox modes, strips sandbox/approval
-bypass flags, disables shell networking and web search, and selects explicit
-isolated homes. `--ignore-user-config` excludes the Codex-home `config.toml`;
-`--ignore-rules` excludes exec-policy `.rules` files. Approval is always `never`.
-Supported CLI overrides also set `features.apps=false`,
-`features.plugins=false`, `features.hooks=false`, and `notify=[]` to disable those
-effect-capable extension paths outside the shell sandbox.
-The launcher refuses the native app-server
-configuration probe so Zeroshot uses its supported unavailable-config fallback
-rather than consulting ambient configuration. Execution then `exec`s the
-configured Codex CLI.
-It does not fork a supervisor, track PIDs, interpret prompts/responses, dispatch
-evidence commands, or perform cleanup. Native Zeroshot owns the launched process.
+Local HOME starts empty and CODEX_HOME auth-only. Launcher/executable/state remain
+outside candidate/shared Git. Current repository guidance can be execution
+context but cannot change frozen Contract/source authority.
 
-These switches do not disable `AGENTS.md` or ordinary project documentation.
-Zeroshot's standard workflow may use current repository guidance as execution
-context. The frozen Contract and entitled snapshots remain Broodling's admission
-authority; repository edits cannot amend those stored facts. Broodling trusts the
-supported workflow to carry out that task rather than independently proving that
-an agent never follows erroneous repository guidance.
+**The local profile requires a trusted host with no operator-managed
+effect-capable MCP or extension configuration.** An empty managed
+`[mcp_servers]` allowlist can enforce that precondition. Broodling does not scan
+arbitrary managed settings or prove their enforcement. Shell network restrictions
+are not a universal no-effect guarantee.
 
-The selected CLI is `codex-cli 0.153.4`. Host-provisioned HOME starts empty;
-CODEX_HOME starts auth-only. Explicit SDK environment values suppress ambient
-homes/configuration/scratch variables; the native engine still selects its own
-exact execution TMPDIR. These fresh homes carry no project-trust grants;
-repository `.codex` configuration cannot grant itself trust. This is distinct
-from the standard workflow reading repository guidance.
-Codex's supported
-[`exclude_slash_tmp=true` setting](https://learn.chatgpt.com/docs/config-file/config-reference) removes
-the broad writable `/tmp` root, so the old shared-Git-outside-`/tmp` prohibition
-is unnecessary. Profiles/executables remain outside the candidate, and native
-control state has a canonical directory separate from candidate/shared Git data.
-This is a configured local policy, not a new qualification claim against
-arbitrary host compromise or malicious sandbox escapes.
+**Every dispatched Attempt is permanently ineligible for automatic cleanup or
+replacement**, even after native success or force-stop. `StopAsync` commits
+abandonment and requests native stop when known; a terminal result still provides
+no physical-cessation receipt. Operators retain emergency containment
+responsibility. There is no override turning incomplete proof into cleanup
+authority. An exactly owned, proven never-dispatched Attempt can be explicitly
+retired and replaced from original B1 under the lifecycle seam.
 
-There is also a managed-configuration limit: operator-managed/system Codex
-configuration can declare MCP servers. The selected CLI has no universal
-unknown-server-name MCP-off override; `mcp_servers={}` merges configuration and
-does not reliably remove inherited server entries. **This local profile requires
-a trusted host with no operator-managed effect-capable MCP or extension
-configuration.** Administrators can enforce an empty `[mcp_servers]` allowlist in
-managed `requirements.toml`. An environment where that precondition is not known
-to hold is outside this no-effect profile. Broodling does not reproduce Codex's
-configuration interpreter, scan arbitrary managed settings, or independently
-prove the dependency's enforcement. Shell-network restrictions alone are not a
-universal no-effect guarantee.
+## Evidence and history
 
-Native local process-group cleanup does not establish the stronger escaped-child
-cessation guarantee previously supplied by Broodling's own containment machinery.
-Because the public result has no receipt for that guarantee, the current policy
-is conservative: **every Attempt dispatched under this integration is ineligible
-for automatic cleanup or replacement**, even if a terminal result reports success
-or force stop.
-`AbandonmentCoordinator.stop` records irreversible abandonment and requests native
-stop when the run is known. Even a returned terminal result yields
-`CessationUnconfirmed`; an unavailable stop also grants no cleanup authority. An
-unknown run ID is not recovered by replaying execution from the stop path.
+The [TUnit suite](../../tests/README.md) covers Broodling authority, Git/SQLite
+durability and controlled released-SDK/native behavior. Stub PR receipts are
+distinct from live DirectTarget delivery. Neither establishes provider quality,
+hostile sandbox resistance or physical cessation. [P5 remains scoped FAIL](../../evaluation/p5/README.md),
+requiring human review of each exact accepted revision.
 
-An Attempt proven never materialized or never dispatched can still be retired
-under Broodling's exact ownership checks. Explicit replacement then uses its
-original admitted B1 and the same empty/auth-only pre-dispatch profile policy;
-it never reuses an abandoned candidate. Fresh execution-scoped provider sessions
-are Zeroshot's responsibility. There is no separate retry-home reservation
-registry or scan of historical provider context. Dispatched recovery requires a
-stronger supported execution target/receipt or a separate operator-established
-safe host boundary.
-This version provides no bypass that promotes a terminal label or unfinished
-historical cessation proof into new cleanup authority. Already-completed
-historical retirements remain recorded facts; the new policy does not undo them.
-
-## Removed machinery and historical compatibility
-
-Removed: the authored assurance graph and its routing/bookkeeping policy,
-deterministic evidence worker and prompt-dispatch workaround, separate reviewer
-projection, criterion-by-criterion final proof capture, live run observation,
-candidate-generation/provenance bookkeeping, process containment supervisor,
-SDK source-hash qualification gate, retry-home reservation/context-scanning
-machinery, and finalization markers. The associated custom execution fixtures
-and campaigns were deleted. Native capability gaps
-are stated above rather than recreated behind new abstractions.
-The four historical proof-plan admission gates and their refusal tests were also
-removed; criteria-only admission now exercises the simpler supported boundary.
-
-The `final_assurance` storage name remains so historical records stay readable;
-new stable delivery records are tagged `broodling.final-assurance/v3`. Schema v10
-migration preserves v9 stores created by earlier PR revisions as well as
-old admission/custody/disposition facts and completed retirements but removes the
-obsolete `attempt_finalizations` mechanism. An old proof record cannot authorize a new
-standard-workflow disposition. Old invocation configurations are not mechanically
-rewritten to target the new release or preset.
-
-Historical qualification reports and versioned designs remain in Git history.
-Their passes do not transfer to this release. The new acceptance model
-deliberately does not promise the extra proof record or automatic dispatched-run
-recovery.
-
-## Validation boundary
-
-The [test suite](../../tests/README.md) concentrates on Broodling's admission,
-identity, lifecycle, custody, migration, policy, and public SDK seams. Native
-workflow tests use the published SDK/bundled executable with a controlled Codex
-provider and assert resulting candidate/run binding, not internal graph traces.
-They do not qualify paid-provider reasoning, sandbox escape resistance, or a
-physical-cessation capability. The PR description records the exact validation
-commands and results for this change.
+.NET state uses its own format; Python schema history and application APIs are
+retired, with no import or in-flight takeover. The prior implementation and
+removed assurance/supervisor machinery remain
+[dated history](https://github.com/faviann/broodling/blob/b3f61a96c40401722ec16fc361958d1690982e02/docs/implementation/zeroshot-native-integration.md).
+Historical passes do not transfer to the current release.

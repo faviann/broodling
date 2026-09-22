@@ -2,8 +2,9 @@
 
 [H #139](https://github.com/faviann/broodling/issues/139) adds lifecycle operations
 over B's abandonment, C's owned materialization and F's native transport. The
-frozen Python reference is `b3f61a96c40401722ec16fc361958d1690982e02`. Python
-remains the deployed application until the separate migration cutover.
+frozen Python reference is `b3f61a96c40401722ec16fc361958d1690982e02`. The
+[release guide](../../deployment/README.md) separates current .NET source support
+from the future owner-approved operational switch.
 
 ## Application and operator operations
 

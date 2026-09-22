@@ -4,8 +4,8 @@
 slice of [#130](https://github.com/faviann/broodling/issues/130). It supplies
 callable state lifecycle, Work Unit identity and entitled-source custody. It
 grants no Contract, Attempt or execution authority by itself. [A2](dotnet-contract-admission.md)
-composes these facts into supplied-source Contract admission. The supported deployed
-application remains Python until the separate migration cutover.
+composes these facts into supplied-source Contract admission. See the
+[release/cutover guide](../../deployment/README.md) for current operations.
 
 ## Application API
 
@@ -72,7 +72,7 @@ refuse source updates/deletes, identity rewrites/unpinning and submission rewrit
 ## State lifecycle and persistence decision
 
 Initialization exclusively reserves a new filesystem path and creates a distinct
-`broodling.dotnet` schema (currently version 3). It refuses existing files and orphan SQLite
+`broodling.dotnet` schema (currently version 7). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
 Store paths inside a marked disposable Attempt enclosure refuse, including paths
 through parent symlinks. Caller paths containing malformed UTF-16 refuse with
@@ -85,12 +85,10 @@ full synchronization. An incompatible or unknown file is not initialized or
 rewritten. Foreign keys and immediate write transactions enforce custody.
 
 `UpgradeStore` accepts an already-current store unchanged and explicitly upgrades
-the original A1 version 1 or A2 version 2 to version 3 by adding missing
-Contract/admission and Attempt storage in one transaction. Existing identity,
-submission, source, Contract and initialization facts remain unchanged; ordinary
-open refuses historical versions. The [B reference](dotnet-attempt-allocation.md)
-records the current schema and upgrade witnesses. Later schema changes must continue
-to preserve existing .NET facts through explicit upgrades.
+recognized .NET versions 1–6 to version 7 in one transaction, preserving retained
+facts and initialization identity. Ordinary open refuses historical versions.
+The [H reference](dotnet-retirement-replacement.md#explicit-replacement-and-schema)
+records the current schema boundary; authentic v1–v6 fixtures exercise upgrades.
 Python databases, migration history and imports are intentionally unsupported;
 they must remain at separate paths and must never be silently replaced.
 
@@ -122,7 +120,7 @@ rollback, immutable source bytes/provenance and direct SQL amendment refusal.
 Lifecycle cases preserve existing bytes when open/upgrade/initialize refuse
 missing, foreign, Python-shaped, corrupt or incompatible state. These supplement
 the [exact frozen Python baseline](../migration/130-baseline-validation.md);
-they do not replace the full Python suite during migration.
+the [retirement record](../migration/140-retirement.md) describes the current gate.
 
 Validation on 22 September 2026 with .NET SDK 10.0.401: the command above passed
 34 tests, with zero failures or skips. A separate compiled-host CLI smoke

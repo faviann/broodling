@@ -1,5 +1,10 @@
 # Issue #77 deployment validation
 
+**Historical Python deployment evidence only.** This record does not validate
+a live .NET installation. Its commands and retired installer belong to the
+[recorded implementation tree](https://github.com/faviann/broodling/tree/f87bb335ce816098b3ff797d5c4cc970e23cce9e).
+Current release/operations guidance is in [README.md](README.md).
+
 Validated on 19 September 2026 against implementation commit
 `f87bb335ce816098b3ff797d5c4cc970e23cce9e`. Subsequent changes in this issue are
 documentation/evidence only. This is one authorized deployment smoke check,
@@ -131,7 +136,7 @@ configuration. The native retained files inspected also contained neither value.
 Only allowlisted nonsecret facts are recorded here; no credential value, digest,
 raw environment, or provider transcript is included.
 
-Remaining limits are the [deployment guide's limits](README.md#retention-and-limitations):
+Remaining limits are the [historical deployment guide's limits](https://github.com/faviann/broodling/blob/f87bb335ce816098b3ff797d5c4cc970e23cce9e/deployment/README.md#retention-and-limitations):
 supervised PR proposals with external review, persistent single-host ownership,
 fixed gateway/runtime, no no-effect stable completion, no dispatched cleanup or
 replacement, and no automatic merge/deployment or semantic reliability claim.

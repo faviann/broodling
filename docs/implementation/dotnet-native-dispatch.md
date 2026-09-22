@@ -3,8 +3,8 @@
 [F #137](https://github.com/faviann/broodling/issues/137) composes the existing
 acquisition, admission, Attempt allocation and
 [owned materialization](dotnet-worktree-materialization.md) with the pinned
-Zeroshot SDK. This is a migration candidate; Python remains the deployed
-application until the separate cutover. The frozen parity baseline is
+Zeroshot SDK. The [release guide](../../deployment/README.md) describes current
+packaging and the separate operational cutover gate. The frozen parity baseline is
 `b3f61a96c40401722ec16fc361958d1690982e02`. The #130 spike is protocol evidence,
 not an adopted API or a claim of real PR delivery.
 
@@ -65,7 +65,8 @@ material and current Attempt authority. It acquires C's stable enclosure lock
 before the short SQLite writer and releases both before the external SDK call.
 No subprocess owns that lock during native execution.
 
-Schema **5** adds one `native_submissions` row per provisioned Attempt. SQL
+F introduced schema **5**, retained within the current schema **7**, with one
+`native_submissions` row per provisioned Attempt. SQL
 constraints/triggers protect the request/key and permit only
 `prepared → dispatched → correlated|blocked`. Preparation and dispatch require
 current authority. Correlation deliberately does not: an acknowledgment arriving
@@ -87,7 +88,7 @@ and HEAD drift from original B1, checked again after the call. Dirty files alone
 an error message, or a run ID alone cannot establish recovery.
 
 Ordinary open never creates or upgrades a store. Explicit upgrade recognizes
-the unchanged definition hashes for schemas 1–4 and adds missing tables in one
+the unchanged definition hashes for schemas 1–6 and applies missing migrations in one
 transaction. The authentic pre-F schema-4 fixture retains all prior records,
 including first provisioning acknowledgment and abandonment. Upgrade invents no
 past dispatch. Its provenance and exact hashes are in the
@@ -104,7 +105,8 @@ authorized target branch and original B1, never the synthetic Attempt branch.
 The DirectTarget origin is distinct from the gateway URL.
 
 The SDK is **10.3.0.post1**, its bundled native is **10.3.0**, and Codex is
-**0.153.4**. The wheel URL/digest remain in `pyproject.toml`. C# refuses the
+**0.153.4**. The wheel URL/digest are in
+[bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt). C# refuses the
 native-binary override and checks both reported SDK/native pins before each SDK
 operation. The bridge starts Python with `-I` and a minimal process environment.
 Dispatch explicitly blanks the baseline operating/home/config/scratch variables,
@@ -148,8 +150,9 @@ The launcher builds as self-contained Linux x64 with runtime **10.0.12**, so
 native's explicit environment does not depend on ambient `DOTNET_ROOT`. Use its
 complete output/publish directory; copying only `codex` is insufficient. The
 normal host and application remain .NET 10. Build/publish the launcher separately
-with `dotnet publish src/Broodling.Codex --configuration Release`; no installation
-or deployment is performed by F.
+with `dotnet publish src/Broodling.Codex --configuration Release`; the
+[release guide](../../deployment/README.md#build-a-release-artifact) packages
+both complete outputs without installing or deploying them.
 
 `INativeTransport` exposes `SubmitAsync(requestJson, credentials)`,
 `WaitAsync(locator, runId)` and `StopAsync(locator, runId)` for G/H. The Python
