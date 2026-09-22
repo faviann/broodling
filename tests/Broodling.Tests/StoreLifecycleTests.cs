@@ -12,14 +12,7 @@ public sealed class StoreLifecycleTests
     public async Task AuthenticSchemaFiveRequiresDeliberateUpgradeAndPreservesEveryFrozenFact()
     {
         using var fixture = new StoreFixture();
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fixture.Path)!);
-        using (var connection = new SqliteConnection($"Data Source={fixture.Path};Pooling=False;Foreign Keys=False"))
-        {
-            connection.Open();
-            using var restore = connection.CreateCommand();
-            restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "dotnet-v5.sql"));
-            restore.ExecuteNonQuery();
-        }
+        Restore(fixture, "dotnet-v5.sql");
         string Facts() => RetainedFacts(fixture, "work_units", "work_submissions", "entitled_sources", "contract_revisions",
             "contract_sources", "admission_decisions", "attempts", "attempt_abandonments", "worktree_provisions", "native_submissions");
         var before = Facts();
@@ -46,14 +39,7 @@ public sealed class StoreLifecycleTests
     public async Task AuthenticSchemaFourRequiresExplicitUpgradeAndRetainsMaterializationAndEveryEarlierFact()
     {
         using var fixture = new StoreFixture();
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fixture.Path)!);
-        using (var connection = new SqliteConnection($"Data Source={fixture.Path};Pooling=False;Foreign Keys=False"))
-        {
-            connection.Open();
-            using var restore = connection.CreateCommand();
-            restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "dotnet-v4.sql"));
-            restore.ExecuteNonQuery();
-        }
+        Restore(fixture, "dotnet-v4.sql");
         string Facts() => RetainedFacts(fixture, "work_units", "work_submissions", "entitled_sources", "contract_revisions",
             "contract_sources", "admission_decisions", "attempts", "attempt_abandonments", "worktree_provisions");
         var before = Facts();
@@ -79,14 +65,7 @@ public sealed class StoreLifecycleTests
     public async Task VersionThreeExplicitUpgradePreservesOriginalAttemptAllocationAndAbandonmentFacts()
     {
         using var fixture = new StoreFixture();
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fixture.Path)!);
-        using (var connection = new SqliteConnection($"Data Source={fixture.Path};Pooling=False;Foreign Keys=False"))
-        {
-            connection.Open();
-            using var restore = connection.CreateCommand();
-            restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "dotnet-v3.sql"));
-            restore.ExecuteNonQuery();
-        }
+        Restore(fixture, "dotnet-v3.sql");
         string Facts() => RetainedFacts(fixture, "work_units", "work_submissions", "entitled_sources", "contract_revisions",
             "contract_sources", "admission_decisions", "attempts", "attempt_abandonments");
         var before = Facts();
@@ -112,14 +91,7 @@ public sealed class StoreLifecycleTests
     {
         using var fixture = new AttemptFixture();
         using var old = new StoreFixture();
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(old.Path)!);
-        using (var connection = new SqliteConnection($"Data Source={old.Path};Pooling=False;Foreign Keys=False"))
-        {
-            connection.Open();
-            using var restore = connection.CreateCommand();
-            restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "dotnet-v2.sql"));
-            restore.ExecuteNonQuery();
-        }
+        Restore(old, "dotnet-v2.sql");
         string Facts() => RetainedFacts(old, "work_units", "work_submissions", "entitled_sources",
             "contract_revisions", "contract_sources", "admission_decisions");
         var before = Facts();
@@ -146,17 +118,7 @@ public sealed class StoreLifecycleTests
     public async Task VersionOneRequiresExplicitUpgradeAndRetainsEveryIdentitySubmissionAndSourceFact()
     {
         using var fixture = new StoreFixture();
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fixture.Path)!);
-        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-        {
-            DataSource = fixture.Path, Pooling = false, ForeignKeys = false
-        }.ToString()))
-        {
-            connection.Open();
-            using var restore = connection.CreateCommand();
-            restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "dotnet-v1.sql"));
-            restore.ExecuteNonQuery();
-        }
+        Restore(fixture, "dotnet-v1.sql");
         string Facts() => RetainedFacts(fixture, "work_units", "work_submissions", "entitled_sources");
         var before = Facts();
         var oldFile = File.ReadAllBytes(fixture.Path);
@@ -181,6 +143,19 @@ public sealed class StoreLifecycleTests
         using var repeatedUpgrade = fixture.Application.UpgradeStore(fixture.Path);
         await Assert.That(repeatedUpgrade.Information).IsEqualTo(upgradedInformation);
         await Assert.That(reopened.History(ContractIngressTests.Reference).Single().Decision!.Admitted).IsTrue();
+    }
+
+    private static void Restore(StoreFixture fixture, string name)
+    {
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fixture.Path)!);
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = fixture.Path, Pooling = false, ForeignKeys = false
+        }.ToString());
+        connection.Open();
+        using var restore = connection.CreateCommand();
+        restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
+        restore.ExecuteNonQuery();
     }
 
     private static string RetainedFacts(StoreFixture fixture, params string[] tables)
