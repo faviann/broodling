@@ -72,8 +72,8 @@ selected-object refusals, permitted ancestor-only loss, retention after GC and
 hook/environment/path boundaries. `StoreLifecycleTests` preserves actual v1/v2
 facts through explicit schema 3 upgrades. The [B implementation reference](../implementation/dotnet-attempt-allocation.md)
 records the APIs, 102-test evidence and C/F/G/H integration obligations. Allocation
-does not materialize a checkout. G must still add completed-Work-Unit admission
-guards when its result/disposition tables land.
+does not materialize a checkout. G adds the completed-Work-Unit admission guards
+at both the application and SQL boundaries.
 
 C's .NET witnesses are `WorktreeProvisioningTests.cs` and
 `ProvisioningProcessTests.cs`: exact recorded B1, unchanged owned candidate
@@ -116,8 +116,23 @@ stub PR-receipt transport evidence; neither qualifies live PR delivery or
 semantic correctness. The [F implementation reference](../implementation/dotnet-native-dispatch.md)
 documents complete callable/operator submit/resume, schema 5 and authentic
 schema-4 upgrades. Operator configuration and safe-error witnesses preserve the
-installed loopback and secret-exclusion boundaries. G/H still own completion,
-retirement and replacement.
+installed loopback and secret-exclusion boundaries. H still owns retirement and
+replacement.
+
+G's .NET witnesses are `AttemptCompletionTests`, `CompletionPersistenceTests`,
+the authentic schema-5 upgrade in `StoreLifecycleTests`, and one composed
+completion path in `InvocationTests`. They retain result/disposition/currentness
+atomically, validate exactly seven receipt fields (including string-only ASCII
+digit PR IDs without numeric restrictions), recheck frozen invocation authority,
+separate native failure from detached waits, and preserve exact historical
+Attempt reads after reopen with native unavailable. Schema 6 keeps nonunique
+Work Unit result cardinality separately from completed-work admission refusal,
+and requires abandonment or completion to justify currentness loss. The
+[G implementation reference](../implementation/dotnet-receipt-completion.md)
+records store/application wait, thin operator wait, completed submit/resume/
+status/history handback, owning witnesses and evidence limits. No-effect stable
+success remains refused; controlled receipts prove neither real DirectTarget
+delivery nor semantic correctness. H must preserve G's guards and schema hashes.
 
 ## Dependency graph
 

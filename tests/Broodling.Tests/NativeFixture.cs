@@ -51,8 +51,11 @@ internal sealed class ControlledTransport : INativeTransport
 {
     internal Func<string, IReadOnlyDictionary<string, string>, Task<string>> Submit { get; set; } = (_, _) => Task.FromResult("native-run");
     internal int Calls { get; private set; }
+    internal Func<NativeLocator, string, CancellationToken, Task<NativeResult>> Wait { get; set; } = (_, _, _) => throw new InvalidOperationException("Unexpected wait");
+    internal int WaitCalls { get; private set; }
     public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default)
     { Calls++; return Submit(requestJson, credentials); }
-    public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Unexpected wait");
+    public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default)
+    { WaitCalls++; return Wait(locator, runId, cancellationToken); }
     public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Unexpected stop");
 }

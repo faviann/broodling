@@ -47,6 +47,21 @@ ordinary open without changing the file, explicitly upgrade, reopen and repeat.
 - Original manifest hash: `00e8b937c1ba5f45b82e42ec7713c2ddff741cb358c6c6c22f8e67fc7726561a`.
 - SQL fixture SHA-256: `048e1740dab94a56f926d748fe25b5e30b3bc0409464de30baa70de5065672c9`.
 
+`dotnet-v5.sql` was captured on 22 September 2026 from F's actual application at
+`05db972a9e68940a48f2b547d938eae36459eec6`, compiled before G changed any source.
+Public initialization/admission/provisioning/preparation APIs created an owned
+local test store and Git checkout, caller-entitled issue bytes, a PR-authorized
+Contract, original B1/allocation, provisioning acknowledgment and prepared frozen
+native request. No native dispatch or external effect occurred. The dump retains
+original schema, metadata and every fact; G's schema builder did not fabricate
+the fixture. Its old filesystem paths are evidence only. Tests compare all old
+rows through deliberate upgrade, ordinary-open refusal, reopen and repeated
+upgrade, and exercise the new currentness guard.
+
+- Original definition hash: `8e73132b476ca3a6647e720a19a1a9b6d8ef4421db6d3789207e765592623a65`.
+- Original manifest hash: `b2ae125490e59a61100a2afd06ff17709f79986b928a80fcf94f573d5ec14a99`.
+- SQL fixture SHA-256: `3fe7cf1f409f45ec7314bd65466e1676584b3cccce099b322aa0071dbcb01555`.
+
 The F Python files here are test fixtures only. `receipt-sdk.py` substitutes SDK
 constructors/results around the production translator and proves precise PR
 receipt transport, not real DirectTarget delivery. `corrupt-submit.py` succeeds

@@ -12,14 +12,27 @@ public static class InvocationCommands
     public static async Task<int> RunAsync(string[] args, BroodlingApplication application, TextWriter output, TextWriter error,
         CancellationToken cancellationToken = default, GitHubIssueSource? source = null, INativeTransport? transport = null)
     {
-        if (!(args.Length == 10 && args[0] == "submit" || args.Length is >= 3 and <= 6 && args[0] == "resume"))
+        if (!(args.Length == 10 && args[0] == "submit" || args.Length is >= 3 and <= 6 && args[0] == "resume"
+            || args.Length is 3 or 4 && args[0] == "wait"))
         {
-            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]]");
+            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [python-executable]");
             return 2;
         }
         try
         {
             using var store = application.OpenStore(args[1]);
+            if (args[0] == "wait")
+            {
+                var completion = store.FindCompletion(args[2]);
+                if (completion is null)
+                {
+                    if (transport is null && args.Length < 4)
+                        throw new SubmissionNotReady("Waiting on an unretained result requires the pinned SDK Python executable.");
+                    completion = await store.WaitAsync(args[2], transport ?? new ZeroshotTransport(args[3]), cancellationToken);
+                }
+                output.WriteLine(JsonSerializer.Serialize(completion, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                return 0;
+            }
             AdmissionStatus? status = null;
             if (args[0] == "resume")
             {

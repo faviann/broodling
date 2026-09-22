@@ -6,7 +6,7 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 5;
+    internal const int Version = 6;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
 
@@ -16,7 +16,92 @@ internal static class StoreSchema
     internal const string VersionThreeSql = VersionTwoSql + "\n" + AttemptSql;
     internal static string VersionFourDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionFourSql));
     internal const string VersionFourSql = VersionThreeSql + "\n" + ProvisioningSql;
-    internal const string Sql = VersionFourSql + "\n" + DispatchSql;
+    internal static string VersionFiveDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionFiveSql));
+    internal const string VersionFiveSql = VersionFourSql + "\n" + DispatchSql;
+    internal const string Sql = VersionFiveSql + "\n" + CompletionSql;
+
+    // Result and disposition are one row: no intermediate successful custody can commit.
+    internal const string CompletionSql = """
+        CREATE TABLE attempt_completions (
+            attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
+            work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
+            contract_revision_id TEXT NOT NULL REFERENCES contract_revisions(contract_revision_id),
+            run_id TEXT NOT NULL UNIQUE,
+            receipt_json TEXT NOT NULL CHECK (json_valid(receipt_json)),
+            completed_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX completions_by_work ON attempt_completions(work_unit_id);
+        CREATE TRIGGER completion_bound BEFORE INSERT ON attempt_completions
+        WHEN NOT EXISTS (
+            SELECT 1 FROM attempts AS a
+            JOIN work_units AS w USING (work_unit_id)
+            JOIN contract_revisions AS c USING (contract_revision_id)
+            JOIN admission_decisions AS d USING (contract_revision_id)
+            JOIN native_submissions AS s USING (attempt_id)
+            WHERE a.attempt_id = NEW.attempt_id AND a.is_current = 1
+              AND a.work_unit_id = NEW.work_unit_id AND c.work_unit_id = a.work_unit_id
+              AND a.contract_revision_id = NEW.contract_revision_id AND d.outcome = 'admitted'
+              AND s.state = 'correlated' AND s.run_id = NEW.run_id
+              AND s.submission_key = 'broodling:dotnet:v1:' || a.attempt_id
+              AND json_extract(s.request_json, '$.submissionKey') = s.submission_key
+              AND json_type(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects') = 'array'
+              AND json_array_length(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects') = 1
+              AND json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].kind') = 'pull_request'
+              AND json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
+                  = json_extract(s.request_json, '$.source.branch')
+              AND json_extract(s.request_json, '$.preset.name') = 'software-change'
+              AND json_extract(s.request_json, '$.preset.delivery') = 'pull_request'
+              AND w.host = 'github.com'
+              AND json_extract(s.request_json, '$.source.repository') = w.owner || '/' || w.repository
+              AND json_extract(s.request_json, '$.source.revision') = a.b1_commit_oid
+              AND json_type(NEW.receipt_json) = 'object'
+              AND (SELECT count(*) FROM json_each(NEW.receipt_json)) = 7
+              AND (SELECT count(*) FROM json_each(NEW.receipt_json) WHERE type = 'text'
+                  AND key IN ('version', 'mode', 'outcome', 'repository', 'targetBranch', 'headRevision', 'pullRequestId')) = 7
+              AND json_extract(NEW.receipt_json, '$.version') = 'v1'
+              AND json_extract(NEW.receipt_json, '$.mode') = 'pr'
+              AND json_extract(NEW.receipt_json, '$.outcome') = 'opened'
+              AND json_extract(NEW.receipt_json, '$.repository') = json_extract(s.request_json, '$.source.repository')
+              AND json_extract(NEW.receipt_json, '$.targetBranch') = json_extract(s.request_json, '$.source.branch')
+              AND length(json_extract(NEW.receipt_json, '$.headRevision')) = 40
+              AND json_extract(NEW.receipt_json, '$.headRevision') NOT GLOB '*[^0-9a-f]*'
+              AND instr(json_extract(NEW.receipt_json, '$.headRevision'), char(0)) = 0
+              AND json_extract(NEW.receipt_json, '$.headRevision') <> a.b1_commit_oid
+              AND length(json_extract(NEW.receipt_json, '$.pullRequestId')) > 0
+              AND json_extract(NEW.receipt_json, '$.pullRequestId') NOT GLOB '*[^0-9]*'
+              AND instr(json_extract(NEW.receipt_json, '$.pullRequestId'), char(0)) = 0
+              AND NOT EXISTS (SELECT 1 FROM attempt_abandonments WHERE attempt_id = a.attempt_id)
+        )
+        BEGIN SELECT RAISE(ABORT, 'completion requires current correlated PR authority and exact receipt'); END;
+        CREATE TRIGGER completion_no_replace BEFORE INSERT ON attempt_completions
+        WHEN EXISTS (SELECT 1 FROM attempt_completions WHERE attempt_id = NEW.attempt_id OR run_id = NEW.run_id)
+        BEGIN SELECT RAISE(ABORT, 'completion cannot be replaced'); END;
+        CREATE TRIGGER completion_no_update BEFORE UPDATE ON attempt_completions
+        BEGIN SELECT RAISE(ABORT, 'completion is immutable'); END;
+        CREATE TRIGGER completion_no_delete BEFORE DELETE ON attempt_completions
+        BEGIN SELECT RAISE(ABORT, 'completion is durable'); END;
+        CREATE TRIGGER completion_ends_authority AFTER INSERT ON attempt_completions
+        BEGIN UPDATE attempts SET is_current = 0 WHERE attempt_id = NEW.attempt_id; END;
+        CREATE TRIGGER attempts_currentness_justified BEFORE UPDATE OF is_current ON attempts
+        WHEN OLD.is_current = 1 AND NEW.is_current = 0
+          AND NOT EXISTS (SELECT 1 FROM attempt_abandonments WHERE attempt_id = OLD.attempt_id)
+          AND NOT EXISTS (SELECT 1 FROM attempt_completions WHERE attempt_id = OLD.attempt_id)
+        BEGIN SELECT RAISE(ABORT, 'only abandonment or completion removes current authority'); END;
+        CREATE TRIGGER abandonment_no_completed BEFORE INSERT ON attempt_abandonments
+        WHEN EXISTS (SELECT 1 FROM attempt_completions WHERE attempt_id = NEW.attempt_id)
+        BEGIN SELECT RAISE(ABORT, 'completed Attempt cannot be abandoned'); END;
+        CREATE TRIGGER attempts_no_completed_work BEFORE INSERT ON attempts
+        WHEN EXISTS (SELECT 1 FROM attempt_completions WHERE work_unit_id = NEW.work_unit_id)
+        BEGIN SELECT RAISE(ABORT, 'completed Work Unit cannot acquire new Attempt authority'); END;
+        CREATE TRIGGER attempts_no_replace BEFORE INSERT ON attempts
+        WHEN EXISTS (
+            SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id
+              OR enclosure = NEW.enclosure OR worktree_path = NEW.worktree_path
+              OR (b1_repository = NEW.b1_repository AND branch = NEW.branch)
+              OR (work_unit_id = NEW.work_unit_id AND is_current = 1 AND NEW.is_current = 1)
+        )
+        BEGIN SELECT RAISE(ABORT, 'Attempt identity and allocation cannot be replaced'); END;
+        """;
 
     internal const string DispatchSql = """
         CREATE TABLE native_submissions (

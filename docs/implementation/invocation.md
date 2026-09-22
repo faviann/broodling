@@ -4,8 +4,9 @@
 small Python API over the existing domain services.
 
 The .NET migration now exposes callable and thin operator `submit`/`resume`
-through the [F invocation/dispatch seam](dotnet-native-dispatch.md). Application
-wait/completion and stop/retirement remain G/H work; this is not deployment cutover.
+through the [F invocation/dispatch seam](dotnet-native-dispatch.md), with
+[G wait/completion and exact-Attempt handback](dotnet-receipt-completion.md).
+Stop/retirement remain H work; this is not deployment cutover.
 
 The deployed Python path composes:
 

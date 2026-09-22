@@ -111,10 +111,9 @@ this is distinct from the independently recorded
   and 102-test evidence above describes B's original landing.
 - F must check current authority inside dispatch-intent writes; observing current
   authority here does not authorize a later unguarded dispatch.
-- G must add the baseline's Work-Unit-wide completed-result admission refusal in
-  both the store and schema when result/disposition storage lands. Exact-Attempt
-  result retention must never allow completed work to acquire fresh authority.
-  This slice deliberately adds no result machinery.
+- [G completion](dotnet-receipt-completion.md) adds the baseline's Work-Unit-wide
+  completed-result admission refusal in both the store and schema. Exact-Attempt
+  result retention never allows completed work to acquire fresh authority.
 - H owns native stop, retirement and explicit replacement from original B1;
   ordinary admission and abandonment here grant none of those operations.
 

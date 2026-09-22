@@ -13,6 +13,64 @@ public sealed class InvocationTests
         """u8.ToArray();
 
     [Test]
+    public async Task CompletionFlowsThroughWaitRepeatedSubmitResumeAndOfflineOperatorInspection()
+    {
+        using var fixture = new NativeFixture();
+        using var gh = new IssueFixture(fixture.Root);
+        var transport = new ControlledTransport();
+        var profile = new NativeProfile(fixture.NativeState, directOrigin: "http://127.0.0.1:8123");
+        var effects = new[] { new RequiredEffect("pr", "Open PR", "pull_request", "main") };
+        var credentials = new DispatchCredentials("fixture-token", NativeProfile.GatewayBaseUrl, "fixture-key");
+        var proposals = 0;
+        Contract Propose(ContractProposalInput input) { proposals++; return new ReviewedIssueProposal(Issue).Propose(input); }
+        string revision;
+        AttemptCompletion completed;
+        using (var store = fixture.Git.State.Open())
+        {
+            var invocation = new Invocation(store, fixture.Git.Workspaces, profile, transport);
+            var submitted = await invocation.SubmitAsync(ContractIngressTests.Reference, Propose, effects,
+                fixture.Git.Repository, credentials: credentials, source: gh.Source);
+            revision = submitted.Revision.ContractRevisionId;
+            var attempt = submitted.Attempts.Single();
+            var output = new StringWriter(); var error = new StringWriter();
+            transport.Wait = (_, _, _) => throw new OperationCanceledException();
+            await Assert.That(await InvocationCommands.RunAsync(["wait", store.Path, attempt.AttemptId],
+                fixture.Git.State.Application, output, error, transport: transport)).IsEqualTo(130);
+            store.RequireCurrentAttempt(attempt.AttemptId);
+            Directory.Move(attempt.Allocation.WorktreePath, attempt.Allocation.WorktreePath + "-unavailable");
+            transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(), null));
+            await Assert.That(await InvocationCommands.RunAsync(["wait", store.Path, attempt.AttemptId],
+                fixture.Git.State.Application, output, error, transport: transport)).IsEqualTo(0);
+            completed = store.FindCompletion(attempt.AttemptId)!;
+            await Assert.That(output.ToString()).Contains(completed.AcceptedRevision);
+            await Assert.That(await invocation.WaitAsync(attempt.AttemptId)).IsEqualTo(completed);
+            // Repeated submit still captures/proposes; handback must not redispatch or require its vanished workspace.
+            var repeated = await invocation.SubmitAsync(ContractIngressTests.Reference, Propose, effects,
+                fixture.Git.Repository, source: gh.Source);
+            await Assert.That(proposals).IsEqualTo(2);
+            await Assert.That(repeated.Completions.Single()).IsEqualTo(completed);
+            await Assert.That(transport.Calls).IsEqualTo(1);
+        }
+        gh.RemoveExecutable();
+        using var reopened = fixture.Git.State.Open();
+        var resumed = await new Invocation(reopened, "/unused", new NativeProfile("/unused"), new ControlledTransport()).ResumeAsync(revision);
+        await Assert.That(resumed.Completions.Single()).IsEqualTo(completed);
+        await Assert.That(reopened.History(ContractIngressTests.Reference).Last().Completions.Single()).IsEqualTo(completed);
+        foreach (var args in new[] {
+            new[] { "wait", reopened.Path, completed.AttemptId }, new[] { "resume", reopened.Path, revision },
+            new[] { "status", reopened.Path, revision }, new[] { "history", reopened.Path, "acme/widget", "12" } })
+        {
+            var output = new StringWriter(); var error = new StringWriter();
+            var code = args[0] is "wait" or "resume"
+                ? await InvocationCommands.RunAsync(args, fixture.Git.State.Application, output, error)
+                : StoreCommands.Run(args, fixture.Git.State.Application, output, error);
+            await Assert.That(code).IsEqualTo(0);
+            await Assert.That(output.ToString()).Contains(completed.AttemptId);
+            await Assert.That(output.ToString()).Contains("SUCCEEDED");
+        }
+    }
+
+    [Test]
     public async Task PreparedResumeReconcilesFrozenInvocationWithoutRestoringMissingWorkspace()
     {
         using var fixture = new NativeFixture();

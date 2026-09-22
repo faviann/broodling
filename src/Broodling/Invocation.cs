@@ -1,8 +1,11 @@
 namespace Broodling;
 
-/// <summary>One explicit work reference. No completion, retirement or replacement policy.</summary>
+/// <summary>One explicit work reference. No retirement or replacement policy.</summary>
 public sealed class Invocation(BroodlingStore store, string workspaceRoot, NativeProfile profile, INativeTransport transport)
 {
+    public Task<AttemptCompletion> WaitAsync(string attemptId, CancellationToken cancellationToken = default) =>
+        store.WaitAsync(attemptId, transport, cancellationToken);
+
     /// <summary>Retained handback needs neither dispatch configuration nor the old workspace.</summary>
     public static bool CanResumeWithoutDispatch(AdmissionStatus status)
     {

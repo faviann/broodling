@@ -42,6 +42,11 @@ SQLite/Git authority and caller-death boundaries, corrupt submit responses,
 controlled released-SDK/native replay/reconnect/waiter-detachment/stop, the C#
 Codex launcher and credential/profile policy, and explicit schema-4 upgrades.
 PR receipt transport uses a precise stub and is not real DirectTarget delivery.
+The [G completion checks](../docs/implementation/dotnet-receipt-completion.md) add
+exact-Attempt receipt/disposition retention, binding/currentness and SQL guards,
+rollback/concurrent finalization/late-success witnesses, detached wait versus
+native failure, authentic schema-5 upgrades, and composed offline completion
+handback. Controlled receipts do not establish real PR delivery or quality.
 The launcher builds with the pinned self-contained Linux x64 .NET 10.0.12 runtime.
 Tests default to the repository's `.venv/bin/python`. Set
 `BROODLING_TEST_PYTHON` to another Python executable with the pinned SDK when

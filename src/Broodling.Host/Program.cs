@@ -1,6 +1,6 @@
 using Broodling.Host;
 
-if (args.FirstOrDefault() is "submit" or "resume")
+if (args.FirstOrDefault() is "submit" or "resume" or "wait")
 {
     using var cancellation = new CancellationTokenSource();
     Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };

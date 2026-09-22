@@ -66,7 +66,7 @@ public sealed class AdmissionDecision(string decisionId, string contractRevision
 /// <summary>Retained facts for one exact revision; null decision grants no admission.</summary>
 public sealed class AdmissionStatus(WorkUnit workUnit, IEnumerable<EntitledSource> sources,
     ContractRevision revision, AdmissionDecision? decision, IEnumerable<AttemptRecord>? attempts = null,
-    IEnumerable<NativeSubmission>? submissions = null)
+    IEnumerable<NativeSubmission>? submissions = null, IEnumerable<AttemptCompletion>? completions = null)
 {
     public WorkUnit WorkUnit { get; } = workUnit;
     public IReadOnlyList<EntitledSource> Sources { get; } = Array.AsReadOnly(sources.ToArray());
@@ -74,6 +74,7 @@ public sealed class AdmissionStatus(WorkUnit workUnit, IEnumerable<EntitledSourc
     public AdmissionDecision? Decision { get; } = decision;
     public IReadOnlyList<AttemptRecord> Attempts { get; } = Array.AsReadOnly((attempts ?? []).ToArray());
     public IReadOnlyList<NativeSubmission> Submissions { get; } = Array.AsReadOnly((submissions ?? []).ToArray());
+    public IReadOnlyList<AttemptCompletion> Completions { get; } = Array.AsReadOnly((completions ?? []).ToArray());
 }
 
 public sealed partial class BroodlingStore
@@ -255,7 +256,8 @@ public sealed partial class BroodlingStore
         var sources = revision.Contract.SourceAttribution.Select(pin => ReadSource(pin.SourceId, transaction)).ToArray();
         var attempts = ReadAttempts("contract_revision_id = $p0", revisionId, transaction);
         var result = new AdmissionStatus(work, sources, revision, ReadDecision(revisionId, transaction), attempts,
-            attempts.Select(attempt => ReadSubmission(attempt.AttemptId, transaction)).OfType<NativeSubmission>());
+            attempts.Select(attempt => ReadSubmission(attempt.AttemptId, transaction)).OfType<NativeSubmission>(),
+            attempts.Select(attempt => ReadCompletion(attempt.AttemptId, transaction)).OfType<AttemptCompletion>());
         transaction.Commit();
         return result;
     }
