@@ -104,9 +104,11 @@ the supported Python suite on merged main `cc300e4` passed **404 tests in 117.88
 this is distinct from the independently recorded
 [exact-baseline run](../migration/130-baseline-validation.md).
 
-- C must materialize the recorded allocation/B1 and add provisioning facts,
-  ownership checks and child-surviving Git exclusion. Reuse the checkout-profile
-  check before materialization/first dispatch. Allocation is not provisioning.
+- [C materialization](dotnet-worktree-materialization.md) now supplies
+  `ProvisionAttempt`, retained provisioning facts, ownership checks and Git
+  exclusion surviving caller death. It reuses the checkout-profile and retention
+  seam. Current stores use schema 4 with explicit v1/v2/v3 upgrades; the schema-3
+  and 102-test evidence above describes B's original landing.
 - F must check current authority inside dispatch-intent writes; observing current
   authority here does not authorize a later unguarded dispatch.
 - G must add the baseline's Work-Unit-wide completed-result admission refusal in

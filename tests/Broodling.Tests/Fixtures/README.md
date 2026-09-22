@@ -20,3 +20,14 @@ test checks every prior fact row, ordinary-open refusal, subsequent Attempt
 allocation, reopen and repeated explicit upgrade. Fixture restoration disables
 foreign keys only while loading the dump's table order; application opens enable
 them.
+
+`dotnet-v3.sql` was captured on 22 September 2026 from the actual pre-C
+application at reviewed main `3569741388f4f80eac8af0e03c2862c0d0aabae5`, before
+changing its schema. The capture restored the retained v2 fixture, explicitly
+upgraded with that application's schema 3, admitted an Attempt against a new
+local Git repository and abandoned it through the public API. The original
+schema/metadata hashes, all prior facts, Attempt/B1/allocation and abandonment
+rows are retained. Its capture repository was an owned disposable test fixture
+and was removed; upgrade/observation never requires it to exist. The v3→v4 test
+checks every old fact row, ordinary-open refusal, null provisioning history,
+reopen and repeated upgrade. It does not synthesize v3 using C's schema builder.

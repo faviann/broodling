@@ -52,7 +52,7 @@ internal static class GitCustody
         return resolved;
     }
 
-    internal static void Retain(StartingState state)
+    internal static void Retain(StartingState state, AdministrativeGitProcess.EnclosureLock? enclosureLock = null)
     {
         var repository = state.Repository;
         var oid = state.CommitOid;
@@ -65,7 +65,7 @@ internal static class GitCustody
         if (existing == oid) return;
         if (existing is not null)
             throw new UnsupportedStartingState("The B1 retention pin conflicts with the selected commit.");
-        var update = Run(repository, ["update-ref", "--no-deref", reference, oid, new string('0', 40)]);
+        var update = Run(repository, ["update-ref", "--no-deref", reference, oid, new string('0', 40)], enclosureLock: enclosureLock);
         // Concurrent creation is acceptable only if it left precisely the same direct pin.
         if (update.ExitCode != 0 && RetentionOid(repository, reference) != oid)
             throw Failure(update);
@@ -115,9 +115,9 @@ internal static class GitCustody
                 throw new UnsupportedStartingState($"Unsupported checkout transformation: attribute {fields[offset + 1]}={fields[offset + 2]} on {fields[offset]}.");
     }
 
-    private sealed record Result(int ExitCode, byte[] Output, string Error);
+    internal sealed record Result(int ExitCode, byte[] Output, string Error);
     private static UnsupportedStartingState Failure(Result result) => new($"Cannot establish local Git custody: {result.Error.Trim()}");
-    private static string Text(string repository, params string[] arguments) => Encoding.UTF8.GetString(Checked(repository, arguments));
+    internal static string Text(string repository, params string[] arguments) => Encoding.UTF8.GetString(Checked(repository, arguments));
     private static byte[] Checked(string repository, string[] arguments, byte[]? input = null)
     {
         var result = Run(repository, arguments, input);
@@ -125,7 +125,27 @@ internal static class GitCustody
         return result.Output;
     }
 
-    private static Result Run(string repository, string[] arguments, byte[]? input = null)
+    internal static Result Run(string repository, string[] arguments, byte[]? input = null,
+        AdministrativeGitProcess.EnclosureLock? enclosureLock = null)
+    {
+        var start = StartInfo(repository, arguments);
+        if (enclosureLock is not null)
+        {
+            if (input is not null) throw new ArgumentException("Protected administrative commands take no stdin.");
+            return AdministrativeGitProcess.Run(start, enclosureLock);
+        }
+        using var process = Process.Start(start) ?? throw new UnsupportedStartingState("Git could not be started.");
+        using var output = new MemoryStream();
+        var stdout = process.StandardOutput.BaseStream.CopyToAsync(output);
+        var stderr = process.StandardError.ReadToEndAsync();
+        if (input is not null) process.StandardInput.BaseStream.Write(input);
+        process.StandardInput.Close();
+        process.WaitForExit();
+        stdout.GetAwaiter().GetResult();
+        return new(process.ExitCode, output.ToArray(), stderr.GetAwaiter().GetResult());
+    }
+
+    private static ProcessStartInfo StartInfo(string repository, string[] arguments)
     {
         var start = new ProcessStartInfo("git")
         {
@@ -140,14 +160,6 @@ internal static class GitCustody
         start.Environment["LC_ALL"] = "C";
         foreach (var argument in new[] { "--no-replace-objects", "-C", repository, "-c", "core.hooksPath=/dev/null" }.Concat(arguments))
             start.ArgumentList.Add(argument);
-        using var process = Process.Start(start) ?? throw new UnsupportedStartingState("Git could not be started.");
-        using var output = new MemoryStream();
-        var stdout = process.StandardOutput.BaseStream.CopyToAsync(output);
-        var stderr = process.StandardError.ReadToEndAsync();
-        if (input is not null) process.StandardInput.BaseStream.Write(input);
-        process.StandardInput.Close();
-        process.WaitForExit();
-        stdout.GetAwaiter().GetResult();
-        return new(process.ExitCode, output.ToArray(), stderr.GetAwaiter().GetResult());
+        return start;
     }
 }
