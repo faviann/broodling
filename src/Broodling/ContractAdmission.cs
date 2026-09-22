@@ -85,22 +85,33 @@ public sealed partial class BroodlingStore
     public AdmissionStatus AdmitSources(WorkReference reference, IEnumerable<SourceSubmission> sources,
         Func<ContractProposalInput, Contract> propose, IEnumerable<RequiredEffect> requiredEffects,
         string constructedBy = "model_extraction")
+        => AdmitCapturedSources(reference, ValidateCallerSources(sources), propose, requiredEffects, constructedBy);
+
+    private static SourceSubmission[] ValidateCallerSources(IEnumerable<SourceSubmission> sources)
     {
-        if (constructedBy is not ("caller" or "broodling_policy" or "model_extraction"))
-            throw new InvalidContractProposal("Unrecognized proposal producer.");
-        if (sources is null || requiredEffects is null || propose is null)
-            throw new InvalidContractProposal("Sources, proposer and explicit effect authority are required.");
-        // Snapshot caller collections before invoking any caller code. The callback cannot amend its grants.
+        if (sources is null)
+            throw new InvalidContractProposal("Sources are required.");
         var supplied = sources.ToArray();
-        var effects = requiredEffects.ToArray();
-        if (effects.Any(effect => effect is null))
-            throw new InvalidContractProposal("Effect authority cannot contain null entries.");
         foreach (var source in supplied)
         {
             if (source is null || source.Origin != "caller" || source.Entitlement?.GrantedBy != "caller")
                 throw new SourceNotEntitled("Supplied sources require caller origin and an explicit caller grant.");
             source.EvaluateEntitlement();
         }
+        return supplied;
+    }
+
+    private AdmissionStatus AdmitCapturedSources(WorkReference reference, SourceSubmission[] supplied,
+        Func<ContractProposalInput, Contract> propose, IEnumerable<RequiredEffect> requiredEffects, string constructedBy)
+    {
+        if (constructedBy is not ("caller" or "broodling_policy" or "model_extraction"))
+            throw new InvalidContractProposal("Unrecognized proposal producer.");
+        if (requiredEffects is null || propose is null)
+            throw new InvalidContractProposal("Sources, proposer and explicit effect authority are required.");
+        // Snapshot caller collections before invoking any caller code. The callback cannot amend its grants.
+        var effects = requiredEffects.ToArray();
+        if (effects.Any(effect => effect is null))
+            throw new InvalidContractProposal("Effect authority cannot contain null entries.");
         if (supplied.Count(source => source.Kind == "primary_issue") != 1)
             throw new SourceNotEntitled("Ingress requires exactly one primary issue snapshot.");
         var work = ResolveWorkUnit(reference);

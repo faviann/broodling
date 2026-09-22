@@ -65,6 +65,13 @@ The [A2 implementation reference](../implementation/dotnet-contract-admission.md
 records the API and bounded validation evidence. No GitHub acquisition, Attempt,
 native execution or Python state compatibility is implied by this slice.
 
+D's .NET witness is `GitHubAdmissionTests.cs`: controlled CLI acquisition of only
+the named issue, exact response bytes, identity/transport refusals, explicit
+supplementary grants, reviewed-source byte pins, async caller-authority snapshots
+and immutable admission/reopen. Retained #75/#82 fixtures show preserved rejection
+and accepted admission without execution. The [D implementation reference](../implementation/dotnet-github-ingress.md)
+documents the callable acquisition and non-Python reviewed-source proposal input.
+
 Status/history use coherent per-revision reads without taking the writer slot,
 reacquiring sources, calling native services or adding upstream pins.
 `test_invocation.py` covers live provisioning contention and identity checks;
