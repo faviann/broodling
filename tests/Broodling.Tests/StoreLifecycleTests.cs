@@ -21,19 +21,8 @@ public sealed class StoreLifecycleTests
             restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "dotnet-v2.sql"));
             restore.ExecuteNonQuery();
         }
-        string Facts()
-        {
-            using var connection = old.Connect();
-            var facts = new List<object[]>();
-            foreach (var table in new[] { "work_units", "work_submissions", "entitled_sources", "contract_revisions", "contract_sources", "admission_decisions" })
-            {
-                using var command = connection.CreateCommand();
-                command.CommandText = $"SELECT * FROM {table} ORDER BY 1";
-                using var reader = command.ExecuteReader();
-                while (reader.Read()) facts.Add(Enumerable.Range(0, reader.FieldCount).Select(reader.GetValue).ToArray());
-            }
-            return JsonSerializer.Serialize(facts);
-        }
+        string Facts() => RetainedFacts(old, "work_units", "work_submissions", "entitled_sources",
+            "contract_revisions", "contract_sources", "admission_decisions");
         var before = Facts();
         await Assert.That(() => old.Open()).Throws<StoreStateException>();
         using (var upgraded = old.Application.UpgradeStore(old.Path))
@@ -69,7 +58,8 @@ public sealed class StoreLifecycleTests
             restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "dotnet-v1.sql"));
             restore.ExecuteNonQuery();
         }
-        var before = RetainedVersionOneFacts(fixture);
+        string Facts() => RetainedFacts(fixture, "work_units", "work_submissions", "entitled_sources");
+        var before = Facts();
         var oldFile = File.ReadAllBytes(fixture.Path);
         await Assert.That(() => fixture.Open()).Throws<StoreStateException>();
         await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(oldFile)).IsTrue();
@@ -79,7 +69,7 @@ public sealed class StoreLifecycleTests
             upgradedInformation = upgraded.Information;
             await Assert.That(upgradedInformation.SchemaVersion).IsEqualTo(3);
             await Assert.That(upgradedInformation.InitializedAt).IsEqualTo("2026-09-22T15:07:04.8538767+00:00");
-            await Assert.That(RetainedVersionOneFacts(fixture)).IsEqualTo(before);
+            await Assert.That(Facts()).IsEqualTo(before);
             var status = upgraded.AdmitSources(ContractIngressTests.Reference,
                 [ContractIngressTests.Primary([0, 255, 13, 10])], ContractIngressTests.Propose, []);
             await Assert.That(status.Decision!.Admitted).IsTrue();
@@ -94,11 +84,11 @@ public sealed class StoreLifecycleTests
         await Assert.That(reopened.History(ContractIngressTests.Reference).Single().Decision!.Admitted).IsTrue();
     }
 
-    private static string RetainedVersionOneFacts(StoreFixture fixture)
+    private static string RetainedFacts(StoreFixture fixture, params string[] tables)
     {
         using var connection = fixture.Connect();
         var facts = new List<object?[]>();
-        foreach (var table in new[] { "work_units", "work_submissions", "entitled_sources" })
+        foreach (var table in tables)
         {
             using var command = connection.CreateCommand();
             command.CommandText = $"SELECT * FROM {table} ORDER BY 1";
