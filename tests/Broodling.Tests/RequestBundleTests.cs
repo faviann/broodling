@@ -170,6 +170,19 @@ public sealed class RequestBundleTests
     }
 
     [Test]
+    public async Task GitReferenceInputThatCannotReachGitIsRefusedBeforeRegistration()
+    {
+        foreach (var (repository, revision, path) in new[]
+        {
+            ("/repo\0sitory", "HEAD", "file.txt"),
+            ("/repository", "HEAD\0", "file.txt"),
+            ("/repository", "HEAD", "file\0.txt")
+        })
+            await Assert.That(() => RequestBundleReferenceInput.GitBlob("repository-file", "selected file"u8.ToArray(),
+                repository, revision, path)).Throws<RequestBundleConflict>();
+    }
+
+    [Test]
     public async Task BundleReadReturnsPinnedGitBytesAndRejectsReferencesOutsideItsMembership()
     {
         using var fixture = new AttemptFixture();

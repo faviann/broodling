@@ -54,14 +54,20 @@ public sealed class RequestBundleReferenceInput
     public static RequestBundleReferenceInput GitBlob(string referenceId, byte[] selector,
         string repository, string revision, string path)
     {
-        ValidateText(repository, "Git repository");
-        ValidateText(revision, "Git revision");
-        ValidateText(path, "Git path");
-        if (string.IsNullOrWhiteSpace(repository) || string.IsNullOrWhiteSpace(revision)
-            || string.IsNullOrWhiteSpace(path) || path.Contains('\0'))
-            throw new RequestBundleConflict("Git references require a repository, revision and exact file path.");
+        ValidateGitText(repository, "Git repository");
+        ValidateGitText(revision, "Git revision");
+        ValidateGitText(path, "Git path");
         return new(referenceId, "git_blob", selector ?? throw new ArgumentNullException(nameof(selector)),
             repository, revision, path);
+    }
+
+    // Registration is immutable and capture passes these to Git as arguments,
+    // which cannot carry NUL. Existence and resolution remain capture concerns.
+    private static void ValidateGitText(string? value, string name)
+    {
+        ValidateText(value, name);
+        if (string.IsNullOrEmpty(value) || value.Contains('\0'))
+            throw new RequestBundleConflict($"{name} must be nonempty text without NUL.");
     }
 
     internal static void ValidateText(string? value, string name)

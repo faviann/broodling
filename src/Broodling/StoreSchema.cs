@@ -99,7 +99,6 @@ internal static class StoreSchema
                     AND ((git_repository IS NULL AND git_commit_oid IS NULL AND git_blob_oid IS NULL AND content_sha256 IS NULL)
                         OR (git_repository IS NOT NULL AND git_commit_oid IS NOT NULL AND git_blob_oid IS NOT NULL AND content_sha256 IS NOT NULL))))
         ) STRICT;
-        CREATE INDEX request_bundle_refs_by_bundle ON request_bundle_references(bundle_id, ordinal);
         CREATE TRIGGER request_bundle_binding BEFORE INSERT ON request_bundles
         WHEN NOT EXISTS (
             SELECT 1 FROM issue_submissions
