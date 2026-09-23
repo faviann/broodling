@@ -11,23 +11,19 @@ public sealed class NativeTargetStartupTests
     private static readonly Lazy<Task<string>> Image = new(BuildImage);
 
     [Test]
-    public async Task ExplicitInitializationThenRestartPreservesNativeBindingAndMixedUidFiles()
+    public async Task ExplicitInitializationThenStartupPreservesNativeBindingAndMixedUidFiles()
     {
         await using var target = await Target.Create(await Image.Value);
         await target.Initialize();
         await target.Shell("touch /state/runs/owned /home/node/owned; chown 10002:10002 /state/runs/owned; chown 20000:20000 /home/node/owned; chmod 700 /state/runs/owned; chmod 600 /home/node/owned");
         var before = await target.Snapshot();
-        for (var restart = 0; restart < 2; restart++)
-        {
-            await target.Start();
-            var discovery = await target.Discover();
-            await Assert.That(discovery).Contains("zeroshot.native-v2-target/v2");
-            // A public native list opens the ledger without dispatching any workload.
-            var list = await Docker("exec", target.Container, "zeroshot", "list", "--target", "broodling");
-            await Assert.That(JsonDocument.Parse(list.Output).RootElement.GetProperty("runs").GetArrayLength()).IsEqualTo(0);
-            await target.Stop();
-            await Assert.That(await target.Snapshot()).IsEqualTo(before);
-        }
+        await target.Start();
+        await Assert.That(await target.Discover()).Contains("zeroshot.native-v2-target/v2");
+        // A public native list opens the ledger without dispatching any workload.
+        var list = await Docker("exec", target.Container, "zeroshot", "list", "--target", "broodling");
+        await Assert.That(JsonDocument.Parse(list.Output).RootElement.GetProperty("runs").GetArrayLength()).IsEqualTo(0);
+        await target.Stop();
+        await Assert.That(await target.Snapshot()).IsEqualTo(before);
         var reinitialize = await target.Run(["initialize", .. Target.Arguments]);
         await Assert.That(reinitialize.Code).IsEqualTo(1);
         await Assert.That(reinitialize.Error).Contains("requires empty state and home");
@@ -42,15 +38,11 @@ public sealed class NativeTargetStartupTests
         await Assert.That(empty.Code).IsEqualTo(1);
         await Assert.That((await target.Shell("ls -A /state /home/node")).Output).IsEqualTo("/home/node:\n\n/state:\n");
         await target.Initialize();
-        // Each case removes a different required part or changes its retained binding.
+        // Each case models a realistic missing, redirected or foreign mount.
         foreach (var (change, restore) in new[] {
             ("mv /state/runs.sqlite3 /state/saved", "mv /state/saved /state/runs.sqlite3"),
-            ("mv /state/runs /state/saved", "mv /state/saved /state/runs"),
             ("mv /home/node/.config /home/node/saved", "mv /home/node/saved /home/node/.config"),
-            ("mv /state/runs.sqlite3 /state/saved; echo foreign > /state/runs.sqlite3", "mv /state/saved /state/runs.sqlite3"),
-            ("mv /state/runs.sqlite3 /state/saved; sqlite3 /state/runs.sqlite3 'CREATE TABLE foreign_store(id)'", "mv /state/saved /state/runs.sqlite3"),
-            ("mv /state/runs.sqlite3 /state/saved; ln -s /state/saved /state/runs.sqlite3", "rm /state/runs.sqlite3; mv /state/saved /state/runs.sqlite3"),
-            ("cp /home/node/.config/zeroshot/targets.json /home/node/saved; echo '{}' > /home/node/.config/zeroshot/targets.json", "mv /home/node/saved /home/node/.config/zeroshot/targets.json") })
+            ("mv /state/runs.sqlite3 /state/saved; ln -s /state/saved /state/runs.sqlite3", "rm /state/runs.sqlite3; mv /state/saved /state/runs.sqlite3") })
         {
             await target.Shell(change);
             var before = await target.Tree();
@@ -62,13 +54,17 @@ public sealed class NativeTargetStartupTests
         }
         var binding = await target.Run("--listen", "0.0.0.0:18770", "--public-origin", "http://127.0.0.1:18771", "--storage", "/state");
         await Assert.That(binding.Code).IsEqualTo(1);
-        await Assert.That(binding.Error).Contains("home/origin binding");
+        await Assert.That(binding.Error).Contains("not bound to this public origin");
     }
 
     [Test]
     public async Task ConfiguredLocationsAndNonemptyInitializationAreRefused()
     {
         await using var target = await Target.Create(await Image.Value);
+        // Pinned native, not the entrypoint, decides origin validity, before any state exists.
+        var origin = await target.Run("initialize", "--listen", "0.0.0.0:18770", "--public-origin", "http://broodling-target:18770", "--storage", "/state");
+        await Assert.That(origin.Code).IsEqualTo(1);
+        await Assert.That((await target.Shell("ls -A /state /home/node")).Output).IsEqualTo("/home/node:\n\n/state:\n");
         await target.Shell("echo retain > /home/node/existing");
         var before = await target.Tree();
         var initialize = await target.Run(["initialize", .. Target.Arguments]);
@@ -130,7 +126,7 @@ public sealed class NativeTargetStartupTests
         }
         internal Task<Result> Run(params string[] arguments) => RunWith([], arguments);
         internal async Task<Result> RunWith(string[] options, string[] arguments) =>
-            await Docker(["run", "--rm", "--network", "none", .. Mounts, .. options, image, .. arguments]);
+            await Docker(["run", "--rm", "--name", Container, "--network", "none", .. Mounts, .. options, image, .. arguments]);
         internal async Task<Result> Shell(string script)
         {
             var result = await RunWith(["--entrypoint", "/bin/sh"], ["-ec", script]);

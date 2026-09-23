@@ -213,31 +213,40 @@ docker run --rm --network none \
 ```
 
 Initialization refuses nonempty roots, including partially initialized state.
-It briefly starts native on container loopback, uses public `zeroshot list` to
-initialize its ledger without submitting work, records
-`broodling` through native `target add` in the home registry, and stops that
-process. The temporary server binds container loopback at the intended public
-port, so native discovery records the real public origin without publishing it.
-Success leaves no server running. Initialization failure leaves partial durable
-state for inspection; it never deletes it or silently retries over it.
+It briefly starts native on container loopback at the origin's port, records
+`broodling` through native `target add` in the home registry, uses public
+`zeroshot list` to create the native ledger without submitting work, and stops
+that process. Success leaves no server running. Initialization failure leaves
+partial durable state for inspection; it never deletes it or silently retries
+over it.
+
+Pinned native, not the entrypoint, decides which public origins are valid and
+records its canonical spelling; configure that exact spelling. Zeroshot 10.3.0
+accepts only HTTPS origins or literal loopback HTTP (`http://127.0.0.1:PORT`),
+and `target serve` itself provides no TLS. It refuses a plain-HTTP Compose
+service-name origin such as `http://broodling-target:18770` before creating
+state. The #100 service-name topology is therefore unresolved and is not decided
+here.
 
 Ordinary startup uses the same arguments **without `initialize`**, the same
-mounts and the recorded origin. The entrypoint checks required real directories,
-initialized native ledger schema and native home/origin binding before executing
-`zeroshot target serve`. Missing, foreign or redirected state refuses without
-creating replacement files. Restore missing state; do not initialize an empty
-replacement at an existing origin. Existing targets without this binding require
-a separately reviewed stopped-target transition; this command does not adopt
-them. Readiness now rejects the former unguarded native entrypoint.
+mounts and the recorded origin. Before executing `zeroshot target serve`, the
+entrypoint requires unredirected `/state`, `/state/runs`, `/state/runs.sqlite3`
+and home registry, and a `broodling` registry entry whose origin equals the
+configured origin. Native owns its ledger schema and registry format/version.
+Missing, foreign or redirected state refuses without creating replacement files.
+Restore missing state; do not initialize an empty replacement at an existing
+origin. Existing targets without this binding require a separately reviewed
+stopped-target transition; this command does not adopt them. Readiness now
+rejects the former unguarded native entrypoint.
 
 Neither mode recursively changes ownership. Native itself prepares traversable
 state/run roots; existing run-specific UIDs, GIDs and permissions remain native's
 responsibility. Keep the target stopped during mount changes and serialize
-operator initialization/startup. These checks recognize the pinned file/schema
-and origin binding, not snapshot freshness: a matching old snapshot or another
-valid state/home pair with the same origin cannot be distinguished. There is no
-new installation identity, private run-row inspection, history pruning, upgrade,
-backup/restore or maintenance protocol here.
+operator initialization/startup. These checks recognize initialized native files
+and the origin binding, not snapshot freshness or cross-version compatibility: a
+matching old snapshot or another valid state/home pair with the same origin
+cannot be distinguished. There is no new installation identity, private run-row
+inspection, history pruning, upgrade, backup/restore or maintenance protocol here.
 
 Readiness is a point-in-time dependency/configuration check. Before an authorized
 dispatch, the operator must separately establish actual-target gateway
