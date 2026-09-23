@@ -36,7 +36,6 @@ internal static class StoreSchema
             received_at TEXT NOT NULL,
             UNIQUE (work_unit_id, submission_sequence)
         ) STRICT;
-        CREATE INDEX issue_submissions_by_work ON issue_submissions(work_unit_id, submission_sequence);
         CREATE TRIGGER issue_submission_binding BEFORE INSERT ON issue_submissions
         WHEN NEW.contract_revision_id IS NOT NULL AND NOT EXISTS (
             SELECT 1 FROM contract_revisions

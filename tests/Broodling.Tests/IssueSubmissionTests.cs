@@ -58,6 +58,16 @@ public sealed class IssueSubmissionTests
         var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
         var status = store.Status(fixture.RevisionId);
 
+        var foreignReference = WorkReference.Parse("acme/widget", 13);
+        var foreign = store.AdmitSources(foreignReference,
+            [new SourceSubmission("primary_issue", foreignReference.IssueLocator, "Foreign work unit."u8.ToArray(),
+                entitlement: new("caller", "Reviewed foreign request"))], ContractIngressTests.Propose, []);
+        await Assert.That(() => store.AssociateIssueSubmission(submission.SubmissionId, foreign.Revision.ContractRevisionId))
+            .Throws<IssueSubmissionConflict>();
+        var unbound = store.GetIssueSubmission(submission.SubmissionId);
+        await Assert.That(unbound.ContractRevisionId).IsNull();
+        await Assert.That(unbound.AttemptIds).IsEmpty();
+
         var associated = store.AssociateIssueSubmission(submission.SubmissionId, status.Revision.ContractRevisionId);
         await Assert.That(associated.ContractRevisionId).IsEqualTo(fixture.RevisionId);
         await Assert.That(associated.AttemptIds).IsEmpty();
@@ -69,6 +79,17 @@ public sealed class IssueSubmissionTests
         var attempt = fixture.Admit(store);
         var linked = store.GetIssueSubmission(submission.SubmissionId);
         await Assert.That(linked.AttemptIds).IsEquivalentTo([attempt.AttemptId]);
+
+        var revised = store.AdmitSources(ContractIngressTests.Reference,
+            [ContractIngressTests.Primary("A revised retained request."u8.ToArray())], ContractIngressTests.Propose, []);
+        await Assert.That(revised.Revision.ContractRevisionId).IsNotEqualTo(fixture.RevisionId);
+        await Assert.That(() => store.AssociateIssueSubmission(submission.SubmissionId, revised.Revision.ContractRevisionId))
+            .Throws<IssueSubmissionConflict>();
+
+        var preserved = store.GetIssueSubmission(submission.SubmissionId);
+        await Assert.That(preserved.SubmissionId).IsEqualTo(submission.SubmissionId);
+        await Assert.That(preserved.ContractRevisionId).IsEqualTo(fixture.RevisionId);
+        await Assert.That(preserved.AttemptIds).IsEquivalentTo([attempt.AttemptId]);
         await Assert.That(store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId).AttemptIds)
             .IsEquivalentTo(linked.AttemptIds);
     }
@@ -91,6 +112,12 @@ public sealed class IssueSubmissionTests
         await Assert.That(latest.SubmissionId).IsEqualTo("issue-sub-000");
         await Assert.That(latest.Sequence).IsEqualTo(2);
         await Assert.That(history.Select(item => item.Sequence).SequenceEqual([1L, 2L])).IsTrue();
+        var replay = reopened.SubmitIssue("https://github.com/acme/widget/issues/12");
+        var original = reopened.GetIssueSubmission(first.SubmissionId);
+        await Assert.That(replay.SubmissionId).IsEqualTo(latest.SubmissionId);
+        await Assert.That(replay.Sequence).IsEqualTo(latest.Sequence);
+        await Assert.That(original.SubmissionId).IsEqualTo(first.SubmissionId);
+        await Assert.That(original.Sequence).IsEqualTo(first.Sequence);
     }
 
     [Test]

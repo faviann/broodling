@@ -115,7 +115,7 @@ constructing the fixture; every guard is restored before testing safe retry.
 before/after retirement removal, orphan exclusion, premature retry refusal and
 retry allocation/preparation transaction deaths. `InvocationTests` adds one
 composed stop/quarantine/abandonment handback. `StoreLifecycleTests` compares all
-old facts through authentic v1–v6 upgrades, including completion, currentness,
+old facts through authentic v1–v7 upgrades, including completion, currentness,
 request/run, provisioning, abandonment and source/Contract/B1 facts. G's authentic
 F schema-5 prepared fixture remains unchanged.
 

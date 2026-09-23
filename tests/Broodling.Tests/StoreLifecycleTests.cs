@@ -9,6 +9,38 @@ namespace Broodling.Tests;
 public sealed class StoreLifecycleTests
 {
     [Test]
+    public async Task AuthenticSchemaSevenRequiresExplicitUpgradePreservesRetainedFactsAndAcceptsIssueAfterReopen()
+    {
+        using var fixture = new StoreFixture();
+        Restore(fixture, "dotnet-v7.sql");
+        string Facts() => RetainedFacts(fixture, "work_units", "work_submissions", "entitled_sources", "contract_revisions",
+            "contract_sources", "admission_decisions", "attempts", "attempt_abandonments", "worktree_provisions",
+            "native_submissions", "attempt_completions", "attempt_retirements", "attempt_retries");
+        var before = Facts();
+        var oldBytes = File.ReadAllBytes(fixture.Path);
+        await Assert.That(() => fixture.Open()).Throws<StoreStateException>();
+        await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(oldBytes)).IsTrue();
+
+        using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
+        {
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(8);
+            await Assert.That(Facts()).IsEqualTo(before);
+            var retained = upgraded.FindWorkUnit(ContractIngressTests.Reference)!;
+            await Assert.That(retained.WorkUnitId).IsEqualTo(ContractIngressTests.Reference.WorkUnitId);
+            await Assert.That(retained.IssueLocator).IsEqualTo(ContractIngressTests.Reference.IssueLocator);
+        }
+
+        using var reopened = fixture.Open();
+        var accepted = reopened.SubmitIssue("https://github.com/acme/widget/issues/12");
+        await Assert.That(accepted.WorkUnitId).IsEqualTo(ContractIngressTests.Reference.WorkUnitId);
+        await Assert.That(reopened.GetIssueSubmission(accepted.SubmissionId)).IsEqualTo(accepted);
+        await Assert.That(reopened.FindIssueSubmission("https://github.com/acme/widget/issues/12")!.SubmissionId)
+            .IsEqualTo(accepted.SubmissionId);
+        await Assert.That(reopened.IssueHistory("https://github.com/acme/widget/issues/12").Single().SubmissionId)
+            .IsEqualTo(accepted.SubmissionId);
+    }
+
+    [Test]
     public async Task AuthenticSchemaSixPreservesEveryRowAndReplaysExactCompletionOfflineAfterUpgrade()
     {
         using var fixture = new StoreFixture();

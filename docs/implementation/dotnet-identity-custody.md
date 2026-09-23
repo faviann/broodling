@@ -99,7 +99,7 @@ rewritten. Foreign keys and immediate write transactions enforce custody.
 recognized .NET versions 1–7 to version 8 in one transaction, preserving retained
 facts and initialization identity. Ordinary open refuses historical versions.
 The [H reference](dotnet-retirement-replacement.md#explicit-replacement-and-schema)
-records the current schema boundary; authentic v1–v6 fixtures exercise upgrades.
+records the current schema boundary; authentic v1–v7 fixtures exercise upgrades.
 Python databases, migration history and imports are intentionally unsupported;
 they must remain at separate paths and must never be silently replaced.
 
