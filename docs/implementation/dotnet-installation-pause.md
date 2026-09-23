@@ -57,7 +57,9 @@ is never held across that call. Instead, `DispatchAsync` takes a shared
 `flock` on the already-existing SQLite store file before its dispatch
 transaction and holds it until the transport returns. `ZeroshotTransport`
 spawns the submit bridge with that lock description inherited, so the lock
-stays held while the bridge runs even if its caller dies. The bridge is the
+stays held while the bridge runs even if its caller dies. Existing lock targets
+are opened read-only, because `flock` needs no write access: the bridge
+inherits a descriptor that cannot write the store. The bridge is the
 submit authority and remains alive while `Client.submit` awaits its bundled
 native submit subprocess. That child does not inherit the initiation lock, but
 the bridge retains it until the native submit command finishes and the bridge

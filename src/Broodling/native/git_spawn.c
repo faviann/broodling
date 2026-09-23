@@ -34,8 +34,9 @@ static int above_stdio(int fd)
 int32_t broodling_open_lock(const char *path, int32_t create, int32_t *fd_out)
 {
     *fd_out = -1;
-    int flags = O_RDWR | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK;
-    if (create) flags |= O_CREAT;
+    /* flock needs no write access. An existing target may be the SQLite store, and its
+     * description is inherited by the submit bridge, which must not gain store write access. */
+    int flags = (create ? O_CREAT | O_RDWR : O_RDONLY) | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK;
     int fd = above_stdio(open(path, flags, 0600));
     if (fd < 0) return errno;
     struct stat st;

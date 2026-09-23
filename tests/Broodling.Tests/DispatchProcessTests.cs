@@ -17,12 +17,27 @@ public sealed class DispatchProcessTests
         var started = Path.Combine(fixture.Root, "submit-started");
         var release = Path.Combine(fixture.Root, "submit-release");
         File.WriteAllText(bridge, $$"""
-            import json, os, sys, time
+            import errno, json, os, sys, time
             request = json.load(sys.stdin)
             if request["op"] == "version":
                 print(json.dumps({"ok": True, "sdkVersion": "10.3.0.post1", "nativeVersion": "zeroshot 10.3.0"}))
             else:
-                open({{JsonSerializer.Serialize(started)}}, "w").close()
+                store = os.path.realpath({{JsonSerializer.Serialize(fixture.Git.State.Path)}})
+                writes = []
+                for fd in os.listdir("/proc/self/fd"):
+                    try:
+                        if os.readlink(f"/proc/self/fd/{fd}") != store:
+                            continue
+                    except OSError:
+                        continue
+                    try:
+                        os.write(int(fd), b"")
+                        writes.append("writable")
+                    except OSError as error:
+                        writes.append("denied" if error.errno == errno.EBADF else errno.errorcode[error.errno])
+                with open({{JsonSerializer.Serialize(started + ".tmp")}}, "w") as report:
+                    report.write(",".join(writes))
+                os.replace({{JsonSerializer.Serialize(started + ".tmp")}}, {{JsonSerializer.Serialize(started)}})
                 while not os.path.exists({{JsonSerializer.Serialize(release)}}):
                     time.sleep(0.05)
                 print(json.dumps({"ok": True, "runId": "held-run"}))
@@ -45,6 +60,8 @@ public sealed class DispatchProcessTests
                 var diagnostic = caller.HasExited ? await error : "caller still running";
                 throw new Exception($"Submit bridge did not start; caller exited={caller.HasExited}, diagnostic={diagnostic}");
             }
+            // The one inherited store descriptor is the initiation lock and must not carry write access.
+            await Assert.That(File.ReadAllText(started)).IsEqualTo("denied");
 
             using (var observer = fixture.Git.State.Open())
             {
