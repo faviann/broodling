@@ -93,9 +93,8 @@ an error message, or a run ID alone cannot establish recovery.
 Ordinary open never creates or upgrades a store. Explicit upgrade recognizes
 the unchanged definition hashes for schemas 1–7 and applies missing migrations in one
 transaction. Schema 8 adds durable Issue submission persistence, schema 9 adds
-the persisted installation pause, and schema 10 adds RequestBundle capture
-described in
-[the pause reference](dotnet-installation-pause.md).
+the [persisted installation pause](dotnet-installation-pause.md), and schema 10
+adds [RequestBundle capture](dotnet-identity-custody.md#application-api).
 The authentic pre-F schema-4 fixture retains all prior records,
 including first provisioning acknowledgment and abandonment. Upgrade invents no
 past dispatch. Its provenance and exact hashes are in the
