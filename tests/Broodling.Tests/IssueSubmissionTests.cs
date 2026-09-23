@@ -80,6 +80,18 @@ public sealed class IssueSubmissionTests
         var linked = store.GetIssueSubmission(submission.SubmissionId);
         await Assert.That(linked.AttemptIds).IsEquivalentTo([attempt.AttemptId]);
 
+        // Seed a later retained row; successor creation remains a later ticket.
+        const string secondSubmissionId = "issue-sub-second";
+        fixture.State.Execute($"INSERT INTO issue_submissions (submission_id, work_unit_id, submission_sequence, issue_url, state, contract_revision_id, received_at) "
+            + $"VALUES ('{secondSubmissionId}', '{submission.WorkUnitId}', 2, '{submission.IssueUrl}', 'accepted', NULL, '{submission.ReceivedAt}')");
+        var second = store.GetIssueSubmission(secondSubmissionId);
+        await Assert.That(second.WorkUnitId).IsEqualTo(submission.WorkUnitId);
+        var secondLinked = store.AssociateIssueSubmission(secondSubmissionId, fixture.RevisionId);
+        await Assert.That(secondLinked.ContractRevisionId).IsEqualTo(fixture.RevisionId);
+        await Assert.That(secondLinked.AttemptIds).IsEquivalentTo(linked.AttemptIds);
+        await Assert.That(store.GetIssueSubmission(submission.SubmissionId).AttemptIds)
+            .IsEquivalentTo(secondLinked.AttemptIds);
+
         var revised = store.AdmitSources(ContractIngressTests.Reference,
             [ContractIngressTests.Primary("A revised retained request."u8.ToArray())], ContractIngressTests.Propose, []);
         await Assert.That(revised.Revision.ContractRevisionId).IsNotEqualTo(fixture.RevisionId);

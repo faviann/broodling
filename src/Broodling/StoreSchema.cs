@@ -32,7 +32,7 @@ internal static class StoreSchema
             submission_sequence INTEGER NOT NULL CHECK (submission_sequence > 0),
             issue_url TEXT NOT NULL,
             state TEXT NOT NULL CHECK (state IN ('accepted', 'capturing', 'preparing', 'admitted', 'rejected', 'cancelled', 'interrupted', 'abandoned', 'completed')),
-            contract_revision_id TEXT UNIQUE REFERENCES contract_revisions(contract_revision_id),
+            contract_revision_id TEXT REFERENCES contract_revisions(contract_revision_id),
             received_at TEXT NOT NULL,
             UNIQUE (work_unit_id, submission_sequence)
         ) STRICT;
