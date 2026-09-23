@@ -93,7 +93,7 @@ public sealed partial class BroodlingStore
         Func<ContractProposalInput, Contract> propose, IEnumerable<RequiredEffect> requiredEffects,
         string constructedBy = "model_extraction")
     {
-        using var initiation = BeginInitiation(InitiationKind.Admission);
+        RequireUnpaused();
         return AdmitCapturedSources(reference, ValidateCallerSources(sources), propose, requiredEffects, constructedBy);
     }
 
@@ -137,7 +137,7 @@ public sealed partial class BroodlingStore
         if (!proposal.RequiredEffects.SequenceEqual(effects))
             throw new InvalidContractProposal("The proposal changed the caller's exact effect authority.");
         var revision = RecordContractRevision(proposal);
-        AdmitCore(revision.ContractRevisionId);
+        Admit(revision.ContractRevisionId);
         return Status(revision.ContractRevisionId);
     }
 
@@ -223,12 +223,6 @@ public sealed partial class BroodlingStore
     /// <summary>Record or replay a deterministic decision. A revision alone is not admitted.</summary>
     public AdmissionDecision Admit(string revisionId)
     {
-        using var initiation = BeginInitiation(InitiationKind.Admission);
-        return AdmitCore(revisionId);
-    }
-
-    private AdmissionDecision AdmitCore(string revisionId)
-    {
         using var transaction = connection.BeginTransaction(deferred: false);
         var revision = ReadRevision(revisionId, transaction) ?? throw new UnknownRecord("Unknown Contract revision.");
         var existing = ReadDecision(revisionId, transaction);
@@ -237,6 +231,7 @@ public sealed partial class BroodlingStore
             transaction.Commit();
             return existing;
         }
+        RequireUnpaused(transaction);
         var work = ReadWorkUnit(revision.WorkUnitId, transaction)!;
         var assessment = Closability.Assess(revision.Contract, work.Host);
         Execute("INSERT INTO admission_decisions VALUES ($p0, $p1, $p2, $p3, $p4, $p5)", transaction,

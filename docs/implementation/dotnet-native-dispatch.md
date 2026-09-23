@@ -89,8 +89,8 @@ an error message, or a run ID alone cannot establish recovery.
 
 Ordinary open never creates or upgrades a store. Explicit upgrade recognizes
 the unchanged definition hashes for schemas 1–7 and applies missing migrations in one
-transaction. Schema 8 adds the persisted installation pause and outstanding-
-initiation evidence described in [the pause reference](dotnet-installation-pause.md).
+transaction. Schema 8 adds the persisted installation pause described in
+[the pause reference](dotnet-installation-pause.md).
 The authentic pre-F schema-4 fixture retains all prior records,
 including first provisioning acknowledgment and abandonment. Upgrade invents no
 past dispatch. Its provenance and exact hashes are in the

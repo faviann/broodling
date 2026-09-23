@@ -11,7 +11,7 @@ public sealed partial class BroodlingStore
         IEnumerable<SourceSubmission>? additionalSources = null, string constructedBy = "model_extraction",
         GitHubIssueSource? source = null, CancellationToken cancellationToken = default)
     {
-        using var initiation = BeginInitiation(InitiationKind.Admission);
+        RequireUnpaused();
         var supplied = ValidateCallerSources(additionalSources ?? []);
         var effects = requiredEffects?.ToArray()
             ?? throw new InvalidContractProposal("Explicit effect authority is required.");

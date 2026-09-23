@@ -214,12 +214,6 @@ internal static class StoreSchema
             admission_dispatch_paused INTEGER NOT NULL CHECK (admission_dispatch_paused IN (0, 1)),
             changed_at TEXT NOT NULL
         ) STRICT;
-        CREATE TABLE installation_initiations (
-            initiation_id TEXT PRIMARY KEY,
-            kind TEXT NOT NULL CHECK (kind IN ('admission', 'preparation', 'dispatch')),
-            attempt_id TEXT REFERENCES attempts(attempt_id),
-            started_at TEXT NOT NULL
-        ) STRICT;
         """;
 
     internal const string DispatchSql = """

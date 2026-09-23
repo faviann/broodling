@@ -18,44 +18,47 @@ dotnet /RELEASE/host/Broodling.Host.dll release-installation /EXISTING/DOTNET/st
 ```
 
 The commands emit JSON. `isPaused: true` together with
-`inFlightInitiationDrained: true` means that admission, preparation and
-dispatch have no outstanding durable initiation rows at the observation
-boundary. It does not prove that a Python bridge, target request, process or
-container physically stopped; physical cessation remains an operator/host
-concern.
+`inFlightInitiationDrained: true` means that no admission, preparation or
+dispatch can take effect and no durably dispatched submission is unresolved at
+the observation boundary. It does not prove that a Python bridge, target
+request, process or container physically stopped; physical cessation remains an
+operator/host concern.
 
 ## Ordering boundary
 
-Each initiating operation first records an `installation_initiations` row in a
-short immediate SQLite transaction that checks `installation_control`. The
-dispatch row remains until the durable `prepared → dispatched` intent, the
-external `SubmitAsync` call and factual correlation have all completed. The
-SQLite writer is never held across transport, and late correlation still
-retains its existing facts after authority loss.
+Each initiating operation checks `installation_control` in the same immediate
+SQLite transaction that commits its effect: the admission decision, the Attempt
+allocation, the materialization claim and acknowledgment, the `prepared`
+submission, and the `prepared → dispatched` intent. The pause transaction
+serializes with those writers. If the effect commits first, it is complete; if
+the pause commits first, the effect is refused with `installation_paused`. An
+operation already in flight when the pause commits is refused at its next such
+transition, leaving only its earlier durable records, which ordinary
+recovery resumes after release. Ordinary entry points also check the pause
+before slow work, so a fresh admission never reaches the proposer while paused.
 
-The pause transaction serializes with initiation-row insertion. If insertion
-commits first, the pause status includes that outstanding row; if the pause
-commits first, a new ordinary initiation is refused. `InFlightInitiationDrained`
-means only that no durable initiation rows remain outstanding. The status counts
-are not process liveness observations and do not prove that an unobserved
-external bridge or target request stopped. `UnresolvedDispatches` identifies
-outstanding dispatch rows whose native intent is already `dispatched`.
+The only initiation that can continue after a pause commits is an external
+`SubmitAsync` whose intent is already durably `dispatched`. The SQLite writer
+is never held across that call. `UnresolvedDispatches` counts `dispatched`
+submissions, and `InFlightInitiationDrained` is true when that count is zero.
+Correlation or a retained conflict (`blocked`) settles a submission. Replaying a
+`dispatched` submission can still create its run, so replay is a dispatch and
+refuses while paused.
 
 ## Restart and storage failure
 
-Initiation rows are deliberately not reaped from caller PID, process start time,
-or in-memory state. Those observations are not valid across shared installation
-PID namespaces, and caller loss does not prove that a Python bridge or submitted
-target request ceased initiating. A row surviving restart or a failed cleanup
-therefore keeps the status conservatively undrained. This scope has no safe
-adoption/clearing bypass; later preparation/recovery/replay must inspect the
-retained state and an operator must reconcile an orphaned row. Actual container
-cessation remains a downstream host concern.
+The status is derived from durable admission and submission state, with no
+separate initiation evidence to clean up and no PID, start-time or in-memory
+ownership. Caller loss or a storage failure before a transition commits leaves
+nothing outstanding. Caller loss, transport loss or a failed correlation write
+after the `dispatched` commit leaves the submission `dispatched`: the target may
+have accepted it, so the status stays undrained. That state converges through
+the existing recovery path: release, replay the dispatch so the submission-key
+correlation settles it, then pause again. Explicit release changes only the
+pause fact.
 
-Pause/release writes and initiation cleanup are short SQLite transactions. A
-failed release leaves the already-persisted paused fact unchanged. A failed
-cleanup leaves its outstanding row, so the store never reports a false drained
-state. Explicit release changes only the pause fact; it does not erase evidence.
+Pause and release writes are short SQLite transactions. A failed release leaves
+the already-persisted paused fact unchanged.
 
 ## Replacement exception
 
@@ -64,9 +67,9 @@ successor while paused, because it does not dispatch and its predecessor has
 already completed the existing abandonment/retirement/current-authority
 checks. Replacement execution/dispatch still enters the ordinary dispatch gate
 and requires release. Correlated reads, startup observation and result capture
-do not create initiation rows.
+do not check the pause.
 
-Schema 8 adds `installation_control` and `installation_initiations` to the
-unchanged schema-7 definitions. Ordinary open refuses schema 7; explicit
-upgrade adds both tables and the default unpaused row atomically. The authentic
+Schema 8 adds `installation_control` to the unchanged schema-7 definitions.
+Ordinary open refuses schema 7; explicit upgrade adds the table and the default
+unpaused row atomically. The authentic
 schema-7 fixture is `tests/Broodling.Tests/Fixtures/dotnet-v7.sql`.

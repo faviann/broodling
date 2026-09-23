@@ -5,13 +5,6 @@ public sealed partial class BroodlingStore
     /// <summary>Converge an existing allocation; never allocate, dispatch, reset candidate HEAD or grant cleanup authority.</summary>
     public AttemptRecord ProvisionAttempt(string attemptId)
     {
-        var candidate = GetAttempt(attemptId);
-        using var initiation = BeginInitiation(InitiationKind.Preparation, attemptId, candidate.Retry is not null);
-        return ProvisionAttemptCore(attemptId);
-    }
-
-    private AttemptRecord ProvisionAttemptCore(string attemptId)
-    {
         AdministrativeGitProcess.RequireSupportedHost();
         AttemptRecord attempt;
         // Claim only with current authority. Never wait for the host lock inside SQLite:
@@ -19,6 +12,7 @@ public sealed partial class BroodlingStore
         using (var claim = connection.BeginTransaction(deferred: false))
         {
             attempt = RequireCurrentAttempt(attemptId, claim);
+            RequireUnpausedUnlessReplacement(attempt, claim);
             RequireUndispatchedMaterialization(attemptId, claim);
             WorktreeMaterialization.ValidatePaths(attempt, Path, inspectGit: false);
             WorktreeMaterialization.ClaimEnclosure(attempt);
@@ -28,6 +22,7 @@ public sealed partial class BroodlingStore
             System.IO.Path.Combine(attempt.Allocation.Enclosure, WorktreeMaterialization.LockName));
         using var transaction = connection.BeginTransaction(deferred: false);
         attempt = RequireCurrentAttempt(attemptId, transaction);
+        RequireUnpausedUnlessReplacement(attempt, transaction);
         RequireUndispatchedMaterialization(attemptId, transaction);
         WorktreeMaterialization.ValidatePaths(attempt, Path);
         WorktreeMaterialization.RequireMarker(attempt);

@@ -118,7 +118,7 @@ development follows explicitly scoped open issues. Remaining #100 intent is
 unchanged: HTTP intake, bundled proposer, pre-Contract records, automatic
 progression/completion, Compose, generic maintenance services and retention
 features remain unimplemented. This pause slice adds only persisted
-admission/dispatch control and outstanding-initiation status; host containment,
+admission/dispatch control and drain status; host containment,
 process supervision and physical-cessation maintenance remain deferred. The
 ASP.NET host is not authority to add them.
 

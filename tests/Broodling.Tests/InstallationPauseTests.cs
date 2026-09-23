@@ -76,7 +76,6 @@ public sealed class InstallationPauseTests
             using var observer = fixture.Git.State.Open();
             var paused = observer.PauseInstallation();
             await Assert.That(paused.IsPaused).IsTrue();
-            await Assert.That(paused.OutstandingDispatches).IsEqualTo(1);
             await Assert.That(paused.UnresolvedDispatches).IsEqualTo(1);
             await Assert.That(paused.InFlightInitiationDrained).IsFalse();
             await Assert.That(async () => await observer.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport()))
@@ -97,7 +96,7 @@ public sealed class InstallationPauseTests
     }
 
     [Test]
-    public async Task PauseObservesInFlightAdmissionAndLetsItDrainAfterPause()
+    public async Task PauseRefusesInFlightAdmissionAtItsDecision()
     {
         using var fixture = new StoreFixture();
         using var admissionStore = fixture.Initialize();
@@ -118,8 +117,7 @@ public sealed class InstallationPauseTests
             using var observer = fixture.Open();
             var paused = observer.PauseInstallation();
             await Assert.That(paused.IsPaused).IsTrue();
-            await Assert.That(paused.OutstandingAdmissions).IsEqualTo(1);
-            await Assert.That(paused.InFlightInitiationDrained).IsFalse();
+            await Assert.That(paused.InFlightInitiationDrained).IsTrue();
 
             await Assert.That(() => observer.AdmitSources(ContractIngressTests.Reference,
                 [ContractIngressTests.Primary("fresh admission"u8.ToArray())], _ =>
@@ -130,17 +128,18 @@ public sealed class InstallationPauseTests
             await Assert.That(freshProposerCalls).IsEqualTo(0);
 
             releaseProposer.SetResult();
-            var completed = await admission.WaitAsync(TimeSpan.FromSeconds(10));
-            await Assert.That(completed.Decision!.Admitted).IsTrue();
-            var drained = observer.GetInstallationStatus();
-            await Assert.That(drained.IsPaused).IsTrue();
-            await Assert.That(drained.OutstandingAdmissions).IsEqualTo(0);
-            await Assert.That(drained.InFlightInitiationDrained).IsTrue();
+            await Assert.That(async () => await admission.WaitAsync(TimeSpan.FromSeconds(10))).Throws<InstallationPaused>();
+            var retained = observer.History(ContractIngressTests.Reference).Single();
+            await Assert.That(retained.Decision).IsNull();
+
+            observer.ReleaseInstallation();
+            await Assert.That(observer.Admit(retained.Revision.ContractRevisionId).Admitted).IsTrue();
         }
         finally
         {
             releaseProposer.TrySetResult();
-            await admission.WaitAsync(TimeSpan.FromSeconds(10));
+            try { await admission.WaitAsync(TimeSpan.FromSeconds(10)); }
+            catch (InstallationPaused) { }
         }
     }
 
@@ -167,7 +166,7 @@ public sealed class InstallationPauseTests
     {
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
-        var original = fixture.Git.Admit(store, revision: "main");
+        var original = fixture.Provision(store);
         var paused = store.PauseInstallation();
 
         await Assert.That(() => store.AdmitAttempt(original.ContractRevisionId, fixture.Git.Repository, fixture.Git.Workspaces, "main"))
@@ -196,7 +195,7 @@ public sealed class InstallationPauseTests
     }
 
     [Test]
-    public async Task PausedInstallationRetainsUnresolvedInitiationAfterReopenWithoutOwnerReaping()
+    public async Task InterruptedDispatchStaysUndrainedUntilReplayCorrelatesIt()
     {
         using var fixture = new NativeFixture();
         AttemptRecord attempt;
@@ -206,22 +205,27 @@ public sealed class InstallationPauseTests
             await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile,
                 new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() }))
                 .Throws<NativeTransportError>();
-            await Assert.That(store.GetInstallationStatus().InFlightInitiationDrained).IsFalse();
         }
 
         using var reopened = fixture.Git.State.Open();
-        var status = reopened.PauseInstallation();
-        await Assert.That(status.IsPaused).IsTrue();
-        await Assert.That(status.OutstandingDispatches).IsEqualTo(1);
-        await Assert.That(status.UnresolvedDispatches).IsEqualTo(1);
-        await Assert.That(status.InFlightInitiationDrained).IsFalse();
-        await Assert.That(reopened.GetInstallationStatus().InFlightInitiationDrained).IsFalse();
+        var paused = reopened.PauseInstallation();
+        await Assert.That(paused.UnresolvedDispatches).IsEqualTo(1);
+        await Assert.That(paused.InFlightInitiationDrained).IsFalse();
         await Assert.That(async () => await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport()))
             .Throws<InstallationPaused>();
-        await Assert.That(reopened.ReleaseInstallation().IsPaused).IsFalse();
+
+        reopened.ReleaseInstallation();
+        fixture.Git.State.Execute("CREATE TRIGGER correlation_failure BEFORE UPDATE ON native_submissions WHEN NEW.state = 'correlated' BEGIN SELECT RAISE(ABORT, 'correlation failure'); END;");
+        await Assert.That(async () => await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport()))
+            .Throws<Microsoft.Data.Sqlite.SqliteException>();
+        await Assert.That(reopened.GetInstallationStatus().InFlightInitiationDrained).IsFalse();
+        fixture.Git.State.Execute("DROP TRIGGER correlation_failure;");
+
         await Assert.That((await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport())).State)
             .IsEqualTo("correlated");
-        await Assert.That(reopened.GetInstallationStatus().OutstandingDispatches).IsEqualTo(1);
+        var drained = reopened.PauseInstallation();
+        await Assert.That(drained.UnresolvedDispatches).IsEqualTo(0);
+        await Assert.That(drained.InFlightInitiationDrained).IsTrue();
     }
 
     [Test]
@@ -239,18 +243,6 @@ public sealed class InstallationPauseTests
         using var reopened = fixture.Git.State.Open();
         await Assert.That(reopened.GetInstallationStatus().IsPaused).IsTrue();
         await Assert.That(reopened.ReleaseInstallation().IsPaused).IsFalse();
-    }
-
-    [Test]
-    public async Task FailedInitiationCleanupLeavesOutstandingEvidence()
-    {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        fixture.Git.State.Execute("CREATE TRIGGER initiation_cleanup_failure BEFORE DELETE ON installation_initiations BEGIN SELECT RAISE(ABORT, 'cleanup failure'); END;");
-        _ = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose, []);
-        await Assert.That(store.GetInstallationStatus().InFlightInitiationDrained).IsFalse();
-        fixture.Git.State.Execute("DROP TRIGGER initiation_cleanup_failure;");
-        await Assert.That(store.GetInstallationStatus().OutstandingAdmissions).IsEqualTo(1);
     }
 
     private static async Task SafeRetire(BroodlingStore store, AttemptRecord attempt)

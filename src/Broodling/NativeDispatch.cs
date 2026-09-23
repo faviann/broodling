@@ -23,17 +23,11 @@ public sealed partial class BroodlingStore
     /// <summary>Freeze admitted facts and supported policy before any external submission.</summary>
     public NativeSubmission PrepareSubmission(string attemptId, NativeProfile profile)
     {
-        var candidate = GetAttempt(attemptId);
-        using var initiation = BeginInitiation(InitiationKind.Preparation, attemptId, candidate.Retry is not null);
-        return PrepareSubmissionCore(attemptId, profile);
-    }
-
-    private NativeSubmission PrepareSubmissionCore(string attemptId, NativeProfile profile)
-    {
         var attempt = GetAttempt(attemptId);
         using var held = DispatchLock(attempt);
         using var transaction = connection.BeginTransaction(deferred: false);
         attempt = RequireCurrentAttempt(attemptId, transaction);
+        RequireUnpausedUnlessReplacement(attempt, transaction);
         var request = BuildInvocation(attempt, transaction, profile);
         var previous = ReadSubmission(attemptId, transaction);
         if (previous is not null)
@@ -55,23 +49,10 @@ public sealed partial class BroodlingStore
         DispatchCredentials? credentials = null, CancellationToken cancellationToken = default)
     {
         var attempt = RequireCurrentAttempt(attemptId);
-        var record = FindSubmission(attemptId);
-        if (record is null)
-        {
-            using var initiation = BeginInitiation(InitiationKind.Dispatch, attemptId);
-            record = PrepareSubmissionCore(attemptId, profile);
-            return await DispatchPreparedAsync(attemptId, attempt, record, profile, transport, credentials, cancellationToken, initiation);
-        }
+        var record = FindSubmission(attemptId) ?? PrepareSubmission(attemptId, profile);
         if (record.State == "correlated") return record; // No old workspace/profile/credential dependency.
         if (record.State == "blocked") throw new SubmissionConflict("The native submission has a retained conflict.");
-        using var dispatch = BeginInitiation(InitiationKind.Dispatch, attemptId);
-        return await DispatchPreparedAsync(attemptId, attempt, record, profile, transport, credentials, cancellationToken, dispatch);
-    }
-
-    private async Task<NativeSubmission> DispatchPreparedAsync(string attemptId, AttemptRecord attempt, NativeSubmission record,
-        NativeProfile profile, INativeTransport transport, DispatchCredentials? credentials,
-        CancellationToken cancellationToken, InitiationLease initiation)
-    {
+        RequireUnpaused();
         var request = JsonNode.Parse(record.RequestJson)!.AsObject();
         // Version/executable/credential checks may be slow. Never hold the SQLite writer for them.
         var ephemeral = profile.ValidateDispatch(request, attempt, credentials);
@@ -82,6 +63,8 @@ public sealed partial class BroodlingStore
             record = ReadSubmission(attemptId, transaction)!;
             if (record.State == "correlated") { transaction.Commit(); return record; }
             if (record.State == "blocked") throw new SubmissionConflict("The native submission has a retained conflict.");
+            // Replaying a dispatched intent can still create the run, so it is a dispatch too.
+            RequireUnpaused(transaction);
             ValidateFrozenInvocation(attempt, record, transaction);
             if (!JsonNode.DeepEquals(request["target"], profile.Target((string)request["preset"]!["delivery"]!)))
                 throw new SubmissionConflict("The configured execution target changed.");
@@ -92,10 +75,6 @@ public sealed partial class BroodlingStore
             transaction.Commit();
         }
 
-        // From this point until correlation, the external bridge may have accepted
-        // the request even if this caller loses its acknowledgment. Keep durable
-        // initiation evidence for conservative status/replay handling.
-        initiation.RetainOutstanding();
         string? runId = null;
         SubmissionConflict? conflict = null;
         try { runId = await transport.SubmitAsync(record.RequestJson, ephemeral, cancellationToken); }
@@ -140,7 +119,6 @@ public sealed partial class BroodlingStore
             stale = !attempt.IsCurrent || attempt.Abandonment is not null;
             transaction.Commit();
         }
-        initiation.Complete();
         if (conflict is not null) throw conflict;
         if (stale) throw new StaleAttempt("Authority was lost while native acknowledgment was in flight; factual correlation is retained.");
         return settled;
