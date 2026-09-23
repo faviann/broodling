@@ -78,6 +78,9 @@ The dispatch-intent transaction commits before crossing the transport. No SQLite
 writer spans version probing or the external submission. Concurrent callers can
 submit identical requests; native submission-key idempotency owns duplicate
 prevention. Correlation requires their acknowledged run identities to converge.
+The frozen key is passed unchanged on every replay, so a caller returning after
+correlation cannot create distinct native work; a different acknowledged identity
+is rejected as `SubmissionConflict`.
 An empty/blank identity, empty stdout, malformed JSON/envelope, transport loss,
 cancellation or caller death leaves durable unresolved dispatch. A genuine
 typed conflict with a nonblank run identity becomes `blocked`. A conflict

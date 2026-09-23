@@ -53,7 +53,7 @@ public sealed class InstallationPauseTests
     }
 
     [Test]
-    public async Task PauseRetainsDispatchEvidenceAcrossExternalCallUntilLateCorrelation()
+    public async Task PauseRetainsDispatchedStateAcrossExternalCallUntilLateCorrelation()
     {
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
@@ -90,8 +90,7 @@ public sealed class InstallationPauseTests
         finally
         {
             continueSubmit.TrySetResult("test-cleanup-run");
-            try { await pending.WaitAsync(TimeSpan.FromSeconds(10)); }
-            catch (TimeoutException) when (!pending.IsCompleted) { }
+            await pending.WaitAsync(TimeSpan.FromSeconds(10));
         }
     }
 
@@ -216,10 +215,18 @@ public sealed class InstallationPauseTests
 
         reopened.ReleaseInstallation();
         fixture.Git.State.Execute("CREATE TRIGGER correlation_failure BEFORE UPDATE ON native_submissions WHEN NEW.state = 'correlated' BEGIN SELECT RAISE(ABORT, 'correlation failure'); END;");
-        await Assert.That(async () => await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport()))
-            .Throws<Microsoft.Data.Sqlite.SqliteException>();
-        await Assert.That(reopened.GetInstallationStatus().InFlightInitiationDrained).IsFalse();
-        fixture.Git.State.Execute("DROP TRIGGER correlation_failure;");
+        try
+        {
+            await Assert.That(async () => await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport()))
+                .Throws<Microsoft.Data.Sqlite.SqliteException>();
+            var unresolved = reopened.GetInstallationStatus();
+            await Assert.That(unresolved.UnresolvedDispatches).IsEqualTo(1);
+            await Assert.That(unresolved.InFlightInitiationDrained).IsFalse();
+        }
+        finally
+        {
+            fixture.Git.State.Execute("DROP TRIGGER correlation_failure;");
+        }
 
         await Assert.That((await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport())).State)
             .IsEqualTo("correlated");
