@@ -44,7 +44,6 @@ internal static class GitCustody
         if (commit.Length != 40 || commit.Any(c => !char.IsAsciiHexDigitLower(c))
             || Text(repository, "cat-file", "-t", commit).Trim() != "commit")
             throw new UnsupportedStartingState("A Git reference requires an available full SHA-1 commit.");
-        AssertSupportedCheckout(repository, commit);
         var common = Text(repository, "rev-parse", "--path-format=absolute", "--git-common-dir").Trim();
         return new(PhysicalPaths.Resolve(common), commit, revision);
     }

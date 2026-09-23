@@ -101,14 +101,12 @@ public sealed partial class BroodlingStore
             ?? throw new UnknownRecord("Unknown RequestBundle reference.");
         if (reference.CaptureKind != "source")
             throw new RequestBundleConflict("This RequestBundle reference is not a source snapshot.");
-        if (bundle.State == "complete")
-            throw new RequestBundleConflict("A completed RequestBundle cannot be refreshed.");
         if (reference.IsCaptured)
         {
             transaction.Commit();
             return reference;
         }
-        if (!SubmissionCanCapture(bundle.SubmissionId, transaction))
+        if (bundle.State != "capturing" || !SubmissionCanCapture(bundle.SubmissionId, transaction))
             throw new RequestBundleConflict("This Issue submission is no longer eligible for capture.");
         var issueSubmission = ReadIssueSubmission(bundle.SubmissionId, transaction)!;
         var work = ReadWorkUnit(issueSubmission.WorkUnitId, transaction)!;
@@ -133,14 +131,12 @@ public sealed partial class BroodlingStore
                 ?? throw new UnknownRecord("Unknown RequestBundle reference.");
             if (reference.CaptureKind != "git_blob")
                 throw new RequestBundleConflict("This RequestBundle reference is not a Git file.");
-            if (bundle.State == "complete")
-                throw new RequestBundleConflict("A completed RequestBundle cannot be refreshed.");
             if (reference.IsCaptured)
             {
                 transaction.Commit();
                 return reference;
             }
-            if (!SubmissionCanCapture(bundle.SubmissionId, transaction))
+            if (bundle.State != "capturing" || !SubmissionCanCapture(bundle.SubmissionId, transaction))
                 throw new RequestBundleConflict("This Issue submission is no longer eligible for capture.");
             ReadGitInput(bundleId, referenceId, transaction, out repositoryInput, out revisionInput, out path);
             transaction.Commit();
