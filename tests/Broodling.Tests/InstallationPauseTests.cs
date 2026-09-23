@@ -97,6 +97,54 @@ public sealed class InstallationPauseTests
     }
 
     [Test]
+    public async Task PauseObservesInFlightAdmissionAndLetsItDrainAfterPause()
+    {
+        using var fixture = new StoreFixture();
+        using var admissionStore = fixture.Initialize();
+        var proposerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseProposer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var freshProposerCalls = 0;
+        var admission = Task.Run(() => admissionStore.AdmitSources(ContractIngressTests.Reference,
+            [ContractIngressTests.Primary()], input =>
+            {
+                proposerStarted.SetResult();
+                releaseProposer.Task.GetAwaiter().GetResult();
+                return ContractIngressTests.Propose(input);
+            }, []));
+
+        try
+        {
+            await proposerStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            using var observer = fixture.Open();
+            var paused = observer.PauseInstallation();
+            await Assert.That(paused.IsPaused).IsTrue();
+            await Assert.That(paused.OutstandingAdmissions).IsEqualTo(1);
+            await Assert.That(paused.InFlightInitiationDrained).IsFalse();
+
+            await Assert.That(() => observer.AdmitSources(ContractIngressTests.Reference,
+                [ContractIngressTests.Primary("fresh admission"u8.ToArray())], _ =>
+                {
+                    Interlocked.Increment(ref freshProposerCalls);
+                    return ContractIngressTests.Propose(_);
+                }, [])).Throws<InstallationPaused>();
+            await Assert.That(freshProposerCalls).IsEqualTo(0);
+
+            releaseProposer.SetResult();
+            var completed = await admission.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(completed.Decision!.Admitted).IsTrue();
+            var drained = observer.GetInstallationStatus();
+            await Assert.That(drained.IsPaused).IsTrue();
+            await Assert.That(drained.OutstandingAdmissions).IsEqualTo(0);
+            await Assert.That(drained.InFlightInitiationDrained).IsTrue();
+        }
+        finally
+        {
+            releaseProposer.TrySetResult();
+            await admission.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+    }
+
+    [Test]
     public async Task PausedInstallationStillPermitsCorrelatedRecoveryAndResultCapture()
     {
         using var fixture = new CompletionFixture();

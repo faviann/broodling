@@ -220,7 +220,6 @@ internal static class StoreSchema
             attempt_id TEXT REFERENCES attempts(attempt_id),
             started_at TEXT NOT NULL
         ) STRICT;
-        CREATE INDEX initiations_by_kind ON installation_initiations(kind);
         """;
 
     internal const string DispatchSql = """
