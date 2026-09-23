@@ -49,6 +49,7 @@ public sealed partial class BroodlingStore : IDisposable
             {
                 store.Execute(StoreSchema.Sql, transaction);
                 var now = Now();
+                store.Execute("INSERT INTO installation_control VALUES (1, 0, $p0)", transaction, now);
                 store.Execute("INSERT INTO store_metadata VALUES (1, $p0, $p1, $p2, $p3, $p4)", transaction,
                     StoreSchema.Format, StoreSchema.Version, StoreSchema.DefinitionHash,
                     StoreSchema.ManifestHash(store.connection, transaction), now);
@@ -117,7 +118,11 @@ public sealed partial class BroodlingStore : IDisposable
                 if (store.Information.SchemaVersion < 7)
                     store.Execute(StoreSchema.RetirementSql, transaction);
                 if (store.Information.SchemaVersion < 8)
+                {
                     store.Execute(StoreSchema.IssueSubmissionSql, transaction);
+                    store.Execute(StoreSchema.InstallationSql, transaction);
+                    store.Execute("INSERT INTO installation_control VALUES (1, 0, $p0)", transaction, Now());
+                }
                 if (store.Information.SchemaVersion < StoreSchema.Version)
                 {
                     store.Execute("UPDATE store_metadata SET version = $p0, definition_hash = $p1, manifest_hash = $p2 WHERE singleton = 1",
@@ -157,6 +162,12 @@ public sealed partial class BroodlingStore : IDisposable
             || reader.GetValue(4) is not string initializedAt || string.IsNullOrEmpty(initializedAt))
             throw new StoreStateException("incompatible_store", "The store format or schema is incompatible; explicit supported upgrades are required.");
         Information = new(format, (int)version, initializedAt);
+        if (Information.SchemaVersion == StoreSchema.Version)
+        {
+            using var control = Command("SELECT 1 FROM installation_control WHERE singleton = 1", transaction);
+            if (control.ExecuteScalar() is null)
+                throw new StoreStateException("incompatible_store", "The installation control state is missing.");
+        }
     }
 
     private void Configure()

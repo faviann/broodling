@@ -123,6 +123,35 @@ public sealed class StoreLifecycleTests
     }
 
     [Test]
+    public async Task AuthenticSchemaSevenUpgradeAddsPauseStateWithoutChangingRetainedFacts()
+    {
+        using var fixture = new StoreFixture();
+        Restore(fixture, "dotnet-v7.sql");
+        string Facts() => RetainedFacts(fixture, "work_units", "work_submissions", "entitled_sources", "contract_revisions",
+            "contract_sources", "admission_decisions", "attempts", "attempt_abandonments", "worktree_provisions",
+            "native_submissions", "attempt_completions", "attempt_retirements", "attempt_retries");
+        var before = Facts();
+        var bytes = File.ReadAllBytes(fixture.Path);
+        await Assert.That(() => fixture.Open()).Throws<StoreStateException>();
+        await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(bytes)).IsTrue();
+
+        using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
+        {
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(8);
+            await Assert.That(upgraded.GetInstallationStatus().IsPaused).IsFalse();
+            await Assert.That(Facts()).IsEqualTo(before);
+            upgraded.PauseInstallation();
+            await Assert.That(upgraded.GetInstallationStatus().IsPaused).IsTrue();
+        }
+
+        using var reopened = fixture.Open();
+        await Assert.That(reopened.GetInstallationStatus().IsPaused).IsTrue();
+        using var repeated = fixture.Application.UpgradeStore(fixture.Path);
+        await Assert.That(repeated.Information).IsEqualTo(reopened.Information);
+        await Assert.That(Facts()).IsEqualTo(before);
+    }
+
+    [Test]
     public async Task AuthenticSchemaFourRequiresExplicitUpgradeAndRetainsMaterializationAndEveryEarlierFact()
     {
         using var fixture = new StoreFixture();

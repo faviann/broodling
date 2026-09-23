@@ -92,7 +92,10 @@ public sealed partial class BroodlingStore
     public AdmissionStatus AdmitSources(WorkReference reference, IEnumerable<SourceSubmission> sources,
         Func<ContractProposalInput, Contract> propose, IEnumerable<RequiredEffect> requiredEffects,
         string constructedBy = "model_extraction")
-        => AdmitCapturedSources(reference, ValidateCallerSources(sources), propose, requiredEffects, constructedBy);
+    {
+        using var initiation = BeginInitiation(InitiationKind.Admission);
+        return AdmitCapturedSources(reference, ValidateCallerSources(sources), propose, requiredEffects, constructedBy);
+    }
 
     private static SourceSubmission[] ValidateCallerSources(IEnumerable<SourceSubmission> sources)
     {
@@ -134,7 +137,7 @@ public sealed partial class BroodlingStore
         if (!proposal.RequiredEffects.SequenceEqual(effects))
             throw new InvalidContractProposal("The proposal changed the caller's exact effect authority.");
         var revision = RecordContractRevision(proposal);
-        Admit(revision.ContractRevisionId);
+        AdmitCore(revision.ContractRevisionId);
         return Status(revision.ContractRevisionId);
     }
 
@@ -219,6 +222,12 @@ public sealed partial class BroodlingStore
 
     /// <summary>Record or replay a deterministic decision. A revision alone is not admitted.</summary>
     public AdmissionDecision Admit(string revisionId)
+    {
+        using var initiation = BeginInitiation(InitiationKind.Admission);
+        return AdmitCore(revisionId);
+    }
+
+    private AdmissionDecision AdmitCore(string revisionId)
     {
         using var transaction = connection.BeginTransaction(deferred: false);
         var revision = ReadRevision(revisionId, transaction) ?? throw new UnknownRecord("Unknown Contract revision.");

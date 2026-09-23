@@ -5,6 +5,13 @@ public sealed partial class BroodlingStore
     /// <summary>Converge an existing allocation; never allocate, dispatch, reset candidate HEAD or grant cleanup authority.</summary>
     public AttemptRecord ProvisionAttempt(string attemptId)
     {
+        var candidate = GetAttempt(attemptId);
+        using var initiation = BeginInitiation(InitiationKind.Preparation, attemptId, candidate.Retry is not null);
+        return ProvisionAttemptCore(attemptId);
+    }
+
+    private AttemptRecord ProvisionAttemptCore(string attemptId)
+    {
         AdministrativeGitProcess.RequireSupportedHost();
         AttemptRecord attempt;
         // Claim only with current authority. Never wait for the host lock inside SQLite:

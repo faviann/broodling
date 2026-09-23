@@ -86,15 +86,12 @@ without native access. The prepared v5 fixture above is preserved unchanged.
 - Original manifest hash: `9e90c11e420be0274beb506c0dd44702f04dad402e0a945f4d21a68cc6d65881`.
 - SQL fixture SHA-256: `b41038ccdf01327e6e71273579762c20870745227910dd37441dda901f580567`.
 
-`dotnet-v7.sql` is the direct output of the genuine pre-change v7 application
-at `d7a8f094f3886b117a6eebbf86d333d5c16bc8f0`. It explicitly upgraded the
-retained v6 application state above, then closed it for capture; the v7
-application—not the current schema builder—established the schema-7 metadata,
-manifest and prior-state boundary while retaining the existing identities and
-historical rows. The v7→v8 test compares every
-retained fact listed in the fixture, proves ordinary open refuses without
-modifying the file, performs the explicit current upgrade, reopens, and then
-accepts and looks up a new Issue submission.
+`dotnet-v7.sql` is an authentic schema-7 dump produced by explicitly upgrading
+the retained v6 capture with the application at `d7a8f094f3886b117a6eebbf86d333d5c16bc8f0`
+(the pre-#110 `origin/main` application). It retains the v6 facts and schema-7
+metadata; the #110 migration test restores this file rather than synthesizing
+schema 7 with the new builder, refuses ordinary open, adds installation pause
+state in one transaction, reopens and repeats the explicit upgrade.
 
 - Original definition hash: `1f56d5fa659afe8f91c8bc559b9de248cc1f9f85ced68cf674a27c85002302c6`.
 - Original manifest hash: `84bfb92ddf4305e45e4543eb280ba4f36ad6eebc466f1a897ccce63c3ad56fe9`.

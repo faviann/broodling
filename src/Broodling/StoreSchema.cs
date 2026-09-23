@@ -23,7 +23,7 @@ internal static class StoreSchema
     internal static string VersionSevenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionSevenSql));
     internal const string VersionSevenSql = VersionSixSql + "\n" + RetirementSql;
     internal const string VersionEightSql = VersionSevenSql + "\n" + IssueSubmissionSql;
-    internal const string Sql = VersionEightSql;
+    internal const string Sql = VersionEightSql + "\n" + InstallationSql;
 
     internal const string IssueSubmissionSql = """
         CREATE TABLE issue_submissions (
@@ -206,6 +206,21 @@ internal static class StoreSchema
         WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id
             AND json(target_json) IS NOT json_extract(NEW.request_json, '$.target'))
         BEGIN SELECT RAISE(ABORT, 'replacement must preserve its chosen target'); END;
+        """;
+
+    internal const string InstallationSql = """
+        CREATE TABLE installation_control (
+            singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+            admission_dispatch_paused INTEGER NOT NULL CHECK (admission_dispatch_paused IN (0, 1)),
+            changed_at TEXT NOT NULL
+        ) STRICT;
+        CREATE TABLE installation_initiations (
+            initiation_id TEXT PRIMARY KEY,
+            kind TEXT NOT NULL CHECK (kind IN ('admission', 'preparation', 'dispatch')),
+            attempt_id TEXT REFERENCES attempts(attempt_id),
+            started_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX initiations_by_kind ON installation_initiations(kind);
         """;
 
     internal const string DispatchSql = """

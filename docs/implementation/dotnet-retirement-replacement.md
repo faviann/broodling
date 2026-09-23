@@ -88,10 +88,12 @@ authority. Provision/prepare/dispatch independently guard currentness. Direct
 `PrepareSubmission` enforces the frozen retry target too. Dispatched retry
 recovery reuses F's correlation seam without reprovisioning candidate material.
 
-H integrates with G in schema **7**, retaining the exact G schema-6 DDL and all
-v1–v6 definition hashes. Issue-submission persistence extends the current
-schema to **8** while retaining those definitions. Recognized older .NET stores
-require deliberate atomic upgrades; ordinary open refuses old schemas.
+H integrates with G in historical schema **7**, retaining the exact G schema-6
+DDL and all v1–v6 definition hashes. Current schema 8 adds the persisted
+installation pause gate; recognized older .NET stores require deliberate atomic
+upgrades and ordinary open refuses old schemas. Safe replacement allocation and
+preparation remain permitted while paused, but replacement dispatch still
+requires explicit release.
 Retirement/retry facts resist update, delete and `INSERT OR REPLACE`; SQL refuses
 dispatched cleanup authority and missing/changed retry submission targets.
 No Python database/import compatibility was added. Authentic G6 upgrade evidence

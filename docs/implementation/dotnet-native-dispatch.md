@@ -88,8 +88,10 @@ and HEAD drift from original B1, checked again after the call. Dirty files alone
 an error message, or a run ID alone cannot establish recovery.
 
 Ordinary open never creates or upgrades a store. Explicit upgrade recognizes
-the unchanged definition hashes for schemas 1–6 and applies missing migrations in one
-transaction. The authentic pre-F schema-4 fixture retains all prior records,
+the unchanged definition hashes for schemas 1–7 and applies missing migrations in one
+transaction. Schema 8 adds the persisted installation pause and outstanding-
+initiation evidence described in [the pause reference](dotnet-installation-pause.md).
+The authentic pre-F schema-4 fixture retains all prior records,
 including first provisioning acknowledgment and abandonment. Upgrade invents no
 past dispatch. Its provenance and exact hashes are in the
 [fixture record](../../tests/Broodling.Tests/Fixtures/README.md).
@@ -216,7 +218,8 @@ gateway, forge, provider account, deployment or evaluation.
 [G completion](dotnet-receipt-completion.md) implements completed-Work-Unit
 guards, receipt validation, result/disposition retention and application wait.
 [H lifecycle](dotnet-retirement-replacement.md) adds abandonment/stop composition,
-retirement and explicit replacement in schema 7, preserving the prior definitions.
+retirement and explicit replacement in historical schema 7, preserving the prior
+definitions; current schema 8 adds the installation pause boundary.
 The local null-output stable-result gap, dispatched quarantine and independent
 operator review requirements remain.
 
