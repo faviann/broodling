@@ -52,6 +52,24 @@ into a second execution ledger.
 facts. `FindWorkUnit` checks supplied pins without adding pins or submissions.
 These reads take no writer reservation. Source lists are ordered by source ID.
 
+An accepted Issue submission can begin one `RequestBundle` capture with opaque
+acquisition inputs, policy and limits. Register each selected reference as it is
+discovered, then persist its first source snapshot or exact local Git blob before
+continuing. The reference set may grow while capture is incomplete, including
+after reopening the store; replaying a committed capture returns its original
+identity and never refreshes it. `CompleteRequestBundleCapture` seals the reached
+membership and records a manifest plus SHA-256 digest. A completed bundle cannot
+gain references or change its identity, manifest, inputs or captured objects.
+Capture requires an unbound submission, so `AssociateIssueSubmission` refuses a
+submission whose bundle is still capturing; association and completion are
+ordered by the store's writer reservation.
+`ReadRequestBundleReference(bundleId, referenceId)` only serves captured members
+of a completed bundle. It returns the immutable source bytes or reads the exact
+Git blob through its Broodling-pinned commit, checking the recorded digest. Git
+content remains in the source repository's retained object store; it is not
+copied into a second archive. The capture API records inputs without defining
+reference-selection policy or performing remote traversal.
+
 `SourceSubmission` is the trusted low-level presentation boundary from baseline
 `entitlement.py`, not the later supplied-source Contract ingress. Trusted
 `caller`/`broodling_policy` origins can present material; the Work Unit's exact
@@ -83,7 +101,7 @@ refuse source updates/deletes, identity rewrites/unpinning and submission rewrit
 ## State lifecycle and persistence decision
 
 Initialization exclusively reserves a new filesystem path and creates a distinct
-`broodling.dotnet` schema (currently version 9). It refuses existing files and orphan SQLite
+`broodling.dotnet` schema (currently version 10). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
 Store paths inside a marked disposable Attempt enclosure refuse, including paths
 through parent symlinks. Caller paths containing malformed UTF-16 refuse with
@@ -96,10 +114,11 @@ full synchronization. An incompatible or unknown file is not initialized or
 rewritten. Foreign keys and immediate write transactions enforce custody.
 
 `UpgradeStore` accepts an already-current store unchanged and explicitly upgrades
-recognized .NET versions 1–8 to version 9 in one transaction, preserving retained
+recognized .NET versions 1–9 to version 10 in one transaction, preserving retained
 facts and initialization identity. Ordinary open refuses historical versions.
 The [H reference](dotnet-retirement-replacement.md#explicit-replacement-and-schema)
-records the current schema boundary; authentic v1–v8 fixtures exercise upgrades.
+records the current schema boundary; authentic v1–v9 fixtures exercise upgrades,
+including preservation of an existing paused installation from schema 9.
 Python databases, migration history and imports are intentionally unsupported;
 they must remain at separate paths and must never be silently replaced.
 

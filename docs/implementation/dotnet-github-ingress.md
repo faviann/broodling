@@ -69,8 +69,11 @@ The complete sources remain authority alongside the Contract.
 Any byte change—including JSON reformatting or metadata—requires fresh operator
 review; the proposer does not silently refresh its reviewed input. F consumes
 this boundary for composed operator submission. D adds no separate command or
-public HTTP intake; the remaining #100 pre-Contract capture lifecycle is
-separate from #105's durable submission identity.
+public HTTP intake. The callable pre-Contract `RequestBundle` capture seam now
+retains acquisition inputs, policy and limits with the #105 submission identity,
+supports registering references as they are discovered, and seals completed
+membership for bundle-scoped reads. It does not define selection policy or
+perform remote traversal; those remain later #100 work.
 
 ## Validation
 

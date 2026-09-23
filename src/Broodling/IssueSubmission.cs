@@ -144,6 +144,11 @@ public sealed partial class BroodlingStore
             ?? throw new UnknownRecord("Unknown Contract revision.");
         if (revision.WorkUnitId != submission.WorkUnitId)
             throw new IssueSubmissionConflict("The Contract revision belongs to another Work Unit.");
+        // Capture eligibility requires an unbound submission, so binding before
+        // completion would strand the bundle. The writer reservation orders this
+        // check against completion.
+        if (ReadRequestBundle(submissionId, transaction) is { State: not "complete" })
+            throw new IssueSubmissionConflict("The Issue submission's RequestBundle must complete before Contract association.");
         Execute("UPDATE issue_submissions SET contract_revision_id = $p0 WHERE submission_id = $p1", transaction,
             contractRevisionId, submissionId);
         var result = ReadIssueSubmission(submissionId, transaction)!;

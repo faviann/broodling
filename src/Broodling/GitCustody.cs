@@ -8,6 +8,8 @@ internal sealed record StartingState(string Repository, string CommitOid, string
 /// <summary>Local administrative Git custody. No checkout, driver execution, fetch or delivery.</summary>
 internal static class GitCustody
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+
     internal static StartingState Resolve(string repository, string revision)
     {
         if (string.IsNullOrWhiteSpace(repository) || !Directory.Exists(repository))
@@ -29,6 +31,65 @@ internal static class GitCustody
         }
         var common = Text(repository, "rev-parse", "--path-format=absolute", "--git-common-dir").Trim();
         return new(PhysicalPaths.Resolve(common), commit, revision);
+    }
+
+    /// <summary>Resolve a local commit without treating working-tree state as captured material.</summary>
+    internal static StartingState ResolvePinned(string repository, string revision)
+    {
+        if (string.IsNullOrWhiteSpace(repository) || !Directory.Exists(repository))
+            throw new UnsupportedStartingState("A Git reference requires a local repository.");
+        if (string.IsNullOrWhiteSpace(revision))
+            throw new UnsupportedStartingState("A Git reference requires a commit revision.");
+        var commit = Text(repository, "rev-parse", "--verify", "--end-of-options", revision + "^{commit}").Trim();
+        if (commit.Length != 40 || commit.Any(c => !char.IsAsciiHexDigitLower(c))
+            || Text(repository, "cat-file", "-t", commit).Trim() != "commit")
+            throw new UnsupportedStartingState("A Git reference requires an available full SHA-1 commit.");
+        var common = Text(repository, "rev-parse", "--path-format=absolute", "--git-common-dir").Trim();
+        return new(PhysicalPaths.Resolve(common), commit, revision);
+    }
+
+    internal sealed record PinnedBlob(string BlobOid, byte[] Content);
+
+    /// <summary>Read one exact tree entry through a retained direct commit pin.</summary>
+    internal static PinnedBlob ReadPinnedBlob(string repository, string commit, string path,
+        string? expectedBlobOid = null)
+    {
+        var reference = "refs/broodling/starting/" + commit;
+        if (RetentionOid(repository, reference) != commit)
+            throw new UnsupportedStartingState("The selected Git commit no longer has its exact Broodling retention pin.");
+
+        byte[] entry;
+        try
+        {
+            entry = Checked(repository, ["ls-tree", "-rz", "--full-tree", "-r", commit, "--", ":(top,literal)" + path]);
+        }
+        catch (UnsupportedStartingState)
+        {
+            throw;
+        }
+        var separator = Array.IndexOf(entry, (byte)'\t');
+        var end = Array.IndexOf(entry, (byte)0);
+        if (separator <= 0 || end <= separator)
+            throw new UnsupportedStartingState("The exact Git path is not present in the pinned commit.");
+        string metadata;
+        string returnedPath;
+        try
+        {
+            metadata = Encoding.ASCII.GetString(entry, 0, separator);
+            returnedPath = StrictUtf8.GetString(entry, separator + 1, end - separator - 1);
+        }
+        catch (DecoderFallbackException)
+        {
+            throw new UnsupportedStartingState("The selected Git path is not valid UTF-8.");
+        }
+        var fields = metadata.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (returnedPath != path || fields.Length != 3 || fields[1] != "blob"
+            || fields[2].Length != 40 || fields[2].Any(c => !char.IsAsciiHexDigitLower(c)))
+            throw new UnsupportedStartingState("The exact Git path does not identify a retained file blob.");
+        var blob = fields[2];
+        if (expectedBlobOid is not null && blob != expectedBlobOid)
+            throw new UnsupportedStartingState("The pinned Git path no longer resolves to its captured blob.");
+        return new(blob, Checked(repository, ["cat-file", "blob", blob]));
     }
 
     internal static string WorkspaceRoot(string root, string repository, StartingState state)

@@ -116,12 +116,14 @@ The .NET application preserves the #75–#77 callable/operator behavior. The
 [parity map](../migration/130-parity-map.md) retain its evidence. Current
 development follows explicitly scoped open issues. #105 adds durable
 pre-Contract Issue submission identity and inspection through the callable
-SQLite store. Remaining #100 intent is unchanged: HTTP intake, bundled
-proposer, automatic progression/completion, Compose, generic maintenance
-services and retention features remain unimplemented. This pause slice adds
-only persisted admission/dispatch control and drain status; host containment,
-process supervision and physical-cessation maintenance remain deferred. The
-ASP.NET host is not authority to add them.
+SQLite store. #157 adds persisted admission/dispatch pause controls and drain
+status; host containment, process supervision and physical-cessation maintenance
+remain operator/host responsibilities. #106 adds interruption-safe RequestBundle
+capture checkpoints, immutable completion and bundle-scoped reads. Remaining
+#100 intent includes remote reference selection/acquisition, public HTTP intake,
+a bundled proposer, automatic progression/completion, Compose, maintenance and
+retention features; those remain unimplemented. The ASP.NET host is not authority
+to add them.
 
 ## Lifecycle and retention limits
 

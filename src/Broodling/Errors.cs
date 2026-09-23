@@ -33,6 +33,9 @@ public sealed class WorkUnitIdentityConflict(string message)
 public sealed class IssueSubmissionConflict(string message)
     : BroodlingException("issue_submission_conflict", message);
 
+public sealed class RequestBundleConflict(string message)
+    : BroodlingException("request_bundle_conflict", message);
+
 public sealed class SourceNotEntitled(string message)
     : BroodlingException("source_not_entitled", message);
 

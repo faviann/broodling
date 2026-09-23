@@ -29,8 +29,8 @@ F now [composes this seam](dotnet-native-dispatch.md) before dispatch and guards
 releases the stable enclosure lock and SQLite writer after durable intent.
 
 C introduced .NET schema 4; [H lifecycle](dotnet-retirement-replacement.md) uses
-current schema 9 (historical H schema 7 and schema-8 Issue submission
-persistence). Explicit upgrade recognizes unchanged v1–v8 definition hashes and
+current schema 10 (historical H schema 7, schema-8 Issue submission persistence,
+and schema-9 installation pause). Explicit upgrade recognizes unchanged v1–v9 definition hashes and
 applies missing migrations transactionally; ordinary open still
 refuses old schemas. The actual pre-C schema-3 fixture retains its B1,
 allocation and abandonment, alongside all earlier Contract/source facts.
