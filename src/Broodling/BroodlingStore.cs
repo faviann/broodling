@@ -124,6 +124,8 @@ public sealed partial class BroodlingStore : IDisposable
                     store.Execute(StoreSchema.InstallationSql, transaction);
                     store.Execute("INSERT INTO installation_control VALUES (1, 0, $p0)", transaction, Now());
                 }
+                if (store.Information.SchemaVersion < 10)
+                    store.Execute(StoreSchema.RequestBundleSql, transaction);
                 if (store.Information.SchemaVersion < StoreSchema.Version)
                 {
                     store.Execute("UPDATE store_metadata SET version = $p0, definition_hash = $p1, manifest_hash = $p2 WHERE singleton = 1",
@@ -156,9 +158,9 @@ public sealed partial class BroodlingStore : IDisposable
         using var reader = command.ExecuteReader();
         if (!reader.Read()
             || reader.GetValue(0) is not string format || format != StoreSchema.Format
-            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8))
+            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9))
             || reader.GetValue(2) is not string definition
-                || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, 3 => StoreSchema.VersionThreeDefinitionHash, 4 => StoreSchema.VersionFourDefinitionHash, 5 => StoreSchema.VersionFiveDefinitionHash, 6 => StoreSchema.VersionSixDefinitionHash, 7 => StoreSchema.VersionSevenDefinitionHash, 8 => StoreSchema.VersionEightDefinitionHash, _ => StoreSchema.DefinitionHash })
+                || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, 3 => StoreSchema.VersionThreeDefinitionHash, 4 => StoreSchema.VersionFourDefinitionHash, 5 => StoreSchema.VersionFiveDefinitionHash, 6 => StoreSchema.VersionSixDefinitionHash, 7 => StoreSchema.VersionSevenDefinitionHash, 8 => StoreSchema.VersionEightDefinitionHash, 9 => StoreSchema.VersionNineDefinitionHash, _ => StoreSchema.DefinitionHash })
             || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection, transaction)
             || reader.GetValue(4) is not string initializedAt || string.IsNullOrEmpty(initializedAt))
             throw new StoreStateException("incompatible_store", "The store format or schema is incompatible; explicit supported upgrades are required.");
@@ -292,23 +294,29 @@ public sealed partial class BroodlingStore : IDisposable
     public EntitledSource EntitleSource(string workUnitId, SourceSubmission submission)
     {
         var work = GetWorkUnit(workUnitId);
+        using var transaction = connection.BeginTransaction(deferred: false);
+        var result = PersistEntitledSource(work, submission, transaction);
+        transaction.Commit();
+        return result;
+    }
+
+    private EntitledSource PersistEntitledSource(WorkUnit work, SourceSubmission submission,
+        SqliteTransaction transaction)
+    {
         var grant = submission.EvaluateEntitlement();
         if (submission.Kind == "primary_issue" && submission.Locator != work.IssueLocator)
             throw new SourceNotEntitled("The primary issue source must name this Work Unit's canonical issue locator.");
         var bytes = submission.Content;
         var hash = Digests.Bytes(bytes);
-        var id = "src-" + Digests.Parts("broodling.entitled-source.v1", workUnitId, submission.Kind, submission.Locator, hash);
-        using var transaction = connection.BeginTransaction(deferred: false);
+        var id = "src-" + Digests.Parts("broodling.entitled-source.v1", work.WorkUnitId, submission.Kind, submission.Locator, hash);
         var now = Now();
         Execute("""
             INSERT INTO entitled_sources VALUES ($p0, $p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10, $p11)
             ON CONFLICT (source_id) DO NOTHING
-            """, transaction, id, workUnitId, submission.Kind, submission.Locator, bytes, hash,
+            """, transaction, id, work.WorkUnitId, submission.Kind, submission.Locator, bytes, hash,
             submission.MediaType, submission.Origin, grant.GrantedBy, grant.Basis,
             string.IsNullOrEmpty(submission.RetrievedAt) ? now : submission.RetrievedAt, now);
-        var result = ReadSource(id, transaction);
-        transaction.Commit();
-        return result;
+        return ReadSource(id, transaction);
     }
 
     public EntitledSource GetEntitledSource(string sourceId) => ReadSource(sourceId);

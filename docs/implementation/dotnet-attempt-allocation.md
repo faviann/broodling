@@ -79,9 +79,9 @@ status/history commands expose the same facts. Observation uses a coherent
 deferred snapshot without reserving the writer; an admitted later revision does
 not inherit another revision's Attempt.
 
-B introduced .NET schema 3; the current schema 9 retains H's schema-7
-definitions, schema-8 Issue submission persistence and adds the persisted
-installation pause. Explicit `UpgradeStore` recognizes unchanged v1–v8
+B introduced .NET schema 3; the current schema 10 retains H's schema-7
+definitions, schema-8 Issue submission persistence, schema-9 installation pause
+and schema-10 RequestBundle custody. Explicit `UpgradeStore` recognizes unchanged v1–v9
 definition identities, applies
 missing migrations in one transaction and preserves existing facts. Ordinary
 open refuses old versions. Authentic retained

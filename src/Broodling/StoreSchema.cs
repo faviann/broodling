@@ -6,7 +6,7 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 9;
+    internal const int Version = 10;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
 
@@ -25,7 +25,9 @@ internal static class StoreSchema
     internal static string VersionEightDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionEightSql));
     internal const string VersionEightSql = VersionSevenSql + "\n" + IssueSubmissionSql;
     internal const string VersionNineSql = VersionEightSql + "\n" + InstallationSql;
-    internal const string Sql = VersionNineSql;
+    internal static string VersionNineDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionNineSql));
+    internal const string VersionTenSql = VersionNineSql + "\n" + RequestBundleSql;
+    internal const string Sql = VersionTenSql;
 
     internal const string IssueSubmissionSql = """
         CREATE TABLE issue_submissions (
@@ -56,6 +58,90 @@ internal static class StoreSchema
         BEGIN SELECT RAISE(ABORT, 'Issue submission identity and Contract binding are immutable'); END;
         CREATE TRIGGER issue_submissions_no_delete BEFORE DELETE ON issue_submissions
         BEGIN SELECT RAISE(ABORT, 'Issue submission history is immutable'); END;
+        """;
+
+    internal const string RequestBundleSql = """
+        CREATE TABLE request_bundles (
+            bundle_id TEXT PRIMARY KEY,
+            submission_id TEXT NOT NULL UNIQUE REFERENCES issue_submissions(submission_id),
+            acquisition_inputs BLOB NOT NULL,
+            acquisition_policy BLOB NOT NULL,
+            acquisition_limits BLOB NOT NULL,
+            state TEXT NOT NULL CHECK (state IN ('capturing', 'complete')),
+            manifest_json TEXT,
+            manifest_sha256 TEXT CHECK (manifest_sha256 IS NULL OR length(manifest_sha256) = 64),
+            created_at TEXT NOT NULL,
+            completed_at TEXT,
+            CHECK ((state = 'capturing' AND manifest_json IS NULL AND manifest_sha256 IS NULL AND completed_at IS NULL)
+                OR (state = 'complete' AND manifest_json IS NOT NULL AND manifest_sha256 IS NOT NULL AND completed_at IS NOT NULL))
+        ) STRICT;
+        CREATE TABLE request_bundle_references (
+            bundle_id TEXT NOT NULL REFERENCES request_bundles(bundle_id),
+            reference_id TEXT NOT NULL,
+            ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+            capture_kind TEXT NOT NULL CHECK (capture_kind IN ('source', 'git_blob')),
+            selector BLOB NOT NULL,
+            source_id TEXT REFERENCES entitled_sources(source_id),
+            content_sha256 TEXT CHECK (content_sha256 IS NULL OR length(content_sha256) = 64),
+            git_repository_input TEXT,
+            git_revision_input TEXT,
+            git_path TEXT,
+            git_repository TEXT,
+            git_commit_oid TEXT,
+            git_blob_oid TEXT,
+            PRIMARY KEY (bundle_id, reference_id),
+            UNIQUE (bundle_id, ordinal),
+            CHECK ((capture_kind = 'source' AND git_repository_input IS NULL AND git_revision_input IS NULL
+                    AND git_path IS NULL AND git_repository IS NULL AND git_commit_oid IS NULL AND git_blob_oid IS NULL
+                    AND ((source_id IS NULL AND content_sha256 IS NULL) OR (source_id IS NOT NULL AND content_sha256 IS NOT NULL)))
+                OR (capture_kind = 'git_blob' AND source_id IS NULL AND git_repository_input IS NOT NULL
+                    AND git_revision_input IS NOT NULL AND git_path IS NOT NULL
+                    AND ((git_repository IS NULL AND git_commit_oid IS NULL AND git_blob_oid IS NULL AND content_sha256 IS NULL)
+                        OR (git_repository IS NOT NULL AND git_commit_oid IS NOT NULL AND git_blob_oid IS NOT NULL AND content_sha256 IS NOT NULL))))
+        ) STRICT;
+        CREATE INDEX request_bundle_refs_by_bundle ON request_bundle_references(bundle_id, ordinal);
+        CREATE TRIGGER request_bundle_binding BEFORE INSERT ON request_bundles
+        WHEN NOT EXISTS (
+            SELECT 1 FROM issue_submissions
+            WHERE submission_id = NEW.submission_id AND contract_revision_id IS NULL
+              AND state IN ('accepted', 'capturing')
+        )
+        BEGIN SELECT RAISE(ABORT, 'RequestBundle requires an unprepared Issue submission'); END;
+        CREATE TRIGGER request_bundle_update BEFORE UPDATE ON request_bundles
+        WHEN OLD.bundle_id <> NEW.bundle_id OR OLD.submission_id <> NEW.submission_id
+          OR OLD.acquisition_inputs <> NEW.acquisition_inputs
+          OR OLD.acquisition_policy <> NEW.acquisition_policy
+          OR OLD.acquisition_limits <> NEW.acquisition_limits
+          OR OLD.created_at <> NEW.created_at OR OLD.state <> 'capturing' OR NEW.state <> 'complete'
+          OR NEW.manifest_json IS NULL OR NEW.manifest_sha256 IS NULL OR NEW.completed_at IS NULL
+          OR EXISTS (SELECT 1 FROM request_bundle_references AS r
+              WHERE (r.bundle_id = OLD.bundle_id OR r.bundle_id = NEW.bundle_id)
+                AND (r.content_sha256 IS NULL OR (r.capture_kind = 'source' AND r.source_id IS NULL)
+                    OR (r.capture_kind = 'git_blob' AND (r.git_repository IS NULL OR r.git_commit_oid IS NULL OR r.git_blob_oid IS NULL))))
+        BEGIN SELECT RAISE(ABORT, 'RequestBundle identity and completed manifest are immutable'); END;
+        CREATE TRIGGER request_bundles_no_delete BEFORE DELETE ON request_bundles
+        BEGIN SELECT RAISE(ABORT, 'RequestBundle history is immutable'); END;
+        CREATE TRIGGER request_bundle_reference_insert BEFORE INSERT ON request_bundle_references
+        WHEN NOT EXISTS (SELECT 1 FROM request_bundles WHERE bundle_id = NEW.bundle_id AND state = 'capturing')
+        BEGIN SELECT RAISE(ABORT, 'RequestBundle membership is sealed after completion'); END;
+        CREATE TRIGGER request_bundle_reference_update BEFORE UPDATE ON request_bundle_references
+        WHEN OLD.bundle_id IS NOT NEW.bundle_id OR OLD.reference_id IS NOT NEW.reference_id
+          OR OLD.ordinal IS NOT NEW.ordinal OR OLD.capture_kind IS NOT NEW.capture_kind
+          OR OLD.selector IS NOT NEW.selector OR OLD.git_repository_input IS NOT NEW.git_repository_input
+          OR OLD.git_revision_input IS NOT NEW.git_revision_input OR OLD.git_path IS NOT NEW.git_path
+          OR NOT EXISTS (SELECT 1 FROM request_bundles WHERE bundle_id = OLD.bundle_id AND state = 'capturing')
+          OR OLD.content_sha256 IS NOT NULL OR NEW.content_sha256 IS NULL
+          OR (OLD.capture_kind = 'source' AND (NEW.source_id IS NULL OR NEW.git_repository IS NOT OLD.git_repository
+              OR NEW.git_commit_oid IS NOT OLD.git_commit_oid OR NEW.git_blob_oid IS NOT OLD.git_blob_oid
+              OR NOT EXISTS (SELECT 1 FROM entitled_sources AS s JOIN issue_submissions AS i
+                  ON i.work_unit_id = s.work_unit_id
+                  WHERE i.submission_id = (SELECT submission_id FROM request_bundles WHERE bundle_id = NEW.bundle_id)
+                    AND s.source_id = NEW.source_id AND s.content_sha256 = NEW.content_sha256)))
+          OR (OLD.capture_kind = 'git_blob' AND (NEW.source_id IS NOT OLD.source_id
+              OR NEW.git_repository IS NULL OR NEW.git_commit_oid IS NULL OR NEW.git_blob_oid IS NULL))
+        BEGIN SELECT RAISE(ABORT, 'RequestBundle reference identity and first capture are immutable'); END;
+        CREATE TRIGGER request_bundle_references_no_delete BEFORE DELETE ON request_bundle_references
+        BEGIN SELECT RAISE(ABORT, 'RequestBundle membership is immutable'); END;
         """;
 
     // Result and disposition are one row: no intermediate successful custody can commit.

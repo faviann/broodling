@@ -94,7 +94,7 @@ commands add no HTTP endpoints or deployment workflow.
 ## Schema and parity evidence
 
 The A2 slice introduced .NET schema version 2;
-[the current schema is 9](dotnet-installation-pause.md#restart-and-storage-failure),
+[the current schema is 10](dotnet-identity-custody.md#state-lifecycle-and-persistence-decision),
 retaining H's schema-7 definitions and schema-8 Issue submission persistence.
 Ordinary open refuses historical versions.
 `UpgradeStore(path)` deliberately validates retained v1–v8 format/definition/

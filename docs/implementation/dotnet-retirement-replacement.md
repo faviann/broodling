@@ -90,8 +90,9 @@ recovery reuses F's correlation seam without reprovisioning candidate material.
 
 H integrates with G in historical schema **7**, retaining the exact G schema-6
 DDL and all v1–v6 definition hashes. Issue-submission persistence extends the
-current schema to **8**, retaining those definitions; current schema **9** adds
-the persisted installation pause gate. Recognized older .NET stores require
+current schema to **8**, retaining those definitions; schema **9** adds
+the persisted installation pause gate and current schema **10** adds RequestBundle
+capture. Recognized older .NET stores require
 deliberate atomic upgrades and ordinary open refuses old schemas. Safe
 replacement allocation and preparation remain permitted while paused, but
 replacement dispatch still requires explicit release.
