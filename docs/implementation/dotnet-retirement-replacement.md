@@ -89,8 +89,9 @@ authority. Provision/prepare/dispatch independently guard currentness. Direct
 recovery reuses F's correlation seam without reprovisioning candidate material.
 
 H integrates with G in schema **7**, retaining the exact G schema-6 DDL and all
-v1–v6 definition hashes. Recognized older .NET stores require deliberate atomic
-upgrades; ordinary open refuses old schemas.
+v1–v6 definition hashes. Issue-submission persistence extends the current
+schema to **8** while retaining those definitions. Recognized older .NET stores
+require deliberate atomic upgrades; ordinary open refuses old schemas.
 Retirement/retry facts resist update, delete and `INSERT OR REPLACE`; SQL refuses
 dispatched cleanup authority and missing/changed retry submission targets.
 No Python database/import compatibility was added. Authentic G6 upgrade evidence

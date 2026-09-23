@@ -28,6 +28,9 @@ public sealed class InvalidWorkReference(string message)
 public sealed class WorkUnitIdentityConflict(string message)
     : BroodlingException("work_unit_identity_conflict", message);
 
+public sealed class IssueSubmissionConflict(string message)
+    : BroodlingException("issue_submission_conflict", message);
+
 public sealed class SourceNotEntitled(string message)
     : BroodlingException("source_not_entitled", message);
 

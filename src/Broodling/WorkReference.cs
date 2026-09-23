@@ -74,6 +74,34 @@ public sealed class WorkReference
             repository, issue, repositoryIdentity, issueIdentity);
     }
 
+    /// <summary>Parse the supported URL-only intake form without contacting its upstream.</summary>
+    public static WorkReference ParseIssueUrl(string issueUrl)
+    {
+        if (string.IsNullOrWhiteSpace(issueUrl))
+            throw new InvalidWorkReference("An issue URL is required.");
+        try
+        {
+            StrictUtf8.GetByteCount(issueUrl);
+        }
+        catch (EncoderFallbackException)
+        {
+            throw new InvalidWorkReference("Issue URL text contains invalid Unicode.");
+        }
+
+        if (!Uri.TryCreate(issueUrl, UriKind.Absolute, out var uri)
+            || uri.Scheme != Uri.UriSchemeHttps
+            || !string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase)
+            || uri.Port != 443 || !string.IsNullOrEmpty(uri.UserInfo)
+            || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+            throw new InvalidWorkReference("Expected an HTTPS GitHub issue URL.");
+
+        var parts = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 4 || parts[2] != "issues")
+            throw new InvalidWorkReference("Expected a GitHub issue URL.");
+
+        return Parse(parts[0] + "/" + parts[1], issueUrl);
+    }
+
     private static (string Host, string Owner, string Repository) ParseRepository(string submitted)
     {
         if (string.IsNullOrWhiteSpace(submitted))

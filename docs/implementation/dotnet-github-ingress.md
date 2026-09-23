@@ -68,8 +68,9 @@ The complete sources remain authority alongside the Contract.
 
 Any byte change—including JSON reformatting or metadata—requires fresh operator
 review; the proposer does not silently refresh its reviewed input. F consumes
-this boundary for composed operator submission. D adds no separate command,
-URL-only intake or remaining #100 pre-Contract capture lifecycle.
+this boundary for composed operator submission. D adds no separate command or
+public HTTP intake; the remaining #100 pre-Contract capture lifecycle is
+separate from #105's durable submission identity.
 
 ## Validation
 

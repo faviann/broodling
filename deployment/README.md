@@ -44,9 +44,10 @@ to supported earlier **.NET** schemas, preserving retained facts.
 The owner decision is a future operational gate, not a prerequisite for finishing
 source retirement. This guide and #140 authorize no deployment, state switch,
 silent replacement, deletion, target creation or new live-provider campaign.
-Remaining #100 product intent is unchanged; URL-only intake, bundled proposer,
-pre-Contract records, automatic execution/completion, Compose, maintenance and
-retention work remain separate.
+Remaining #100 product intent is unchanged; public URL-only HTTP intake, bundled
+proposer, reference capture, automatic execution/completion, Compose,
+maintenance and retention work remain separate. Callable pre-Contract Issue
+submission identity is documented in the state API.
 
 ## Build a release artifact
 
@@ -117,7 +118,7 @@ dotnet /RELEASE/host/Broodling.Host.dll history /NEW/state.sqlite3 OWNER/REPO 12
 Initialization exclusively creates a new path. For supported old .NET state,
 stop callers, make a consistent backup and deliberately use
 `dotnet /RELEASE/host/Broodling.Host.dll upgrade-store /EXISTING/DOTNET/state.sqlite3`. Current format is
-`broodling.dotnet`, schema **7**; v1–v6 require explicit upgrade.
+`broodling.dotnet`, schema **8**; v1–v7 require explicit upgrade.
 See [state lifecycle](../docs/implementation/dotnet-identity-custody.md).
 
 The host routes commands before HTTP startup. Running it without a command starts

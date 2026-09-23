@@ -109,10 +109,12 @@ semantic correctness nor authority to merge, deploy or release. See the
 The .NET application preserves the #75–#77 callable/operator behavior. The
 [passed migration review](../migration/130-migration-review.md) and
 [parity map](../migration/130-parity-map.md) retain its evidence. Current
-development follows explicitly scoped open issues. Remaining #100 intent is
-unchanged: HTTP intake, bundled proposer, pre-Contract records, automatic
-progression/completion, Compose, maintenance and retention features remain
-unimplemented. The ASP.NET host is not authority to add them.
+development follows explicitly scoped open issues. #105 adds durable
+pre-Contract Issue submission identity and inspection through the callable
+SQLite store. Remaining #100 intent is unchanged: public HTTP intake, bundled
+proposer, reference capture, automatic progression/completion, Compose,
+maintenance and retention features remain unimplemented. The ASP.NET host is
+not authority to add them.
 
 ## Lifecycle and retention limits
 
