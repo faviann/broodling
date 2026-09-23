@@ -78,8 +78,9 @@ root `/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT` was removed after
 capture. Old Git/worktree/native paths are evidence only. The consolidated
 Restore helper disables foreign keys only for dump ordering. Upgrade tests
 compare every old fact row, refuse ordinary open without modifying the file,
-upgrade to schema 8, reopen, repeat upgrade and replay the exact completion
-without native access. The prepared v5 fixture above is preserved unchanged.
+upgrade through schema 7 to the current schema 8, reopen, repeat upgrade and
+replay the exact completion without native access. The prepared v5 fixture
+above is preserved unchanged.
 
 - Assembly SHA-256: `51dd42d49beb6c88738fa48055e353520e9572c22b35167b7665e03afec9b229`.
 - Original definition hash: `ee2c514222e63e6b1f9311b5bad12874255b230bd8e8b2718dfa6320146d875a`.

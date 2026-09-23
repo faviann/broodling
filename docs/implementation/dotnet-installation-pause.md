@@ -7,6 +7,23 @@ pause is not native stop, cancellation, cleanup authority or a maintenance
 service. Execution and result capture remain observation/completion paths and
 can drain while admission and dispatch are paused.
 
+## Release-host commands
+
+Run the persisted control commands against the deliberate existing .NET store:
+
+```bash
+dotnet /RELEASE/host/Broodling.Host.dll pause-installation /EXISTING/DOTNET/state.sqlite3
+dotnet /RELEASE/host/Broodling.Host.dll installation-status /EXISTING/DOTNET/state.sqlite3
+dotnet /RELEASE/host/Broodling.Host.dll release-installation /EXISTING/DOTNET/state.sqlite3
+```
+
+The commands emit JSON. `isPaused: true` together with
+`inFlightInitiationDrained: true` means that admission, preparation and
+dispatch have no outstanding durable initiation rows at the observation
+boundary. It does not prove that a Python bridge, target request, process or
+container physically stopped; physical cessation remains an operator/host
+concern.
+
 ## Ordering boundary
 
 Each initiating operation first records an `installation_initiations` row in a
