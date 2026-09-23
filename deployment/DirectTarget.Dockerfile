@@ -18,4 +18,5 @@ RUN echo 'afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06  /usr
 ENV HOME=/home/node
 ENV CODEX_HOME=/home/node/.codex
 WORKDIR /home/node
-ENTRYPOINT ["zeroshot", "target", "serve"]
+COPY --chmod=755 direct-target-entrypoint.sh /usr/local/bin/broodling-target
+ENTRYPOINT ["/usr/local/bin/broodling-target"]

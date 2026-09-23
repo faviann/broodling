@@ -174,9 +174,10 @@ transition and native discovery. Both files must select the same origin. It
 creates no target/state and dispatches zero provider tasks.
 
 The retained [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
-unchanged target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
+target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
 **2.101.0** and the native **10.3.0** binary hash. Its build context requires the
-official wheel's `zeroshot/_bin/zeroshot` as `zeroshot`. Target provisioning is
+official wheel's `zeroshot/_bin/zeroshot` as `zeroshot`, plus
+`DirectTarget.Dockerfile` and `direct-target-entrypoint.sh`. Target provisioning is
 operator-owned and separately authorized; the .NET release process does not
 build or deploy this image.
 
@@ -187,6 +188,69 @@ Local users and containers able to reach its bridge are trusted. Public exposure
 rootless/altered UID mapping, Docker-socket or extra credential/source mounts are
 outside this profile. Preserve native UID ownership; never recursively chown
 used target storage.
+
+### Explicit native initialization and guarded startup
+
+The target image entrypoint is `/usr/local/bin/broodling-target`. It keeps the
+native paths `/state`, `/home/node` and `CODEX_HOME=/home/node/.codex` fixed.
+`ZEROSHOT_CONFIG_DIR` and `XDG_CONFIG_HOME` overrides are refused. Build the image
+from a directory containing the three build inputs described above:
+
+```bash
+docker build -f DirectTarget.Dockerfile -t broodling-target:REVIEWED_REVISION .
+```
+
+For an authorized **new installation only**, first provision two empty durable
+host directories with explicit root ownership and private permissions. With no
+existing target using them, run the image once without publishing a port:
+
+```bash
+docker run --rm --network none \
+  --mount type=bind,src=/NEW/target-state,dst=/state \
+  --mount type=bind,src=/NEW/target-home,dst=/home/node \
+  broodling-target:REVIEWED_REVISION initialize \
+  --listen 0.0.0.0:18770 --public-origin http://127.0.0.1:18770 --storage /state
+```
+
+Initialization refuses nonempty roots, including partially initialized state.
+It briefly starts native on container loopback at the origin's port, records
+`broodling` through native `target add` in the home registry, uses public
+`zeroshot list` to create the native ledger without submitting work, and stops
+that process. Success leaves no server running. Initialization failure leaves
+partial durable state for inspection; it never deletes it or silently retries
+over it.
+
+Pinned native, not the entrypoint, decides which public origins are valid and
+records its canonical spelling; configure that exact spelling. Zeroshot 10.3.0
+accepts only HTTPS origins or literal loopback HTTP (`http://127.0.0.1:PORT`),
+and `target serve` itself provides no TLS. It refuses a plain-HTTP Compose
+service-name origin such as `http://broodling-target:18770` before creating
+state. The #100 service-name topology is therefore unresolved and is not decided
+here.
+
+Ordinary startup uses the same arguments **without `initialize`**, the same
+mounts and the recorded origin. Before executing `zeroshot target serve`, the
+entrypoint requires unredirected `/state`, `/state/runs`, `/state/runs.sqlite3`
+and home registry, a ledger that already contains native's `v2_runs` and
+`v2_run_events` tables (opened read-only with the image's Python `sqlite3`), and
+a `broodling` registry entry whose origin equals the configured origin. Native
+creates its tables in any SQLite file it opens, so an unrelated database must be
+refused before serving. Native owns the table shapes, rows and registry
+format/version.
+Missing, foreign or redirected state refuses without creating replacement files.
+Restore missing state; do not initialize an empty replacement at an existing
+origin. Existing targets without this binding require a separately reviewed
+stopped-target transition; this command does not adopt them. Readiness now
+rejects the former unguarded native entrypoint.
+
+Neither mode recursively changes ownership. Native itself prepares traversable
+state/run roots; existing run-specific UIDs, GIDs and permissions remain native's
+responsibility. Keep the target stopped during mount changes and serialize
+operator initialization/startup. These checks recognize initialized native files
+and the origin binding, not snapshot freshness or cross-version compatibility: a
+matching old snapshot or another valid state/home pair with the same origin
+cannot be distinguished. There is no new installation identity, private run-row
+inspection, history pruning, upgrade, backup/restore or maintenance protocol here.
 
 Readiness is a point-in-time dependency/configuration check. Before an authorized
 dispatch, the operator must separately establish actual-target gateway

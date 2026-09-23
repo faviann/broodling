@@ -64,10 +64,12 @@ capabilities, and restart policy `no`. It rejects installed `GH_TOKEN`,
 `GITHUB_TOKEN`, `GATEWAY_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and
 `CODEX_API_KEY`, including empty values. There must be exactly the two recorded
 read/write bind mounts and one TCP port binding exclusively on the recorded
-loopback port. Entrypoint is exactly `zeroshot target serve`; arguments must be
+loopback port. Entrypoint is exactly `/usr/local/bin/broodling-target`; arguments must be
 exactly `--listen 0.0.0.0:<inner-port> --public-origin <origin> --storage /state`.
-These preserve the baseline checks, without adding restrictions on other Docker
-options that it did not check.
+The guarded entrypoint replaces the formerly accepted bare native serve command
+for #104. Other checks retain the baseline scope. See the
+[initialization/startup procedure](../../deployment/README.md#explicit-native-initialization-and-guarded-startup)
+for the package-owned state checks; readiness itself initializes nothing.
 
 Subsequent execs use the inspected container ID, never a newly selected name:
 
@@ -111,8 +113,10 @@ command case uses unavailable Python/state/workspace paths and creates no store.
 The Program usage witness checks routing without Docker or HTTP access.
 
 Only the process adapter's safe-error witness runs harmless local shell commands
-and a missing executable. No test contacts Docker, a real target, forge, gateway
-or provider. These checks test Broodling's readiness decisions, not Docker's or
+and a missing executable. These readiness tests contact no Docker, real target, forge, gateway
+or provider. Separate `NativeTargetStartupTests` exercise the actual target image
+and its initialization/startup boundary using disposable volumes, no published
+ports and no provider workload. These checks test Broodling's readiness decisions, not Docker's or
 its dependencies' implementations. Existing invocation witnesses cover the
 unchanged shared configuration policy. Full-suite controlled-native evidence
 remains distinct from real DirectTarget delivery or deployment validation.

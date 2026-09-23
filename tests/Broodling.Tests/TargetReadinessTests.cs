@@ -294,7 +294,7 @@ public sealed class TargetReadinessTests
             Container = JsonNode.Parse("""
                 {"Id":"selected-container-id","Image":"sha256:installed","State":{"Running":true},
                  "Config":{"User":"","Env":["HOME=/home/node","CODEX_HOME=/home/node/.codex"],
-                    "Entrypoint":["zeroshot","target","serve"],
+                    "Entrypoint":["/usr/local/bin/broodling-target"],
                     "Cmd":["--listen","0.0.0.0:18767","--public-origin","http://127.0.0.1:18770","--storage","/state"]},
                  "HostConfig":{"Privileged":false,"NetworkMode":"bridge","CapDrop":null,"RestartPolicy":{"Name":"no"},
                     "PortBindings":{"18767/tcp":[{"HostIp":"127.0.0.1","HostPort":"18770"}]}},
