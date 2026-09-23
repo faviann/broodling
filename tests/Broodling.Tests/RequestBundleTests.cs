@@ -106,15 +106,18 @@ public sealed class RequestBundleTests
         var pending = store.BeginRequestBundleCapture(submission.SubmissionId, plan);
         store.RegisterRequestBundleReference(pending.BundleId,
             RequestBundleReferenceInput.Source("primary", "selector"u8.ToArray()));
-        store.CaptureRequestBundleSource(pending.BundleId, "primary",
+        var captured = store.CaptureRequestBundleSource(pending.BundleId, "primary",
             CallerSource("caller://immutable", "original snapshot"u8.ToArray()));
         var completed = store.CompleteRequestBundleCapture(pending.BundleId);
 
         await Assert.That(() => store.BeginRequestBundleCapture(submission.SubmissionId,
             new RequestBundlePlan("other inputs"u8.ToArray(), plan.AcquisitionPolicy,
                 plan.AcquisitionLimits))).Throws<RequestBundleConflict>();
-        await Assert.That(() => store.CaptureRequestBundleSource(completed.BundleId, "primary",
-            CallerSource("caller://immutable", "replacement"u8.ToArray()))).Throws<RequestBundleConflict>();
+        var replayed = store.CaptureRequestBundleSource(completed.BundleId, "primary",
+            CallerSource("caller://immutable", "replacement"u8.ToArray()));
+        await Assert.That(replayed.SourceId).IsEqualTo(captured.SourceId);
+        await Assert.That(store.ReadRequestBundleReference(completed.BundleId, "primary").Content
+            .SequenceEqual("original snapshot"u8.ToArray())).IsTrue();
         await Assert.That(() => store.RegisterRequestBundleReference(completed.BundleId,
             RequestBundleReferenceInput.Source("extra", "extra selector"u8.ToArray())))
             .Throws<RequestBundleConflict>();
@@ -148,7 +151,7 @@ public sealed class RequestBundleTests
         store.RegisterRequestBundleReference(bundle.BundleId,
             RequestBundleReferenceInput.GitBlob("repository-file", "selected file"u8.ToArray(),
                 fixture.Repository, "HEAD", "original.txt"));
-        store.CaptureRequestBundleGitBlob(bundle.BundleId, "repository-file");
+        var captured = store.CaptureRequestBundleGitBlob(bundle.BundleId, "repository-file");
         var completed = store.CompleteRequestBundleCapture(bundle.BundleId);
 
         _ = fixture.Commit("later working tree bytes\n");
@@ -164,6 +167,9 @@ public sealed class RequestBundleTests
         var read = store.ReadRequestBundleReference(completed.BundleId, "repository-file");
         await Assert.That(read.Content.SequenceEqual("original selected bytes\n"u8.ToArray())).IsTrue();
         await Assert.That(read.GitCommitOid).IsEqualTo(fixture.Head);
+        var replayed = store.CaptureRequestBundleGitBlob(completed.BundleId, "repository-file");
+        await Assert.That(replayed.GitCommitOid).IsEqualTo(captured.GitCommitOid);
+        await Assert.That(replayed.GitBlobOid).IsEqualTo(captured.GitBlobOid);
 
         var otherSubmission = store.SubmitIssue("https://github.com/acme/widget/issues/13");
         var otherBundle = store.BeginRequestBundleCapture(otherSubmission.SubmissionId,
@@ -177,6 +183,34 @@ public sealed class RequestBundleTests
         await Assert.That(otherRead.Content.SequenceEqual(new byte[] { 0, 255, 1, 128 })).IsTrue();
         await Assert.That(() => store.ReadRequestBundleReference(completed.BundleId, "other-reference"))
             .Throws<UnknownRecord>();
+    }
+
+    [Test]
+    public async Task GitFileCaptureReadsRawBlobDespiteCheckoutOnlyTransformations()
+    {
+        using var fixture = new AttemptFixture();
+        var sentinel = System.IO.Path.Combine(fixture.State.Root, "filter-ran");
+        File.WriteAllText(System.IO.Path.Combine(fixture.Repository, ".gitattributes"),
+            "*.txt text eol=crlf filter=checkout\n");
+        fixture.Git("add", ".gitattributes");
+        fixture.Git("commit", "-m", "checkout attributes");
+        fixture.Git("config", "core.autocrlf", "true");
+        fixture.Git("config", "filter.checkout.smudge", "touch " + sentinel);
+        fixture.Git("config", "filter.checkout.clean", "touch " + sentinel);
+        using var store = fixture.State.Open();
+        var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+        var bundle = store.BeginRequestBundleCapture(submission.SubmissionId,
+            new RequestBundlePlan("git inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
+        store.RegisterRequestBundleReference(bundle.BundleId,
+            RequestBundleReferenceInput.GitBlob("repository-file", "selected file"u8.ToArray(),
+                fixture.Repository, "HEAD", "original.txt"));
+
+        store.CaptureRequestBundleGitBlob(bundle.BundleId, "repository-file");
+        var completed = store.CompleteRequestBundleCapture(bundle.BundleId);
+        var read = store.ReadRequestBundleReference(completed.BundleId, "repository-file");
+
+        await Assert.That(read.Content.SequenceEqual("original selected bytes\n"u8.ToArray())).IsTrue();
+        await Assert.That(File.Exists(sentinel)).IsFalse();
     }
 
     private static SourceSubmission CallerSource(string locator, byte[] bytes) =>
