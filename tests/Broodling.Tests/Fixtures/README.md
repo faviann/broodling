@@ -78,13 +78,27 @@ root `/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT` was removed after
 capture. Old Git/worktree/native paths are evidence only. The consolidated
 Restore helper disables foreign keys only for dump ordering. Upgrade tests
 compare every old fact row, refuse ordinary open without modifying the file,
-upgrade to schema 7, reopen, repeat upgrade and replay the exact completion
+upgrade to schema 8, reopen, repeat upgrade and replay the exact completion
 without native access. The prepared v5 fixture above is preserved unchanged.
 
 - Assembly SHA-256: `51dd42d49beb6c88738fa48055e353520e9572c22b35167b7665e03afec9b229`.
 - Original definition hash: `ee2c514222e63e6b1f9311b5bad12874255b230bd8e8b2718dfa6320146d875a`.
 - Original manifest hash: `9e90c11e420be0274beb506c0dd44702f04dad402e0a945f4d21a68cc6d65881`.
 - SQL fixture SHA-256: `b41038ccdf01327e6e71273579762c20870745227910dd37441dda901f580567`.
+
+`dotnet-v7.sql` is the direct output of the genuine pre-change v7 application
+at `d7a8f094f3886b117a6eebbf86d333d5c16bc8f0`. It explicitly upgraded the
+retained v6 application state above, then closed it for capture; the v7
+application—not the current schema builder—established the schema-7 metadata,
+manifest and prior-state boundary while retaining the existing identities and
+historical rows. The v7→v8 test compares every
+retained fact listed in the fixture, proves ordinary open refuses without
+modifying the file, performs the explicit current upgrade, reopens, and then
+accepts and looks up a new Issue submission.
+
+- Original definition hash: `1f56d5fa659afe8f91c8bc559b9de248cc1f9f85ced68cf674a27c85002302c6`.
+- Original manifest hash: `84bfb92ddf4305e45e4543eb280ba4f36ad6eebc466f1a897ccce63c3ad56fe9`.
+- SQL fixture SHA-256: `b1cad7b0a331b8319859633a3290626848b4206ec3f60d2a9e6d04dca21293d1`.
 
 The F Python files here are test fixtures only. `receipt-sdk.py` substitutes SDK
 constructors/results around the production translator and proves precise PR

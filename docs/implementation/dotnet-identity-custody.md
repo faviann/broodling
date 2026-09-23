@@ -36,6 +36,17 @@ identity. Resolving records every raw submission; canonicalization determines
 the Work Unit. Both upstream pins and the submission commit atomically. Omitted
 pins retain existing identities; conflicting pins refuse the entire operation.
 
+URL-only callers use `WorkReference.ParseIssueUrl` for the supported HTTPS
+`github.com/OWNER/REPOSITORY/issues/NUMBER` form, then `SubmitIssue(issueUrl)`.
+The store validates and canonicalizes the Work Unit before any upstream call,
+and atomically creates the first ordinary `IssueSubmission` or returns the
+latest retained one. Its durable sequence is the ordering authority;
+`received_at` is descriptive only. `GetIssueSubmission` and `IssueHistory` are
+read-only, and the latter remains usable before a Contract exists.
+`AssociateIssueSubmission` binds one exact handle to one Contract revision once;
+Attempt IDs are derived from existing Attempt rows for that revision, not copied
+into a second execution ledger.
+
 `GetWorkUnit(id)`, `FindWorkUnit(reference)`, `ListWorkSubmissions(workUnitId)`,
 `GetEntitledSource(id)` and `ListEntitledSources(workUnitId)` inspect retained
 facts. `FindWorkUnit` checks supplied pins without adding pins or submissions.
@@ -72,7 +83,7 @@ refuse source updates/deletes, identity rewrites/unpinning and submission rewrit
 ## State lifecycle and persistence decision
 
 Initialization exclusively reserves a new filesystem path and creates a distinct
-`broodling.dotnet` schema (currently version 7). It refuses existing files and orphan SQLite
+`broodling.dotnet` schema (currently version 8). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
 Store paths inside a marked disposable Attempt enclosure refuse, including paths
 through parent symlinks. Caller paths containing malformed UTF-16 refuse with
@@ -85,10 +96,10 @@ full synchronization. An incompatible or unknown file is not initialized or
 rewritten. Foreign keys and immediate write transactions enforce custody.
 
 `UpgradeStore` accepts an already-current store unchanged and explicitly upgrades
-recognized .NET versions 1–6 to version 7 in one transaction, preserving retained
+recognized .NET versions 1–7 to version 8 in one transaction, preserving retained
 facts and initialization identity. Ordinary open refuses historical versions.
 The [H reference](dotnet-retirement-replacement.md#explicit-replacement-and-schema)
-records the current schema boundary; authentic v1–v6 fixtures exercise upgrades.
+records the current schema boundary; authentic v1–v7 fixtures exercise upgrades.
 Python databases, migration history and imports are intentionally unsupported;
 they must remain at separate paths and must never be silently replaced.
 

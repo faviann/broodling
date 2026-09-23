@@ -6,7 +6,7 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 7;
+    internal const int Version = 8;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
 
@@ -20,7 +20,41 @@ internal static class StoreSchema
     internal const string VersionFiveSql = VersionFourSql + "\n" + DispatchSql;
     internal static string VersionSixDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionSixSql));
     internal const string VersionSixSql = VersionFiveSql + "\n" + CompletionSql;
-    internal const string Sql = VersionSixSql + "\n" + RetirementSql;
+    internal static string VersionSevenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionSevenSql));
+    internal const string VersionSevenSql = VersionSixSql + "\n" + RetirementSql;
+    internal const string VersionEightSql = VersionSevenSql + "\n" + IssueSubmissionSql;
+    internal const string Sql = VersionEightSql;
+
+    internal const string IssueSubmissionSql = """
+        CREATE TABLE issue_submissions (
+            submission_id TEXT PRIMARY KEY,
+            work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
+            submission_sequence INTEGER NOT NULL CHECK (submission_sequence > 0),
+            issue_url TEXT NOT NULL,
+            state TEXT NOT NULL CHECK (state IN ('accepted', 'capturing', 'preparing', 'admitted', 'rejected', 'cancelled', 'interrupted', 'abandoned', 'completed')),
+            contract_revision_id TEXT REFERENCES contract_revisions(contract_revision_id),
+            received_at TEXT NOT NULL,
+            UNIQUE (work_unit_id, submission_sequence)
+        ) STRICT;
+        CREATE TRIGGER issue_submission_binding BEFORE INSERT ON issue_submissions
+        WHEN NEW.contract_revision_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM contract_revisions
+            WHERE contract_revision_id = NEW.contract_revision_id AND work_unit_id = NEW.work_unit_id
+        )
+        BEGIN SELECT RAISE(ABORT, 'Issue submission Contract must belong to its Work Unit'); END;
+        CREATE TRIGGER issue_submission_update BEFORE UPDATE ON issue_submissions
+        WHEN OLD.submission_id <> NEW.submission_id OR OLD.work_unit_id <> NEW.work_unit_id
+          OR OLD.submission_sequence <> NEW.submission_sequence
+          OR OLD.issue_url <> NEW.issue_url OR OLD.received_at <> NEW.received_at
+          OR (OLD.contract_revision_id IS NOT NULL AND OLD.contract_revision_id IS NOT NEW.contract_revision_id)
+          OR (NEW.contract_revision_id IS NOT NULL AND NOT EXISTS (
+              SELECT 1 FROM contract_revisions
+              WHERE contract_revision_id = NEW.contract_revision_id AND work_unit_id = NEW.work_unit_id
+          ))
+        BEGIN SELECT RAISE(ABORT, 'Issue submission identity and Contract binding are immutable'); END;
+        CREATE TRIGGER issue_submissions_no_delete BEFORE DELETE ON issue_submissions
+        BEGIN SELECT RAISE(ABORT, 'Issue submission history is immutable'); END;
+        """;
 
     // Result and disposition are one row: no intermediate successful custody can commit.
     internal const string CompletionSql = """

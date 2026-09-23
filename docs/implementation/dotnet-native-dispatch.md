@@ -65,7 +65,7 @@ material and current Attempt authority. It acquires C's stable enclosure lock
 before the short SQLite writer and releases both before the external SDK call.
 No subprocess owns that lock during native execution.
 
-F introduced schema **5**, retained within the current schema **7**, with one
+F introduced schema **5**, retained within the current schema **8**, with one
 `native_submissions` row per provisioned Attempt. SQL
 constraints/triggers protect the request/key and permit only
 `prepared → dispatched → correlated|blocked`. Preparation and dispatch require
