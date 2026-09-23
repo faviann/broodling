@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Broodling.Host;
 using TUnit.Assertions;
 using TUnit.Core;
@@ -236,6 +237,59 @@ public sealed class InstallationPauseTests
     }
 
     [Test]
+    public async Task AbandonedUnresolvedDispatchDrainsOnlyOnceItsSubmissionCanNoLongerInitiate()
+    {
+        using var fixture = new NativeFixture();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var acknowledgment = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var transport = new ControlledTransport
+        {
+            Submit = async (_, _) =>
+            {
+                started.SetResult();
+                return await acknowledgment.Task;
+            }
+        };
+        AttemptRecord attempt;
+        using (var caller = fixture.Git.State.Open())
+        {
+            attempt = fixture.Provision(caller);
+            var pending = caller.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
+            try
+            {
+                await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                using var maintenance = fixture.Git.State.Open();
+                await Assert.That(maintenance.PauseInstallation().InFlightInitiationDrained).IsFalse();
+                await Assert.That(async () => await maintenance.StopAsync(attempt.AttemptId, "maintenance", transport))
+                    .Throws<CessationUnconfirmed>();
+                var abandoned = maintenance.GetInstallationStatus();
+                await Assert.That(maintenance.GetAttempt(attempt.AttemptId).Abandonment).IsNotNull();
+                await Assert.That(abandoned.UnresolvedDispatches).IsEqualTo(1);
+                await Assert.That(abandoned.InFlightInitiationDrained).IsFalse();
+            }
+            finally { acknowledgment.TrySetException(new NativeTransportError()); }
+            await Assert.That(async () => await pending.WaitAsync(TimeSpan.FromSeconds(10))).Throws<NativeTransportError>();
+        }
+
+        using var reopened = fixture.Git.State.Open();
+        var status = await SettledStatus(reopened);
+        await Assert.That(status.IsPaused).IsTrue();
+        await Assert.That(status.UnresolvedDispatches).IsEqualTo(1);
+        await Assert.That(status.InFlightInitiationDrained).IsTrue();
+        var retained = reopened.FindSubmission(attempt.AttemptId)!;
+        await Assert.That(retained.State).IsEqualTo("dispatched");
+        await Assert.That(retained.RunId).IsNull();
+
+        reopened.ReleaseInstallation();
+        await Assert.That(async () => await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<StaleAttempt>();
+        await Assert.That(transport.Calls).IsEqualTo(1);
+        reopened.PauseInstallation();
+        var repaused = await SettledStatus(reopened);
+        await Assert.That(repaused.UnresolvedDispatches).IsEqualTo(1);
+        await Assert.That(repaused.InFlightInitiationDrained).IsTrue();
+    }
+
+    [Test]
     public async Task FailedReleaseLeavesPausePersistedAcrossReopen()
     {
         using var fixture = new NativeFixture();
@@ -250,6 +304,22 @@ public sealed class InstallationPauseTests
         using var reopened = fixture.Git.State.Open();
         await Assert.That(reopened.GetInstallationStatus().IsPaused).IsTrue();
         await Assert.That(reopened.ReleaseInstallation().IsPaused).IsFalse();
+    }
+
+    /// <summary>
+    /// A concurrent fork in this test host briefly shares every open lock description until its
+    /// exec closes it, so one undrained reading is conservative and may be transient.
+    /// </summary>
+    internal static async Task<InstallationStatus> SettledStatus(BroodlingStore store)
+    {
+        var clock = Stopwatch.StartNew();
+        var status = store.GetInstallationStatus();
+        while (!status.InFlightInitiationDrained && clock.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            await Task.Delay(20);
+            status = store.GetInstallationStatus();
+        }
+        return status;
     }
 
     private static async Task SafeRetire(BroodlingStore store, AttemptRecord attempt)
