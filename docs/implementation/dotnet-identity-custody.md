@@ -60,6 +60,9 @@ after reopening the store; replaying a committed capture returns its original
 identity and never refreshes it. `CompleteRequestBundleCapture` seals the reached
 membership and records a manifest plus SHA-256 digest. A completed bundle cannot
 gain references or change its identity, manifest, inputs or captured objects.
+Capture requires an unbound submission, so `AssociateIssueSubmission` refuses a
+submission whose bundle is still capturing; association and completion are
+ordered by the store's writer reservation.
 `ReadRequestBundleReference(bundleId, referenceId)` only serves captured members
 of a completed bundle. It returns the immutable source bytes or reads the exact
 Git blob through its Broodling-pinned commit, checking the recorded digest. Git

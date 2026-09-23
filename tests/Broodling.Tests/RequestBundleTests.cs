@@ -140,6 +140,36 @@ public sealed class RequestBundleTests
     }
 
     [Test]
+    public async Task ContractAssociationWaitsForIncompleteBundleWhichRemainsResumable()
+    {
+        using var fixture = new AttemptFixture();
+        using var store = fixture.State.Open();
+        var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+        var bundle = store.BeginRequestBundleCapture(submission.SubmissionId,
+            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
+        store.RegisterRequestBundleReference(bundle.BundleId,
+            RequestBundleReferenceInput.Source("primary", "selector"u8.ToArray()));
+
+        await Assert.That(() => store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId))
+            .Throws<IssueSubmissionConflict>();
+        await Assert.That(store.GetIssueSubmission(submission.SubmissionId).ContractRevisionId).IsNull();
+
+        store.RegisterRequestBundleReference(bundle.BundleId,
+            RequestBundleReferenceInput.Source("supporting", "discovered later"u8.ToArray()));
+        store.CaptureRequestBundleSource(bundle.BundleId, "primary",
+            CallerSource("caller://primary", "primary bytes"u8.ToArray()));
+        store.CaptureRequestBundleSource(bundle.BundleId, "supporting",
+            CallerSource("caller://supporting", "supporting bytes"u8.ToArray()));
+        var completed = store.CompleteRequestBundleCapture(bundle.BundleId);
+        await Assert.That(completed.State).IsEqualTo("complete");
+
+        var associated = store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId);
+        await Assert.That(associated.ContractRevisionId).IsEqualTo(fixture.RevisionId);
+        await Assert.That(store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId).ContractRevisionId)
+            .IsEqualTo(fixture.RevisionId);
+    }
+
+    [Test]
     public async Task BundleReadReturnsPinnedGitBytesAndRejectsReferencesOutsideItsMembership()
     {
         using var fixture = new AttemptFixture();
