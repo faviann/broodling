@@ -23,6 +23,13 @@ check_state() {
     for path in /state/runs.sqlite3 "$registry"; do
         [ -f "$path" ] && [ -s "$path" ] && unredirected "$path" || refuse "missing or redirected initialized file: $path"
     done
+    # Native creates its tables in any SQLite file it opens, so an unrelated database
+    # must refuse here. Table names only: native owns their shape and rows.
+    python3 -c 'import sqlite3, sys
+ledger = sqlite3.connect("file:/state/runs.sqlite3?mode=ro", uri=True)
+tables = {name for (name,) in ledger.execute("SELECT name FROM sqlite_master WHERE type = ?", ("table",))}
+sys.exit(not {"v2_runs", "v2_run_events"} <= tables)' 2>/dev/null \
+        || refuse 'unrecognized native ledger: /state/runs.sqlite3'
     # Native records its canonical origin; only an identical configured origin is the same binding.
     node -e 'const [file, origin] = process.argv.slice(1);
         const target = JSON.parse(require("fs").readFileSync(file)).targets?.broodling;

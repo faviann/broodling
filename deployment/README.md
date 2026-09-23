@@ -231,8 +231,12 @@ here.
 Ordinary startup uses the same arguments **without `initialize`**, the same
 mounts and the recorded origin. Before executing `zeroshot target serve`, the
 entrypoint requires unredirected `/state`, `/state/runs`, `/state/runs.sqlite3`
-and home registry, and a `broodling` registry entry whose origin equals the
-configured origin. Native owns its ledger schema and registry format/version.
+and home registry, a ledger that already contains native's `v2_runs` and
+`v2_run_events` tables (opened read-only with the image's Python `sqlite3`), and
+a `broodling` registry entry whose origin equals the configured origin. Native
+creates its tables in any SQLite file it opens, so an unrelated database must be
+refused before serving. Native owns the table shapes, rows and registry
+format/version.
 Missing, foreign or redirected state refuses without creating replacement files.
 Restore missing state; do not initialize an empty replacement at an existing
 origin. Existing targets without this binding require a separately reviewed

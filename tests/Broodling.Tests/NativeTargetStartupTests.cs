@@ -42,7 +42,9 @@ public sealed class NativeTargetStartupTests
         foreach (var (change, restore) in new[] {
             ("mv /state/runs.sqlite3 /state/saved", "mv /state/saved /state/runs.sqlite3"),
             ("mv /home/node/.config /home/node/saved", "mv /home/node/saved /home/node/.config"),
-            ("mv /state/runs.sqlite3 /state/saved; ln -s /state/saved /state/runs.sqlite3", "rm /state/runs.sqlite3; mv /state/saved /state/runs.sqlite3") })
+            ("mv /state/runs.sqlite3 /state/saved; ln -s /state/saved /state/runs.sqlite3", "rm /state/runs.sqlite3; mv /state/saved /state/runs.sqlite3"),
+            // Native would create its tables inside this unrelated database and serve a fresh ledger.
+            ("mv /state/runs.sqlite3 /state/saved; python3 -c \"import sqlite3; sqlite3.connect('/state/runs.sqlite3').execute('CREATE TABLE foreign_store(id)')\"", "mv /state/saved /state/runs.sqlite3") })
         {
             await target.Shell(change);
             var before = await target.Tree();
