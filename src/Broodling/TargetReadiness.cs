@@ -65,7 +65,7 @@ public sealed class TargetReadiness
                 "Target requires Docker's default Linux capabilities.");
             Require(host.GetProperty("RestartPolicy").GetProperty("Name").GetString() == "no",
                 "Target restart must remain operator controlled.");
-            Require(Strings(config.GetProperty("Entrypoint")).SequenceEqual(["zeroshot", "target", "serve"]),
+            Require(Strings(config.GetProperty("Entrypoint")).SequenceEqual(["/usr/local/bin/broodling-target"]),
                 "Target entrypoint differs from the supported profile.");
             Require(!Strings(config.GetProperty("Env")).Any(value => CredentialNames.Contains(value.Split('=', 2)[0])),
                 "Dispatch credentials must not be installed in target configuration.");

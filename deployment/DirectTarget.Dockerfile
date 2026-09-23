@@ -1,7 +1,7 @@
 # The supported profile pins the selected runtime and delivery dependencies.
 FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git ca-certificates python3 procps \
+    git ca-certificates python3 procps jq sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && npm install --global @openai/codex@0.153.4
 # Native Zeroshot invokes /usr/bin/gh and needs api --paginate --slurp.
@@ -18,4 +18,5 @@ RUN echo 'afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06  /usr
 ENV HOME=/home/node
 ENV CODEX_HOME=/home/node/.codex
 WORKDIR /home/node
-ENTRYPOINT ["zeroshot", "target", "serve"]
+COPY --chmod=755 direct-target-entrypoint.sh /usr/local/bin/broodling-target
+ENTRYPOINT ["/usr/local/bin/broodling-target"]

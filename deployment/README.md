@@ -174,9 +174,10 @@ transition and native discovery. Both files must select the same origin. It
 creates no target/state and dispatches zero provider tasks.
 
 The retained [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
-unchanged target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
+target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
 **2.101.0** and the native **10.3.0** binary hash. Its build context requires the
-official wheel's `zeroshot/_bin/zeroshot` as `zeroshot`. Target provisioning is
+official wheel's `zeroshot/_bin/zeroshot` as `zeroshot`, plus
+`DirectTarget.Dockerfile` and `direct-target-entrypoint.sh`. Target provisioning is
 operator-owned and separately authorized; the .NET release process does not
 build or deploy this image.
 
@@ -187,6 +188,56 @@ Local users and containers able to reach its bridge are trusted. Public exposure
 rootless/altered UID mapping, Docker-socket or extra credential/source mounts are
 outside this profile. Preserve native UID ownership; never recursively chown
 used target storage.
+
+### Explicit native initialization and guarded startup
+
+The target image entrypoint is `/usr/local/bin/broodling-target`. It keeps the
+native paths `/state`, `/home/node` and `CODEX_HOME=/home/node/.codex` fixed.
+`ZEROSHOT_CONFIG_DIR` and `XDG_CONFIG_HOME` overrides are refused. Build the image
+from a directory containing the three build inputs described above:
+
+```bash
+docker build -f DirectTarget.Dockerfile -t broodling-target:REVIEWED_REVISION .
+```
+
+For an authorized **new installation only**, first provision two empty durable
+host directories with explicit root ownership and private permissions. With no
+existing target using them, run the image once without publishing a port:
+
+```bash
+docker run --rm --network none \
+  --mount type=bind,src=/NEW/target-state,dst=/state \
+  --mount type=bind,src=/NEW/target-home,dst=/home/node \
+  broodling-target:REVIEWED_REVISION initialize \
+  --listen 0.0.0.0:18770 --public-origin http://127.0.0.1:18770 --storage /state
+```
+
+Initialization refuses nonempty roots, including partially initialized state.
+It briefly starts native on container loopback, uses public `zeroshot list` to
+initialize its ledger without submitting work, records
+`broodling` through native `target add` in the home registry, and stops that
+process. The temporary server binds container loopback at the intended public
+port, so native discovery records the real public origin without publishing it.
+Success leaves no server running. Initialization failure leaves partial durable
+state for inspection; it never deletes it or silently retries over it.
+
+Ordinary startup uses the same arguments **without `initialize`**, the same
+mounts and the recorded origin. The entrypoint checks required real directories,
+initialized native ledger schema and native home/origin binding before executing
+`zeroshot target serve`. Missing, foreign or redirected state refuses without
+creating replacement files. Restore missing state; do not initialize an empty
+replacement at an existing origin. Existing targets without this binding require
+a separately reviewed stopped-target transition; this command does not adopt
+them. Readiness now rejects the former unguarded native entrypoint.
+
+Neither mode recursively changes ownership. Native itself prepares traversable
+state/run roots; existing run-specific UIDs, GIDs and permissions remain native's
+responsibility. Keep the target stopped during mount changes and serialize
+operator initialization/startup. These checks recognize the pinned file/schema
+and origin binding, not snapshot freshness: a matching old snapshot or another
+valid state/home pair with the same origin cannot be distinguished. There is no
+new installation identity, private run-row inspection, history pruning, upgrade,
+backup/restore or maintenance protocol here.
 
 Readiness is a point-in-time dependency/configuration check. Before an authorized
 dispatch, the operator must separately establish actual-target gateway

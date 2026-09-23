@@ -26,7 +26,12 @@ dotnet build Broodling.sln --configuration Release
 
 `BROODLING_TEST_PYTHON` can point to an existing pinned SDK environment shared
 across worktrees; its default is the repository's `.venv/bin/python`.
-Missing SDK/native dependencies fail rather than skip. No real credentials,
+Missing SDK/native dependencies fail rather than skip.
+The image startup tests also require rootful Docker access. They build the actual
+`deployment/DirectTarget.Dockerfile` using the pinned SDK binary, so an uncached
+build needs access to the pinned image/package sources. Each run owns and removes
+its test image, containers and disposable volumes; no port is published and test
+containers use `--network none`. No existing target is accessed. No real credentials,
 networked provider or opt-in live campaign is required.
 
 Durable Git/SQLite fixtures use unique owned children of
@@ -46,6 +51,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Receipt validation, atomic exact-Attempt completion, late results | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
 | Stop/quarantine, safe undispatched retirement, original-B1 replacement | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
 | Composed application/operator recovery and handback | `InvocationTests`: [invocation](../docs/implementation/invocation.md) |
+| Native explicit initialization, refusal before serving, restart and mixed UID preservation | `NativeTargetStartupTests`: actual target image with disposable state, [startup](../deployment/README.md#explicit-native-initialization-and-guarded-startup) |
 | Selected-target configuration, dependency and discovery decisions | `TargetReadinessTests`: [readiness](../docs/implementation/dotnet-target-readiness.md) |
 
 `Broodling.ProcessWitness` is a test-only caller for real process-death and
