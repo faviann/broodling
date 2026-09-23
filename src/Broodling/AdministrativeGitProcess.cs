@@ -5,14 +5,14 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Broodling;
 
-/// <summary>Linux local administrative children only; never execution supervision.</summary>
+/// <summary>Linux local child/lock primitives only; never execution supervision.</summary>
 internal static class AdministrativeGitProcess
 {
     private const string Library = "broodling_git";
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
     private static extern int broodling_check_host();
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
-    private static extern int broodling_open_lock([MarshalAs(UnmanagedType.LPUTF8Str)] string path, out int fd);
+    private static extern int broodling_open_lock([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int create, out int fd);
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
     private static extern int broodling_spawn_git([MarshalAs(UnmanagedType.LPUTF8Str)] string path,
         nint argv, nint envp, int lockFd, out int pid, out int stdout, out int stderr);
@@ -35,9 +35,15 @@ internal static class AdministrativeGitProcess
         private EnclosureLock(int fd) : base(true) => SetHandle(fd);
         protected override bool ReleaseHandle() => close(handle.ToInt32()) == 0; // Never LOCK_UN: a Git child may still own this description.
         internal static EnclosureLock Acquire(string path, bool shared = false)
+            => AcquireCore(path, shared, create: true);
+
+        internal static EnclosureLock AcquireExisting(string path, bool shared = false)
+            => AcquireCore(path, shared, create: false);
+
+        private static EnclosureLock AcquireCore(string path, bool shared, bool create)
         {
             RequireSupportedHost();
-            Check(broodling_open_lock(path, out var fd), "Cannot open the stable provisioning lock");
+            Check(broodling_open_lock(path, create ? 1 : 0, out var fd), "Cannot open the stable provisioning lock");
             var result = new EnclosureLock(fd);
             while (flock(fd, shared ? 1 /* LOCK_SH */ : 2 /* LOCK_EX */) != 0)
             {
@@ -52,7 +58,7 @@ internal static class AdministrativeGitProcess
         /// <summary>True when no open description, in any process, holds the lock.</summary>
         internal static bool IsFree(string path)
         {
-            Check(broodling_open_lock(path, out var fd), "Cannot open the stable lock");
+            Check(broodling_open_lock(path, 0, out var fd), "Cannot open the stable lock");
             try
             {
                 while (true)

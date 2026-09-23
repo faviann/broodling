@@ -235,7 +235,7 @@ public sealed class RetirementTests
 
 internal sealed class StopTransport(Func<NativeLocator, string, Task<NativeResult>> stop) : INativeTransport
 {
-    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, System.Runtime.InteropServices.SafeHandle initiation, CancellationToken cancellationToken = default) => throw new Exception("Stop must never redispatch");
+    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default) => throw new Exception("Stop must never redispatch");
     public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => throw new Exception("Unexpected wait");
     public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => stop(locator, runId);
 }

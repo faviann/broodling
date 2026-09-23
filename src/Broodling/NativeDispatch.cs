@@ -79,7 +79,12 @@ public sealed partial class BroodlingStore
 
         string? runId = null;
         SubmissionConflict? conflict = null;
-        try { runId = await transport.SubmitAsync(record.RequestJson, ephemeral, initiation, cancellationToken); }
+        try
+        {
+            runId = transport is IInitiationAwareNativeTransport aware
+                ? await aware.SubmitAsync(record.RequestJson, ephemeral, initiation, cancellationToken)
+                : await transport.SubmitAsync(record.RequestJson, ephemeral, cancellationToken);
+        }
         catch (SubmissionConflict error) { conflict = error; }
         if (conflict is null && string.IsNullOrWhiteSpace(runId))
             throw new NativeTransportError(); // Remains durably dispatched and unresolved.

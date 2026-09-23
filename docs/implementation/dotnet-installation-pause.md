@@ -54,22 +54,31 @@ reaches the proposer while paused.
 The only initiation that can continue after a pause commits is an external
 `SubmitAsync` whose intent is already durably `dispatched`. The SQLite writer
 is never held across that call. Instead, `DispatchAsync` takes a shared
-`flock` on `<store>-initiation.lock` before its dispatch transaction and holds
-it until the transport returns. `ZeroshotTransport` spawns the submit bridge
-with that lock description inherited, so the lock stays held while the bridge
-runs even if its caller dies. The bridge's own children do not inherit it.
-Status probes the lock with a non-blocking exclusive `flock`; any shared holder
-makes it undrained. Concurrent dispatches share the lock and never block each
-other. The lock file must not be removed while a store is in use. A child that
-a Broodling process forks shares the description until its `exec` closes it,
-so a single undrained reading can be transient; query again before acting on it.
-A drained reading is never premature.
+`flock` on the already-existing SQLite store file before its dispatch
+transaction and holds it until the transport returns. `ZeroshotTransport`
+spawns the submit bridge with that lock description inherited, so the lock
+stays held while the bridge runs even if its caller dies. The bridge is the
+submit authority and remains alive while `Client.submit` awaits its bundled
+native submit subprocess. That child does not inherit the initiation lock, but
+the bridge retains it until the native submit command finishes and the bridge
+exits; ordinary native execution after submission is outside this boundary.
+Status probes the store file with a non-blocking exclusive `flock`; any shared
+holder makes it undrained. Concurrent dispatches share the lock and never block
+each other.
+A child that a Broodling process forks shares the description until its `exec`
+closes it, so a single undrained reading can be transient; query again before
+acting on it. A drained reading is never premature for bridge initiation. The
+bridge's explicit version probe is separate and non-submitting. After the
+submit request is handed to the bridge, caller cancellation detaches from it;
+it does not kill the bridge or its active native submit child.
 
 Abandonment does not release the lock. `StopAsync` can commit abandonment
 while a `SubmitAsync` for that Attempt is still running, and that call can
 still create the run, so status stays undrained until it returns. Replaying a
 `dispatched` submission can also create its run, so replay is a dispatch and
-refuses while paused.
+refuses while paused. Every replay carries the same persisted `submission_key`,
+so native key idempotency prevents a concurrent identical caller from creating
+a second run after another caller has correlated it.
 
 ## Restart and storage failure
 

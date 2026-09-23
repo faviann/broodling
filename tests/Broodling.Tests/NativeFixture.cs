@@ -56,7 +56,7 @@ internal sealed class ControlledTransport : INativeTransport
     internal int Calls { get; private set; }
     internal Func<NativeLocator, string, CancellationToken, Task<NativeResult>> Wait { get; set; } = (_, _, _) => throw new InvalidOperationException("Unexpected wait");
     internal int WaitCalls { get; private set; }
-    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, System.Runtime.InteropServices.SafeHandle initiation, CancellationToken cancellationToken = default)
+    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default)
     { Calls++; return Submit(requestJson, credentials); }
     public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default)
     { WaitCalls++; return Wait(locator, runId, cancellationToken); }

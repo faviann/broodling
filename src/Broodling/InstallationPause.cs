@@ -58,13 +58,11 @@ public sealed partial class BroodlingStore
         var control = ReadInstallationControl(transaction);
         using var command = Command("SELECT count(*) FROM native_submissions WHERE state = 'dispatched'", transaction);
         return new(control.IsPaused, control.ChangedAt, Convert.ToInt32(command.ExecuteScalar()),
-            AdministrativeGitProcess.EnclosureLock.IsFree(InitiationLockPath));
+            AdministrativeGitProcess.EnclosureLock.IsFree(Path));
     }
 
-    private string InitiationLockPath => Path + "-initiation.lock";
-
     private AdministrativeGitProcess.EnclosureLock HoldInitiation() =>
-        AdministrativeGitProcess.EnclosureLock.Acquire(InitiationLockPath, shared: true);
+        AdministrativeGitProcess.EnclosureLock.AcquireExisting(Path, shared: true);
 
     private (bool IsPaused, string ChangedAt) ReadInstallationControl(SqliteTransaction? transaction)
     {

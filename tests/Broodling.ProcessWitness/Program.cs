@@ -31,6 +31,13 @@ try
         CrashTransport.Gate(submission.RunId!);
         return 99;
     }
+    if (args[0] == "native-bridge-crash")
+    {
+        using var dispatchStore = new BroodlingApplication().OpenStore(args[1]);
+        var profile = new NativeProfile(args[3], new CodexProfile(args[4], args[5], args[6], args[7]), toolPath: "/usr/bin:/bin");
+        await dispatchStore.DispatchAsync(args[2], profile, new ZeroshotTransport(args[8], args[9]));
+        return 99;
+    }
     if (args[0] == "host-profile")
     {
         AdministrativeGitProcess.RequireSupportedHost();
@@ -161,10 +168,10 @@ internal sealed class CrashTransport(INativeTransport inner, string mode) : INat
         Console.Out.Flush();
         Thread.Sleep(Timeout.Infinite); // Parent SIGKILL, not managed unwinding, exercises each durable boundary.
     }
-    public async Task<string> SubmitAsync(string request, IReadOnlyDictionary<string, string> credentials, System.Runtime.InteropServices.SafeHandle initiation, CancellationToken cancellationToken = default)
+    public async Task<string> SubmitAsync(string request, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default)
     {
         if (mode == "before-call") Gate("before-call");
-        var id = await inner.SubmitAsync(request, credentials, initiation, cancellationToken);
+        var id = await inner.SubmitAsync(request, credentials, cancellationToken);
         if (mode == "after-accept") Gate(id);
         return id;
     }

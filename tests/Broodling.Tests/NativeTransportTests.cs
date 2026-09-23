@@ -64,7 +64,7 @@ public sealed class NativeTransportTests
     }
 
     [Test]
-    public async Task SubmittingBridgeKeepsInitiationHeldAfterItsCallerReleasesIt()
+    public async Task SubmittingBridgeKeepsInitiationHeldAfterCallerCancellation()
     {
         using var fixture = new NativeFixture();
         var script = Path.Combine(fixture.Root, "held-submit.py");
@@ -84,16 +84,20 @@ public sealed class NativeTransportTests
         var lockPath = Path.Combine(fixture.Root, "direct-initiation.lock");
         Task<string> submit;
         Stopwatch clock;
+        using var cancellation = new CancellationTokenSource();
         using (var initiation = fixture.DirectInitiation())
         {
-            submit = new ZeroshotTransport(NativeFixture.Python, script).SubmitAsync("{}", new Dictionary<string, string>(), initiation);
+            var transport = (IInitiationAwareNativeTransport)new ZeroshotTransport(NativeFixture.Python, script);
+            submit = transport.SubmitAsync("{}", new Dictionary<string, string>(), initiation, cancellation.Token);
             clock = Stopwatch.StartNew();
             while (!File.Exists(started) && clock.Elapsed < TimeSpan.FromSeconds(20)) await Task.Delay(50);
             await Assert.That(File.Exists(started)).IsTrue();
+            cancellation.Cancel();
+            await Assert.That(async () => await submit).Throws<OperationCanceledException>();
         }
         await Assert.That(AdministrativeGitProcess.EnclosureLock.IsFree(lockPath)).IsFalse();
         File.WriteAllText(release, "");
-        await Assert.That(await submit.WaitAsync(TimeSpan.FromSeconds(20))).IsEqualTo("held-run");
+        await Assert.That(submit.IsCanceled).IsTrue();
         clock = Stopwatch.StartNew(); // A concurrent fork in this host may share the description until its exec.
         bool free;
         while (!(free = AdministrativeGitProcess.EnclosureLock.IsFree(lockPath)) && clock.Elapsed < TimeSpan.FromSeconds(5)) await Task.Delay(20);
@@ -108,12 +112,11 @@ public sealed class NativeTransportTests
         var attempt = fixture.Provision(store);
         var transport = NativeFixture.Transport();
         var prepared = store.PrepareSubmission(attempt.AttemptId, fixture.Profile);
-        using var initiation = fixture.DirectInitiation();
         // Accept through the real released SDK, then lose only the caller's acknowledgment.
         string? acceptedId = null;
         var lostAck = new ControlledTransport { Submit = async (request, credentials) =>
         {
-            acceptedId = await transport.SubmitAsync(request, credentials, initiation);
+            acceptedId = await transport.SubmitAsync(request, credentials);
             throw new NativeTransportError();
         } };
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, lostAck)).Throws<NativeTransportError>();
@@ -121,15 +124,15 @@ public sealed class NativeTransportTests
         await Assert.That(result.Succeeded).IsTrue();
         await Assert.That(result.Output.ValueKind).IsEqualTo(JsonValueKind.Null);
         await Assert.That(result.Failure).IsNull();
-        await Assert.That(await transport.SubmitAsync(prepared.RequestJson, new Dictionary<string, string>(), initiation)).IsEqualTo(acceptedId);
+        await Assert.That(await transport.SubmitAsync(prepared.RequestJson, new Dictionary<string, string>())).IsEqualTo(acceptedId);
         var different = JsonNode.Parse(prepared.RequestJson)!;
         different["task"] = "Actually different task";
-        var realConflict = await Assert.ThrowsAsync<SubmissionConflict>(async () => await transport.SubmitAsync(different.ToJsonString(), new Dictionary<string, string>(), initiation));
+        var realConflict = await Assert.ThrowsAsync<SubmissionConflict>(async () => await transport.SubmitAsync(different.ToJsonString(), new Dictionary<string, string>()));
         await Assert.That(realConflict!.ExistingRunId).IsEqualTo(acceptedId);
         File.WriteAllText(Path.Combine(attempt.Allocation.WorktreePath, "original.txt"), "owned native progress\n");
         AttemptFixture.RunGit(attempt.Allocation.WorktreePath, "add", ".");
         AttemptFixture.RunGit(attempt.Allocation.WorktreePath, "commit", "-m", "owned native progress");
-        var driftConflict = await Assert.ThrowsAsync<SubmissionConflict>(async () => await transport.SubmitAsync(prepared.RequestJson, new Dictionary<string, string>(), initiation));
+        var driftConflict = await Assert.ThrowsAsync<SubmissionConflict>(async () => await transport.SubmitAsync(prepared.RequestJson, new Dictionary<string, string>()));
         await Assert.That(driftConflict!.ExistingRunId).IsEqualTo(realConflict.ExistingRunId);
         await Assert.That(driftConflict.Message).IsEqualTo(realConflict.Message);
         var correlated = await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);

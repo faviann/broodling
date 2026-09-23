@@ -171,9 +171,13 @@ Unknown runs fail closed. `NativeResult` carries run ID, success, arbitrary JSON
 output (including null) and failure unchanged; foreign run identities refuse.
 
 Cancellation/killing detaches only the bridge process, never the whole process
-tree or native work. The submit bridge is spawned by `libbroodling_git.so` and
-inherits the installation initiation lock description; its own children do not
-(see [installation pause](dotnet-installation-pause.md)). Explicit native stop is a separate transport operation.
+tree or native work. After the submit request is handed to it, cancellation
+detaches the caller while the bridge remains alive awaiting its native submit
+child, retaining the initiation lock until that command finishes. The submit
+bridge is spawned by `libbroodling_git.so` and inherits the installation
+initiation lock description; its child does not (see
+[installation pause](dotnet-installation-pause.md)). Explicit native stop is a
+separate transport operation.
 Neither terminal success nor force-stop grants cleanup authority.
 
 ## Thin operator commands
