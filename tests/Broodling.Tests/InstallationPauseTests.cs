@@ -92,7 +92,7 @@ public sealed class InstallationPauseTests
         {
             continueSubmit.TrySetResult("test-cleanup-run");
             try { await pending.WaitAsync(TimeSpan.FromSeconds(10)); }
-            catch (Exception) { }
+            catch (TimeoutException) when (!pending.IsCompleted) { }
         }
     }
 

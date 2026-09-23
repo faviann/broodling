@@ -43,7 +43,7 @@ multi-project orchestrator.
 | One current Attempt, original B1 and exclusive ownership of its dedicated local worktree | Native graph expansion/routing, acceptance/code review, repair and provider sessions |
 | Frozen invocation, durable dispatch intent, Attempt/run correlation and current-authority checks | Submission-key idempotency, execution state, reconnectable terminal result and native stop |
 | Receipt validation against authorized delivery and atomic result/disposition retention | Authorized checkout, commit, push and PR creation/update, including delivery repair and receipt production |
-| Explicit local execution policy and refusal of unsafe cleanup/retry | Provider execution and process cleanup; Broodling adds no supervisor |
+| Explicit local execution policy and refusal of unsafe cleanup/retry | Provider execution; operator/host procedure owns process/container containment and physical-cessation proof |
 
 The persisted pause controls Broodling admission and dispatch initiation only;
 its status never proves native execution or container/process cessation. Zeroshot
