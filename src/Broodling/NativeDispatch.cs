@@ -56,6 +56,8 @@ public sealed partial class BroodlingStore
         var request = JsonNode.Parse(record.RequestJson)!.AsObject();
         // Version/executable/credential checks may be slow. Never hold the SQLite writer for them.
         var ephemeral = profile.ValidateDispatch(request, attempt, credentials);
+        // Held from before the dispatched intent until the transport can no longer submit.
+        using var initiation = HoldInitiation();
         using (var held = DispatchLock(attempt))
         using (var transaction = connection.BeginTransaction(deferred: false))
         {
@@ -77,7 +79,7 @@ public sealed partial class BroodlingStore
 
         string? runId = null;
         SubmissionConflict? conflict = null;
-        try { runId = await transport.SubmitAsync(record.RequestJson, ephemeral, cancellationToken); }
+        try { runId = await transport.SubmitAsync(record.RequestJson, ephemeral, initiation, cancellationToken); }
         catch (SubmissionConflict error) { conflict = error; }
         if (conflict is null && string.IsNullOrWhiteSpace(runId))
             throw new NativeTransportError(); // Remains durably dispatched and unresolved.

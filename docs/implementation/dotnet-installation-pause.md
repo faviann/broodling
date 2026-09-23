@@ -18,13 +18,23 @@ dotnet /RELEASE/host/Broodling.Host.dll release-installation /EXISTING/DOTNET/st
 ```
 
 The commands emit JSON with `isPaused`, `changedAt`, `unresolvedDispatches`
-and `inFlightInitiationDrained`. The last field is derived from the third:
+and `inFlightInitiationDrained`. The last two are independent facts:
+
+- `unresolvedDispatches` counts `native_submissions` in `dispatched` state. It
+  is durable uncertainty about whether a native run exists. Pause and status
+  never rewrite it; only correlation or a retained conflict (`blocked`)
+  settles a submission.
+- `inFlightInitiationDrained` is true when no process holds the installation
+  initiation lock, so no external submission can still create a native run.
+
 `isPaused: true` together with `inFlightInitiationDrained: true` means that the
-paused fact is committed and no new admission, preparation or dispatch
-transition can commit before an explicit release, and no durably dispatched
-submission is unresolved in the store.
-It does not prove that a Python bridge, target request, process or container
-physically stopped; physical cessation remains an operator/host concern.
+paused fact is committed, no new admission, preparation or dispatch
+transition can commit before an explicit release, and no Broodling dispatch or
+submit bridge is still initiating. A nonzero `unresolvedDispatches` at that
+point is retained history for the operator to inspect, not in-flight work.
+It does not prove that a native process started by the bridge, a target
+request or a container physically stopped; physical cessation remains an
+operator/host concern.
 
 ## Ordering boundary
 
@@ -43,26 +53,37 @@ reaches the proposer while paused.
 
 The only initiation that can continue after a pause commits is an external
 `SubmitAsync` whose intent is already durably `dispatched`. The SQLite writer
-is never held across that call. `unresolvedDispatches` counts
-`native_submissions` in `dispatched` state, and
-`inFlightInitiationDrained` is true when that count is zero. Correlation or a
-retained conflict (`blocked`) settles a submission. Replaying a `dispatched`
-submission can still create its run, so replay is a dispatch and refuses while
-paused. A pause may therefore observe a still-running external call as
-undrained until late correlation commits.
+is never held across that call. Instead, `DispatchAsync` takes a shared
+`flock` on `<store>-initiation.lock` before its dispatch transaction and holds
+it until the transport returns. `ZeroshotTransport` spawns the submit bridge
+with that lock description inherited, so the lock stays held while the bridge
+runs even if its caller dies. The bridge's own children do not inherit it.
+Status probes the lock with a non-blocking exclusive `flock`; any shared holder
+makes it undrained. Concurrent dispatches share the lock and never block each
+other. The lock file must not be removed while a store is in use. A child that
+a Broodling process forks shares the description until its `exec` closes it,
+so a single undrained reading can be transient; query again before acting on it.
+A drained reading is never premature.
+
+Abandonment does not release the lock. `StopAsync` can commit abandonment
+while a `SubmitAsync` for that Attempt is still running, and that call can
+still create the run, so status stays undrained until it returns. Replaying a
+`dispatched` submission can also create its run, so replay is a dispatch and
+refuses while paused.
 
 ## Restart and storage failure
 
-The status is derived from durable admission and submission state, with no
-separate initiation evidence to clean up and no PID, start-time or in-memory
-ownership. Caller loss or a storage failure before an authoritative transition
-commits leaves no new initiation fact to reap; existing recovery can retry any
-pre-commit filesystem work. Caller loss, transport loss or a failed correlation
-write after the `dispatched` commit leaves the submission `dispatched`: the
-target may have accepted it, so the status stays undrained. That state
-converges through the existing recovery path: release, replay the dispatch so
-the submission-key correlation settles it, then pause again. Explicit release
-changes only the pause fact.
+The status has no separate initiation record to clean up and no PID,
+start-time or in-memory ownership. The kernel releases the lock when the last
+process holding it exits, so caller loss, transport loss or a failed
+correlation write cannot leave the installation permanently undrained. They
+leave the submission `dispatched`, because the target may have accepted it.
+For a current Attempt, release and replay converge it through submission-key
+correlation. An abandoned Attempt with no known run is quarantined:
+`DispatchAsync` refuses it and `StopAsync` never replays it to discover a
+run, so its submission stays `dispatched` and counted in
+`unresolvedDispatches` while status reports drained. Explicit release changes
+only the pause fact.
 
 Pause and release writes are short SQLite transactions. A failed release leaves
 the already-persisted paused fact unchanged.

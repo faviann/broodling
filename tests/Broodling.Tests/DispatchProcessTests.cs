@@ -40,6 +40,7 @@ public sealed class DispatchProcessTests
         using var reopened = fixture.Git.State.Open();
         var retained = reopened.FindSubmission(attempt.AttemptId);
         await Assert.That(retained?.State).IsEqualTo(expectedState);
+        await Assert.That(reopened.GetInstallationStatus().InFlightInitiationDrained).IsTrue();
         var correlated = await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, NativeFixture.Transport());
         if (retained is not null)
         {
@@ -51,5 +52,6 @@ public sealed class DispatchProcessTests
         await Assert.That(terminal.Succeeded).IsTrue();
         using var again = fixture.Git.State.Open();
         await Assert.That(again.FindSubmission(attempt.AttemptId)).IsEqualTo(correlated);
+        await Assert.That((await InstallationPauseTests.SettledStatus(again)).InFlightInitiationDrained).IsTrue();
     }
 }

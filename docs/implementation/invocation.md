@@ -38,9 +38,11 @@ and still requires current dispatch credentials and authority.
 While paused, new ordinary admission, materialization/preparation and dispatch
 initiation refuse. The safe replacement path may still allocate and prepare its
 successor; execution and correlated/result-capture observation remain available.
-Pause status counts durably `dispatched` submissions, not process liveness. A
-dispatch interrupted after its intent committed stays undrained until release and
-replay correlate it.
+Pause status reports two separate facts. `unresolvedDispatches` counts durably
+`dispatched` submissions whose run is unknown; that uncertainty persists until
+correlation and may persist forever for a quarantined abandoned Attempt.
+`inFlightInitiationDrained` is false while any dispatch or submit bridge still
+holds the installation initiation lock, including after abandonment commits.
 
 After durable correlation, resume needs no dispatch configuration or credentials.
 Wait/stop reconnect using the frozen locator and run ID. A retained completion

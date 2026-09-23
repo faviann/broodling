@@ -33,6 +33,9 @@ internal sealed class NativeFixture : IDisposable
     }
     internal AttemptRecord Provision(BroodlingStore store) => store.ProvisionAttempt(Git.Admit(store).AttemptId);
     internal static ZeroshotTransport Transport() => new(Python);
+    /// <summary>A shared initiation lock for direct transport calls outside a store dispatch.</summary>
+    internal AdministrativeGitProcess.EnclosureLock DirectInitiation() =>
+        AdministrativeGitProcess.EnclosureLock.Acquire(Path.Combine(Root, "direct-initiation.lock"), shared: true);
     internal static string Fixture(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);
     private static string FindRoot()
     {
@@ -53,7 +56,7 @@ internal sealed class ControlledTransport : INativeTransport
     internal int Calls { get; private set; }
     internal Func<NativeLocator, string, CancellationToken, Task<NativeResult>> Wait { get; set; } = (_, _, _) => throw new InvalidOperationException("Unexpected wait");
     internal int WaitCalls { get; private set; }
-    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default)
+    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, System.Runtime.InteropServices.SafeHandle initiation, CancellationToken cancellationToken = default)
     { Calls++; return Submit(requestJson, credentials); }
     public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default)
     { WaitCalls++; return Wait(locator, runId, cancellationToken); }

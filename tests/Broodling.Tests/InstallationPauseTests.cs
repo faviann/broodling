@@ -84,7 +84,7 @@ public sealed class InstallationPauseTests
 
             continueSubmit.SetResult("late-run");
             await Assert.That((await pending).State).IsEqualTo("correlated");
-            var drained = observer.GetInstallationStatus();
+            var drained = await SettledStatus(observer);
             await Assert.That(drained.IsPaused).IsTrue();
             await Assert.That(drained.InFlightInitiationDrained).IsTrue();
         }
@@ -158,7 +158,7 @@ public sealed class InstallationPauseTests
 
         var completion = await fixture.Wait();
         await Assert.That(completion.Outcome).IsEqualTo("SUCCEEDED");
-        await Assert.That(fixture.Store.GetInstallationStatus().InFlightInitiationDrained).IsTrue();
+        await Assert.That((await SettledStatus(fixture.Store)).InFlightInitiationDrained).IsTrue();
     }
 
     [Test]
@@ -195,7 +195,7 @@ public sealed class InstallationPauseTests
     }
 
     [Test]
-    public async Task InterruptedDispatchStaysUndrainedUntilReplayCorrelatesIt()
+    public async Task InterruptedDispatchRetainsUncertaintyWithoutActiveInitiationUntilReplayCorrelatesIt()
     {
         using var fixture = new NativeFixture();
         AttemptRecord attempt;
@@ -208,9 +208,10 @@ public sealed class InstallationPauseTests
         }
 
         using var reopened = fixture.Git.State.Open();
-        var paused = reopened.PauseInstallation();
+        reopened.PauseInstallation();
+        var paused = await SettledStatus(reopened);
         await Assert.That(paused.UnresolvedDispatches).IsEqualTo(1);
-        await Assert.That(paused.InFlightInitiationDrained).IsFalse();
+        await Assert.That(paused.InFlightInitiationDrained).IsTrue();
         await Assert.That(async () => await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport()))
             .Throws<InstallationPaused>();
 
@@ -220,9 +221,9 @@ public sealed class InstallationPauseTests
         {
             await Assert.That(async () => await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport()))
                 .Throws<Microsoft.Data.Sqlite.SqliteException>();
-            var unresolved = reopened.GetInstallationStatus();
+            var unresolved = await SettledStatus(reopened);
             await Assert.That(unresolved.UnresolvedDispatches).IsEqualTo(1);
-            await Assert.That(unresolved.InFlightInitiationDrained).IsFalse();
+            await Assert.That(unresolved.InFlightInitiationDrained).IsTrue();
         }
         finally
         {
@@ -231,7 +232,8 @@ public sealed class InstallationPauseTests
 
         await Assert.That((await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport())).State)
             .IsEqualTo("correlated");
-        var drained = reopened.PauseInstallation();
+        reopened.PauseInstallation();
+        var drained = await SettledStatus(reopened);
         await Assert.That(drained.UnresolvedDispatches).IsEqualTo(0);
         await Assert.That(drained.InFlightInitiationDrained).IsTrue();
     }

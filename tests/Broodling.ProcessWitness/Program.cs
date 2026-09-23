@@ -161,10 +161,10 @@ internal sealed class CrashTransport(INativeTransport inner, string mode) : INat
         Console.Out.Flush();
         Thread.Sleep(Timeout.Infinite); // Parent SIGKILL, not managed unwinding, exercises each durable boundary.
     }
-    public async Task<string> SubmitAsync(string request, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default)
+    public async Task<string> SubmitAsync(string request, IReadOnlyDictionary<string, string> credentials, System.Runtime.InteropServices.SafeHandle initiation, CancellationToken cancellationToken = default)
     {
         if (mode == "before-call") Gate("before-call");
-        var id = await inner.SubmitAsync(request, credentials, cancellationToken);
+        var id = await inner.SubmitAsync(request, credentials, initiation, cancellationToken);
         if (mode == "after-accept") Gate(id);
         return id;
     }

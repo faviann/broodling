@@ -5,15 +5,13 @@ namespace Broodling;
 /// <summary>
 /// Persisted pause state. Admission, preparation and dispatch check the pause in the
 /// same SQLite write transaction that commits them, so none can take effect after a
-/// pause commits. The only initiation that can continue afterward is an external
-/// submission whose intent is already durably <c>dispatched</c>; those remain
-/// unresolved until correlation or a retained conflict settles them. The count is
-/// durable state, not proof that a bridge, process or container stopped.
+/// pause commits. <see cref="UnresolvedDispatches"/> counts durable <c>dispatched</c>
+/// submissions whose native run is unknown; that uncertainty can remain forever.
+/// <see cref="InFlightInitiationDrained"/> is false while any process still holds the
+/// initiation lock that every dispatch takes before its intent commits. Neither proves
+/// that a native process, target request or container stopped.
 /// </summary>
-public sealed record InstallationStatus(bool IsPaused, string ChangedAt, int UnresolvedDispatches)
-{
-    public bool InFlightInitiationDrained => UnresolvedDispatches == 0;
-}
+public sealed record InstallationStatus(bool IsPaused, string ChangedAt, int UnresolvedDispatches, bool InFlightInitiationDrained);
 
 public sealed partial class BroodlingStore
 {
@@ -59,8 +57,14 @@ public sealed partial class BroodlingStore
     {
         var control = ReadInstallationControl(transaction);
         using var command = Command("SELECT count(*) FROM native_submissions WHERE state = 'dispatched'", transaction);
-        return new(control.IsPaused, control.ChangedAt, Convert.ToInt32(command.ExecuteScalar()));
+        return new(control.IsPaused, control.ChangedAt, Convert.ToInt32(command.ExecuteScalar()),
+            AdministrativeGitProcess.EnclosureLock.IsFree(InitiationLockPath));
     }
+
+    private string InitiationLockPath => Path + "-initiation.lock";
+
+    private AdministrativeGitProcess.EnclosureLock HoldInitiation() =>
+        AdministrativeGitProcess.EnclosureLock.Acquire(InitiationLockPath, shared: true);
 
     private (bool IsPaused, string ChangedAt) ReadInstallationControl(SqliteTransaction? transaction)
     {

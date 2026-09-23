@@ -34,12 +34,12 @@ internal static class AdministrativeGitProcess
     {
         private EnclosureLock(int fd) : base(true) => SetHandle(fd);
         protected override bool ReleaseHandle() => close(handle.ToInt32()) == 0; // Never LOCK_UN: a Git child may still own this description.
-        internal static EnclosureLock Acquire(string path)
+        internal static EnclosureLock Acquire(string path, bool shared = false)
         {
             RequireSupportedHost();
             Check(broodling_open_lock(path, out var fd), "Cannot open the stable provisioning lock");
             var result = new EnclosureLock(fd);
-            while (flock(fd, 2 /* LOCK_EX */) != 0)
+            while (flock(fd, shared ? 1 /* LOCK_SH */ : 2 /* LOCK_EX */) != 0)
             {
                 var error = Marshal.GetLastPInvokeError();
                 if (error == 4 /* EINTR */) continue;
@@ -47,6 +47,23 @@ internal static class AdministrativeGitProcess
                 Check(error, "Cannot acquire provisioning exclusion");
             }
             return result;
+        }
+
+        /// <summary>True when no open description, in any process, holds the lock.</summary>
+        internal static bool IsFree(string path)
+        {
+            Check(broodling_open_lock(path, out var fd), "Cannot open the stable lock");
+            try
+            {
+                while (true)
+                {
+                    if (flock(fd, 6 /* LOCK_EX | LOCK_NB */) == 0) return true;
+                    var error = Marshal.GetLastPInvokeError();
+                    if (error == 11 /* EWOULDBLOCK */) return false;
+                    if (error != 4 /* EINTR */) Check(error, "Cannot probe the stable lock");
+                }
+            }
+            finally { close(fd); }
         }
     }
 
