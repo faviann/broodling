@@ -31,6 +31,13 @@ try
         CrashTransport.Gate(submission.RunId!);
         return 99;
     }
+    if (args[0] == "native-bridge-crash")
+    {
+        using var dispatchStore = new BroodlingApplication().OpenStore(args[1]);
+        var profile = new NativeProfile(args[3], new CodexProfile(args[4], args[5], args[6], args[7]), toolPath: "/usr/bin:/bin");
+        await dispatchStore.DispatchAsync(args[2], profile, new ZeroshotTransport(args[8], args[9]));
+        return 99;
+    }
     if (args[0] == "host-profile")
     {
         AdministrativeGitProcess.RequireSupportedHost();

@@ -9,14 +9,15 @@ public static class StoreCommands
     {
         var valid = args.Length switch
         {
-            2 => args[0] is "initialize-store" or "upgrade-store",
+            2 => args[0] is "initialize-store" or "upgrade-store"
+                or "pause-installation" or "installation-status" or "release-installation",
             3 => args[0] == "status",
             4 => args[0] == "history",
             _ => false
         };
         if (!valid)
         {
-            error.WriteLine("Usage: initialize-store <new-path> | upgrade-store <existing-path> | status <path> <revision-id> | history <path> <repository> <issue>");
+            error.WriteLine("Usage: initialize-store <new-path> | upgrade-store <existing-path> | pause-installation <path> | installation-status <path> | release-installation <path> | status <path> <revision-id> | history <path> <repository> <issue>");
             return 2;
         }
         try
@@ -31,6 +32,9 @@ public static class StoreCommands
             {
                 "status" => store.Status(args[2]),
                 "history" => store.History(WorkReference.Parse(args[2], args[3])),
+                "pause-installation" => store.PauseInstallation(),
+                "installation-status" => store.GetInstallationStatus(),
+                "release-installation" => store.ReleaseInstallation(),
                 _ => new { operation = args[0], store = store.Path, schema = store.Information }
             };
             // System.Text.Json writes byte arrays as base64, preserving binary source and canonical Contract bytes.

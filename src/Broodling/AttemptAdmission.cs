@@ -20,6 +20,7 @@ public sealed partial class BroodlingStore
     /// <summary>Resolve and retain original B1, then atomically admit Attempt and allocation. No checkout or dispatch.</summary>
     public AttemptRecord AdmitAttempt(string revisionId, string repository, string workspaceRoot, string revision = "HEAD")
     {
+        RequireUnpaused();
         var contract = GetContractRevision(revisionId);
         if (!IsAdmitted(revisionId))
             throw new AttemptAdmissionError("An Attempt requires a committed admitted Contract decision.");
@@ -42,6 +43,7 @@ public sealed partial class BroodlingStore
         }
         if (ReadDecision(revisionId, transaction)?.Admitted != true)
             throw new AttemptAdmissionError("An Attempt requires a committed admitted Contract decision.");
+        RequireUnpaused(transaction);
         var enclosure = System.IO.Path.Combine(root, id);
         var now = Now();
         Execute("""

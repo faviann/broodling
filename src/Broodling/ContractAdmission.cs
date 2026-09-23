@@ -92,7 +92,10 @@ public sealed partial class BroodlingStore
     public AdmissionStatus AdmitSources(WorkReference reference, IEnumerable<SourceSubmission> sources,
         Func<ContractProposalInput, Contract> propose, IEnumerable<RequiredEffect> requiredEffects,
         string constructedBy = "model_extraction")
-        => AdmitCapturedSources(reference, ValidateCallerSources(sources), propose, requiredEffects, constructedBy);
+    {
+        RequireUnpaused();
+        return AdmitCapturedSources(reference, ValidateCallerSources(sources), propose, requiredEffects, constructedBy);
+    }
 
     private static SourceSubmission[] ValidateCallerSources(IEnumerable<SourceSubmission> sources)
     {
@@ -228,6 +231,7 @@ public sealed partial class BroodlingStore
             transaction.Commit();
             return existing;
         }
+        RequireUnpaused(transaction);
         var work = ReadWorkUnit(revision.WorkUnitId, transaction)!;
         var assessment = Closability.Assess(revision.Contract, work.Host);
         Execute("INSERT INTO admission_decisions VALUES ($p0, $p1, $p2, $p3, $p4, $p5)", transaction,

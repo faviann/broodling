@@ -49,6 +49,7 @@ public sealed partial class BroodlingStore : IDisposable
             {
                 store.Execute(StoreSchema.Sql, transaction);
                 var now = Now();
+                store.Execute("INSERT INTO installation_control VALUES (1, 0, $p0)", transaction, now);
                 store.Execute("INSERT INTO store_metadata VALUES (1, $p0, $p1, $p2, $p3, $p4)", transaction,
                     StoreSchema.Format, StoreSchema.Version, StoreSchema.DefinitionHash,
                     StoreSchema.ManifestHash(store.connection, transaction), now);
@@ -118,6 +119,11 @@ public sealed partial class BroodlingStore : IDisposable
                     store.Execute(StoreSchema.RetirementSql, transaction);
                 if (store.Information.SchemaVersion < 8)
                     store.Execute(StoreSchema.IssueSubmissionSql, transaction);
+                if (store.Information.SchemaVersion < 9)
+                {
+                    store.Execute(StoreSchema.InstallationSql, transaction);
+                    store.Execute("INSERT INTO installation_control VALUES (1, 0, $p0)", transaction, Now());
+                }
                 if (store.Information.SchemaVersion < StoreSchema.Version)
                 {
                     store.Execute("UPDATE store_metadata SET version = $p0, definition_hash = $p1, manifest_hash = $p2 WHERE singleton = 1",
@@ -150,13 +156,19 @@ public sealed partial class BroodlingStore : IDisposable
         using var reader = command.ExecuteReader();
         if (!reader.Read()
             || reader.GetValue(0) is not string format || format != StoreSchema.Format
-            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2 or 3 or 4 or 5 or 6 or 7))
+            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8))
             || reader.GetValue(2) is not string definition
-                || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, 3 => StoreSchema.VersionThreeDefinitionHash, 4 => StoreSchema.VersionFourDefinitionHash, 5 => StoreSchema.VersionFiveDefinitionHash, 6 => StoreSchema.VersionSixDefinitionHash, 7 => StoreSchema.VersionSevenDefinitionHash, _ => StoreSchema.DefinitionHash })
+                || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, 3 => StoreSchema.VersionThreeDefinitionHash, 4 => StoreSchema.VersionFourDefinitionHash, 5 => StoreSchema.VersionFiveDefinitionHash, 6 => StoreSchema.VersionSixDefinitionHash, 7 => StoreSchema.VersionSevenDefinitionHash, 8 => StoreSchema.VersionEightDefinitionHash, _ => StoreSchema.DefinitionHash })
             || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection, transaction)
             || reader.GetValue(4) is not string initializedAt || string.IsNullOrEmpty(initializedAt))
             throw new StoreStateException("incompatible_store", "The store format or schema is incompatible; explicit supported upgrades are required.");
         Information = new(format, (int)version, initializedAt);
+        if (Information.SchemaVersion == StoreSchema.Version)
+        {
+            using var control = Command("SELECT 1 FROM installation_control WHERE singleton = 1", transaction);
+            if (control.ExecuteScalar() is null)
+                throw new StoreStateException("incompatible_store", "The installation control state is missing.");
+        }
     }
 
     private void Configure()

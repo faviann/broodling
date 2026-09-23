@@ -65,7 +65,7 @@ material and current Attempt authority. It acquires C's stable enclosure lock
 before the short SQLite writer and releases both before the external SDK call.
 No subprocess owns that lock during native execution.
 
-F introduced schema **5**, retained within the current schema **8**, with one
+F introduced schema **5**, retained within the current schema **9**, with one
 `native_submissions` row per provisioned Attempt. SQL
 constraints/triggers protect the request/key and permit only
 `prepared → dispatched → correlated|blocked`. Preparation and dispatch require
@@ -78,6 +78,9 @@ The dispatch-intent transaction commits before crossing the transport. No SQLite
 writer spans version probing or the external submission. Concurrent callers can
 submit identical requests; native submission-key idempotency owns duplicate
 prevention. Correlation requires their acknowledged run identities to converge.
+The frozen key is passed unchanged on every replay, so a caller returning after
+correlation cannot create distinct native work; a different acknowledged identity
+is rejected as `SubmissionConflict`.
 An empty/blank identity, empty stdout, malformed JSON/envelope, transport loss,
 cancellation or caller death leaves durable unresolved dispatch. A genuine
 typed conflict with a nonblank run identity becomes `blocked`. A conflict
@@ -88,8 +91,11 @@ and HEAD drift from original B1, checked again after the call. Dirty files alone
 an error message, or a run ID alone cannot establish recovery.
 
 Ordinary open never creates or upgrades a store. Explicit upgrade recognizes
-the unchanged definition hashes for schemas 1–6 and applies missing migrations in one
-transaction. The authentic pre-F schema-4 fixture retains all prior records,
+the unchanged definition hashes for schemas 1–7 and applies missing migrations in one
+transaction. Schema 8 adds durable Issue submission persistence and schema 9
+adds the persisted installation pause described in
+[the pause reference](dotnet-installation-pause.md).
+The authentic pre-F schema-4 fixture retains all prior records,
 including first provisioning acknowledgment and abandonment. Upgrade invents no
 past dispatch. Its provenance and exact hashes are in the
 [fixture record](../../tests/Broodling.Tests/Fixtures/README.md).
@@ -165,7 +171,13 @@ Unknown runs fail closed. `NativeResult` carries run ID, success, arbitrary JSON
 output (including null) and failure unchanged; foreign run identities refuse.
 
 Cancellation/killing detaches only the bridge process, never the whole process
-tree or native work. Explicit native stop is a separate transport operation.
+tree or native work. After the submit request is handed to it, cancellation
+detaches the caller while the bridge remains alive awaiting its native submit
+child, retaining the initiation lock until that command finishes. The submit
+bridge is spawned by `libbroodling_git.so` and inherits the installation
+initiation lock description, a read-only store descriptor; its child does not (see
+[installation pause](dotnet-installation-pause.md)). Explicit native stop is a
+separate transport operation.
 Neither terminal success nor force-stop grants cleanup authority.
 
 ## Thin operator commands
@@ -216,7 +228,9 @@ gateway, forge, provider account, deployment or evaluation.
 [G completion](dotnet-receipt-completion.md) implements completed-Work-Unit
 guards, receipt validation, result/disposition retention and application wait.
 [H lifecycle](dotnet-retirement-replacement.md) adds abandonment/stop composition,
-retirement and explicit replacement in schema 7, preserving the prior definitions.
+retirement and explicit replacement in historical schema 7, preserving the prior
+definitions; schema 8 adds Issue submission persistence and current schema 9
+adds the installation pause boundary.
 The local null-output stable-result gap, dispatched quarantine and independent
 operator review requirements remain.
 

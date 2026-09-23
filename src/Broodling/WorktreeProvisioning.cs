@@ -12,6 +12,7 @@ public sealed partial class BroodlingStore
         using (var claim = connection.BeginTransaction(deferred: false))
         {
             attempt = RequireCurrentAttempt(attemptId, claim);
+            RequireUnpausedUnlessReplacement(attempt, claim);
             RequireUndispatchedMaterialization(attemptId, claim);
             WorktreeMaterialization.ValidatePaths(attempt, Path, inspectGit: false);
             WorktreeMaterialization.ClaimEnclosure(attempt);
@@ -21,6 +22,7 @@ public sealed partial class BroodlingStore
             System.IO.Path.Combine(attempt.Allocation.Enclosure, WorktreeMaterialization.LockName));
         using var transaction = connection.BeginTransaction(deferred: false);
         attempt = RequireCurrentAttempt(attemptId, transaction);
+        RequireUnpausedUnlessReplacement(attempt, transaction);
         RequireUndispatchedMaterialization(attemptId, transaction);
         WorktreeMaterialization.ValidatePaths(attempt, Path);
         WorktreeMaterialization.RequireMarker(attempt);

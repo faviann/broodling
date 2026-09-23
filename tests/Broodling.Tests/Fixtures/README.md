@@ -78,27 +78,39 @@ root `/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT` was removed after
 capture. Old Git/worktree/native paths are evidence only. The consolidated
 Restore helper disables foreign keys only for dump ordering. Upgrade tests
 compare every old fact row, refuse ordinary open without modifying the file,
-upgrade to schema 8, reopen, repeat upgrade and replay the exact completion
-without native access. The prepared v5 fixture above is preserved unchanged.
+upgrade through schema 7 and 8 to the current schema 9, reopen, repeat upgrade and
+replay the exact completion without native access. The prepared v5 fixture
+above is preserved unchanged.
 
 - Assembly SHA-256: `51dd42d49beb6c88738fa48055e353520e9572c22b35167b7665e03afec9b229`.
 - Original definition hash: `ee2c514222e63e6b1f9311b5bad12874255b230bd8e8b2718dfa6320146d875a`.
 - Original manifest hash: `9e90c11e420be0274beb506c0dd44702f04dad402e0a945f4d21a68cc6d65881`.
 - SQL fixture SHA-256: `b41038ccdf01327e6e71273579762c20870745227910dd37441dda901f580567`.
 
-`dotnet-v7.sql` is the direct output of the genuine pre-change v7 application
-at `d7a8f094f3886b117a6eebbf86d333d5c16bc8f0`. It explicitly upgraded the
-retained v6 application state above, then closed it for capture; the v7
-application—not the current schema builder—established the schema-7 metadata,
-manifest and prior-state boundary while retaining the existing identities and
-historical rows. The v7→v8 test compares every
-retained fact listed in the fixture, proves ordinary open refuses without
-modifying the file, performs the explicit current upgrade, reopens, and then
-accepts and looks up a new Issue submission.
+`dotnet-v7.sql` is an authentic schema-7 dump produced by explicitly upgrading
+the retained v6 capture with the application at `d7a8f094f3886b117a6eebbf86d333d5c16bc8f0`
+(the pre-#110 `origin/main` application). It retains the v6 facts and schema-7
+metadata; the lifecycle test restores this file rather than synthesizing schema
+7 with the new builder, refuses ordinary open, applies the recognized schema-8
+and schema-9 migrations, reopens and repeats the explicit upgrade.
 
 - Original definition hash: `1f56d5fa659afe8f91c8bc559b9de248cc1f9f85ced68cf674a27c85002302c6`.
 - Original manifest hash: `84bfb92ddf4305e45e4543eb280ba4f36ad6eebc466f1a897ccce63c3ad56fe9`.
 - SQL fixture SHA-256: `b1cad7b0a331b8319859633a3290626848b4206ec3f60d2a9e6d04dca21293d1`.
+
+`dotnet-v8.sql` is an authentic schema-8 dump produced on 23 September 2026
+from the merged-main application at `f0b50e0c22ab0a10f27f5698f88653740942b775`.
+An isolated build of that exact application restored `dotnet-v7.sql`, performed
+the public `UpgradeStore` v7→v8, then called the public `SubmitIssue` API for
+`https://github.com/acme/widget/issues/12`. The schema-8 application assembly
+SHA-256 was `9ba7a38852b70e389c0b952d9a49ff4fba3405c8e36310274aa845f7ec682966`.
+The v8→v9 test restores this dump rather than using the current schema builder;
+it checks the retained issue-submission row and prior fact rows before and after
+the explicit pause migration.
+
+- Original definition hash: `e528411043038cc78363ceca2ef5204dafb311ce0d7133e956f3b68387693f66`.
+- Original manifest hash: `8f1d0c4e7cb2e6f16de49efe43c94c3e9dd280304db843e598bd534da71fc33b`.
+- SQL fixture SHA-256: `b2e53637995335400f332612e7db6c424ba653aa89b38ec611ebb4f6d8dfd10c`.
 
 The F Python files here are test fixtures only. `receipt-sdk.py` substitutes SDK
 constructors/results around the production translator and proves precise PR

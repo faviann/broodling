@@ -64,6 +64,47 @@ public sealed class NativeTransportTests
     }
 
     [Test]
+    public async Task SubmittingBridgeKeepsInitiationHeldAfterCallerCancellation()
+    {
+        using var fixture = new NativeFixture();
+        var script = Path.Combine(fixture.Root, "held-submit.py");
+        var started = Path.Combine(fixture.Root, "submit-started");
+        var release = Path.Combine(fixture.Root, "submit-release");
+        File.WriteAllText(script, $$"""
+            import json, os, sys, time
+            request = json.load(sys.stdin)
+            if request["op"] == "version":
+                print(json.dumps({"ok": True, "sdkVersion": "10.3.0.post1", "nativeVersion": "zeroshot 10.3.0"}))
+            else:
+                open({{JsonSerializer.Serialize(started)}}, "w").close()
+                while not os.path.exists({{JsonSerializer.Serialize(release)}}):
+                    time.sleep(0.05)
+                print(json.dumps({"ok": True, "runId": "held-run"}))
+            """);
+        var lockPath = Path.Combine(fixture.Root, "direct-initiation.lock");
+        Task<string> submit;
+        Stopwatch clock;
+        using var cancellation = new CancellationTokenSource();
+        using (var initiation = fixture.DirectInitiation())
+        {
+            var transport = (IInitiationAwareNativeTransport)new ZeroshotTransport(NativeFixture.Python, script);
+            submit = transport.SubmitAsync("{}", new Dictionary<string, string>(), initiation, cancellation.Token);
+            clock = Stopwatch.StartNew();
+            while (!File.Exists(started) && clock.Elapsed < TimeSpan.FromSeconds(20)) await Task.Delay(50);
+            await Assert.That(File.Exists(started)).IsTrue();
+            cancellation.Cancel();
+            await Assert.That(async () => await submit).Throws<OperationCanceledException>();
+        }
+        await Assert.That(AdministrativeGitProcess.EnclosureLock.IsFree(lockPath)).IsFalse();
+        File.WriteAllText(release, "");
+        await Assert.That(submit.IsCanceled).IsTrue();
+        clock = Stopwatch.StartNew(); // A concurrent fork in this host may share the description until its exec.
+        bool free;
+        while (!(free = AdministrativeGitProcess.EnclosureLock.IsFree(lockPath)) && clock.Elapsed < TimeSpan.FromSeconds(5)) await Task.Delay(20);
+        await Assert.That(free).IsTrue();
+    }
+
+    [Test]
     public async Task ReleasedSdkReplayConflictsOwnedHeadRecoveryAndNullOutput()
     {
         using var fixture = new NativeFixture();

@@ -6,7 +6,7 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 8;
+    internal const int Version = 9;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
 
@@ -22,8 +22,10 @@ internal static class StoreSchema
     internal const string VersionSixSql = VersionFiveSql + "\n" + CompletionSql;
     internal static string VersionSevenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionSevenSql));
     internal const string VersionSevenSql = VersionSixSql + "\n" + RetirementSql;
+    internal static string VersionEightDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionEightSql));
     internal const string VersionEightSql = VersionSevenSql + "\n" + IssueSubmissionSql;
-    internal const string Sql = VersionEightSql;
+    internal const string VersionNineSql = VersionEightSql + "\n" + InstallationSql;
+    internal const string Sql = VersionNineSql;
 
     internal const string IssueSubmissionSql = """
         CREATE TABLE issue_submissions (
@@ -206,6 +208,14 @@ internal static class StoreSchema
         WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id
             AND json(target_json) IS NOT json_extract(NEW.request_json, '$.target'))
         BEGIN SELECT RAISE(ABORT, 'replacement must preserve its chosen target'); END;
+        """;
+
+    internal const string InstallationSql = """
+        CREATE TABLE installation_control (
+            singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+            admission_dispatch_paused INTEGER NOT NULL CHECK (admission_dispatch_paused IN (0, 1)),
+            changed_at TEXT NOT NULL
+        ) STRICT;
         """;
 
     internal const string DispatchSql = """

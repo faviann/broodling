@@ -14,6 +14,7 @@ commands. The retired Python API is preserved at the
 | Submit an explicit GitHub reference with typed proposer and exact effect authority | `Invocation.SubmitAsync`: [native dispatch](dotnet-native-dispatch.md#callable-application) |
 | Resume the exact recorded revision | `Invocation.ResumeAsync`: [native dispatch](dotnet-native-dispatch.md) |
 | Inspect retained revision/lineage without external calls | `BroodlingStore.Status/History`: [admission and observation](dotnet-contract-admission.md#persistence-recovery-and-observation) |
+| Pause, inspect drain status or explicitly release admission/dispatch | `BroodlingStore.PauseInstallation/GetInstallationStatus/ReleaseInstallation`: [installation pause](dotnet-installation-pause.md) |
 | Consume the correlated native result or replay retained completion | `Invocation.WaitAsync` / `BroodlingStore.WaitAsync`: [completion](dotnet-receipt-completion.md) |
 | Abandon before requesting native stop | `BroodlingStore.StopAsync`: [lifecycle](dotnet-retirement-replacement.md) |
 | Explicit safe retirement/replacement | `RetireAttempt`, `AdmitRetry`, `PrepareRetry`, `RetryAsync`: [lifecycle](dotnet-retirement-replacement.md) |
@@ -33,6 +34,15 @@ the retained revision. Before initial allocation it needs the selected repositor
 and B1; afterward stored allocation governs. Interrupted pre-dispatch work can
 continue, while acknowledgement-loss recovery reuses only the frozen request/key
 and still requires current dispatch credentials and authority.
+
+While paused, new ordinary admission, materialization/preparation and dispatch
+initiation refuse. The safe replacement path may still allocate and prepare its
+successor; execution and correlated/result-capture observation remain available.
+Pause status reports two separate facts. `unresolvedDispatches` counts durably
+`dispatched` submissions whose run is unknown; that uncertainty persists until
+correlation and may persist forever for a quarantined abandoned Attempt.
+`inFlightInitiationDrained` is false while any dispatch or submit bridge still
+holds the installation initiation lock, including after abandonment commits.
 
 After durable correlation, resume needs no dispatch configuration or credentials.
 Wait/stop reconnect using the frozen locator and run ID. A retained completion

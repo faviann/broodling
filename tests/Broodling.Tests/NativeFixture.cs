@@ -33,6 +33,9 @@ internal sealed class NativeFixture : IDisposable
     }
     internal AttemptRecord Provision(BroodlingStore store) => store.ProvisionAttempt(Git.Admit(store).AttemptId);
     internal static ZeroshotTransport Transport() => new(Python);
+    /// <summary>A shared initiation lock for direct transport calls outside a store dispatch.</summary>
+    internal AdministrativeGitProcess.EnclosureLock DirectInitiation() =>
+        AdministrativeGitProcess.EnclosureLock.Acquire(Path.Combine(Root, "direct-initiation.lock"), shared: true);
     internal static string Fixture(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);
     private static string FindRoot()
     {

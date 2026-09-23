@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Win32.SafeHandles;
 
 namespace Broodling;
 
@@ -14,7 +17,14 @@ public interface INativeTransport
     Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default);
 }
 
-public sealed class ZeroshotTransport : INativeTransport
+/// <summary>Internal transport seam for the one bridge that must inherit the initiation lock.</summary>
+internal interface IInitiationAwareNativeTransport
+{
+    Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, SafeHandle initiation,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNativeTransport
 {
     private readonly string python;
     private readonly string bridge;
@@ -26,10 +36,18 @@ public sealed class ZeroshotTransport : INativeTransport
         bridge = Path.GetFullPath(bridgeScript);
     }
 
-    public async Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default)
+    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials,
+        CancellationToken cancellationToken = default) => SubmitCore(requestJson, credentials, null, cancellationToken);
+
+    async Task<string> IInitiationAwareNativeTransport.SubmitAsync(string requestJson,
+        IReadOnlyDictionary<string, string> credentials, SafeHandle initiation, CancellationToken cancellationToken) =>
+        await SubmitCore(requestJson, credentials, initiation, cancellationToken);
+
+    private async Task<string> SubmitCore(string requestJson, IReadOnlyDictionary<string, string> credentials,
+        SafeHandle? initiation, CancellationToken cancellationToken)
     {
         await RequireVersion(cancellationToken);
-        var response = await Call(new { op = "submit", request = JsonNode.Parse(requestJson), credentials }, cancellationToken);
+        var response = await Call(new { op = "submit", request = JsonNode.Parse(requestJson), credentials }, cancellationToken, initiation);
         return RequiredString(response, "runId");
     }
 
@@ -61,17 +79,12 @@ public sealed class ZeroshotTransport : INativeTransport
             throw new UnsupportedRuntime("The pinned SDK and bundled native runtime are required.");
     }
 
-    private async Task<JsonElement> Call(object request, CancellationToken cancellationToken)
+    private async Task<JsonElement> Call(object request, CancellationToken cancellationToken, SafeHandle? initiation = null)
     {
-        using var process = Start(request);
-        var output = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var error = process.StandardError.ReadToEndAsync(cancellationToken);
         try
         {
-            await process.WaitForExitAsync(cancellationToken);
-            var text = await output;
-            _ = await error; // Drain, never expose raw stderr or persist it.
-            if (process.ExitCode != 0) throw new NativeTransportError();
+            var (exitCode, text) = initiation is null ? await Run(request, cancellationToken) : await RunHolding(request, initiation, cancellationToken);
+            if (exitCode != 0) throw new NativeTransportError();
             using var document = JsonDocument.Parse(text);
             var response = document.RootElement;
             if (response.GetProperty("ok").GetBoolean()) return response.Clone();
@@ -84,6 +97,20 @@ public sealed class ZeroshotTransport : INativeTransport
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or IOException)
         { throw new NativeTransportError(); }
+    }
+
+    private async Task<(int ExitCode, string Output)> Run(object request, CancellationToken cancellationToken)
+    {
+        using var process = Start(request);
+        var output = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var error = process.StandardError.ReadToEndAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+            var text = await output;
+            _ = await error; // Drain, never expose raw stderr or persist it.
+            return (process.ExitCode, text);
+        }
         finally
         {
             if (!process.HasExited)
@@ -95,6 +122,103 @@ public sealed class ZeroshotTransport : INativeTransport
             try { await Task.WhenAll(output, error); } catch (OperationCanceledException) { }
         }
     }
+
+    /// <summary>
+    /// The bridge inherits the initiation lock description, so it stays held while the bridge
+    /// awaits its native submit child even if this caller dies. The child does not inherit it;
+    /// cancellation after request handoff detaches this caller instead of killing the bridge.
+    /// </summary>
+    private async Task<(int ExitCode, string Output)> RunHolding(object request, SafeHandle initiation, CancellationToken cancellationToken)
+    {
+        AdministrativeGitProcess.RequireSupportedHost();
+        cancellationToken.ThrowIfCancellationRequested();
+        int pid, input, stdout, stderr, spawned;
+        using (var arguments = new Utf8Vector([python, "-I", bridge]))
+        using (var environment = new Utf8Vector(["PATH=/usr/bin:/bin"]))
+        {
+            var held = false;
+            try
+            {
+                initiation.DangerousAddRef(ref held);
+                spawned = broodling_spawn_bridge(python, arguments.Pointer, environment.Pointer, Path.GetDirectoryName(bridge)!,
+                    initiation.DangerousGetHandle().ToInt32(), out pid, out input, out stdout, out stderr);
+            }
+            finally { if (held) initiation.DangerousRelease(); }
+        }
+        if (spawned != 0) throw new NativeTransportError();
+
+        var gate = new object();
+        var exited = false;
+        void KillBridge() { lock (gate) if (!exited) kill(pid, 9); } // Only before request handoff; never the native process tree.
+        var lifecycle = ReapAndDrain(pid, stdout, stderr, gate, () => exited = true);
+        var handedOff = false;
+        try
+        {
+            using (var stream = new FileStream(new SafeFileHandle(input, ownsHandle: true), FileAccess.Write))
+                stream.Write(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request)));
+            handedOff = true;
+        }
+        catch (IOException) { KillBridge(); }
+
+        if (!handedOff)
+            return await lifecycle;
+
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using (cancellationToken.Register(() => cancelled.TrySetResult()))
+        {
+            if (cancellationToken.IsCancellationRequested || await Task.WhenAny(lifecycle, cancelled.Task) == cancelled.Task)
+            {
+                _ = ObserveDetached(lifecycle);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            return await lifecycle;
+        }
+    }
+
+    private static async Task<(int ExitCode, string Output)> ReapAndDrain(int pid, int stdout, int stderr,
+        object gate, Action markExited)
+    {
+        using var outputHandle = new SafeFileHandle(stdout, ownsHandle: true);
+        using var errorHandle = new SafeFileHandle(stderr, ownsHandle: true);
+        var output = Task.Run(() => Read(outputHandle));
+        var error = Task.Run(() => Read(errorHandle));
+        var exit = Task.Run(() =>
+        {
+            var waited = broodling_wait_exited(pid);
+            lock (gate) markExited();
+            var status = 0;
+            while (waitpid(pid, out status, 0) != pid)
+                if (Marshal.GetLastPInvokeError() != 4 /* EINTR */) return -1;
+            return waited == 0 && (status & 0x7f) == 0 ? (status >> 8) & 0xff : -1;
+        });
+        var exitCode = await exit;
+        var text = await output;
+        _ = await error;
+        return (exitCode, text);
+    }
+
+    private static async Task ObserveDetached(Task<(int ExitCode, string Output)> lifecycle)
+    {
+        try { await lifecycle; }
+        catch { /* The detached bridge is still reaped and its pipes are drained. */ }
+    }
+
+    private static string Read(SafeFileHandle handle)
+    {
+        using var stream = new FileStream(handle, FileAccess.Read);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
+    [DllImport("broodling_git", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int broodling_spawn_bridge([MarshalAs(UnmanagedType.LPUTF8Str)] string path, nint argv, nint envp,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string cwd, int lockFd, out int pid, out int stdin, out int stdout, out int stderr);
+    [DllImport("broodling_git", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int broodling_wait_exited(int pid);
+    [DllImport("libc", SetLastError = true)]
+    private static extern int waitpid(int pid, out int status, int options);
+    [DllImport("libc")]
+    private static extern int kill(int pid, int signal);
 
     internal Process Start(object request)
     {

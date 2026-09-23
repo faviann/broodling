@@ -43,7 +43,12 @@ multi-project orchestrator.
 | One current Attempt, original B1 and exclusive ownership of its dedicated local worktree | Native graph expansion/routing, acceptance/code review, repair and provider sessions |
 | Frozen invocation, durable dispatch intent, Attempt/run correlation and current-authority checks | Submission-key idempotency, execution state, reconnectable terminal result and native stop |
 | Receipt validation against authorized delivery and atomic result/disposition retention | Authorized checkout, commit, push and PR creation/update, including delivery repair and receipt production |
-| Explicit local execution policy and refusal of unsafe cleanup/retry | Provider execution and process cleanup; Broodling adds no supervisor |
+| Explicit local execution policy and refusal of unsafe cleanup/retry | Provider execution; operator/host procedure owns process/container containment and physical-cessation proof |
+
+The persisted pause controls Broodling admission and dispatch initiation only;
+its status never proves native execution or container/process cessation. Zeroshot
+owns native execution and its stop interface, while actual host/container
+containment and cessation checks remain with the operator/host procedure.
 
 B1 is the original admitted Git commit plus entitled instruction snapshots, not
 today's branch tip. A source-attributed Contract can be admitted with acceptance
@@ -111,10 +116,12 @@ The .NET application preserves the #75–#77 callable/operator behavior. The
 [parity map](../migration/130-parity-map.md) retain its evidence. Current
 development follows explicitly scoped open issues. #105 adds durable
 pre-Contract Issue submission identity and inspection through the callable
-SQLite store. Remaining #100 intent is unchanged: public HTTP intake, bundled
-proposer, reference capture, automatic progression/completion, Compose,
-maintenance and retention features remain unimplemented. The ASP.NET host is
-not authority to add them.
+SQLite store. Remaining #100 intent is unchanged: HTTP intake, bundled
+proposer, automatic progression/completion, Compose, generic maintenance
+services and retention features remain unimplemented. This pause slice adds
+only persisted admission/dispatch control and drain status; host containment,
+process supervision and physical-cessation maintenance remain deferred. The
+ASP.NET host is not authority to add them.
 
 ## Lifecycle and retention limits
 
