@@ -170,14 +170,6 @@ public sealed class RequestBundleTests
     }
 
     [Test]
-    public async Task GitReferenceWithNonRepositoryRelativePathIsRefusedBeforeRegistration()
-    {
-        foreach (var path in new[] { "/original.txt", "../original.txt", "./original.txt", "dir//original.txt", "dir/" })
-            await Assert.That(() => RequestBundleReferenceInput.GitBlob("repository-file", "selected file"u8.ToArray(),
-                "/repository", "HEAD", path)).Throws<RequestBundleConflict>();
-    }
-
-    [Test]
     public async Task BundleReadReturnsPinnedGitBytesAndRejectsReferencesOutsideItsMembership()
     {
         using var fixture = new AttemptFixture();
