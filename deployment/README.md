@@ -118,7 +118,7 @@ dotnet /RELEASE/host/Broodling.Host.dll history /NEW/state.sqlite3 OWNER/REPO 12
 Initialization exclusively creates a new path. For supported old .NET state,
 stop callers, make a consistent backup and deliberately use
 `dotnet /RELEASE/host/Broodling.Host.dll upgrade-store /EXISTING/DOTNET/state.sqlite3`. Current format is
-`broodling.dotnet`, schema **9**; v1–v8 require explicit upgrade. Use the
+`broodling.dotnet`, schema **10**; v1–v9 require explicit upgrade. Use the
 persisted installation pause/status/release commands for operator maintenance;
 they do not stop native execution or prove container cessation.
 See [state lifecycle](../docs/implementation/dotnet-identity-custody.md).

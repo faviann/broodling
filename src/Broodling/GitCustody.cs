@@ -54,7 +54,6 @@ internal static class GitCustody
     internal static PinnedBlob ReadPinnedBlob(string repository, string commit, string path,
         string? expectedBlobOid = null)
     {
-        ValidateGitPath(path);
         var reference = "refs/broodling/starting/" + commit;
         if (RetentionOid(repository, reference) != commit)
             throw new UnsupportedStartingState("The selected Git commit no longer has its exact Broodling retention pin.");
@@ -91,14 +90,6 @@ internal static class GitCustody
         if (expectedBlobOid is not null && blob != expectedBlobOid)
             throw new UnsupportedStartingState("The pinned Git path no longer resolves to its captured blob.");
         return new(blob, Checked(repository, ["cat-file", "blob", blob]));
-    }
-
-    private static void ValidateGitPath(string path)
-    {
-        try { StrictUtf8.GetByteCount(path); }
-        catch (EncoderFallbackException) { throw new UnsupportedStartingState("The Git path contains invalid Unicode."); }
-        if (string.IsNullOrWhiteSpace(path) || path.Contains('\0') || path.StartsWith('/'))
-            throw new UnsupportedStartingState("A Git reference requires one repository-relative path.");
     }
 
     internal static string WorkspaceRoot(string root, string repository, StartingState state)

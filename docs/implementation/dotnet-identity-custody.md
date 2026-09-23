@@ -55,7 +55,9 @@ These reads take no writer reservation. Source lists are ordered by source ID.
 An accepted Issue submission can begin one `RequestBundle` capture with opaque
 acquisition inputs, policy and limits. Register each selected reference as it is
 discovered, then persist its first source snapshot or exact local Git blob before
-continuing. The reference set may grow while capture is incomplete, including
+continuing. A Git reference must name one canonical repository-relative path;
+other path shapes are refused before registration, while repository and revision
+availability is checked only at capture. The reference set may grow while capture is incomplete, including
 after reopening the store; replaying a committed capture returns its original
 identity and never refreshes it. `CompleteRequestBundleCapture` seals the reached
 membership and records a manifest plus SHA-256 digest. A completed bundle cannot

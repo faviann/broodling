@@ -60,6 +60,10 @@ public sealed class RequestBundleReferenceInput
         if (string.IsNullOrWhiteSpace(repository) || string.IsNullOrWhiteSpace(revision)
             || string.IsNullOrWhiteSpace(path) || path.Contains('\0'))
             throw new RequestBundleConflict("Git references require a repository, revision and exact file path.");
+        // Registration is immutable, and capture matches Git's canonical tree
+        // path exactly, so any other shape could never be captured.
+        if (path.Split('/').Any(segment => segment is "" or "." or ".."))
+            throw new RequestBundleConflict("A Git reference requires one canonical repository-relative path.");
         return new(referenceId, "git_blob", selector ?? throw new ArgumentNullException(nameof(selector)),
             repository, revision, path);
     }
