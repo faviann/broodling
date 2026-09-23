@@ -72,7 +72,7 @@ completion facts; Ctrl+C from wait returns caller-detached handback.
 
 ## Durable authority and upgrades
 
-G introduced schema **6**, retained unchanged within the current schema **8**. It uses
+G introduced schema **6**, retained unchanged within the current schema **9**. It uses
 one immutable `attempt_completions` row for the receipt and
 successful disposition. A single row avoids intermediate receipt-only custody;
 an insertion trigger removes current authority in the same transaction. The

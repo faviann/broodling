@@ -114,11 +114,12 @@ semantic correctness nor authority to merge, deploy or release. See the
 The .NET application preserves the #75–#77 callable/operator behavior. The
 [passed migration review](../migration/130-migration-review.md) and
 [parity map](../migration/130-parity-map.md) retain its evidence. Current
-development follows explicitly scoped open issues. Remaining #100 intent is
-unchanged: HTTP intake, bundled proposer, pre-Contract records, automatic
-progression/completion, Compose, generic maintenance services and retention
-features remain unimplemented. This pause slice adds only persisted
-admission/dispatch control and drain status; host containment,
+development follows explicitly scoped open issues. #105 adds durable
+pre-Contract Issue submission identity and inspection through the callable
+SQLite store. Remaining #100 intent is unchanged: HTTP intake, bundled
+proposer, automatic progression/completion, Compose, generic maintenance
+services and retention features remain unimplemented. This pause slice adds
+only persisted admission/dispatch control and drain status; host containment,
 process supervision and physical-cessation maintenance remain deferred. The
 ASP.NET host is not authority to add them.
 

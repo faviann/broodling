@@ -6,7 +6,7 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 8;
+    internal const int Version = 9;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
 
@@ -22,8 +22,10 @@ internal static class StoreSchema
     internal const string VersionSixSql = VersionFiveSql + "\n" + CompletionSql;
     internal static string VersionSevenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionSevenSql));
     internal const string VersionSevenSql = VersionSixSql + "\n" + RetirementSql;
+    internal static string VersionEightDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionEightSql));
     internal const string VersionEightSql = VersionSevenSql + "\n" + IssueSubmissionSql;
-    internal const string Sql = VersionEightSql + "\n" + InstallationSql;
+    internal const string VersionNineSql = VersionEightSql + "\n" + InstallationSql;
+    internal const string Sql = VersionNineSql;
 
     internal const string IssueSubmissionSql = """
         CREATE TABLE issue_submissions (

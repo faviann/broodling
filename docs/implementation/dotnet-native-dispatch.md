@@ -65,7 +65,7 @@ material and current Attempt authority. It acquires C's stable enclosure lock
 before the short SQLite writer and releases both before the external SDK call.
 No subprocess owns that lock during native execution.
 
-F introduced schema **5**, retained within the current schema **8**, with one
+F introduced schema **5**, retained within the current schema **9**, with one
 `native_submissions` row per provisioned Attempt. SQL
 constraints/triggers protect the request/key and permit only
 `prepared → dispatched → correlated|blocked`. Preparation and dispatch require
@@ -92,7 +92,8 @@ an error message, or a run ID alone cannot establish recovery.
 
 Ordinary open never creates or upgrades a store. Explicit upgrade recognizes
 the unchanged definition hashes for schemas 1–7 and applies missing migrations in one
-transaction. Schema 8 adds the persisted installation pause described in
+transaction. Schema 8 adds durable Issue submission persistence and schema 9
+adds the persisted installation pause described in
 [the pause reference](dotnet-installation-pause.md).
 The authentic pre-F schema-4 fixture retains all prior records,
 including first provisioning acknowledgment and abandonment. Upgrade invents no
@@ -222,7 +223,8 @@ gateway, forge, provider account, deployment or evaluation.
 guards, receipt validation, result/disposition retention and application wait.
 [H lifecycle](dotnet-retirement-replacement.md) adds abandonment/stop composition,
 retirement and explicit replacement in historical schema 7, preserving the prior
-definitions; current schema 8 adds the installation pause boundary.
+definitions; schema 8 adds Issue submission persistence and current schema 9
+adds the installation pause boundary.
 The local null-output stable-result gap, dispatched quarantine and independent
 operator review requirements remain.
 

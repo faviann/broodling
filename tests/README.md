@@ -44,7 +44,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Boundary | Tests and detailed reference |
 | --- | --- |
 | Identity, exact source bytes, immutable admission, coherent observation | `IdentityTests`, `SourceCustodyTests`, `ContractIngressTests`, `ContractPolicyTests`, `AdmissionPersistenceTests`: [admission](../docs/implementation/dotnet-contract-admission.md) |
-| Explicit initialization and atomic upgrades | `StoreLifecycleTests`, authentic [.NET v1–v7 fixtures](Broodling.Tests/Fixtures/README.md): [state](../docs/implementation/dotnet-identity-custody.md) |
+| Explicit initialization and atomic upgrades | `StoreLifecycleTests`, authentic [.NET v1–v8 fixtures](Broodling.Tests/Fixtures/README.md): [state](../docs/implementation/dotnet-identity-custody.md) |
 | Persisted installation pause, transition ordering and dispatch drain | `InstallationPauseTests`, `StoreLifecycleTests`: [installation pause](../docs/implementation/dotnet-installation-pause.md) |
 | Original B1 custody, allocation, owned materialization and surviving Git children | `AttemptAdmissionTests`, `GitCustodyTests`, `WorktreeProvisioningTests`, `ProvisioningProcessTests`: [materialization](../docs/implementation/dotnet-worktree-materialization.md) |
 | Controlled GitHub acquisition and reviewed bytes | `GitHubAdmissionTests`, [retained issue fixtures](fixtures/ingress/README.md): [ingress](../docs/implementation/dotnet-github-ingress.md) |

@@ -118,8 +118,9 @@ public sealed partial class BroodlingStore : IDisposable
                 if (store.Information.SchemaVersion < 7)
                     store.Execute(StoreSchema.RetirementSql, transaction);
                 if (store.Information.SchemaVersion < 8)
-                {
                     store.Execute(StoreSchema.IssueSubmissionSql, transaction);
+                if (store.Information.SchemaVersion < 9)
+                {
                     store.Execute(StoreSchema.InstallationSql, transaction);
                     store.Execute("INSERT INTO installation_control VALUES (1, 0, $p0)", transaction, Now());
                 }
@@ -155,9 +156,9 @@ public sealed partial class BroodlingStore : IDisposable
         using var reader = command.ExecuteReader();
         if (!reader.Read()
             || reader.GetValue(0) is not string format || format != StoreSchema.Format
-            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2 or 3 or 4 or 5 or 6 or 7))
+            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8))
             || reader.GetValue(2) is not string definition
-                || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, 3 => StoreSchema.VersionThreeDefinitionHash, 4 => StoreSchema.VersionFourDefinitionHash, 5 => StoreSchema.VersionFiveDefinitionHash, 6 => StoreSchema.VersionSixDefinitionHash, 7 => StoreSchema.VersionSevenDefinitionHash, _ => StoreSchema.DefinitionHash })
+                || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, 3 => StoreSchema.VersionThreeDefinitionHash, 4 => StoreSchema.VersionFourDefinitionHash, 5 => StoreSchema.VersionFiveDefinitionHash, 6 => StoreSchema.VersionSixDefinitionHash, 7 => StoreSchema.VersionSevenDefinitionHash, 8 => StoreSchema.VersionEightDefinitionHash, _ => StoreSchema.DefinitionHash })
             || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection, transaction)
             || reader.GetValue(4) is not string initializedAt || string.IsNullOrEmpty(initializedAt))
             throw new StoreStateException("incompatible_store", "The store format or schema is incompatible; explicit supported upgrades are required.");

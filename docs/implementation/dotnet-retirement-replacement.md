@@ -89,11 +89,12 @@ authority. Provision/prepare/dispatch independently guard currentness. Direct
 recovery reuses F's correlation seam without reprovisioning candidate material.
 
 H integrates with G in historical schema **7**, retaining the exact G schema-6
-DDL and all v1–v6 definition hashes. Current schema 8 adds the persisted
-installation pause gate; recognized older .NET stores require deliberate atomic
-upgrades and ordinary open refuses old schemas. Safe replacement allocation and
-preparation remain permitted while paused, but replacement dispatch still
-requires explicit release.
+DDL and all v1–v6 definition hashes. Issue-submission persistence extends the
+current schema to **8**, retaining those definitions; current schema **9** adds
+the persisted installation pause gate. Recognized older .NET stores require
+deliberate atomic upgrades and ordinary open refuses old schemas. Safe
+replacement allocation and preparation remain permitted while paused, but
+replacement dispatch still requires explicit release.
 Retirement/retry facts resist update, delete and `INSERT OR REPLACE`; SQL refuses
 dispatched cleanup authority and missing/changed retry submission targets.
 No Python database/import compatibility was added. Authentic G6 upgrade evidence
@@ -117,7 +118,7 @@ constructing the fixture; every guard is restored before testing safe retry.
 before/after retirement removal, orphan exclusion, premature retry refusal and
 retry allocation/preparation transaction deaths. `InvocationTests` adds one
 composed stop/quarantine/abandonment handback. `StoreLifecycleTests` compares all
-old facts through authentic v1–v7 upgrades, including completion, currentness,
+old facts through authentic v1–v8 upgrades, including completion, currentness,
 request/run, provisioning, abandonment and source/Contract/B1 facts. G's authentic
 F schema-5 prepared fixture remains unchanged.
 
