@@ -37,7 +37,7 @@ public sealed partial class BroodlingStore
         return submission;
     }
 
-    /// <summary>Wait without a writer reservation; retain receipt, disposition and authority loss atomically.</summary>
+    /// <summary>Wait without a writer reservation; pin the accepted commit, then retain receipt, disposition and authority loss atomically.</summary>
     public async Task<AttemptCompletion> WaitAsync(string attemptId, INativeTransport transport, CancellationToken cancellationToken = default)
     {
         if (FindCompletion(attemptId) is { } existing) return existing;
@@ -58,6 +58,14 @@ public sealed partial class BroodlingStore
             throw new SubmissionNotReady(reason);
         }
         var receipt = AcceptedReceipt(submitted, result.Output);
+        // Outside any writer: a failed pin or write leaves the Attempt current to consume this result again.
+        var request = JsonNode.Parse(submitted.RequestJson)!;
+        try
+        {
+            await GitCustody.RetainAcceptedAsync((string)request["repository"]!, (string)request["originUrl"]!,
+                result.Output.GetProperty("headRevision").GetString()!, cancellationToken);
+        }
+        catch (UnsupportedStartingState error) { throw new ResultRetentionError(error.Message); }
         using (var transaction = connection.BeginTransaction(deferred: false))
         {
             if (ReadCompletion(attemptId, transaction) is { } retained) return retained;
