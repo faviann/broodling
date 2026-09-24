@@ -3,15 +3,21 @@ using Microsoft.Data.Sqlite;
 namespace Broodling;
 
 /// <summary>
-/// Durable acceptance before Contract preparation. Attempt IDs are derived from
-/// the existing Contract/Attempt records and are never a second execution ledger.
+/// Immutable cancellation fact for one exact Issue submission. Its nullable
+/// AttemptId is the cancellation's immutable stop/no-stop binding; it does not
+/// represent the full shared Attempt lineage exposed by IssueSubmission.
 /// </summary>
 public sealed record IssueSubmissionCancellation(string SubmissionId, string? AttemptId, string Reason, string CancelledAt);
 
+/// <summary>
+/// Retained acceptance for one exact Issue submission. AttemptIds are derived
+/// from the existing shared Contract/Attempt records, never copied into a second
+/// execution ledger; Cancellation separately records this submission's binding.
+/// </summary>
 public sealed record IssueSubmission(string SubmissionId, string WorkUnitId, long Sequence, string IssueUrl,
     string State, string ReceivedAt, string? ContractRevisionId, IReadOnlyList<string> AttemptIds)
 {
-    /// <summary>The immutable first cancellation binding, when this submission was cancelled.</summary>
+    /// <summary>The immutable first cancellation stop/no-stop binding, when this submission was cancelled.</summary>
     public IssueSubmissionCancellation? Cancellation { get; init; }
 }
 
@@ -166,8 +172,11 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// Cancel one retained Issue submission before any later admission can use
-    /// it. If it already has an Attempt, cancellation and abandonment commit in
-    /// one SQLite transaction before the existing native-stop path is entered.
+    /// it. If it is the last non-cancelled submission for its shared Contract
+    /// and has an Attempt, cancellation and abandonment commit in one SQLite
+    /// transaction before the existing native-stop path is entered. When another
+    /// submission survives, this cancellation records no stop and leaves that
+    /// Attempt available to the survivor.
     /// </summary>
     public async Task<IssueSubmission> CancelIssueSubmissionAsync(string submissionId, string reason,
         INativeTransport? transport = null, CancellationToken cancellationToken = default)
@@ -202,8 +211,16 @@ public sealed partial class BroodlingStore
                 if (attempts.Any(attempt => ReadCompletion(attempt.AttemptId, transaction) is not null))
                     throw new IssueSubmissionConflict("A completed Issue submission cannot be cancelled.");
 
-                attemptId = attempts.FirstOrDefault(attempt => attempt.IsCurrent)?.AttemptId
-                    ?? attempts.LastOrDefault()?.AttemptId;
+                // A shared Contract's Attempt lineage is not per-submission stop
+                // authority. Bind no stop when another retained submission can
+                // still authorize ordinary progression; the nullable binding is
+                // immutable cancellation evidence, not a replacement lineage.
+                var ownsStop = submission.ContractRevisionId is not null
+                    && !HasOtherNonCancelledIssueSubmission(submission.ContractRevisionId, submissionId, transaction);
+                attemptId = ownsStop
+                    ? attempts.FirstOrDefault(attempt => attempt.IsCurrent)?.AttemptId
+                        ?? attempts.LastOrDefault()?.AttemptId
+                    : null;
                 Execute("INSERT INTO issue_submission_cancellations VALUES ($p0, $p1, $p2, $p3)",
                     transaction, submissionId, attemptId, reason, Now());
                 Execute("UPDATE issue_submissions SET state = 'cancelled' WHERE submission_id = $p0",
@@ -226,6 +243,15 @@ public sealed partial class BroodlingStore
             await StopAsync(attemptId, stopReason, transport, cancellationToken);
         }
         return GetIssueSubmission(submissionId);
+    }
+
+    private bool HasOtherNonCancelledIssueSubmission(string contractRevisionId, string submissionId,
+        SqliteTransaction transaction)
+    {
+        using var command = Command("SELECT 1 FROM issue_submissions "
+            + "WHERE contract_revision_id = $p0 AND submission_id <> $p1 AND state <> 'cancelled' LIMIT 1",
+            transaction, contractRevisionId, submissionId);
+        return command.ExecuteScalar() is not null;
     }
 
     private IssueSubmission? ReadLatestIssueSubmission(string workUnitId, SqliteTransaction? transaction = null)

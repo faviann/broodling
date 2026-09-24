@@ -47,10 +47,14 @@ read-only, and the latter remains usable before a Contract exists.
 Attempt IDs are derived from existing Attempt rows for that revision, not copied
 into a second execution ledger.
 `CancelIssueSubmissionAsync` records one immutable cancellation fact before
-entering the existing abandonment/stop path. Its nullable exact Attempt binding
-durably records the no-Attempt case; replay uses that original binding even if a
-later safe replacement exists. The call returns the refreshed cancelled
-`IssueSubmission` when no native stop is needed or safe cessation is retained.
+entering the existing abandonment/stop path. Its nullable Attempt binding is the
+immutable stop/no-stop decision for this exact submission: null means that no
+Attempt stop belongs to this cancellation, either because no Attempt existed or
+because another retained submission still held shared Contract authority. This
+binding is not the full `AttemptIds` lineage, which remains derived from the
+shared Contract. Replay uses the original binding even if a later safe
+replacement exists. The call returns the refreshed cancelled `IssueSubmission`
+when no native stop is needed or safe cessation is retained.
 Cancellation and abandonment remain committed when it instead hands back
 `CessationUnconfirmed` (`NativeStopRequested` is true only after the native
 stop transport was actually called), `SubmissionNotReady` for a known run with

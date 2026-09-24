@@ -29,9 +29,13 @@ status/history.
 
 `CancelIssueSubmissionAsync(submissionId, reason, transport, token)` is the
 callable submission-level handback. It commits the immutable cancellation fact
-and, when one exists, abandonment of that fact's exact Attempt before entering
-this stop path. A no-Attempt or safely undispatched cancellation returns the
-cancelled `IssueSubmission`; a dispatched Attempt may return
+and, when this exact cancellation owns the last relevant shared Contract
+authority, abandonment of that fact's exact Attempt before entering this stop
+path. Its nullable Attempt binding is the immutable stop/no-stop decision for
+the submission, not a replacement for the shared Contract's derived Attempt
+lineage; a sibling cancellation therefore leaves the current Attempt alone. A
+no-stop or safely undispatched cancellation returns the cancelled
+`IssueSubmission`; a dispatched Attempt may return
 `CessationUnconfirmed`, `SubmissionNotReady` when a known run has no stop
 transport, `NativeTransportError`, or `OperationCanceledException`. These
 outcomes retain the cancellation/abandonment facts and neither means physical

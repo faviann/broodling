@@ -82,13 +82,17 @@ The frozen key is passed unchanged on every replay, so a caller returning after
 correlation cannot create distinct native work; a different acknowledged identity
 is rejected as `SubmissionConflict`.
 `CancelIssueSubmissionAsync` uses the same authority, not a parallel execution
-ledger: its transaction commits cancellation and abandonment against the exact
-selected Attempt before any native stop. If the dispatch callback later returns
-a run identity, correlation stores that identity on the abandoned Attempt and
-the existing stop handoff uses its retained locator/run pair. No replay discovers
-or selects a later replacement. The callable cancellation result is either the
-durable cancelled submission or the documented stop/transport exception; all
-such failures leave the cancellation and abandonment facts inspectable.
+ledger. Its immediate transaction records the exact submission's immutable
+stop/no-stop binding; only a cancellation that owns the last relevant shared
+Contract authority also commits abandonment against its exact Attempt before
+any native stop. A sibling cancellation records a null binding and leaves the
+shared current Attempt available. If an owned cancellation's dispatch callback
+later returns a run identity, correlation stores that identity on the abandoned
+Attempt and the existing stop handoff uses its retained locator/run pair. No
+replay discovers or selects a later replacement. The callable cancellation
+result is either the durable cancelled submission or the documented
+stop/transport exception; all such failures leave the cancellation and any
+abandonment facts inspectable.
 `StaleAttempt.NativeStopRequested` is true only when `StopAsync` reached the
 native `StopAsync` transport. A missing or ambiguous enclosure, or an unresolved
 run, produces `CessationUnconfirmed` before transport and therefore false. A
