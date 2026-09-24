@@ -135,7 +135,8 @@ the retained RequestBundle facts before upgrade, then upgrades and reopens it.
 
 - Application assembly SHA-256: `dbf8b260212c37d7b3c48965c1d44809a89ee2f2959cb1101c18399613da0b1b`.
 - Original definition hash: `f2fa83780445a5e99bb025d7274f8c2d10e649d70d8aea2291f16409ea538d79`.
-- Original manifest hash: `f677bc2aec89e2c2e579058e5c7e4257d5128b8dbd10753c1872ca0b66e7f30a`.
+- Original schema manifest hash: `f64bc8320cd80434da542dfbb331dd89db21aa6968a63d397307190dcd4711b2`.
+- Completed RequestBundle manifest hash: `f677bc2aec89e2c2e579058e5c7e4257d5128b8dbd10753c1872ca0b66e7f30a`.
 - SQL fixture SHA-256: `95a7c4ae9e3fa9ebded8ad9c367364dd233f4afaccb8c862d7082b1260050f7e`.
 
 The F Python files here are test fixtures only. `receipt-sdk.py` substitutes SDK
