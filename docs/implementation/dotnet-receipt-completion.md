@@ -43,12 +43,36 @@ original B1. PR ID is a nonempty ASCII digit **string**, not a number: `"0"`,
 leading zeros and arbitrarily long strings are valid. There is no positivity or
 numeric range rule.
 
+[#115](https://github.com/faviann/broodling/issues/115) then retains the exact
+accepted commit before any successful disposition, outside any SQLite writer.
+DirectTarget delivers from its own clone, so `headRevision` is normally absent
+from the source repository. When `git rev-list --objects --no-walk
+--missing=error <oid>` fails in the frozen request's `repository` (the original
+B1 common Git directory), Broodling runs `git fetch --no-tags
+--no-write-fetch-head --no-recurse-submodules <originUrl> <oid>` against the
+frozen `originUrl`. An already-local result needs no network. It then creates
+the direct ref `refs/broodling/accepted/<oid>` with the same pin operation as
+B1's `refs/broodling/starting/<oid>`: create-only, convergent under concurrent
+creation, and never repointing or accepting a symbolic or conflicting ref. A
+moving PR branch tip never substitutes for the receipt's commit. The pin keeps
+the result readable after the origin branch or repository, the Attempt worktree
+and branch are gone and `git gc --prune=now` has run.
+
+A failed fetch, a still-missing object or a conflicting pin raises
+`ResultRetentionError` (`result_retention_error`) without a completion row. The
+Attempt stays current and the next wait consumes the same native result again.
+A pin alone is not success; a later retry converges on the unchanged pin. The
+Broodling host therefore needs Git fetch access to the frozen origin URL, with
+the host user's own Git credential configuration and no terminal prompt, until
+completion is retained.
+
 Inside the final write transaction the application first checks for a competing
 retained completion, then repeats currentness, admission and frozen invocation
-binding checks. Result retention, successful disposition and currentness loss
-commit together. Independent finalizers converge on the same record. If
+binding checks. Receipt retention, successful disposition and currentness loss
+commit together. Independent finalizers converge on the same record and pin. If
 abandonment wins first, late success is refused; if completion wins, abandonment
-is refused. A failed write rolls back the entire transition.
+is refused. A failed write rolls back the entire transition and leaves only the
+accepted pin.
 
 `AttemptCompletion` exposes exact Attempt, Work Unit, Contract revision and run
 IDs, the complete receipt, accepted revision, completion time,
@@ -66,9 +90,10 @@ wait <store> <attempt-id> [python-executable]
 ```
 
 Supply the pinned SDK Python executable for an unretained result. Retained
-completion needs no executable, dispatch configuration, credentials or working
-native target. Existing `resume`, `status` and `history` commands include
-completion facts; Ctrl+C from wait returns caller-detached handback.
+completion needs no executable, dispatch configuration, credentials, origin
+access or working native target. Existing `resume`, `status` and `history`
+commands include completion facts; Ctrl+C from wait returns caller-detached
+handback.
 
 ## Durable authority and upgrades
 
@@ -109,7 +134,10 @@ and repeated upgrade. Python state/import compatibility is excluded.
 `AttemptCompletionTests` owns receipt field/type/authority refusals, PR-ID edge
 strings, vanished-workspace reconnect, foreign run, uncorrelated/stale authority,
 transport/cancel versus failure, late success, rollback after insertion,
-independent finalizers, frozen invocation rechecks and no-effect refusal.
+independent finalizers, frozen invocation rechecks and no-effect refusal. It
+also owns #115's accepted-object retention: survival of origin, workspace and
+branch removal plus `gc --prune=now`, an unpublished commit that completes once
+pushed, a conflicting pin, and the pin surviving a rolled-back write.
 `CompletionPersistenceTests` owns direct-SQL receipt/binding refusals,
 immutability, justified currentness loss and completed-work admission guards.
 Its two-result historical fixture bypasses only new-admission prohibition while
@@ -120,7 +148,9 @@ exact reads, not a supported way to create a new Attempt after completion.
 handback, without duplicating boundary failure matrices.
 
 PR receipts here come from controlled native-result boundaries, not real
-DirectTarget PR delivery. F's released-SDK transport evidence remains distinct.
+DirectTarget PR delivery. Receipts that reach `WaitAsync` name a real commit
+made in a separate clone and pushed to a local bare stand-in origin, which the
+source repository reaches through `url.<bare>.insteadOf`; no GitHub fetch occurs. F's released-SDK transport evidence remains distinct.
 No live provider, gateway, GitHub mutation, deployment or evaluation is involved.
 Python production code and tests are unchanged. [H implements stop/retirement/
 replacement](dotnet-retirement-replacement.md). Every dispatched Attempt remains quarantined after native terminal
@@ -184,3 +214,10 @@ The stack went through `GitCustody.Checked` → `Text` → `RetentionOid` → `R
 `NativeFixture.Provision`. Subsequent full runs passed 216/216 and 217/217.
 The initial failure's cause has not been diagnosed; those passes do not establish
 a cause or repair. No unrelated Git/provisioning code was changed.
+
+#115 validation on 24 September 2026 used the same SDK, runtime, TUnit version,
+`BROODLING_TEST_PYTHON` and build settings. `dotnet test --solution
+Broodling.sln` passed **372 of 372, 0 skipped**, 59.190 seconds. The Release
+build had **0 warnings, 0 errors**, 25.78 seconds. `git diff --check` is clean.
+With the accepted pin removed by hand, the garbage-collection regression failed
+because the fetched objects had been pruned.

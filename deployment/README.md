@@ -309,7 +309,9 @@ Resume the same revision after interruption; repeating submit reacquires bytes.
 Uncorrelated replay needs the same frozen configuration and current credentials.
 Correlated resume and retained status/history need neither. Wait requires the
 pinned SDK Python executable until completion is retained; afterward it works
-offline without that argument. Native failure abandons; transport loss or a
+offline without that argument. Until then the host user also needs Git fetch
+access to the frozen origin URL, because wait fetches and pins the exact
+accepted commit before recording success. Native failure abandons; transport loss or a
 cancelled wait only detaches. Restore access to the same target and wait again.
 
 Stop records abandonment first, then requests native stop when the run is known.
