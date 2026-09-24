@@ -57,12 +57,26 @@ Work Unit.
 An existing destination is first checked without credentials: it must be a bare
 repository whose `origin` is that exact canonical endpoint. A contradictory
 directory or origin is refused before any credential-bearing Git operation or
-modification. Refresh uses the explicit
-`+refs/heads/*:refs/heads/*` refspec, including for bare repositories, while
-leaving `refs/broodling/starting/*` untouched. Git HTTPS credentials are supplied
-only to the child process as a process-scoped Basic `http.extraHeader` using
-`x-access-token:<token>`; token values are not persisted in SQLite, Git config or
-the retained preparation.
+modification. A new bare repository is initialized with that canonical origin,
+and every acquisition refresh forwards the explicit
+`+refs/heads/*:refs/broodling/upstream/*` refspec, including for bare
+repositories. That acquisition-owned namespace is separate from
+`refs/heads/broodling/*`, which materialized Attempts own, and from
+`refs/broodling/starting/*`, which existing Git custody retains. Refresh pruning
+therefore cannot delete or move an active Attempt or a B1 pin. Git HTTPS
+credentials are supplied only to the child process as a process-only,
+process-scoped Basic `http.extraHeader` using `x-access-token:<token>`; token
+values are not persisted in SQLite, Git config or the retained preparation.
+
+Metadata is read again after repository initialization/fetch and before Git
+custody retention. A
+changed repository identity, default branch or canonical endpoint refuses the
+acquisition, so the fetched content cannot be retained under stale metadata.
+Caller cancellation is preserved; an active acquisition process and its owned
+process tree are terminated, and the root plus inherited output pipes are
+reaped before the operation returns. Git and `gh` acquisition helpers are
+synchronously owned by those commands, so no general process-group supervisor
+is introduced. There is no arbitrary acquisition wall-clock timeout.
 
 The resulting immutable `RepositoryPreparation` separately retains the default
 branch, requested branch ref and exact starting commit. `RegisterRequestBundleRepositoryFile`

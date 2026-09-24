@@ -41,6 +41,7 @@ public sealed record AcquiredRepository(string Repository, string DefaultBranch,
 public sealed class GitHubRepositorySource(string executable = "gh", string gitExecutable = "git")
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+    private const string UpstreamFetchRefspec = "+refs/heads/*:refs/broodling/upstream/*";
 
     public async Task<AcquiredRepository> AcquireAsync(WorkReference reference,
         GitHubRepositoryCredentials credentials, string repositoryRoot,
@@ -57,8 +58,13 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
         var destination = Path.Combine(root, reference.Owner, reference.Repository + ".git");
         await CloneOrFetchAsync(metadata.CloneUrl, destination, credentials, cancellationToken);
 
+        var verified = await ReadMetadataAsync(reference, credentials, cancellationToken);
+        if (verified != metadata)
+            throw new GitHubRepositoryError("GitHub repository identity or default branch changed during acquisition.");
+
         var startingRevision = "refs/heads/" + metadata.DefaultBranch;
-        var state = GitCustody.ResolvePinned(destination, startingRevision);
+        var state = GitCustody.ResolvePinned(destination,
+            "refs/broodling/upstream/" + metadata.DefaultBranch);
         GitCustody.Retain(state);
         return new(state.Repository, metadata.DefaultBranch, startingRevision, state.CommitOid, metadata.RepositoryIdentity);
     }
@@ -123,18 +129,20 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
                     credentials, allowCredentials: false, cancellationToken);
                 if (origin.ExitCode != 0 || Encoding.UTF8.GetString(origin.Output).Trim() != cloneUrl)
                     throw new GitHubRepositoryError("The configured repository origin does not match the Work Unit.");
-                var fetched = await RunGitAsync(["-C", destination, "fetch", "--prune", "origin",
-                    "+refs/heads/*:refs/heads/*"], null, credentials, allowCredentials: true, cancellationToken);
-                if (fetched.ExitCode != 0)
-                    throw new GitHubRepositoryError("GitHub repository refresh failed.");
+                await RefreshAsync(destination, credentials, cancellationToken);
                 return;
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            var cloned = await RunGitAsync(["clone", "--bare", "--no-tags", cloneUrl, destination], null,
-                credentials, allowCredentials: true, cancellationToken);
-            if (cloned.ExitCode != 0)
+            var initialized = await RunGitAsync(["init", "--bare", destination], null,
+                credentials, allowCredentials: false, cancellationToken);
+            if (initialized.ExitCode != 0)
                 throw new GitHubRepositoryError("GitHub repository acquisition failed.");
+            var addedOrigin = await RunGitAsync(["-C", destination, "remote", "add", "origin", cloneUrl], null,
+                credentials, allowCredentials: false, cancellationToken);
+            if (addedOrigin.ExitCode != 0)
+                throw new GitHubRepositoryError("GitHub repository acquisition failed.");
+            await RefreshAsync(destination, credentials, cancellationToken);
         }
         catch (GitHubRepositoryError)
         {
@@ -149,6 +157,15 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
         {
             throw new GitHubRepositoryError("GitHub repository acquisition failed.");
         }
+    }
+
+    private async Task RefreshAsync(string destination, GitHubRepositoryCredentials credentials,
+        CancellationToken cancellationToken)
+    {
+        var fetched = await RunGitAsync(["-C", destination, "fetch", "--prune", "origin", UpstreamFetchRefspec],
+            null, credentials, allowCredentials: true, cancellationToken);
+        if (fetched.ExitCode != 0)
+            throw new GitHubRepositoryError("GitHub repository refresh failed.");
     }
 
     private async Task<byte[]> RunForgeAsync(IReadOnlyList<string> arguments,
@@ -169,8 +186,6 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
         bool allowCredentials,
         CancellationToken cancellationToken)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         using var process = new Process
         {
             StartInfo = new ProcessStartInfo(executable)
@@ -202,28 +217,47 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
         foreach (var argument in arguments)
             process.StartInfo.ArgumentList.Add(argument);
 
+        using var outputStream = new MemoryStream();
+        Task output = Task.CompletedTask;
+        Task<string> error = Task.FromResult("");
         try
         {
             process.Start();
-            var outputStream = new MemoryStream();
-            var output = process.StandardOutput.BaseStream.CopyToAsync(outputStream, linked.Token);
-            var error = process.StandardError.ReadToEndAsync(linked.Token);
-            await process.WaitForExitAsync(linked.Token);
+            output = process.StandardOutput.BaseStream.CopyToAsync(outputStream);
+            error = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync(cancellationToken);
             await output;
             return new(process.ExitCode, outputStream.ToArray(), await error);
         }
         catch (OperationCanceledException)
         {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
-            catch (Exception exception) when (exception is InvalidOperationException or Win32Exception) { }
+            await StopAndReapAsync(process, output, error);
             cancellationToken.ThrowIfCancellationRequested();
-            throw new GitHubRepositoryError("GitHub repository acquisition timed out.");
+            throw;
         }
         catch (Exception exception) when (exception is IOException or Win32Exception
             or InvalidOperationException or ArgumentException)
         {
+            await StopAndReapAsync(process, output, error);
             throw new GitHubRepositoryError("GitHub repository acquisition failed.");
         }
+    }
+
+    private static async Task StopAndReapAsync(Process process, Task output, Task<string> error)
+    {
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
+        {
+        }
+
+        try { await process.WaitForExitAsync(CancellationToken.None); }
+        catch (InvalidOperationException) { }
+        try { await output; } catch (Exception) { }
+        try { await error; } catch (Exception) { }
     }
 
     private static string RepositoryRoot(string path)
