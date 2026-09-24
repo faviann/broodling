@@ -59,13 +59,32 @@ public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNative
     public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => Observe("stop", locator, runId, cancellationToken);
 
     /// <summary>
-    /// The bound applies to the native status read, after the local version probe. Cancellation
-    /// detaches the caller; the bridge still ends within its bound so the SDK stops its command.
+    /// Bound the version preflight and give the SDK status read only the remaining time.
+    /// After preflight, cancellation detaches the caller so the SDK can stop its own command.
     /// </summary>
     public async Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound,
         CancellationToken cancellationToken = default)
     {
-        var status = await Reconnect("status", locator, runId, bound.TotalSeconds, CancellationToken.None).WaitAsync(cancellationToken);
+        ValidateRun(locator, runId);
+        if (bound <= TimeSpan.Zero) throw new NativeTransportError("TimeoutError");
+        var clock = Stopwatch.StartNew();
+        using (var deadline = new CancellationTokenSource(bound))
+        using (var preflight = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token))
+        {
+            try { await RequireVersion(preflight.Token); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
+            { throw new NativeTransportError("TimeoutError"); }
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var remaining = bound - clock.Elapsed;
+        if (remaining <= TimeSpan.Zero) throw new NativeTransportError("TimeoutError");
+        JsonElement status;
+        try
+        {
+            status = await ReadRun("status", locator, runId, remaining.TotalSeconds, CancellationToken.None)
+                .WaitAsync(remaining, cancellationToken);
+        }
+        catch (TimeoutException) { throw new NativeTransportError("TimeoutError"); }
         try
         {
             return new(RequiredString(status, "phase"),
@@ -89,9 +108,20 @@ public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNative
     private async Task<JsonElement> Reconnect(string operation, NativeLocator locator, string runId, double? timeout,
         CancellationToken cancellationToken)
     {
+        ValidateRun(locator, runId);
+        await RequireVersion(cancellationToken);
+        return await ReadRun(operation, locator, runId, timeout, cancellationToken);
+    }
+
+    private static void ValidateRun(NativeLocator locator, string runId)
+    {
         locator.Validate();
         if (string.IsNullOrWhiteSpace(runId)) throw new NativeTransportError();
-        await RequireVersion(cancellationToken);
+    }
+
+    private async Task<JsonElement> ReadRun(string operation, NativeLocator locator, string runId, double? timeout,
+        CancellationToken cancellationToken)
+    {
         var response = await Call(new { op = operation, locator = locator.Json(), runId, timeout }, cancellationToken);
         try
         {

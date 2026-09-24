@@ -30,8 +30,69 @@ public sealed class NativeObservationTests
 
         // Native completion alone is observed as progress, not consumed as a result.
         await transport.WaitAsync(submission.Locator, submission.RunId!);
+        var readStartedAt = DateTimeOffset.UtcNow;
         var finished = await store.ObserveAsync(attempt.AttemptId, transport) as NativeObservation.Available;
+        var readEndedAt = DateTimeOffset.UtcNow;
         await Assert.That(finished!.Progress.Phase).IsEqualTo("finished");
+        await Assert.That(finished.ObservedAt).IsGreaterThanOrEqualTo(readStartedAt);
+        await Assert.That(finished.ObservedAt).IsLessThanOrEqualTo(readEndedAt);
+        await Assert.That(finished.ObservedAt).IsGreaterThan(running.ObservedAt);
+        await Assert.That(RetainedJson(store, attempt)).IsEqualTo(retained);
+    }
+
+    [Test]
+    public async Task VersionPreflightIsBoundedAndCancellationCannotStartStatusLater()
+    {
+        using var fixture = new NativeFixture();
+        var script = Path.Combine(fixture.Root, "held-version.py");
+        var started = Path.Combine(fixture.Root, "version-started");
+        var release = Path.Combine(fixture.Root, "version-release");
+        var statusStarted = Path.Combine(fixture.Root, "status-started");
+        File.WriteAllText(script, $$$"""
+            import json, os, sys, time
+            request = json.load(sys.stdin)
+            if request["op"] == "version":
+                open({{{JsonSerializer.Serialize(started)}}}, "w").close()
+                while not os.path.exists({{{JsonSerializer.Serialize(release)}}}):
+                    time.sleep(0.02)
+                print(json.dumps({"ok": True, "sdkVersion": "10.3.0.post1", "nativeVersion": "zeroshot 10.3.0"}))
+            else:
+                open({{{JsonSerializer.Serialize(statusStarted)}}}, "w").close()
+                print(json.dumps({"ok": True, "result": {"runId": request["runId"], "phase": "running", "activeNodes": []}}))
+            """);
+        using var store = fixture.Git.State.Open();
+        var attempt = fixture.Provision(store);
+        await store.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport());
+        var retained = RetainedJson(store, attempt);
+        var transport = new ZeroshotTransport(NativeFixture.Python, script);
+
+        var clock = Stopwatch.StartNew();
+        var timedRead = store.ObserveAsync(attempt.AttemptId, transport, TimeSpan.FromMilliseconds(500), default);
+        try
+        {
+            var unavailable = await timedRead.WaitAsync(TimeSpan.FromSeconds(3)) as NativeObservation.Unavailable;
+            await Assert.That(clock.Elapsed).IsLessThan(TimeSpan.FromSeconds(3));
+            await Assert.That(unavailable?.Reason).IsEqualTo("TimeoutError");
+        }
+        finally
+        {
+            File.WriteAllText(release, "");
+            await timedRead.WaitAsync(TimeSpan.FromSeconds(3));
+        }
+        await Assert.That(File.Exists(statusStarted)).IsFalse();
+
+        File.Delete(started);
+        File.Delete(release);
+        using var cancellation = new CancellationTokenSource();
+        var cancelledRead = store.ObserveAsync(attempt.AttemptId, transport, TimeSpan.FromSeconds(2), cancellation.Token);
+        clock.Restart();
+        while (!File.Exists(started) && clock.Elapsed < TimeSpan.FromSeconds(3)) await Task.Delay(20);
+        await Assert.That(File.Exists(started)).IsTrue();
+        cancellation.Cancel();
+        await Assert.That(async () => await cancelledRead.WaitAsync(TimeSpan.FromSeconds(3))).Throws<OperationCanceledException>();
+        File.WriteAllText(release, "");
+        await Task.Delay(300);
+        await Assert.That(File.Exists(statusStarted)).IsFalse();
         await Assert.That(RetainedJson(store, attempt)).IsEqualTo(retained);
     }
 

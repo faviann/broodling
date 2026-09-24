@@ -75,9 +75,12 @@ execution. Completed receipt replay needs no target.
 
 `BroodlingStore.ObserveAsync` reads a correlated Attempt's current native phase and
 active nodes through the same retained locator and run ID. It returns null
-without native contact when no run is correlated. The bridge bounds the native
-status read at 10 seconds inside the SDK, which stops its own status command on
-timeout. Each read is stamped with its observation time; it is never persisted
+without native contact when no run is correlated. The 10-second observation bound
+covers the version preflight and native status read. A cancelled or expired
+preflight stops before status starts; the bridge gives the SDK the remaining time
+for status, so the SDK stops its own command on timeout. Once status starts, caller
+cancellation detaches without killing its bridge. Each read is stamped with its
+observation time; it is never persisted
 and never updates admission, abandonment, completion or authority. A timeout,
 transport loss, unknown run or unsupported runtime returns an unavailable
 observation with a safe reason, not an execution failure. Retained status never
