@@ -163,8 +163,9 @@ public sealed class NativeTransportTests
         var submission = await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
         if (kill)
         {
-            using var waiter = transport.Start(new { op = "wait", locator = submission.Locator.Json(), runId = submission.RunId });
+            using var waiter = transport.Start(new { op = "wait", locator = submission.Locator.Json(), runId = submission.RunId, timeout = (double?)null });
             await Task.Delay(1000);
+            await Assert.That(waiter.HasExited).IsFalse();
             waiter.Kill(entireProcessTree: false);
             await waiter.WaitForExitAsync();
         }
