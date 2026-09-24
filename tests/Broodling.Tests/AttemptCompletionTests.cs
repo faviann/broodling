@@ -14,22 +14,24 @@ internal sealed class CompletionFixture : IDisposable
     internal AttemptRecord Attempt { get; }
     internal ControlledTransport Transport { get; } = new();
     internal NativeProfile Profile { get; }
+    internal string Accepted { get; }
     internal CompletionFixture()
     {
         Store = Git.State.Open();
         Git.Git("remote", "add", "origin", "https://github.com/acme/widget.git");
+        Accepted = Git.Deliver();
         var status = Store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose,
             [new("pr", "Open PR", "pull_request", "main")]);
         Attempt = Store.ProvisionAttempt(Store.AdmitAttempt(status.Revision.ContractRevisionId, Git.Repository, Git.Workspaces).AttemptId);
         Profile = new(Path.Combine(Git.State.Root, "native"), directOrigin: "http://127.0.0.1:8123");
-        Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, Receipt(), null));
+        Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, Receipt(head: Accepted), null));
     }
     internal Task<NativeSubmission> Dispatch() => Store.DispatchAsync(Attempt.AttemptId, Profile, Transport,
         new("test-only-token", NativeProfile.GatewayBaseUrl, "test-only-gateway"));
-    internal static JsonElement Receipt(string id = "50") => JsonSerializer.SerializeToElement(new
+    internal static JsonElement Receipt(string id = "50", string? head = null) => JsonSerializer.SerializeToElement(new
     {
         version = "v1", mode = "pr", outcome = "opened", repository = "acme/widget", targetBranch = "main",
-        headRevision = new string('b', 40), pullRequestId = id
+        headRevision = head ?? new string('b', 40), pullRequestId = id
     });
     internal Task<AttemptCompletion> Wait() => Store.WaitAsync(Attempt.AttemptId, Transport);
     public void Dispose() { Store.Dispose(); Git.Dispose(); }
@@ -50,11 +52,11 @@ public sealed class AttemptCompletionTests
         {
             await Assert.That(locator).IsEqualTo(submitted.Locator);
             await Assert.That(run).IsEqualTo(submitted.RunId);
-            return new(run, true, CompletionFixture.Receipt(pr), null);
+            return new(run, true, CompletionFixture.Receipt(pr, fixture.Accepted), null);
         };
         var completed = await fixture.Wait();
         await Assert.That(completed.Outcome).IsEqualTo("SUCCEEDED");
-        await Assert.That(completed.AcceptedRevision).IsEqualTo(new string('b', 40));
+        await Assert.That(completed.AcceptedRevision).IsEqualTo(fixture.Accepted);
         await Assert.That(completed.DeliveryReceipt.GetProperty("pullRequestId").GetString()).IsEqualTo(pr);
         await Assert.That(fixture.Store.CurrentAttempt(completed.WorkUnitId)).IsNull();
         fixture.Transport.Wait = (_, _, _) => throw new Exception("Native unavailable");
@@ -152,7 +154,7 @@ public sealed class AttemptCompletionTests
         {
             using var other = fixture.Git.State.Open();
             other.AbandonAttempt(fixture.Attempt.AttemptId, "stop won");
-            return Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(), null));
+            return Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: fixture.Accepted), null));
         };
         await Assert.That(async () => await fixture.Wait()).Throws<StaleAttempt>();
         await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
@@ -173,8 +175,54 @@ public sealed class AttemptCompletionTests
         await Assert.That(async () => await fixture.Wait()).Throws<SqliteException>();
         await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
         fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
+        var pin = "refs/broodling/accepted/" + fixture.Accepted;
+        await Assert.That(fixture.Git.Git("rev-parse", pin).Trim()).IsEqualTo(fixture.Accepted);
         fixture.Git.State.Execute("DROP TRIGGER fixture_failure");
         await Assert.That((await fixture.Wait()).Outcome).IsEqualTo("SUCCEEDED");
+        await Assert.That(fixture.Git.Git("rev-parse", pin).Trim()).IsEqualTo(fixture.Accepted);
+    }
+
+    [Test]
+    public async Task AcceptedCommitSurvivesOriginBranchWorkspaceAndGarbageCollection()
+    {
+        using var fixture = new CompletionFixture();
+        await fixture.Dispatch();
+        var completed = await fixture.Wait();
+        Directory.Delete(fixture.Git.Origin, true);
+        Directory.Delete(fixture.Attempt.Allocation.WorktreePath, true);
+        fixture.Git.Git("worktree", "prune");
+        fixture.Git.Git("branch", "-D", fixture.Attempt.Allocation.Branch);
+        fixture.Git.Git("gc", "--prune=now");
+        await Assert.That(fixture.Git.Git("show", fixture.Accepted + ":delivered.txt")).IsEqualTo("delivered\n");
+        fixture.Transport.Wait = (_, _, _) => throw new Exception("Native unavailable");
+        await Assert.That(await fixture.Wait()).IsEqualTo(completed);
+    }
+
+    [Test]
+    public async Task UnfetchableAcceptedCommitLeavesResultConsumableUntilPublished()
+    {
+        using var fixture = new CompletionFixture();
+        await fixture.Dispatch();
+        var unpublished = fixture.Git.Deliver("unpublished\n", push: false);
+        fixture.Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: unpublished), null));
+        await Assert.That(async () => await fixture.Wait()).Throws<ResultRetentionError>();
+        await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
+        fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
+        await Assert.That(() => fixture.Git.Git("show-ref", "--verify", "refs/broodling/accepted/" + unpublished)).Throws<InvalidOperationException>();
+        fixture.Git.Push();
+        await Assert.That((await fixture.Wait()).AcceptedRevision).IsEqualTo(unpublished);
+    }
+
+    [Test]
+    public async Task ConflictingAcceptedPinRefusesWithoutRepointingOrCompleting()
+    {
+        using var fixture = new CompletionFixture();
+        await fixture.Dispatch();
+        var pin = "refs/broodling/accepted/" + fixture.Accepted;
+        fixture.Git.Git("update-ref", pin, fixture.Git.Head);
+        await Assert.That(async () => await fixture.Wait()).Throws<ResultRetentionError>();
+        await Assert.That(fixture.Git.Git("rev-parse", pin).Trim()).IsEqualTo(fixture.Git.Head);
+        await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
     }
 
     [Test]
@@ -189,7 +237,7 @@ public sealed class AttemptCompletionTests
         {
             if (Interlocked.Increment(ref entered) == 2) ready.SetResult();
             await ready.Task;
-            return new(run, true, CompletionFixture.Receipt(), null);
+            return new(run, true, CompletionFixture.Receipt(head: fixture.Accepted), null);
         };
         var both = await Task.WhenAll(fixture.Wait(), other.WaitAsync(fixture.Attempt.AttemptId, fixture.Transport));
         await Assert.That(both[0]).IsEqualTo(both[1]);
@@ -219,7 +267,7 @@ public sealed class AttemptCompletionTests
         fixture.Transport.Wait = (_, run, _) =>
         {
             Change(changed.ToJsonString());
-            return Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(), null));
+            return Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: fixture.Accepted), null));
         };
         await Assert.That(async () => await fixture.Wait()).Throws<SubmissionConflict>();
         await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();

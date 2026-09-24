@@ -5,7 +5,7 @@ namespace Broodling;
 
 internal sealed record StartingState(string Repository, string CommitOid, string RequestedRevision);
 
-/// <summary>Local administrative Git custody. No checkout, driver execution, fetch or delivery.</summary>
+/// <summary>Local administrative Git custody. No checkout, driver execution or delivery; fetch only for an exact accepted result.</summary>
 internal static class GitCustody
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
@@ -114,6 +114,14 @@ internal static class GitCustody
 
     internal static void Retain(StartingState state, AdministrativeGitProcess.EnclosureLock? enclosureLock = null) =>
         Pin(state.Repository, state.CommitOid, "refs/broodling/starting/" + state.CommitOid, enclosureLock);
+
+    /// <summary>Delivery happens in the native target, so the accepted commit is fetched by exact ID when absent locally.</summary>
+    internal static void RetainAccepted(string repository, string originUrl, string oid)
+    {
+        if (Run(repository, ["rev-list", "--objects", "--no-walk", "--missing=error", oid]).ExitCode != 0)
+            Text(repository, "fetch", "--no-tags", "--no-write-fetch-head", "--no-recurse-submodules", originUrl, oid);
+        Pin(repository, oid, "refs/broodling/accepted/" + oid);
+    }
 
     private static void Pin(string repository, string oid, string reference, AdministrativeGitProcess.EnclosureLock? enclosureLock = null)
     {

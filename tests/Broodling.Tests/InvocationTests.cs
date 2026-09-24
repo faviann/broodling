@@ -76,7 +76,8 @@ public sealed class InvocationTests
                 fixture.Git.State.Application, output, error, transport: transport)).IsEqualTo(130);
             store.RequireCurrentAttempt(attempt.AttemptId);
             Directory.Move(attempt.Allocation.WorktreePath, attempt.Allocation.WorktreePath + "-unavailable");
-            transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(), null));
+            var accepted = fixture.Git.Deliver();
+            transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: accepted), null));
             await Assert.That(await InvocationCommands.RunAsync(["wait", store.Path, attempt.AttemptId],
                 fixture.Git.State.Application, output, error, transport: transport)).IsEqualTo(0);
             completed = store.FindCompletion(attempt.AttemptId)!;
