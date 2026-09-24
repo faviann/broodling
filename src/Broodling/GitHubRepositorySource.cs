@@ -121,28 +121,44 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
                 throw new GitHubRepositoryError("The configured repository path is not a directory.");
             if (Directory.Exists(destination))
             {
-                var bare = await RunGitAsync(["-C", destination, "rev-parse", "--is-bare-repository"], null,
-                    credentials, allowCredentials: false, cancellationToken);
-                if (bare.ExitCode != 0 || Encoding.UTF8.GetString(bare.Output).Trim() != "true")
-                    throw new GitHubRepositoryError("The configured repository path is not an owned bare Git repository.");
-                var origin = await RunGitAsync(["-C", destination, "remote", "get-url", "origin"], null,
-                    credentials, allowCredentials: false, cancellationToken);
-                if (origin.ExitCode != 0 || Encoding.UTF8.GetString(origin.Output).Trim() != cloneUrl)
-                    throw new GitHubRepositoryError("The configured repository origin does not match the Work Unit.");
-                await RefreshAsync(destination, credentials, cancellationToken);
+                await RefreshExistingAsync(cloneUrl, destination, credentials, cancellationToken);
                 return;
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            var initialized = await RunGitAsync(["init", "--bare", destination], null,
-                credentials, allowCredentials: false, cancellationToken);
-            if (initialized.ExitCode != 0)
-                throw new GitHubRepositoryError("GitHub repository acquisition failed.");
-            var addedOrigin = await RunGitAsync(["-C", destination, "remote", "add", "origin", cloneUrl], null,
-                credentials, allowCredentials: false, cancellationToken);
-            if (addedOrigin.ExitCode != 0)
-                throw new GitHubRepositoryError("GitHub repository acquisition failed.");
-            await RefreshAsync(destination, credentials, cancellationToken);
+            var parent = Path.GetDirectoryName(destination)!;
+            Directory.CreateDirectory(parent);
+            var staging = Path.Combine(parent,
+                "." + Path.GetFileName(destination) + ".initializing-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var initialized = await RunGitAsync(["init", "--bare", staging], null,
+                    credentials, allowCredentials: false, cancellationToken);
+                if (initialized.ExitCode != 0)
+                    throw new GitHubRepositoryError("GitHub repository acquisition failed.");
+                var addedOrigin = await RunGitAsync(["-C", staging, "remote", "add", "origin", cloneUrl], null,
+                    credentials, allowCredentials: false, cancellationToken);
+                if (addedOrigin.ExitCode != 0)
+                    throw new GitHubRepositoryError("GitHub repository acquisition failed.");
+
+                try
+                {
+                    Directory.Move(staging, destination);
+                }
+                catch (IOException) when (Directory.Exists(destination))
+                {
+                    // Another preparation published an owned repository first.
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(staging))
+                    Directory.Delete(staging, recursive: true);
+            }
+
+            // The final path is either ours, with its canonical origin already
+            // installed, or a concurrent publisher's path. Validate it before
+            // the first credential-bearing operation in either case.
+            await RefreshExistingAsync(cloneUrl, destination, credentials, cancellationToken);
         }
         catch (GitHubRepositoryError)
         {
@@ -157,6 +173,20 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
         {
             throw new GitHubRepositoryError("GitHub repository acquisition failed.");
         }
+    }
+
+    private async Task RefreshExistingAsync(string cloneUrl, string destination,
+        GitHubRepositoryCredentials credentials, CancellationToken cancellationToken)
+    {
+        var bare = await RunGitAsync(["-C", destination, "rev-parse", "--is-bare-repository"], null,
+            credentials, allowCredentials: false, cancellationToken);
+        if (bare.ExitCode != 0 || Encoding.UTF8.GetString(bare.Output).Trim() != "true")
+            throw new GitHubRepositoryError("The configured repository path is not an owned bare Git repository.");
+        var origin = await RunGitAsync(["-C", destination, "remote", "get-url", "origin"], null,
+            credentials, allowCredentials: false, cancellationToken);
+        if (origin.ExitCode != 0 || Encoding.UTF8.GetString(origin.Output).Trim() != cloneUrl)
+            throw new GitHubRepositoryError("The configured repository origin does not match the Work Unit.");
+        await RefreshAsync(destination, credentials, cancellationToken);
     }
 
     private async Task RefreshAsync(string destination, GitHubRepositoryCredentials credentials,

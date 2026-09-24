@@ -244,6 +244,66 @@ public sealed class RepositoryPreparationTests
     }
 
     [Test]
+    public async Task AbruptInitialRepositoryEstablishmentCanResumeOnRetry()
+    {
+        using var fixture = new RepositoryPreparationFixture();
+        string bundleId;
+        using (var store = fixture.State.Initialize())
+        {
+            var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+            bundleId = store.BeginRequestBundleCapture(submission.SubmissionId,
+                new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray())).BundleId;
+        }
+
+        fixture.EnableInterruptedInitialEstablishment();
+        var start = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardError = true,
+            RedirectStandardOutput = true
+        };
+        foreach (var argument in new[] { Path.Combine(AppContext.BaseDirectory, "Broodling.ProcessWitness.dll"),
+            "repository-preparation-crash", fixture.State.Path, bundleId, fixture.RepositoryRoot,
+            fixture.Gh, fixture.Git })
+            start.ArgumentList.Add(argument);
+
+        using var witness = Process.Start(start)!;
+        var error = witness.StandardError.ReadToEndAsync();
+        try
+        {
+            var started = Stopwatch.StartNew();
+            while (!File.Exists(fixture.OriginSetupStarted) && !witness.HasExited
+                && started.Elapsed < TimeSpan.FromSeconds(20))
+                await Task.Delay(20);
+            if (!File.Exists(fixture.OriginSetupStarted))
+                throw new Exception("Process witness did not reach remote-add gate; exited="
+                    + witness.HasExited + ", error=" + (witness.HasExited ? await error : "still running"));
+
+            witness.Kill(entireProcessTree: true);
+            await witness.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            if (!witness.HasExited)
+            {
+                witness.Kill(entireProcessTree: true);
+                await witness.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            try { await error; } catch (Exception) { }
+        }
+
+        await Assert.That(Directory.Exists(fixture.ServiceRepository)).IsFalse();
+        var staging = Directory.GetDirectories(Path.GetDirectoryName(fixture.ServiceRepository)!,
+            ".widget.git.initializing-*");
+        await Assert.That(staging.Length).IsEqualTo(1);
+        fixture.RestoreGit();
+        using var reopened = fixture.State.Open();
+        var prepared = await reopened.PrepareRequestBundleRepositoryAsync(bundleId, fixture.RepositoryRoot,
+            new GitHubRepositoryCredentials("configured-token"), fixture.Source);
+        await Assert.That(prepared.StartingCommit).IsEqualTo(fixture.InitialCommit);
+        await Assert.That(Directory.Exists(fixture.ServiceRepository)).IsTrue();
+    }
+
+    [Test]
     public async Task AcquisitionCancellationDoesNotReturnWhileAnActiveGitChildCanMutate()
     {
         using var fixture = new RepositoryPreparationFixture();
@@ -291,9 +351,11 @@ public sealed class RepositoryPreparationTests
         internal string RepositoryRoot { get; }
         internal string GhCalls { get; }
         internal string GitCalls { get; }
+        internal string OriginSetupStarted { get; }
         internal string FetchStarted { get; }
         internal string FetchChildPid { get; }
         internal string FetchChildFinished { get; }
+        internal string Gh => gh;
         internal string Git => git;
         internal string ServiceRepository => Path.Combine(RepositoryRoot, "acme", "widget.git");
         internal GitHubRepositorySource Source { get; }
@@ -313,6 +375,7 @@ public sealed class RepositoryPreparationTests
             RepositoryRoot = Path.Combine(State.Root, "service-repositories");
             GhCalls = Path.Combine(State.Root, "gh-calls");
             GitCalls = Path.Combine(State.Root, "git-calls");
+            OriginSetupStarted = Path.Combine(State.Root, "origin-setup-started");
             FetchStarted = Path.Combine(State.Root, "fetch-started");
             FetchChildPid = Path.Combine(State.Root, "fetch-child-pid");
             FetchChildFinished = Path.Combine(State.Root, "fetch-child-finished");
@@ -338,20 +401,11 @@ public sealed class RepositoryPreparationTests
             SetMetadata();
 
             ExecutableFile.Write(gh, "#!/bin/sh\nset -eu\nprintf 'GH_TOKEN=%s\\n' \"$GH_TOKEN\" >> '" + GhCalls + "'\ncat '" + metadata + "'\n");
-            ExecutableFile.Write(git, "#!/bin/sh\nset -eu\nprintf 'ARGS=%s\\n' \"$*\" >> '" + GitCalls + "'\nprintf 'AUTH=%s\\n' \"${GIT_CONFIG_VALUE_0-}\" >> '" + GitCalls + "'\n"
-                + "if [ \"$1\" = clone ]; then\n"
-                + "  if [ -f '" + metadataFlip + "' ]; then cp '" + metadataAfterFlip + "' '" + metadata + "'; rm '" + metadataFlip + "'; fi\n"
-                + "  /usr/bin/git -c 'url." + Remote + ".insteadOf=https://github.com/acme/widget.git' \"$@\"\n"
-                + "  exit 0\nfi\n"
-                + "if [ \"$1\" = -C ] && [ \"$3\" = fetch ]; then\n"
-                + "  if [ -f '" + metadataFlip + "' ]; then cp '" + metadataAfterFlip + "' '" + metadata + "'; rm '" + metadataFlip + "'; fi\n"
-                + "  /usr/bin/git -c 'url." + Remote + ".insteadOf=https://github.com/acme/widget.git' \"$@\"\n"
-                + "  exit 0\nfi\nexec /usr/bin/git \"$@\"\n");
+            WriteStandardGit();
             if (OperatingSystem.IsLinux())
             {
                 var executableMode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
                 File.SetUnixFileMode(gh, executableMode);
-                File.SetUnixFileMode(git, executableMode);
             }
             Source = new(gh, git);
         }
@@ -385,6 +439,37 @@ public sealed class RepositoryPreparationTests
         {
             WriteMetadata(metadataAfterFlip, "https://github.com/acme/widget.git", repositoryIdentity);
             File.WriteAllText(metadataFlip, "pending\n");
+        }
+
+        internal void EnableInterruptedInitialEstablishment()
+        {
+            ExecutableFile.Write(git, "#!/bin/sh\nset -eu\n"
+                + "printf 'ARGS=%s\\n' \"$*\" >> '" + GitCalls + "'\n"
+                + "printf 'AUTH=%s\\n' \"${GIT_CONFIG_VALUE_0-}\" >> '" + GitCalls + "'\n"
+                + "if [ \"$1\" = -C ] && [ \"$3\" = remote ] && [ \"$4\" = add ]; then\n"
+                + "  printf started > '" + OriginSetupStarted + "'\n"
+                + "  sleep 30\n"
+                + "  exit 1\n"
+                + "fi\nexec /usr/bin/git \"$@\"\n");
+            if (OperatingSystem.IsLinux())
+                File.SetUnixFileMode(git, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        internal void RestoreGit() => WriteStandardGit();
+
+        private void WriteStandardGit()
+        {
+            ExecutableFile.Write(git, "#!/bin/sh\nset -eu\nprintf 'ARGS=%s\\n' \"$*\" >> '" + GitCalls + "'\nprintf 'AUTH=%s\\n' \"${GIT_CONFIG_VALUE_0-}\" >> '" + GitCalls + "'\n"
+                + "if [ \"$1\" = clone ]; then\n"
+                + "  if [ -f '" + metadataFlip + "' ]; then cp '" + metadataAfterFlip + "' '" + metadata + "'; rm '" + metadataFlip + "'; fi\n"
+                + "  /usr/bin/git -c 'url." + Remote + ".insteadOf=https://github.com/acme/widget.git' \"$@\"\n"
+                + "  exit 0\nfi\n"
+                + "if [ \"$1\" = -C ] && [ \"$3\" = fetch ]; then\n"
+                + "  if [ -f '" + metadataFlip + "' ]; then cp '" + metadataAfterFlip + "' '" + metadata + "'; rm '" + metadataFlip + "'; fi\n"
+                + "  /usr/bin/git -c 'url." + Remote + ".insteadOf=https://github.com/acme/widget.git' \"$@\"\n"
+                + "  exit 0\nfi\nexec /usr/bin/git \"$@\"\n");
+            if (OperatingSystem.IsLinux())
+                File.SetUnixFileMode(git, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         }
 
         internal void EnableCancellableFetch()

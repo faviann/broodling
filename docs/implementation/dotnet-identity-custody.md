@@ -124,7 +124,7 @@ refuse source updates/deletes, identity rewrites/unpinning and submission rewrit
 ## State lifecycle and persistence decision
 
 Initialization exclusively reserves a new filesystem path and creates a distinct
-`broodling.dotnet` schema (currently version 11). It refuses existing files and orphan SQLite
+`broodling.dotnet` schema (currently version 12). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
 Store paths inside a marked disposable Attempt enclosure refuse, including paths
 through parent symlinks. Caller paths containing malformed UTF-16 refuse with
@@ -137,11 +137,11 @@ full synchronization. An incompatible or unknown file is not initialized or
 rewritten. Foreign keys and immediate write transactions enforce custody.
 
 `UpgradeStore` accepts an already-current store unchanged and explicitly upgrades
-recognized .NET versions 1–10 to version 11 in one transaction, preserving retained
-facts and initialization identity. Ordinary open refuses historical versions.
+recognized .NET versions 1–11 to version 12 in one transaction, preserving retained
+facts and initialization identity. Schema 11 retains the immutable Issue submission
+cancellation facts; schema 12 adds service-owned repository preparation. Ordinary open refuses historical versions.
 The [H reference](dotnet-retirement-replacement.md#explicit-replacement-and-schema)
-records the current schema boundary; authentic v1–v9 fixtures and a schema-10
-completed-RequestBundle regression exercise upgrades,
+completed-RequestBundle regression plus the schema-11-to-12 migration regression exercise upgrades,
 including preservation of an existing paused installation from schema 9.
 Python databases, migration history and imports are intentionally unsupported;
 they must remain at separate paths and must never be silently replaced.
