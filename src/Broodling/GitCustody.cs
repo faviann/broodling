@@ -5,7 +5,7 @@ namespace Broodling;
 
 internal sealed record StartingState(string Repository, string CommitOid, string RequestedRevision);
 
-/// <summary>Local administrative Git custody. No checkout, driver execution, fetch or delivery.</summary>
+/// <summary>Local administrative Git custody. No checkout, driver execution or delivery; fetch only for an exact accepted result.</summary>
 internal static class GitCustody
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
@@ -112,32 +112,68 @@ internal static class GitCustody
         return resolved;
     }
 
-    internal static void Retain(StartingState state, AdministrativeGitProcess.EnclosureLock? enclosureLock = null)
+    internal static void Retain(StartingState state, AdministrativeGitProcess.EnclosureLock? enclosureLock = null) =>
+        Pin(state.Repository, state.CommitOid, "refs/broodling/starting/" + state.CommitOid, enclosureLock);
+
+    /// <summary>Delivery happens in the native target, so the accepted commit is fetched by exact ID when absent locally.</summary>
+    internal static async Task RetainAcceptedAsync(string repository, string originUrl, string oid, CancellationToken cancellationToken)
     {
-        var repository = state.Repository;
-        var oid = state.CommitOid;
-        var reference = "refs/broodling/starting/" + oid;
+        if (Run(repository, ["rev-list", "--objects", "--no-walk", "--missing=error", oid]).ExitCode != 0)
+        {
+            var fetch = await FetchAsync(repository, originUrl, oid, cancellationToken);
+            if (fetch.ExitCode != 0) throw Failure(fetch);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        Pin(repository, oid, "refs/broodling/accepted/" + oid);
+    }
+
+    private static async Task<Result> FetchAsync(string repository, string originUrl, string oid, CancellationToken cancellationToken)
+    {
+        using var process = Process.Start(StartInfo(repository,
+            ["fetch", "--no-tags", "--no-write-fetch-head", "--no-recurse-submodules", originUrl, oid]))
+            ?? throw new UnsupportedStartingState("Git could not be started.");
+        process.StandardInput.Close();
+        using var output = new MemoryStream();
+        var stdout = process.StandardOutput.BaseStream.CopyToAsync(output, CancellationToken.None);
+        var stderr = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // A detached caller must not leave transport helpers writing into custody.
+            process.Kill(entireProcessTree: true);
+            process.WaitForExit();
+            throw;
+        }
+        await stdout;
+        return new(process.ExitCode, output.ToArray(), await stderr);
+    }
+
+    private static void Pin(string repository, string oid, string reference, AdministrativeGitProcess.EnclosureLock? enclosureLock = null)
+    {
         if (Text(repository, "cat-file", "-t", oid).Trim() != "commit")
-            throw new UnsupportedStartingState("The selected B1 object is not a commit.");
+            throw new UnsupportedStartingState("The retained object is not a commit.");
         // --no-walk restricts validation to this snapshot, never every ancestor.
         Text(repository, "rev-list", "--objects", "--no-walk", "--missing=error", oid);
         var existing = RetentionOid(repository, reference);
         if (existing == oid) return;
         if (existing is not null)
-            throw new UnsupportedStartingState("The B1 retention pin conflicts with the selected commit.");
+            throw new UnsupportedStartingState("The retention pin conflicts with the selected commit.");
         var update = Run(repository, ["update-ref", "--no-deref", reference, oid, new string('0', 40)], enclosureLock: enclosureLock);
         // Concurrent creation is acceptable only if it left precisely the same direct pin.
         if (update.ExitCode != 0 && RetentionOid(repository, reference) != oid)
             throw Failure(update);
         if (RetentionOid(repository, reference) != oid)
-            throw new UnsupportedStartingState("The B1 retention pin is not the selected direct commit.");
+            throw new UnsupportedStartingState("The retention pin is not the selected direct commit.");
     }
 
     private static string? RetentionOid(string repository, string reference)
     {
         var symbolic = Run(repository, ["symbolic-ref", "--quiet", reference]);
         if (symbolic.ExitCode == 0)
-            throw new UnsupportedStartingState("The B1 retention pin is symbolic; a direct pin is required.");
+            throw new UnsupportedStartingState("The retention pin is symbolic; a direct pin is required.");
         if (symbolic.ExitCode != 1) throw Failure(symbolic);
         var exists = Run(repository, ["show-ref", "--verify", "--quiet", reference]);
         if (exists.ExitCode == 1) return null;

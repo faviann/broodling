@@ -37,6 +37,29 @@ internal sealed class AttemptFixture : IDisposable
         return Git("rev-parse", "HEAD").Trim();
     }
 
+    internal string Origin => System.IO.Path.Combine(State.Root, "origin.git");
+    private string Delivery => System.IO.Path.Combine(State.Root, "delivery");
+
+    /// <summary>Commit in a separate clone, as the native target does, so the result is absent from the source repository.</summary>
+    internal string Deliver(string content = "delivered\n", bool push = true)
+    {
+        if (!Directory.Exists(Delivery))
+        {
+            RunGit(State.Root, "init", "--bare", Origin);
+            Git("config", "url." + Origin + ".insteadOf", "https://github.com/acme/widget.git");
+            RunGit(State.Root, "clone", Repository, Delivery);
+            RunGit(Delivery, "config", "user.email", "test@example.invalid");
+            RunGit(Delivery, "config", "user.name", "Broodling test");
+        }
+        File.WriteAllText(System.IO.Path.Combine(Delivery, "delivered.txt"), content);
+        RunGit(Delivery, "add", ".");
+        RunGit(Delivery, "commit", "-m", "delivered");
+        if (push) Push();
+        return RunGit(Delivery, "rev-parse", "HEAD").Trim();
+    }
+
+    internal void Push() => RunGit(Delivery, "push", Origin, "HEAD:refs/heads/delivery");
+
     internal void DeleteObject(string oid) => File.Delete(System.IO.Path.Combine(GitDirectory, "objects", oid[..2], oid[2..]));
 
     internal string Git(params string[] arguments) => RunGit(Repository, arguments);

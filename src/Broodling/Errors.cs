@@ -63,6 +63,9 @@ public sealed class StoreStateException(string code, string message)
 public sealed class UnsupportedStartingState(string message)
     : BroodlingException("unsupported_starting_state", message);
 
+public sealed class ResultRetentionError(string message)
+    : BroodlingException("result_retention_error", message);
+
 public sealed class UnsupportedWorkspaceRoot(string message)
     : BroodlingException("unsupported_workspace_root", message);
 
