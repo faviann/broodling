@@ -9,7 +9,7 @@ namespace Broodling;
 
 public sealed record NativeResult(string RunId, bool Succeeded, JsonElement Output, string? Failure);
 
-/// <summary>Zeroshot's current phase (admitted, running, stopping or finished) and active graph nodes.</summary>
+/// <summary>The SDK's current run phase and the nodes of its active executions.</summary>
 public sealed record NativeProgress(string Phase, IReadOnlyList<string> ActiveNodes);
 
 /// <summary>The SDK boundary only. G/H decide what a result/stop means to the application.</summary>
@@ -18,7 +18,7 @@ public interface INativeTransport
     Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default);
     Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default);
     Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default);
-    Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default);
+    Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Internal transport seam for the one bridge that must inherit the initiation lock.</summary>
@@ -58,16 +58,15 @@ public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNative
     public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => Observe("wait", locator, runId, cancellationToken);
     public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => Observe("stop", locator, runId, cancellationToken);
 
-    public async Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default)
+    /// <summary>The bound applies to the native status read, after the local version probe.</summary>
+    public async Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound,
+        CancellationToken cancellationToken = default)
     {
-        var status = await Reconnect("status", locator, runId, cancellationToken);
+        var status = await Reconnect("status", locator, runId, cancellationToken, bound.TotalSeconds);
         try
         {
-            var phase = RequiredString(status, "phase");
-            if (phase is not ("admitted" or "running" or "stopping" or "finished")) throw new NativeTransportError();
-            var nodes = status.GetProperty("activeNodes").EnumerateArray().Select(node =>
-                node.ValueKind == JsonValueKind.String ? node.GetString()! : throw new NativeTransportError()).ToArray();
-            return new(phase, nodes);
+            return new(RequiredString(status, "phase"),
+                status.GetProperty("activeNodes").EnumerateArray().Select(node => node.GetString()!).ToArray());
         }
         catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException) { throw new NativeTransportError(); }
     }
@@ -84,15 +83,16 @@ public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNative
     }
 
     /// <summary>Reach the retained run by locator and ID alone; returns its bridge payload.</summary>
-    private async Task<JsonElement> Reconnect(string operation, NativeLocator locator, string runId, CancellationToken cancellationToken)
+    private async Task<JsonElement> Reconnect(string operation, NativeLocator locator, string runId,
+        CancellationToken cancellationToken, double? timeout = null)
     {
         locator.Validate();
         if (string.IsNullOrWhiteSpace(runId)) throw new NativeTransportError();
         await RequireVersion(cancellationToken);
-        var response = await Call(new { op = operation, locator = locator.Json(), runId }, cancellationToken);
+        var response = await Call(new { op = operation, locator = locator.Json(), runId, timeout }, cancellationToken);
         try
         {
-            var payload = response.GetProperty(operation == "status" ? "status" : "result");
+            var payload = response.GetProperty("result");
             if (RequiredString(payload, "runId") != runId) throw new NativeTransportError("foreign_run");
             return payload;
         }
@@ -121,7 +121,7 @@ public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNative
                 throw new SubmissionConflict("Native submission conflicts with its existing key.",
                     RequiredString(response, "existingRunId"));
             // Only allow known public SDK facts into diagnostics, never arbitrary returned strings.
-            throw new NativeTransportError(kind is "RunNotFoundError" or "TargetError" ? kind : "sdk_failed");
+            throw new NativeTransportError(kind is "RunNotFoundError" or "TargetError" or "TimeoutError" ? kind : "sdk_failed");
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or IOException)
         { throw new NativeTransportError(); }

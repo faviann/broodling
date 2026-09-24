@@ -64,5 +64,5 @@ internal sealed class ControlledTransport : INativeTransport
     { WaitCalls++; return Wait(locator, runId, cancellationToken); }
     public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default)
     { StopCalls++; return Stop(locator, runId, cancellationToken); }
-    public Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Unexpected status");
+    public Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Unexpected status");
 }

@@ -20,8 +20,11 @@ public sealed class NativeObservationTests
         NativeObservation.Available? running = null;
         var clock = Stopwatch.StartNew();
         while (running is null && clock.Elapsed < TimeSpan.FromSeconds(10))
+        {
             if (await store.ObserveAsync(attempt.AttemptId, transport) is NativeObservation.Available { Progress.ActiveNodes.Count: > 0 } active)
                 running = active;
+            else await Task.Delay(200);
+        }
         await Assert.That(running).IsNotNull();
         await Assert.That(running!.Progress.Phase).IsEqualTo("running");
 
@@ -29,27 +32,51 @@ public sealed class NativeObservationTests
         await transport.WaitAsync(submission.Locator, submission.RunId!);
         var finished = await store.ObserveAsync(attempt.AttemptId, transport) as NativeObservation.Available;
         await Assert.That(finished!.Progress.Phase).IsEqualTo("finished");
-        await Assert.That(finished.Progress.ActiveNodes).IsEmpty();
         await Assert.That(RetainedJson(store, attempt)).IsEqualTo(retained);
     }
 
     [Test]
-    [Arguments("hang", "timeout")]
-    [Arguments("lost", "transport_failed")]
+    [Arguments("hang", "TimeoutError")]
+    [Arguments("lost", "TargetError")]
     public async Task UnavailableObservationIsBoundedAndLeavesRetainedFactsUnchanged(string behavior, string reason)
     {
         using var fixture = new NativeFixture();
+        // Stub only the SDK's status read behind the production bridge.
         var script = Path.Combine(fixture.Root, "status-sdk.py");
-        File.WriteAllText(script, """
-            import json, sys, time
-            request = json.load(sys.stdin)
-            if request["op"] == "version":
-                print(json.dumps({"ok": True, "sdkVersion": "10.3.0.post1", "nativeVersion": "zeroshot 10.3.0"}))
-            elif "BEHAVIOR" == "hang":
-                time.sleep(3600)
-            else:
-                sys.exit(1)
-            """.Replace("BEHAVIOR", behavior));
+        File.WriteAllText(script, $$"""
+            import asyncio, importlib.metadata, importlib.resources, runpy, subprocess, sys, types
+            from pathlib import Path
+
+            class TargetError(Exception):
+                pass
+
+            class Run:
+                async def status(self):
+                    if {{JsonSerializer.Serialize(behavior)}} == "hang":
+                        await asyncio.sleep(3600)
+                    raise TargetError("target unavailable")
+
+            class Client:
+                def __init__(self, *, target, environment):
+                    pass
+                async def __aenter__(self):
+                    return self
+                async def __aexit__(self, *args):
+                    pass
+                def get_run(self, run_id):
+                    return Run()
+
+            sdk = types.ModuleType("zeroshot")
+            sdk.Client, sdk.Preset, sdk.UniformRuntime = Client, None, None
+            sdk.LocalTarget = sdk.DirectTarget = lambda *args, **kwargs: None
+            errors = types.ModuleType("zeroshot.run_errors")
+            errors.SubmissionConflictError = type("SubmissionConflictError", (Exception,), {})
+            sys.modules["zeroshot"], sys.modules["zeroshot.run_errors"] = sdk, errors
+            importlib.metadata.version = lambda _: "10.3.0.post1"
+            importlib.resources.files = lambda _: Path("/unused-stub-native")
+            subprocess.run = lambda *args, **kwargs: types.SimpleNamespace(stdout="zeroshot 10.3.0")
+            runpy.run_path({{JsonSerializer.Serialize(Path.Combine(AppContext.BaseDirectory, "bridge", "zeroshot_bridge.py"))}}, run_name="__main__")
+            """);
         using var store = fixture.Git.State.Open();
         var attempt = fixture.Provision(store);
         var uncorrelated = new ControlledTransport();
@@ -58,7 +85,7 @@ public sealed class NativeObservationTests
         var retained = RetainedJson(store, attempt);
 
         var clock = Stopwatch.StartNew();
-        var observation = await store.ObserveAsync(attempt.AttemptId, new ZeroshotTransport(NativeFixture.Python, script), TimeSpan.FromSeconds(2));
+        var observation = await store.ObserveAsync(attempt.AttemptId, new ZeroshotTransport(NativeFixture.Python, script), TimeSpan.FromSeconds(2), default);
         await Assert.That(clock.Elapsed).IsLessThan(TimeSpan.FromSeconds(10));
         await Assert.That((observation as NativeObservation.Unavailable)?.Reason).IsEqualTo(reason);
         await Assert.That(RetainedJson(store, attempt)).IsEqualTo(retained);

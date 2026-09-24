@@ -188,8 +188,8 @@ canonical local state directory or direct origin, and run identity, with empty
 explicit SDK environment. It needs no usable old workspace/profile/credentials.
 Unknown runs fail closed. `NativeResult` carries run ID, success, arbitrary JSON
 output (including null) and failure unchanged; foreign run identities refuse.
-`NativeProgress` carries only the SDK's current phase (`admitted`, `running`,
-`stopping` or `finished`) and the node names of its active executions.
+`NativeProgress` carries only the SDK's current phase and the node names of its
+active executions.
 
 Cancellation/killing detaches only the bridge process, never the whole process
 tree or native work. After the submit request is handed to it, cancellation

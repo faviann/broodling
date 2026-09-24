@@ -238,5 +238,5 @@ internal sealed class StopTransport(Func<NativeLocator, string, Task<NativeResul
     public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default) => throw new Exception("Stop must never redispatch");
     public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => throw new Exception("Unexpected wait");
     public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => stop(locator, runId);
-    public Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => throw new Exception("Unexpected status");
+    public Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound, CancellationToken cancellationToken = default) => throw new Exception("Unexpected status");
 }
