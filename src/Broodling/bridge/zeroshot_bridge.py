@@ -39,19 +39,17 @@ async def call(value):
             except SubmissionConflictError as error:
                 return {"ok": False, "error": "submission_conflict", "existingRunId": error.existing_run_id}
 
-    if value["op"] == "status":
-        # Cancelling inside the SDK stops its native status command; killing this bridge would not.
-        async with asyncio.timeout(value["timeout"]):
-            async with Client(target=target(value["locator"]), environment={}) as client:
-                status = await client.get_run(value["runId"]).status()
-        return {"ok": True, "result": {"runId": status.run_id, "phase": status.phase,
-                "activeNodes": [active.node for active in status.active_executions]}}
-
-    async with Client(target=target(value["locator"]), environment={}) as client:
-        run = client.get_run(value["runId"])
-        result = await {"wait": run.wait, "stop": run.force_stop}[value["op"]]()
-        return {"ok": True, "result": {"runId": result.run_id, "succeeded": result.succeeded,
-                "output": result.output, "failure": result.failure}}
+    # Cancelling inside the SDK stops its native command; killing this bridge would not.
+    async with asyncio.timeout(value["timeout"]):
+        async with Client(target=target(value["locator"]), environment={}) as client:
+            run = client.get_run(value["runId"])
+            if value["op"] == "status":
+                status = await run.status()
+                return {"ok": True, "result": {"runId": status.run_id, "phase": status.phase,
+                        "activeNodes": [active.node for active in status.active_executions]}}
+            result = await {"wait": run.wait, "stop": run.force_stop}[value["op"]]()
+            return {"ok": True, "result": {"runId": result.run_id, "succeeded": result.succeeded,
+                    "output": result.output, "failure": result.failure}}
 
 
 def main():

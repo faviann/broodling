@@ -53,7 +53,7 @@ public sealed class NativeObservationTests
             class Run:
                 async def status(self):
                     if {{JsonSerializer.Serialize(behavior)}} == "hang":
-                        await asyncio.sleep(3600)
+                        await asyncio.sleep(30)
                     raise TargetError("target unavailable")
 
             class Client:

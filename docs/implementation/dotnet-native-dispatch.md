@@ -197,8 +197,10 @@ detaches the caller while the bridge remains alive awaiting its native submit
 child, retaining the initiation lock until that command finishes. The submit
 bridge is spawned by `libbroodling_git.so` and inherits the installation
 initiation lock description, a read-only store descriptor; its child does not (see
-[installation pause](dotnet-installation-pause.md)). Explicit native stop is a
-separate transport operation.
+[installation pause](dotnet-installation-pause.md)). A cancelled status read
+returns at once; its bridge is not killed and ends within the read bound, so the
+SDK stops its own native command. Explicit native stop is a separate transport
+operation.
 Neither terminal success nor force-stop grants cleanup authority.
 
 ## Thin operator commands

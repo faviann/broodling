@@ -58,11 +58,14 @@ public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNative
     public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => Observe("wait", locator, runId, cancellationToken);
     public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => Observe("stop", locator, runId, cancellationToken);
 
-    /// <summary>The bound applies to the native status read, after the local version probe.</summary>
+    /// <summary>
+    /// The bound applies to the native status read, after the local version probe. Cancellation
+    /// detaches the caller; the bridge still ends within its bound so the SDK stops its command.
+    /// </summary>
     public async Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound,
         CancellationToken cancellationToken = default)
     {
-        var status = await Reconnect("status", locator, runId, cancellationToken, bound.TotalSeconds);
+        var status = await Reconnect("status", locator, runId, bound.TotalSeconds, CancellationToken.None).WaitAsync(cancellationToken);
         try
         {
             return new(RequiredString(status, "phase"),
@@ -73,7 +76,7 @@ public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNative
 
     private async Task<NativeResult> Observe(string operation, NativeLocator locator, string runId, CancellationToken cancellationToken)
     {
-        var result = await Reconnect(operation, locator, runId, cancellationToken);
+        var result = await Reconnect(operation, locator, runId, null, cancellationToken);
         try
         {
             return new(runId, result.GetProperty("succeeded").GetBoolean(), result.GetProperty("output").Clone(),
@@ -83,8 +86,8 @@ public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNative
     }
 
     /// <summary>Reach the retained run by locator and ID alone; returns its bridge payload.</summary>
-    private async Task<JsonElement> Reconnect(string operation, NativeLocator locator, string runId,
-        CancellationToken cancellationToken, double? timeout = null)
+    private async Task<JsonElement> Reconnect(string operation, NativeLocator locator, string runId, double? timeout,
+        CancellationToken cancellationToken)
     {
         locator.Validate();
         if (string.IsNullOrWhiteSpace(runId)) throw new NativeTransportError();
