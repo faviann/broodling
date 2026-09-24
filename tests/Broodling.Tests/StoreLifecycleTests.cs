@@ -98,6 +98,39 @@ public sealed class StoreLifecycleTests
     }
 
     [Test]
+    public async Task AuthenticSchemaTenUpgradePreservesCompletedRequestBundleFacts()
+    {
+        using var fixture = new StoreFixture();
+        Restore(fixture, "dotnet-v10.sql");
+        string Facts() => RetainedFacts(fixture, "issue_submissions", "entitled_sources",
+            "request_bundles", "request_bundle_references");
+        var before = Facts();
+        var oldBytes = File.ReadAllBytes(fixture.Path);
+        await Assert.That(() => fixture.Open()).Throws<StoreStateException>();
+        await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(oldBytes)).IsTrue();
+
+        using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
+        {
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(11);
+            await Assert.That(Facts()).IsEqualTo(before);
+            var submission = upgraded.IssueHistory("https://github.com/acme/widget/issues/12").Single();
+            var bundle = upgraded.GetRequestBundle(submission.SubmissionId);
+            await Assert.That(bundle.State).IsEqualTo("complete");
+            var captured = upgraded.ReadRequestBundleReference(bundle.BundleId, "primary");
+            await Assert.That(captured.Content.SequenceEqual("captured by the schema-10 application\n"u8.ToArray())).IsTrue();
+            await Assert.That(captured.ContentSha256).IsEqualTo(bundle.References.Single().ContentSha256);
+        }
+
+        using var reopened = fixture.Open();
+        using var repeated = fixture.Application.UpgradeStore(fixture.Path);
+        await Assert.That(repeated.Information).IsEqualTo(reopened.Information);
+        await Assert.That(Facts()).IsEqualTo(before);
+        var retained = reopened.GetRequestBundle(
+            reopened.IssueHistory("https://github.com/acme/widget/issues/12").Single().SubmissionId);
+        await Assert.That(retained.ManifestSha256).IsNotNull();
+    }
+
+    [Test]
     public async Task AuthenticSchemaSixPreservesEveryRowAndReplaysExactCompletionOfflineAfterUpgrade()
     {
         using var fixture = new StoreFixture();

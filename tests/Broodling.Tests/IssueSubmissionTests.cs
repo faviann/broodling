@@ -180,6 +180,78 @@ public sealed class IssueSubmissionTests
     }
 
     [Test]
+    public async Task UnboundCancellationOrdersAgainstAssociationAndRefusesReopenedCapture()
+    {
+        using var fixture = new AttemptFixture();
+        IssueSubmission submission;
+        using (var seed = fixture.State.Open())
+            submission = seed.SubmitIssue("https://github.com/acme/widget/issues/12");
+
+        using var barrier = new Barrier(2);
+        var cancellation = Task.Run(async () =>
+        {
+            using var store = fixture.State.Open();
+            barrier.SignalAndWait();
+            return await store.CancelIssueSubmissionAsync(submission.SubmissionId, "cancel before association");
+        });
+        var association = Task.Run(() =>
+        {
+            using var store = fixture.State.Open();
+            barrier.SignalAndWait();
+            try
+            {
+                return (Bound: (IssueSubmission?)store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId),
+                    Error: (Exception?)null);
+            }
+            catch (Exception error)
+            {
+                return (Bound: (IssueSubmission?)null, Error: error);
+            }
+        });
+
+        var cancelled = await cancellation;
+        var associated = await association;
+        await Assert.That(associated.Error is null || associated.Error is IssueSubmissionConflict).IsTrue();
+
+        using var reopened = fixture.State.Open();
+        var recovered = reopened.GetIssueSubmission(submission.SubmissionId);
+        await Assert.That(cancelled.State).IsEqualTo("cancelled");
+        await Assert.That(recovered.State).IsEqualTo("cancelled");
+        await Assert.That(recovered.Cancellation!.AttemptId).IsNull();
+        await Assert.That(() => reopened.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId))
+            .Throws<IssueSubmissionConflict>();
+        await Assert.That(() => reopened.BeginRequestBundleCapture(submission.SubmissionId,
+            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray())))
+            .Throws<RequestBundleConflict>();
+
+        if (associated.Bound is not null)
+            await Assert.That(associated.Bound.ContractRevisionId).IsEqualTo(fixture.RevisionId);
+    }
+
+    [Test]
+    public async Task CancellationAndAbandonmentWriteRollsBackAsOneTransaction()
+    {
+        using var fixture = new AttemptFixture();
+        using var store = fixture.State.Open();
+        var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+        store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId);
+        var attempt = fixture.Admit(store);
+        fixture.State.Execute("CREATE TRIGGER fail_cancellation_abandonment BEFORE INSERT ON attempt_abandonments "
+            + "BEGIN SELECT RAISE(ABORT, 'controlled cancellation rollback'); END;");
+
+        await Assert.That(async () => await store.CancelIssueSubmissionAsync(submission.SubmissionId, "rollback me"))
+            .Throws<Microsoft.Data.Sqlite.SqliteException>();
+        fixture.State.Execute("DROP TRIGGER fail_cancellation_abandonment");
+
+        using var reopened = fixture.State.Open();
+        var retained = reopened.GetIssueSubmission(submission.SubmissionId);
+        await Assert.That(retained.State).IsEqualTo("accepted");
+        await Assert.That(retained.Cancellation).IsNull();
+        await Assert.That(reopened.GetAttempt(attempt.AttemptId).Abandonment).IsNull();
+        await Assert.That(reopened.GetAttempt(attempt.AttemptId).IsCurrent).IsTrue();
+    }
+
+    [Test]
     public async Task CancellationReplayRetainsOriginalAttemptAcrossLegitimateSafeReplacement()
     {
         using var fixture = new NativeFixture();

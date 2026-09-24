@@ -125,6 +125,19 @@ checks the original rows and paused state across reopen.
 - Original manifest hash: `a2353ba8b4f7e428e55103d9558387e08bb881558c030d38e69e070031a92683`.
 - SQL fixture SHA-256: `1c00cb9dacd780ba2d06fe7730b12bc7ed7c840520f1900cb1ca2cfc45e4b8f3`.
 
+`dotnet-v10.sql` is an authentic schema-10 dump produced on 24 September 2026
+by the actual pre-#109 application at `ce9ce0a` (the parent of #109). An
+isolated build restored the retained schema-8 fixture, explicitly upgraded it
+through schema 9 and 10, and used the public RequestBundle capture API to
+retain a completed bundle and source snapshot. The current schema-11 lifecycle
+test restores this file rather than using the current schema builder, verifies
+the retained RequestBundle facts before upgrade, then upgrades and reopens it.
+
+- Application assembly SHA-256: `dbf8b260212c37d7b3c48965c1d44809a89ee2f2959cb1101c18399613da0b1b`.
+- Original definition hash: `f2fa83780445a5e99bb025d7274f8c2d10e649d70d8aea2291f16409ea538d79`.
+- Original manifest hash: `f677bc2aec89e2c2e579058e5c7e4257d5128b8dbd10753c1872ca0b66e7f30a`.
+- SQL fixture SHA-256: `95a7c4ae9e3fa9ebded8ad9c367364dd233f4afaccb8c862d7082b1260050f7e`.
+
 The F Python files here are test fixtures only. `receipt-sdk.py` substitutes SDK
 constructors/results around the production translator and proves precise PR
 receipt transport, not real DirectTarget delivery. `corrupt-submit.py` succeeds

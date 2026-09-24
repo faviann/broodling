@@ -51,17 +51,40 @@ public sealed class NativeDispatchTests
     {
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
+        var issue = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+        store.AssociateIssueSubmission(issue.SubmissionId, fixture.Git.RevisionId);
         var attempt = fixture.Provision(store);
         var stopCalls = new List<(NativeLocator Locator, string RunId)>();
+        var cancellationStop = new ControlledTransport { Stop = (_, _, _) =>
+            throw new Exception("The unresolved dispatch intent has no native run to stop") };
+        var cancellationCessation = (CessationUnconfirmed?)null;
+        var cancellationCommitted = false;
         var transport = new ControlledTransport { Submit = async (_, _) =>
         {
             using var independent = fixture.Git.State.Open();
             await Assert.That(independent.FindSubmission(attempt.AttemptId)!.State).IsEqualTo("dispatched");
             independent.ResolveWorkUnit(WorkReference.Parse("unrelated/project", 123));
-            independent.AbandonAttempt(attempt.AttemptId, "during external acknowledgment");
+            try
+            {
+                await independent.CancelIssueSubmissionAsync(issue.SubmissionId,
+                    "during external acknowledgment", cancellationStop);
+            }
+            catch (CessationUnconfirmed error)
+            {
+                cancellationCessation = error;
+            }
+            await Assert.That(cancellationCessation).IsNotNull();
+            await Assert.That(cancellationCessation!.NativeStopRequested).IsFalse();
+            var cancelled = independent.GetIssueSubmission(issue.SubmissionId);
+            await Assert.That(cancelled.State).IsEqualTo("cancelled");
+            await Assert.That(cancelled.Cancellation!.AttemptId).IsEqualTo(attempt.AttemptId);
+            await Assert.That(independent.GetAttempt(attempt.AttemptId).Abandonment!.Reason)
+                .IsEqualTo("during external acknowledgment");
+            cancellationCommitted = true;
             return "late-native-run";
         }, Stop = (locator, runId, _) =>
         {
+            if (!cancellationCommitted) throw new Exception("Native stop ran before cancellation committed");
             stopCalls.Add((locator, runId));
             return Task.FromResult(new NativeResult(runId, true, default, null));
         } };
@@ -71,6 +94,8 @@ public sealed class NativeDispatchTests
         await Assert.That(stale).IsNotNull();
         await Assert.That(stale!.NativeStopRequested).IsTrue();
         using var reopened = fixture.Git.State.Open();
+        var recovered = reopened.GetIssueSubmission(issue.SubmissionId);
+        await Assert.That(recovered.Cancellation!.AttemptId).IsEqualTo(attempt.AttemptId);
         await Assert.That(reopened.FindSubmission(attempt.AttemptId)!.RunId).IsEqualTo("late-native-run");
         await Assert.That(reopened.GetAttempt(attempt.AttemptId).IsCurrent).IsFalse();
         await Assert.That(async () => await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<StaleAttempt>();

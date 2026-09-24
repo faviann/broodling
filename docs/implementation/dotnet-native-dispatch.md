@@ -81,6 +81,19 @@ prevention. Correlation requires their acknowledged run identities to converge.
 The frozen key is passed unchanged on every replay, so a caller returning after
 correlation cannot create distinct native work; a different acknowledged identity
 is rejected as `SubmissionConflict`.
+`CancelIssueSubmissionAsync` uses the same authority, not a parallel execution
+ledger: its transaction commits cancellation and abandonment against the exact
+selected Attempt before any native stop. If the dispatch callback later returns
+a run identity, correlation stores that identity on the abandoned Attempt and
+the existing stop handoff uses its retained locator/run pair. No replay discovers
+or selects a later replacement. The callable cancellation result is either the
+durable cancelled submission or the documented stop/transport exception; all
+such failures leave the cancellation and abandonment facts inspectable.
+`StaleAttempt.NativeStopRequested` is true only when `StopAsync` reached the
+native `StopAsync` transport. A missing or ambiguous enclosure, or an unresolved
+run, produces `CessationUnconfirmed` before transport and therefore false. A
+native transport failure or caller cancellation propagates; physical cessation
+remains unconfirmed in every dispatched case.
 An empty/blank identity, empty stdout, malformed JSON/envelope, transport loss,
 cancellation or caller death leaves durable unresolved dispatch. A genuine
 typed conflict with a nonblank run identity becomes `blocked`. A conflict

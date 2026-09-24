@@ -49,7 +49,14 @@ into a second execution ledger.
 `CancelIssueSubmissionAsync` records one immutable cancellation fact before
 entering the existing abandonment/stop path. Its nullable exact Attempt binding
 durably records the no-Attempt case; replay uses that original binding even if a
-later safe replacement exists.
+later safe replacement exists. The call returns the refreshed cancelled
+`IssueSubmission` when no native stop is needed or safe cessation is retained.
+Cancellation and abandonment remain committed when it instead hands back
+`CessationUnconfirmed` (`NativeStopRequested` is true only after the native
+stop transport was actually called), `SubmissionNotReady` for a known run with
+no stop transport, `NativeTransportError`, or caller cancellation. Those
+outcomes do not authorize replacement; inspect the exact cancellation and
+Attempt history for the durable handback.
 
 `GetWorkUnit(id)`, `FindWorkUnit(reference)`, `ListWorkSubmissions(workUnitId)`,
 `GetEntitledSource(id)` and `ListEntitledSources(workUnitId)` inspect retained

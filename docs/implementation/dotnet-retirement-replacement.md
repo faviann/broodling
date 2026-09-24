@@ -27,6 +27,16 @@ cannot be reversed. `FindRetirement` and `FindRetry` inspect durable facts witho
 Git/native access. `AttemptRecord.Retirement` and `.Retry` expose them through
 status/history.
 
+`CancelIssueSubmissionAsync(submissionId, reason, transport, token)` is the
+callable submission-level handback. It commits the immutable cancellation fact
+and, when one exists, abandonment of that fact's exact Attempt before entering
+this stop path. A no-Attempt or safely undispatched cancellation returns the
+cancelled `IssueSubmission`; a dispatched Attempt may return
+`CessationUnconfirmed`, `SubmissionNotReady` when a known run has no stop
+transport, `NativeTransportError`, or `OperationCanceledException`. These
+outcomes retain the cancellation/abandonment facts and neither means physical
+cessation nor grants replacement authority.
+
 The thin host command is `stop <store> <attempt-id> <reason> <python-executable>`.
 It returns the exact Attempt, submission, quarantine flag and safe handback even
 when stop fails. Cessation refusal returns exit 1; cancellation returns 130 and
