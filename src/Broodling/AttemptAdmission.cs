@@ -33,6 +33,7 @@ public sealed partial class BroodlingStore
         GitCustody.Retain(state);
         using var transaction = connection.BeginTransaction(deferred: false);
         RequireOrdinaryAttemptAuthority(contract.WorkUnitId, transaction);
+        RequireIssueSubmissionNotCancelled(revisionId, transaction);
         var existing = ReadAttempts("work_unit_id = $p0", contract.WorkUnitId, transaction).SingleOrDefault(attempt => attempt.IsCurrent);
         if (existing is not null)
         {
@@ -90,17 +91,19 @@ public sealed partial class BroodlingStore
         if (string.IsNullOrWhiteSpace(reason))
             throw new AttemptAdmissionError("Abandonment requires a nonempty reason.");
         using var transaction = connection.BeginTransaction(deferred: false);
-        var attempt = ReadAttempt(attemptId, transaction);
-        if (attempt.Abandonment is { } previous)
-        {
-            transaction.Commit();
-            return previous;
-        }
-        RequireCurrentAttempt(attemptId, transaction);
-        Execute("INSERT INTO attempt_abandonments VALUES ($p0, $p1, $p2)", transaction, attemptId, reason, Now());
-        var result = ReadAttempt(attemptId, transaction).Abandonment!;
+        var result = AbandonAttemptInTransaction(attemptId, reason, transaction);
         transaction.Commit();
         return result;
+    }
+
+    private AttemptAbandonment AbandonAttemptInTransaction(string attemptId, string reason,
+        Microsoft.Data.Sqlite.SqliteTransaction transaction)
+    {
+        var attempt = ReadAttempt(attemptId, transaction);
+        if (attempt.Abandonment is { } previous) return previous;
+        RequireCurrentAttempt(attemptId, transaction);
+        Execute("INSERT INTO attempt_abandonments VALUES ($p0, $p1, $p2)", transaction, attemptId, reason, Now());
+        return ReadAttempt(attemptId, transaction).Abandonment!;
     }
 
     private AttemptRecord ReadAttempt(string id, SqliteTransaction? transaction = null) =>

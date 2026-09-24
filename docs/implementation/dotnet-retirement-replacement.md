@@ -27,6 +27,20 @@ cannot be reversed. `FindRetirement` and `FindRetry` inspect durable facts witho
 Git/native access. `AttemptRecord.Retirement` and `.Retry` expose them through
 status/history.
 
+`CancelIssueSubmissionAsync(submissionId, reason, transport, token)` is the
+callable submission-level handback. It commits the immutable cancellation fact
+and, when this exact cancellation owns the last relevant shared Contract
+authority, abandonment of that fact's exact Attempt before entering this stop
+path. Its nullable Attempt binding is the immutable stop/no-stop decision for
+the submission, not a replacement for the shared Contract's derived Attempt
+lineage; a sibling cancellation therefore leaves the current Attempt alone. A
+no-stop or safely undispatched cancellation returns the cancelled
+`IssueSubmission`; a dispatched Attempt may return
+`CessationUnconfirmed`, `SubmissionNotReady` when a known run has no stop
+transport, `NativeTransportError`, or `OperationCanceledException`. These
+outcomes retain the cancellation/abandonment facts and neither means physical
+cessation nor grants replacement authority.
+
 The thin host command is `stop <store> <attempt-id> <reason> <python-executable>`.
 It returns the exact Attempt, submission, quarantine flag and safe handback even
 when stop fails. Cessation refusal returns exit 1; cancellation returns 130 and
@@ -91,7 +105,7 @@ recovery reuses F's correlation seam without reprovisioning candidate material.
 H integrates with G in historical schema **7**, retaining the exact G schema-6
 DDL and all v1–v6 definition hashes. Issue-submission persistence extends the
 current schema to **8**, retaining those definitions; schema **9** adds
-the persisted installation pause gate and current schema **10** adds RequestBundle
+the persisted installation pause gate and current schema **11** adds immutable Issue submission cancellation facts after RequestBundle
 capture. Recognized older .NET stores require
 deliberate atomic upgrades and ordinary open refuses old schemas. Safe
 replacement allocation and preparation remain permitted while paused, but

@@ -46,6 +46,21 @@ read-only, and the latter remains usable before a Contract exists.
 `AssociateIssueSubmission` binds one exact handle to one Contract revision once;
 Attempt IDs are derived from existing Attempt rows for that revision, not copied
 into a second execution ledger.
+`CancelIssueSubmissionAsync` records one immutable cancellation fact before
+entering the existing abandonment/stop path. Its nullable Attempt binding is the
+immutable stop/no-stop decision for this exact submission: null means that no
+Attempt stop belongs to this cancellation, either because no Attempt existed or
+because another retained submission still held shared Contract authority. This
+binding is not the full `AttemptIds` lineage, which remains derived from the
+shared Contract. Replay uses the original binding even if a later safe
+replacement exists. The call returns the refreshed cancelled `IssueSubmission`
+when no native stop is needed or safe cessation is retained.
+Cancellation and abandonment remain committed when it instead hands back
+`CessationUnconfirmed` (`NativeStopRequested` is true only after the native
+stop transport was actually called), `SubmissionNotReady` for a known run with
+no stop transport, `NativeTransportError`, or caller cancellation. Those
+outcomes do not authorize replacement; inspect the exact cancellation and
+Attempt history for the durable handback.
 
 `GetWorkUnit(id)`, `FindWorkUnit(reference)`, `ListWorkSubmissions(workUnitId)`,
 `GetEntitledSource(id)` and `ListEntitledSources(workUnitId)` inspect retained
@@ -101,7 +116,7 @@ refuse source updates/deletes, identity rewrites/unpinning and submission rewrit
 ## State lifecycle and persistence decision
 
 Initialization exclusively reserves a new filesystem path and creates a distinct
-`broodling.dotnet` schema (currently version 10). It refuses existing files and orphan SQLite
+`broodling.dotnet` schema (currently version 11). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
 Store paths inside a marked disposable Attempt enclosure refuse, including paths
 through parent symlinks. Caller paths containing malformed UTF-16 refuse with
@@ -114,7 +129,7 @@ full synchronization. An incompatible or unknown file is not initialized or
 rewritten. Foreign keys and immediate write transactions enforce custody.
 
 `UpgradeStore` accepts an already-current store unchanged and explicitly upgrades
-recognized .NET versions 1–9 to version 10 in one transaction, preserving retained
+recognized .NET versions 1–10 to version 11 in one transaction, preserving retained
 facts and initialization identity. Ordinary open refuses historical versions.
 The [H reference](dotnet-retirement-replacement.md#explicit-replacement-and-schema)
 records the current schema boundary; authentic v1–v9 fixtures exercise upgrades,

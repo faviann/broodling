@@ -78,7 +78,7 @@ root `/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT` was removed after
 capture. Old Git/worktree/native paths are evidence only. The consolidated
 Restore helper disables foreign keys only for dump ordering. Upgrade tests
 compare every old fact row, refuse ordinary open without modifying the file,
-upgrade through schema 7, 8 and 9 to current schema 10, reopen, repeat upgrade and
+upgrade through schema 7, 8 and 9 to current schema 11, reopen, repeat upgrade and
 replay the exact completion without native access. The prepared v5 fixture
 above is preserved unchanged.
 
@@ -92,7 +92,7 @@ the retained v6 capture with the application at `d7a8f094f3886b117a6eebbf86d333d
 (the pre-#110 `origin/main` application). It retains the v6 facts and schema-7
 metadata; the lifecycle test restores this file rather than synthesizing schema
 7 with the new builder, refuses ordinary open, applies the recognized schema-8,
-schema-9 and schema-10 migrations, reopens and repeats the explicit upgrade.
+schema-9, schema-10 and schema-11 migrations, reopens and repeats the explicit upgrade.
 
 - Original definition hash: `1f56d5fa659afe8f91c8bc559b9de248cc1f9f85ced68cf674a27c85002302c6`.
 - Original manifest hash: `84bfb92ddf4305e45e4543eb280ba4f36ad6eebc466f1a897ccce63c3ad56fe9`.
@@ -116,7 +116,7 @@ the explicit pause and RequestBundle migrations.
 pre-#106 application at `eb2e05ad480e1203ef090e0982e9c6ad93ad6fb5` (the #157
 head). In an isolated checkout of that commit, the public `UpgradeStore` API
 upgraded the retained schema-8 fixture, and the public `PauseInstallation` API
-persisted a paused installation. The schema-10 lifecycle test restores this
+persisted a paused installation. The schema-11 lifecycle test restores this
 state, refuses ordinary open without changing it, explicitly upgrades, and
 checks the original rows and paused state across reopen.
 
@@ -124,6 +124,20 @@ checks the original rows and paused state across reopen.
 - Original definition hash: `800ab31fd9f44ecc443d3549e5eb51cac114c4e94e2e43f47861a36c3ce586cd`.
 - Original manifest hash: `a2353ba8b4f7e428e55103d9558387e08bb881558c030d38e69e070031a92683`.
 - SQL fixture SHA-256: `1c00cb9dacd780ba2d06fe7730b12bc7ed7c840520f1900cb1ca2cfc45e4b8f3`.
+
+`dotnet-v10.sql` is an authentic schema-10 dump produced on 24 September 2026
+by the actual pre-#109 application at `ce9ce0a` (the parent of #109). An
+isolated build restored the retained schema-8 fixture, explicitly upgraded it
+through schema 9 and 10, and used the public RequestBundle capture API to
+retain a completed bundle and source snapshot. The current schema-11 lifecycle
+test restores this file rather than using the current schema builder, verifies
+the retained RequestBundle facts before upgrade, then upgrades and reopens it.
+
+- Application assembly SHA-256: `dbf8b260212c37d7b3c48965c1d44809a89ee2f2959cb1101c18399613da0b1b`.
+- Original definition hash: `f2fa83780445a5e99bb025d7274f8c2d10e649d70d8aea2291f16409ea538d79`.
+- Original schema manifest hash: `f64bc8320cd80434da542dfbb331dd89db21aa6968a63d397307190dcd4711b2`.
+- Completed RequestBundle manifest hash: `f677bc2aec89e2c2e579058e5c7e4257d5128b8dbd10753c1872ca0b66e7f30a`.
+- SQL fixture SHA-256: `95a7c4ae9e3fa9ebded8ad9c367364dd233f4afaccb8c862d7082b1260050f7e`.
 
 The F Python files here are test fixtures only. `receipt-sdk.py` substitutes SDK
 constructors/results around the production translator and proves precise PR

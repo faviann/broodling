@@ -127,7 +127,26 @@ public sealed partial class BroodlingStore
             transaction.Commit();
         }
         if (conflict is not null) throw conflict;
-        if (stale) throw new StaleAttempt("Authority was lost while native acknowledgment was in flight; factual correlation is retained.");
+        if (stale)
+        {
+            // Correlation is committed before this handoff. Reuse the exact
+            // Attempt/run binding and existing stop semantics; never replay the
+            // submission to discover or replace a lost acknowledgment.
+            var nativeStopRequested = false;
+            try
+            {
+                await StopAsync(attemptId, "Native acknowledgment arrived after Attempt abandonment.", transport, cancellationToken);
+            }
+            catch (CessationUnconfirmed cessation)
+            {
+                nativeStopRequested = cessation.NativeStopRequested;
+            }
+            var observation = nativeStopRequested
+                ? "native stop was requested, but physical cessation remains unconfirmed."
+                : "native stop was not requested because cessation could not be safely addressed; physical cessation remains unconfirmed.";
+            throw new StaleAttempt($"Authority was lost while native acknowledgment was in flight; factual correlation is retained and {observation}",
+                nativeStopRequested);
+        }
         return settled;
     }
 

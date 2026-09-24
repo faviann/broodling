@@ -65,7 +65,7 @@ material and current Attempt authority. It acquires C's stable enclosure lock
 before the short SQLite writer and releases both before the external SDK call.
 No subprocess owns that lock during native execution.
 
-F introduced schema **5**, retained within the current schema **10**, with one
+F introduced schema **5**, retained within the current schema **11**, with one
 `native_submissions` row per provisioned Attempt. SQL
 constraints/triggers protect the request/key and permit only
 `prepared → dispatched → correlated|blocked`. Preparation and dispatch require
@@ -81,6 +81,23 @@ prevention. Correlation requires their acknowledged run identities to converge.
 The frozen key is passed unchanged on every replay, so a caller returning after
 correlation cannot create distinct native work; a different acknowledged identity
 is rejected as `SubmissionConflict`.
+`CancelIssueSubmissionAsync` uses the same authority, not a parallel execution
+ledger. Its immediate transaction records the exact submission's immutable
+stop/no-stop binding; only a cancellation that owns the last relevant shared
+Contract authority also commits abandonment against its exact Attempt before
+any native stop. A sibling cancellation records a null binding and leaves the
+shared current Attempt available. If an owned cancellation's dispatch callback
+later returns a run identity, correlation stores that identity on the abandoned
+Attempt and the existing stop handoff uses its retained locator/run pair. No
+replay discovers or selects a later replacement. The callable cancellation
+result is either the durable cancelled submission or the documented
+stop/transport exception; all such failures leave the cancellation and any
+abandonment facts inspectable.
+`StaleAttempt.NativeStopRequested` is true only when `StopAsync` reached the
+native `StopAsync` transport. A missing or ambiguous enclosure, or an unresolved
+run, produces `CessationUnconfirmed` before transport and therefore false. A
+native transport failure or caller cancellation propagates; physical cessation
+remains unconfirmed in every dispatched case.
 An empty/blank identity, empty stdout, malformed JSON/envelope, transport loss,
 cancellation or caller death leaves durable unresolved dispatch. A genuine
 typed conflict with a nonblank run identity becomes `blocked`. A conflict
@@ -91,10 +108,11 @@ and HEAD drift from original B1, checked again after the call. Dirty files alone
 an error message, or a run ID alone cannot establish recovery.
 
 Ordinary open never creates or upgrades a store. Explicit upgrade recognizes
-the unchanged definition hashes for schemas 1–7 and applies missing migrations in one
+the unchanged definition hashes for schemas 1–10 and applies missing migrations in one
 transaction. Schema 8 adds durable Issue submission persistence, schema 9 adds
-the [persisted installation pause](dotnet-installation-pause.md), and schema 10
-adds [RequestBundle capture](dotnet-identity-custody.md#application-api).
+the [persisted installation pause](dotnet-installation-pause.md), schema 10 adds
+[RequestBundle capture](dotnet-identity-custody.md#application-api), and schema 11
+adds immutable Issue submission cancellation facts.
 The authentic pre-F schema-4 fixture retains all prior records,
 including first provisioning acknowledgment and abandonment. Upgrade invents no
 past dispatch. Its provenance and exact hashes are in the
@@ -230,8 +248,10 @@ guards, receipt validation, result/disposition retention and application wait.
 [H lifecycle](dotnet-retirement-replacement.md) adds abandonment/stop composition,
 retirement and explicit replacement in historical schema 7, preserving the prior
 definitions; schema 8 adds Issue submission persistence, schema 9 adds the
-installation pause boundary, and schema 10 adds interruption-safe RequestBundle
-capture and immutable bundle-scoped reads.
+installation pause boundary, schema 10 adds interruption-safe RequestBundle
+capture and immutable bundle-scoped reads, and schema 11 adds immutable Issue
+submission cancellation facts that bind replay to the original Attempt,
+including a durable no-Attempt result.
 The local null-output stable-result gap, dispatched quarantine and independent
 operator review requirements remain.
 

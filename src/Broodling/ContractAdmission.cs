@@ -225,6 +225,7 @@ public sealed partial class BroodlingStore
     {
         using var transaction = connection.BeginTransaction(deferred: false);
         var revision = ReadRevision(revisionId, transaction) ?? throw new UnknownRecord("Unknown Contract revision.");
+        RequireIssueSubmissionNotCancelled(revisionId, transaction);
         var existing = ReadDecision(revisionId, transaction);
         if (existing is not null)
         {
@@ -240,6 +241,24 @@ public sealed partial class BroodlingStore
         var result = ReadDecision(revisionId, transaction)!;
         transaction.Commit();
         return result;
+    }
+
+    private void RequireIssueSubmissionNotCancelled(string contractRevisionId,
+        Microsoft.Data.Sqlite.SqliteTransaction transaction)
+    {
+        using var command = Command("""
+            SELECT 1
+            WHERE EXISTS (
+                SELECT 1 FROM issue_submissions
+                WHERE contract_revision_id = $p0 AND state = 'cancelled'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM issue_submissions
+                WHERE contract_revision_id = $p0 AND state <> 'cancelled'
+            )
+            """, transaction, contractRevisionId);
+        if (command.ExecuteScalar() is not null)
+            throw new IssueSubmissionConflict("A cancelled Issue submission cannot progress its Contract.");
     }
 
     public AdmissionDecision? FindAdmissionDecision(string revisionId) => ReadDecision(revisionId);

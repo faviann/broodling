@@ -149,18 +149,43 @@ public sealed class AttemptCompletionTests
     public async Task AbandonmentWhileWaitingRejectsLateSuccessAndCompletionPreventsAbandonment()
     {
         using var fixture = new CompletionFixture();
+        var submission = fixture.Store.SubmitIssue("https://github.com/acme/widget/issues/12");
+        fixture.Store.AssociateIssueSubmission(submission.SubmissionId, fixture.Attempt.ContractRevisionId);
         await fixture.Dispatch();
         fixture.Transport.Wait = (_, run, _) =>
         {
             using var other = fixture.Git.State.Open();
-            other.AbandonAttempt(fixture.Attempt.AttemptId, "stop won");
+            var stop = new ControlledTransport { Stop = (_, stopRun, _) =>
+            {
+                if (stopRun != run) throw new Exception("Cancellation stop used the wrong native run");
+                return Task.FromResult(new NativeResult(stopRun, true, default, null));
+            } };
+            CessationUnconfirmed? cancellationStop = null;
+            try
+            {
+                other.CancelIssueSubmissionAsync(submission.SubmissionId, "stop won", stop)
+                    .GetAwaiter().GetResult();
+            }
+            catch (CessationUnconfirmed error)
+            {
+                cancellationStop = error;
+            }
+            if (cancellationStop is null || !cancellationStop.NativeStopRequested)
+                throw new Exception("Cancellation did not commit exact abandonment before native stop");
+            if (other.GetIssueSubmission(submission.SubmissionId).Cancellation!.AttemptId != fixture.Attempt.AttemptId)
+                throw new Exception("Cancellation did not retain the exact Attempt");
             return Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: fixture.Accepted), null));
         };
         await Assert.That(async () => await fixture.Wait()).Throws<StaleAttempt>();
         await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
+        await Assert.That(fixture.Store.GetIssueSubmission(submission.SubmissionId).State).IsEqualTo("cancelled");
         using var winner = new CompletionFixture();
+        var winnerSubmission = winner.Store.SubmitIssue("https://github.com/acme/widget/issues/12");
+        winner.Store.AssociateIssueSubmission(winnerSubmission.SubmissionId, winner.Attempt.ContractRevisionId);
         await winner.Dispatch();
         await winner.Wait();
+        await Assert.That(async () => await winner.Store.CancelIssueSubmissionAsync(winnerSubmission.SubmissionId, "too late"))
+            .Throws<IssueSubmissionConflict>();
         await Assert.That(() => winner.Store.AbandonAttempt(winner.Attempt.AttemptId, "too late")).Throws<StaleAttempt>();
         await Assert.That(() => winner.Git.State.Execute($"INSERT INTO attempt_abandonments VALUES ('{winner.Attempt.AttemptId}', 'too late', 'now')")).Throws<SqliteException>();
     }
