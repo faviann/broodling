@@ -50,6 +50,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Original B1 custody, allocation, owned materialization and surviving Git children | `AttemptAdmissionTests`, `GitCustodyTests`, `WorktreeProvisioningTests`, `ProvisioningProcessTests`: [materialization](../docs/implementation/dotnet-worktree-materialization.md) |
 | Controlled GitHub acquisition and reviewed bytes | `GitHubAdmissionTests`, [retained issue fixtures](fixtures/ingress/README.md): [ingress](../docs/implementation/dotnet-github-ingress.md) |
 | Frozen dispatch, caller death, launcher policy, released SDK/native transport | `NativeDispatchTests`, `DispatchProcessTests`, `NativePolicyTests`, `NativeTransportTests`: [dispatch](../docs/implementation/dotnet-native-dispatch.md) |
+| Bounded native progress observation, unavailable/timeout mapping and unchanged retained facts | `NativeObservationTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#dispatch-recovery-and-completion) |
 | Receipt validation, atomic exact-Attempt completion, late results | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
 | Stop/quarantine, safe undispatched retirement, original-B1 replacement | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
 | Composed application/operator recovery and handback | `InvocationTests`: [invocation](../docs/implementation/invocation.md) |

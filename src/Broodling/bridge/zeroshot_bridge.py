@@ -41,6 +41,10 @@ async def call(value):
 
     async with Client(target=target(value["locator"]), environment={}) as client:
         run = client.get_run(value["runId"])
+        if value["op"] == "status":
+            status = await run.status()
+            return {"ok": True, "status": {"runId": status.run_id, "phase": status.phase,
+                    "activeNodes": [active.node for active in status.active_executions]}}
         result = await {"wait": run.wait, "stop": run.force_stop}[value["op"]]()
         return {"ok": True, "result": {"runId": result.run_id, "succeeded": result.succeeded,
                 "output": result.output, "failure": result.failure}}
