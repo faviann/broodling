@@ -150,4 +150,72 @@ public sealed class IssueSubmissionTests
         await Assert.That(reopened.FindWorkUnit(ContractIngressTests.Reference)).IsNull();
         await Assert.That(reopened.IssueHistory(ContractIngressTests.Reference)).IsEmpty();
     }
+
+    [Test]
+    public async Task CancelledSubmissionSurvivesReopenAndCannotAcquireContractOrAttemptAuthority()
+    {
+        using var fixture = new AttemptFixture();
+        IssueSubmission cancelled;
+        using (var store = fixture.State.Open())
+        {
+            var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+            store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId);
+            cancelled = await store.CancelIssueSubmissionAsync(submission.SubmissionId,
+                "caller withdrew the request", new ControlledTransport());
+
+            await Assert.That(cancelled.State).IsEqualTo("cancelled");
+            await Assert.That(cancelled.ContractRevisionId).IsEqualTo(fixture.RevisionId);
+            await Assert.That(cancelled.AttemptIds).IsEmpty();
+            await Assert.That(cancelled.Cancellation).IsNotNull();
+            await Assert.That(cancelled.Cancellation!.AttemptId).IsNull();
+            await Assert.That(cancelled.Cancellation.Reason).IsEqualTo("caller withdrew the request");
+        }
+
+        using var reopened = fixture.State.Open();
+        var recovered = reopened.GetIssueSubmission(cancelled.SubmissionId);
+        await Assert.That(recovered.State).IsEqualTo("cancelled");
+        await Assert.That(recovered.Cancellation!.AttemptId).IsNull();
+        await Assert.That(() => fixture.Admit(reopened)).Throws<IssueSubmissionConflict>();
+        await Assert.That(recovered.AttemptIds).IsEmpty();
+    }
+
+    [Test]
+    public async Task CancellationReplayRetainsOriginalAttemptAcrossLegitimateSafeReplacement()
+    {
+        using var fixture = new NativeFixture();
+        using var store = fixture.Git.State.Open();
+        var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+        store.AssociateIssueSubmission(submission.SubmissionId, fixture.Git.RevisionId);
+        var original = fixture.Git.Admit(store);
+
+        var cancelled = await store.CancelIssueSubmissionAsync(submission.SubmissionId, "withdraw original");
+        await Assert.That(cancelled.Cancellation!.AttemptId).IsEqualTo(original.AttemptId);
+        store.RetireAttempt(original.AttemptId);
+        var successor = store.AdmitRetry(original.AttemptId, "after-cancellation", fixture.Git.Workspaces, fixture.Profile);
+        store.ProvisionAttempt(successor.AttemptId);
+
+        var replayed = await store.CancelIssueSubmissionAsync(submission.SubmissionId, "replayed cancellation",
+            new ControlledTransport());
+        await Assert.That(replayed.Cancellation!.AttemptId).IsEqualTo(original.AttemptId);
+        await Assert.That(store.GetAttempt(original.AttemptId).Abandonment!.Reason).IsEqualTo("withdraw original");
+        await Assert.That(store.GetAttempt(successor.AttemptId).IsCurrent).IsTrue();
+        await Assert.That(store.FindRetirement(successor.AttemptId)).IsNull();
+    }
+
+    [Test]
+    public async Task CancellingOneSharedContractSubmissionDoesNotBlockAnUncancelledRetainedTicket()
+    {
+        using var fixture = new AttemptFixture();
+        using var store = fixture.State.Open();
+        var first = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+        store.AssociateIssueSubmission(first.SubmissionId, fixture.RevisionId);
+        const string secondSubmissionId = "issue-sub-active-ticket";
+        fixture.State.Execute($"INSERT INTO issue_submissions (submission_id, work_unit_id, submission_sequence, issue_url, state, contract_revision_id, received_at) "
+            + $"VALUES ('{secondSubmissionId}', '{first.WorkUnitId}', 2, '{first.IssueUrl}', 'accepted', '{fixture.RevisionId}', '{first.ReceivedAt}')");
+
+        await store.CancelIssueSubmissionAsync(first.SubmissionId, "withdraw only the first ticket");
+        var attempt = fixture.Admit(store);
+        await Assert.That(attempt.IsCurrent).IsTrue();
+        await Assert.That(store.GetIssueSubmission(secondSubmissionId).State).IsEqualTo("accepted");
+    }
 }

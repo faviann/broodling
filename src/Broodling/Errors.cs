@@ -1,6 +1,12 @@
 namespace Broodling;
 
-public sealed class CessationUnconfirmed(string message) : BroodlingException("cessation_unconfirmed", message);
+public sealed class CessationUnconfirmed : BroodlingException
+{
+    public bool NativeStopRequested { get; }
+
+    public CessationUnconfirmed(string message, bool nativeStopRequested = false)
+        : base("cessation_unconfirmed", message) => NativeStopRequested = nativeStopRequested;
+}
 
 public sealed class SubmissionNotReady(string message) : BroodlingException("submission_not_ready", message);
 public sealed class InstallationPaused(string message = "Installation admission and dispatch are paused.")
@@ -66,5 +72,10 @@ public sealed class AttemptAdmissionError(string message)
 public sealed class AttemptConflict(string message)
     : BroodlingException("attempt_conflict", message);
 
-public sealed class StaleAttempt(string message)
-    : BroodlingException("stale_attempt", message);
+public sealed class StaleAttempt : BroodlingException
+{
+    public bool NativeStopRequested { get; }
+
+    public StaleAttempt(string message, bool nativeStopRequested = false)
+        : base("stale_attempt", message) => NativeStopRequested = nativeStopRequested;
+}

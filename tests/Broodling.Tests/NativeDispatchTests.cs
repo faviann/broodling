@@ -52,6 +52,7 @@ public sealed class NativeDispatchTests
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
         var attempt = fixture.Provision(store);
+        var stopCalls = new List<(NativeLocator Locator, string RunId)>();
         var transport = new ControlledTransport { Submit = async (_, _) =>
         {
             using var independent = fixture.Git.State.Open();
@@ -59,13 +60,46 @@ public sealed class NativeDispatchTests
             independent.ResolveWorkUnit(WorkReference.Parse("unrelated/project", 123));
             independent.AbandonAttempt(attempt.AttemptId, "during external acknowledgment");
             return "late-native-run";
+        }, Stop = (locator, runId, _) =>
+        {
+            stopCalls.Add((locator, runId));
+            return Task.FromResult(new NativeResult(runId, true, default, null));
         } };
-        await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<StaleAttempt>();
+        StaleAttempt? stale = null;
+        try { await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport); }
+        catch (StaleAttempt error) { stale = error; }
+        await Assert.That(stale).IsNotNull();
+        await Assert.That(stale!.NativeStopRequested).IsTrue();
         using var reopened = fixture.Git.State.Open();
         await Assert.That(reopened.FindSubmission(attempt.AttemptId)!.RunId).IsEqualTo("late-native-run");
         await Assert.That(reopened.GetAttempt(attempt.AttemptId).IsCurrent).IsFalse();
         await Assert.That(async () => await reopened.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<StaleAttempt>();
         await Assert.That(transport.Calls).IsEqualTo(1);
+        await Assert.That(stopCalls.Count).IsEqualTo(1);
+        await Assert.That(stopCalls[0].RunId).IsEqualTo("late-native-run");
+        await Assert.That(stopCalls[0].Locator).IsEqualTo(reopened.FindSubmission(attempt.AttemptId)!.Locator);
+    }
+
+    [Test]
+    public async Task MissingEnclosureStopDoesNotClaimNativeStopWasRequested()
+    {
+        using var fixture = new NativeFixture();
+        using var store = fixture.Git.State.Open();
+        var attempt = fixture.Provision(store);
+        var transport = new ControlledTransport
+        {
+            Submit = (_, _) => Task.FromResult("known-run"),
+            Stop = (_, _, _) => throw new InvalidOperationException("Stop must not be reached")
+        };
+        await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
+        Directory.Delete(attempt.Allocation.Enclosure, recursive: true);
+
+        CessationUnconfirmed? cessation = null;
+        try { await store.StopAsync(attempt.AttemptId, "missing enclosure", transport); }
+        catch (CessationUnconfirmed error) { cessation = error; }
+        await Assert.That(cessation).IsNotNull();
+        await Assert.That(cessation!.NativeStopRequested).IsFalse();
+        await Assert.That(transport.StopCalls).IsEqualTo(0);
     }
 
     [Test]

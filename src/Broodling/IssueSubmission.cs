@@ -6,8 +6,14 @@ namespace Broodling;
 /// Durable acceptance before Contract preparation. Attempt IDs are derived from
 /// the existing Contract/Attempt records and are never a second execution ledger.
 /// </summary>
+public sealed record IssueSubmissionCancellation(string SubmissionId, string? AttemptId, string Reason, string CancelledAt);
+
 public sealed record IssueSubmission(string SubmissionId, string WorkUnitId, long Sequence, string IssueUrl,
-    string State, string ReceivedAt, string? ContractRevisionId, IReadOnlyList<string> AttemptIds);
+    string State, string ReceivedAt, string? ContractRevisionId, IReadOnlyList<string> AttemptIds)
+{
+    /// <summary>The immutable first cancellation binding, when this submission was cancelled.</summary>
+    public IssueSubmissionCancellation? Cancellation { get; init; }
+}
 
 public sealed partial class BroodlingStore
 {
@@ -132,6 +138,8 @@ public sealed partial class BroodlingStore
         using var transaction = connection.BeginTransaction(deferred: false);
         var submission = ReadIssueSubmission(submissionId, transaction)
             ?? throw new UnknownRecord("Unknown Issue submission.");
+        if (submission.State == "cancelled")
+            throw new IssueSubmissionConflict("A cancelled Issue submission cannot acquire Contract authority.");
         if (submission.ContractRevisionId is { } existing)
         {
             if (existing != contractRevisionId)
@@ -154,6 +162,70 @@ public sealed partial class BroodlingStore
         var result = ReadIssueSubmission(submissionId, transaction)!;
         transaction.Commit();
         return result;
+    }
+
+    /// <summary>
+    /// Cancel one retained Issue submission before any later admission can use
+    /// it. If it already has an Attempt, cancellation and abandonment commit in
+    /// one SQLite transaction before the existing native-stop path is entered.
+    /// </summary>
+    public async Task<IssueSubmission> CancelIssueSubmissionAsync(string submissionId, string reason,
+        INativeTransport? transport = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new IssueSubmissionConflict("Submission cancellation requires a nonempty reason.");
+
+        string? attemptId;
+        var stopReason = reason;
+        using (var transaction = connection.BeginTransaction(deferred: false))
+        {
+            var submission = ReadIssueSubmission(submissionId, transaction)
+                ?? throw new UnknownRecord("Unknown Issue submission.");
+            var cancellation = ReadIssueSubmissionCancellation(submissionId, transaction);
+            if (cancellation is not null)
+            {
+                if (submission.State != "cancelled")
+                    throw new IssueSubmissionConflict("The Issue submission has an invalid cancellation state.");
+                // Replay is bound to the first durable target. In particular, do
+                // not inspect current or last Attempt state here: a later
+                // replacement belongs to a different authority generation.
+                attemptId = cancellation.AttemptId;
+                stopReason = cancellation.Reason;
+            }
+            else
+            {
+                if (submission.State == "completed")
+                    throw new IssueSubmissionConflict("A completed Issue submission cannot be cancelled.");
+                var attempts = submission.ContractRevisionId is null
+                    ? Array.Empty<AttemptRecord>()
+                    : ReadAttempts("contract_revision_id = $p0", submission.ContractRevisionId, transaction).ToArray();
+                if (attempts.Any(attempt => ReadCompletion(attempt.AttemptId, transaction) is not null))
+                    throw new IssueSubmissionConflict("A completed Issue submission cannot be cancelled.");
+
+                attemptId = attempts.FirstOrDefault(attempt => attempt.IsCurrent)?.AttemptId
+                    ?? attempts.LastOrDefault()?.AttemptId;
+                Execute("INSERT INTO issue_submission_cancellations VALUES ($p0, $p1, $p2, $p3)",
+                    transaction, submissionId, attemptId, reason, Now());
+                Execute("UPDATE issue_submissions SET state = 'cancelled' WHERE submission_id = $p0",
+                    transaction, submissionId);
+                if (attemptId is not null)
+                {
+                    var attempt = attempts.Single(item => item.AttemptId == attemptId);
+                    if (attempt.Abandonment is null)
+                        AbandonAttemptInTransaction(attemptId, reason, transaction);
+                }
+            }
+            transaction.Commit();
+        }
+
+        if (attemptId is not null)
+        {
+            // The existing exact Attempt stop path decides whether an external
+            // request is needed. Safe undispatched retirement needs no transport;
+            // a known native run still requires one, after cancellation commits.
+            await StopAsync(attemptId, stopReason, transport, cancellationToken);
+        }
+        return GetIssueSubmission(submissionId);
     }
 
     private IssueSubmission? ReadLatestIssueSubmission(string workUnitId, SqliteTransaction? transaction = null)
@@ -185,7 +257,21 @@ public sealed partial class BroodlingStore
         }
         var attempts = contractRevisionId is null ? Array.Empty<string>() : ReadIssueSubmissionAttempts(contractRevisionId, transaction);
         return new(id, workUnitId, sequence, issueUrl, state, receivedAt,
-            contractRevisionId, Array.AsReadOnly(attempts));
+            contractRevisionId, Array.AsReadOnly(attempts))
+        {
+            Cancellation = ReadIssueSubmissionCancellation(id, transaction)
+        };
+    }
+
+    private IssueSubmissionCancellation? ReadIssueSubmissionCancellation(string submissionId,
+        SqliteTransaction? transaction = null)
+    {
+        using var command = Command("SELECT submission_id, attempt_id, reason, cancelled_at FROM issue_submission_cancellations WHERE submission_id = $p0",
+            transaction, submissionId);
+        using var row = command.ExecuteReader();
+        return row.Read()
+            ? new(row.GetString(0), row.IsDBNull(1) ? null : row.GetString(1), row.GetString(2), row.GetString(3))
+            : null;
     }
 
     private string[] ReadIssueSubmissionAttempts(string contractRevisionId, SqliteTransaction? transaction)

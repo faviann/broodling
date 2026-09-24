@@ -6,7 +6,7 @@ namespace Broodling;
 internal static class StoreSchema
 {
     internal const string Format = "broodling.dotnet";
-    internal const int Version = 10;
+    internal const int Version = 11;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
 
@@ -27,7 +27,59 @@ internal static class StoreSchema
     internal const string VersionNineSql = VersionEightSql + "\n" + InstallationSql;
     internal static string VersionNineDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionNineSql));
     internal const string VersionTenSql = VersionNineSql + "\n" + RequestBundleSql;
-    internal const string Sql = VersionTenSql;
+    internal static string VersionTenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionTenSql));
+    internal const string CancellationSql = """
+        CREATE TABLE issue_submission_cancellations (
+            submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
+            attempt_id TEXT REFERENCES attempts(attempt_id),
+            reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+            cancelled_at TEXT NOT NULL
+        ) STRICT;
+        CREATE TRIGGER issue_submission_cancellation_bound BEFORE INSERT ON issue_submission_cancellations
+        WHEN NOT EXISTS (
+            SELECT 1 FROM issue_submissions
+            WHERE submission_id = NEW.submission_id AND state NOT IN ('cancelled', 'completed')
+        ) OR (NEW.attempt_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM attempts AS a
+            JOIN issue_submissions AS s ON s.submission_id = NEW.submission_id
+            WHERE a.attempt_id = NEW.attempt_id
+              AND a.work_unit_id = s.work_unit_id
+              AND a.contract_revision_id IS s.contract_revision_id
+        ))
+        BEGIN SELECT RAISE(ABORT, 'Issue submission cancellation must bind its exact retained Attempt'); END;
+        CREATE TRIGGER issue_submission_cancellation_no_update BEFORE UPDATE ON issue_submission_cancellations
+        BEGIN SELECT RAISE(ABORT, 'Issue submission cancellation is immutable'); END;
+        CREATE TRIGGER issue_submission_cancellation_no_delete BEFORE DELETE ON issue_submission_cancellations
+        BEGIN SELECT RAISE(ABORT, 'Issue submission cancellation is durable'); END;
+        CREATE TRIGGER cancelled_submission_no_admission BEFORE INSERT ON admission_decisions
+        WHEN EXISTS (
+            SELECT 1 FROM issue_submissions
+            WHERE contract_revision_id = NEW.contract_revision_id AND state = 'cancelled'
+        ) AND NOT EXISTS (
+            SELECT 1 FROM issue_submissions
+            WHERE contract_revision_id = NEW.contract_revision_id AND state <> 'cancelled'
+        )
+        BEGIN SELECT RAISE(ABORT, 'cancelled Issue submission cannot acquire Contract admission'); END;
+        CREATE TRIGGER cancelled_submission_no_attempt BEFORE INSERT ON attempts
+        WHEN EXISTS (
+            SELECT 1 FROM issue_submissions
+            WHERE contract_revision_id = NEW.contract_revision_id AND state = 'cancelled'
+        ) AND NOT EXISTS (
+            SELECT 1 FROM issue_submissions
+            WHERE contract_revision_id = NEW.contract_revision_id AND state <> 'cancelled'
+        ) AND NOT EXISTS (
+            SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id
+        )
+        BEGIN SELECT RAISE(ABORT, 'cancelled Issue submission cannot acquire ordinary Attempt authority'); END;
+        CREATE TRIGGER issue_submission_cancel_state BEFORE UPDATE OF state ON issue_submissions
+        WHEN (NEW.state = 'cancelled' AND NOT EXISTS (
+            SELECT 1 FROM issue_submission_cancellations WHERE submission_id = NEW.submission_id
+        )) OR (OLD.state = 'cancelled' AND NEW.state <> 'cancelled')
+        BEGIN SELECT RAISE(ABORT, 'Issue submission cancellation requires an immutable cancellation fact'); END;
+        """;
+    internal const string VersionElevenSql = VersionTenSql + "\n" + CancellationSql;
+    internal static string VersionElevenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionElevenSql));
+    internal const string Sql = VersionElevenSql;
 
     internal const string IssueSubmissionSql = """
         CREATE TABLE issue_submissions (

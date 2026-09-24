@@ -78,7 +78,7 @@ root `/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT` was removed after
 capture. Old Git/worktree/native paths are evidence only. The consolidated
 Restore helper disables foreign keys only for dump ordering. Upgrade tests
 compare every old fact row, refuse ordinary open without modifying the file,
-upgrade through schema 7, 8 and 9 to current schema 10, reopen, repeat upgrade and
+upgrade through schema 7, 8 and 9 to current schema 11, reopen, repeat upgrade and
 replay the exact completion without native access. The prepared v5 fixture
 above is preserved unchanged.
 
@@ -92,7 +92,7 @@ the retained v6 capture with the application at `d7a8f094f3886b117a6eebbf86d333d
 (the pre-#110 `origin/main` application). It retains the v6 facts and schema-7
 metadata; the lifecycle test restores this file rather than synthesizing schema
 7 with the new builder, refuses ordinary open, applies the recognized schema-8,
-schema-9 and schema-10 migrations, reopens and repeats the explicit upgrade.
+schema-9, schema-10 and schema-11 migrations, reopens and repeats the explicit upgrade.
 
 - Original definition hash: `1f56d5fa659afe8f91c8bc559b9de248cc1f9f85ced68cf674a27c85002302c6`.
 - Original manifest hash: `84bfb92ddf4305e45e4543eb280ba4f36ad6eebc466f1a897ccce63c3ad56fe9`.
@@ -116,7 +116,7 @@ the explicit pause and RequestBundle migrations.
 pre-#106 application at `eb2e05ad480e1203ef090e0982e9c6ad93ad6fb5` (the #157
 head). In an isolated checkout of that commit, the public `UpgradeStore` API
 upgraded the retained schema-8 fixture, and the public `PauseInstallation` API
-persisted a paused installation. The schema-10 lifecycle test restores this
+persisted a paused installation. The schema-11 lifecycle test restores this
 state, refuses ordinary open without changing it, explicitly upgrades, and
 checks the original rows and paused state across reopen.
 
