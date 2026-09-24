@@ -26,6 +26,45 @@ public sealed partial class BroodlingStore
             throw new AttemptAdmissionError("An Attempt requires a committed admitted Contract decision.");
         var state = GitCustody.Resolve(repository, revision);
         var root = GitCustody.WorkspaceRoot(workspaceRoot, repository, state);
+        return AdmitAttempt(revisionId, state, root);
+    }
+
+    /// <summary>
+    /// Admit from one completed Issue submission's retained repository
+    /// preparation. The caller cannot replace its repository or starting commit.
+    /// </summary>
+    public AttemptRecord AdmitAttempt(string submissionId, string workspaceRoot)
+    {
+        RequireUnpaused();
+        var submission = GetIssueSubmission(submissionId);
+        if (submission.ContractRevisionId is null)
+            throw new AttemptAdmissionError("The Issue submission has no admitted Contract revision.");
+        var bundle = GetRequestBundle(submissionId);
+        if (bundle.State != "complete")
+            throw new AttemptAdmissionError("The RequestBundle must be complete before Attempt admission.");
+        if (bundle.Repository is not { } repository)
+            throw new AttemptAdmissionError("The RequestBundle has no retained repository starting state.");
+        var contract = GetContractRevision(submission.ContractRevisionId);
+        try
+        {
+            var delivery = Closability.AuthorizeDelivery(contract.Contract);
+            if (delivery.Mode == "pull_request" && delivery.TargetBranch != repository.DefaultBranch)
+                throw new AttemptAdmissionError("The admitted pull-request target branch contradicts the retained repository default branch.");
+        }
+        catch (InvalidContractProposal)
+        {
+            throw new AttemptAdmissionError("The prepared repository requires one supported pull-request target or no effect.");
+        }
+        var root = GitCustody.WorkspaceRoot(workspaceRoot, repository.Repository, repository.StartingState);
+        return AdmitAttempt(submission.ContractRevisionId, repository.StartingState, root);
+    }
+
+    private AttemptRecord AdmitAttempt(string revisionId, StartingState state, string root)
+    {
+        var contract = GetContractRevision(revisionId);
+        if (!IsAdmitted(revisionId))
+            throw new AttemptAdmissionError("An Attempt requires a committed admitted Contract decision.");
+        GitCustody.AssertSupportedCheckout(state.Repository, state.CommitOid);
         var material = Digests.AdmittedMaterial(contract.Contract.SourceAttribution);
         var id = "at-" + Digests.Parts("broodling.dotnet.attempt.v1", revisionId, state.Repository, state.CommitOid, material);
         // Git and SQLite cannot share a transaction. A crash may leave a harmless retention pin;
@@ -49,7 +88,7 @@ public sealed partial class BroodlingStore
         var now = Now();
         Execute("""
             INSERT INTO attempts VALUES ($p0, $p1, $p2, 1, $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10, $p11)
-            """, transaction, id, contract.WorkUnitId, revisionId, state.Repository, state.CommitOid, material, revision,
+            """, transaction, id, contract.WorkUnitId, revisionId, state.Repository, state.CommitOid, material, state.RequestedRevision,
             root, enclosure, System.IO.Path.Combine(enclosure, "worktree"), "broodling/" + id, now);
         var result = ReadAttempt(id, transaction);
         transaction.Commit();

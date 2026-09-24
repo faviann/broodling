@@ -23,7 +23,7 @@ public sealed class StoreLifecycleTests
 
         using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
         {
-            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(11);
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
             await Assert.That(Facts()).IsEqualTo(before);
             var retained = upgraded.FindWorkUnit(ContractIngressTests.Reference)!;
             await Assert.That(retained.WorkUnitId).IsEqualTo(ContractIngressTests.Reference.WorkUnitId);
@@ -55,7 +55,7 @@ public sealed class StoreLifecycleTests
 
         using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
         {
-            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(11);
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
             await Assert.That(upgraded.GetInstallationStatus().IsPaused).IsFalse();
             await Assert.That(Facts()).IsEqualTo(before);
             var retained = upgraded.IssueHistory("https://github.com/acme/widget/issues/12").Single();
@@ -86,7 +86,7 @@ public sealed class StoreLifecycleTests
 
         using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
         {
-            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(11);
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
             await Assert.That(upgraded.GetInstallationStatus().IsPaused).IsTrue();
             await Assert.That(Facts()).IsEqualTo(before);
             var retained = upgraded.IssueHistory("https://github.com/acme/widget/issues/12").Single();
@@ -111,7 +111,7 @@ public sealed class StoreLifecycleTests
 
         using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
         {
-            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(11);
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
             await Assert.That(Facts()).IsEqualTo(before);
             var submission = upgraded.IssueHistory("https://github.com/acme/widget/issues/12").Single();
             var bundle = upgraded.GetRequestBundle(submission.SubmissionId);
@@ -131,6 +131,52 @@ public sealed class StoreLifecycleTests
     }
 
     [Test]
+    public async Task SchemaElevenToTwelveUpgradePreservesCompletedRequestBundleManifestExactly()
+    {
+        using var fixture = new StoreFixture();
+        string submissionId;
+        string bundleId;
+        string manifestJson;
+        string manifestSha256;
+        using (var store = fixture.Initialize())
+        {
+            var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+            submissionId = submission.SubmissionId;
+            var bundle = store.BeginRequestBundleCapture(submissionId,
+                new RequestBundlePlan("inputs-v1"u8.ToArray(), "policy-v1"u8.ToArray(), "limits-v1"u8.ToArray()));
+            bundleId = bundle.BundleId;
+            store.RegisterRequestBundleReference(bundleId,
+                RequestBundleReferenceInput.Source("issue", "issue selector"u8.ToArray()));
+            store.CaptureRequestBundleSource(bundleId, "issue",
+                new SourceSubmission("primary_issue", "https://github.com/acme/widget/issues/12",
+                    "retained issue"u8.ToArray()));
+            var completed = store.CompleteRequestBundleCapture(bundleId);
+            manifestJson = completed.ManifestJson!;
+            manifestSha256 = completed.ManifestSha256!;
+        }
+
+        RecastCurrentStoreAsSchemaEleven(fixture);
+        var before = File.ReadAllBytes(fixture.Path);
+        await Assert.That(() => fixture.Open()).Throws<StoreStateException>();
+        await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(before)).IsTrue();
+
+        using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
+        {
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
+            var completed = upgraded.GetRequestBundle(submissionId);
+            await Assert.That(completed.BundleId).IsEqualTo(bundleId);
+            await Assert.That(completed.ManifestJson).IsEqualTo(manifestJson);
+            await Assert.That(completed.ManifestSha256).IsEqualTo(manifestSha256);
+            await Assert.That(completed.Repository).IsNull();
+        }
+
+        using var reopened = fixture.Open();
+        var replayed = reopened.GetRequestBundle(submissionId);
+        await Assert.That(replayed.ManifestJson).IsEqualTo(manifestJson);
+        await Assert.That(replayed.ManifestSha256).IsEqualTo(manifestSha256);
+    }
+
+    [Test]
     public async Task AuthenticSchemaSixPreservesEveryRowAndReplaysExactCompletionOfflineAfterUpgrade()
     {
         using var fixture = new StoreFixture();
@@ -146,7 +192,7 @@ public sealed class StoreLifecycleTests
         string abandonedId;
         using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
         {
-            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(11);
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
             await Assert.That(upgraded.Information.InitializedAt).IsEqualTo("2026-09-22T18:21:06.6804719+00:00");
             await Assert.That(Facts()).IsEqualTo(before);
             var completed = upgraded.History(WorkReference.Parse("acme/widget", 12)).Single();
@@ -198,7 +244,7 @@ public sealed class StoreLifecycleTests
         await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(bytes)).IsTrue();
         using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
         {
-            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(11);
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
             await Assert.That(Facts()).IsEqualTo(before);
             var status = upgraded.History(ContractIngressTests.Reference).Single();
             await Assert.That(status.Attempts.Single().Provision).IsNotNull();
@@ -225,7 +271,7 @@ public sealed class StoreLifecycleTests
         await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(oldBytes)).IsTrue();
         using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
         {
-            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(11);
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
             await Assert.That(Facts()).IsEqualTo(before);
             var status = upgraded.History(ContractIngressTests.Reference).Single();
             await Assert.That(status.Attempts.Single().Provision).IsNotNull();
@@ -249,7 +295,7 @@ public sealed class StoreLifecycleTests
         await Assert.That(() => fixture.Open()).Throws<StoreStateException>();
         using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
         {
-            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(11);
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
             await Assert.That(Facts()).IsEqualTo(before);
             var attempt = upgraded.History(ContractIngressTests.Reference).Single().Attempts.Single();
             await Assert.That(attempt.IsCurrent).IsFalse();
@@ -275,7 +321,7 @@ public sealed class StoreLifecycleTests
         await Assert.That(() => old.Open()).Throws<StoreStateException>();
         using (var upgraded = old.Application.UpgradeStore(old.Path))
         {
-            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(11);
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
             await Assert.That(Facts()).IsEqualTo(before);
         }
         AttemptRecord attempt;
@@ -305,7 +351,7 @@ public sealed class StoreLifecycleTests
         using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
         {
             upgradedInformation = upgraded.Information;
-            await Assert.That(upgradedInformation.SchemaVersion).IsEqualTo(11);
+            await Assert.That(upgradedInformation.SchemaVersion).IsEqualTo(12);
             await Assert.That(upgradedInformation.InitializedAt).IsEqualTo("2026-09-22T15:07:04.8538767+00:00");
             await Assert.That(Facts()).IsEqualTo(before);
             var status = upgraded.AdmitSources(ContractIngressTests.Reference,
@@ -333,6 +379,30 @@ public sealed class StoreLifecycleTests
         using var restore = connection.CreateCommand();
         restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
         restore.ExecuteNonQuery();
+    }
+
+    private static void RecastCurrentStoreAsSchemaEleven(StoreFixture fixture)
+    {
+        using var connection = fixture.Connect();
+        using var transaction = connection.BeginTransaction(deferred: false);
+        using (var drop = connection.CreateCommand())
+        {
+            drop.Transaction = transaction;
+            drop.CommandText = "DROP TRIGGER request_bundle_repository_insert; "
+                + "DROP TRIGGER request_bundle_repository_update; "
+                + "DROP TRIGGER request_bundle_repository_no_delete; "
+                + "DROP TABLE request_bundle_repositories;";
+            drop.ExecuteNonQuery();
+        }
+
+        var manifestHash = StoreSchema.ManifestHash(connection, transaction);
+        using var update = connection.CreateCommand();
+        update.Transaction = transaction;
+        update.CommandText = "UPDATE store_metadata SET version = 11, definition_hash = $definition, manifest_hash = $manifest";
+        update.Parameters.AddWithValue("$definition", StoreSchema.VersionElevenDefinitionHash);
+        update.Parameters.AddWithValue("$manifest", manifestHash);
+        update.ExecuteNonQuery();
+        transaction.Commit();
     }
 
     private static string RetainedFacts(StoreFixture fixture, params string[] tables)
@@ -366,7 +436,7 @@ public sealed class StoreLifecycleTests
         await Assert.That(upgraded.Information).IsEqualTo(information);
         await Assert.That(upgraded.GetWorkUnit(first.WorkUnitId)).IsEqualTo(first);
         await Assert.That(information.Format).IsEqualTo("broodling.dotnet");
-        await Assert.That(information.SchemaVersion).IsEqualTo(11);
+        await Assert.That(information.SchemaVersion).IsEqualTo(12);
     }
 
     [Test]
@@ -417,7 +487,7 @@ public sealed class StoreLifecycleTests
         using var reopened = fixture.Application.OpenStore(legitimate);
         await Assert.That(reopened.Path).IsEqualTo(legitimate);
         await Assert.That(reopened.Information).IsEqualTo(upgraded.Information);
-        await Assert.That(reopened.Information.SchemaVersion).IsEqualTo(11);
+        await Assert.That(reopened.Information.SchemaVersion).IsEqualTo(12);
     }
 
     [Test]
@@ -539,6 +609,6 @@ public sealed class StoreLifecycleTests
         await Assert.That(error.ToString().Contains("Exception")).IsFalse();
         await Assert.That(StoreCommands.Run(["initialize-store"], fixture.Application, output, error)).IsEqualTo(2);
         using var reopened = fixture.Open();
-        await Assert.That(reopened.Information.SchemaVersion).IsEqualTo(11);
+        await Assert.That(reopened.Information.SchemaVersion).IsEqualTo(12);
     }
 }

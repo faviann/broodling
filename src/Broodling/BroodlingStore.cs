@@ -128,6 +128,8 @@ public sealed partial class BroodlingStore : IDisposable
                     store.Execute(StoreSchema.RequestBundleSql, transaction);
                 if (store.Information.SchemaVersion < 11)
                     store.Execute(StoreSchema.CancellationSql, transaction);
+                if (store.Information.SchemaVersion < 12)
+                    store.Execute(StoreSchema.RepositoryPreparationSql, transaction);
                 if (store.Information.SchemaVersion < StoreSchema.Version)
                 {
                     store.Execute("UPDATE store_metadata SET version = $p0, definition_hash = $p1, manifest_hash = $p2 WHERE singleton = 1",
@@ -160,7 +162,7 @@ public sealed partial class BroodlingStore : IDisposable
         using var reader = command.ExecuteReader();
         if (!reader.Read()
             || reader.GetValue(0) is not string format || format != StoreSchema.Format
-            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10))
+            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11))
             || reader.GetValue(2) is not string definition
                 || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, 3 => StoreSchema.VersionThreeDefinitionHash, 4 => StoreSchema.VersionFourDefinitionHash, 5 => StoreSchema.VersionFiveDefinitionHash, 6 => StoreSchema.VersionSixDefinitionHash, 7 => StoreSchema.VersionSevenDefinitionHash, 8 => StoreSchema.VersionEightDefinitionHash, 9 => StoreSchema.VersionNineDefinitionHash, 10 => StoreSchema.VersionTenDefinitionHash, 11 => StoreSchema.VersionElevenDefinitionHash, _ => StoreSchema.DefinitionHash })
             || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection, transaction)

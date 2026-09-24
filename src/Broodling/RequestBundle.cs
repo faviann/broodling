@@ -127,7 +127,7 @@ public sealed class RequestBundle
     internal RequestBundle(string bundleId, string submissionId, string state,
         byte[] acquisitionInputs, byte[] acquisitionPolicy, byte[] acquisitionLimits,
         string? manifestJson, string? manifestSha256, string createdAt, string? completedAt,
-        IReadOnlyList<RequestBundleReference> references)
+        RepositoryPreparation? repository, IReadOnlyList<RequestBundleReference> references)
     {
         BundleId = bundleId;
         SubmissionId = submissionId;
@@ -139,6 +139,7 @@ public sealed class RequestBundle
         ManifestSha256 = manifestSha256;
         CreatedAt = createdAt;
         CompletedAt = completedAt;
+        Repository = repository;
         References = Array.AsReadOnly(references.ToArray());
     }
 
@@ -152,6 +153,8 @@ public sealed class RequestBundle
     public string? ManifestSha256 { get; }
     public string CreatedAt { get; }
     public string? CompletedAt { get; }
+    public RepositoryPreparation? Repository { get; }
+    public RepositoryPreparation? RepositoryPreparation => Repository;
     public IReadOnlyList<RequestBundleReference> References { get; }
 }
 

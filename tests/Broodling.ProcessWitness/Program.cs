@@ -38,6 +38,14 @@ try
         await dispatchStore.DispatchAsync(args[2], profile, new ZeroshotTransport(args[8], args[9]));
         return 99;
     }
+    if (args[0] == "repository-preparation-crash")
+    {
+        using var preparationStore = new BroodlingApplication().OpenStore(args[1]);
+        var source = new GitHubRepositorySource(args[4], args[5]);
+        await preparationStore.PrepareRequestBundleRepositoryAsync(args[2], args[3],
+            new GitHubRepositoryCredentials("configured-token"), source);
+        return 0;
+    }
     if (args[0] == "host-profile")
     {
         AdministrativeGitProcess.RequireSupportedHost();

@@ -94,10 +94,12 @@ commands add no HTTP endpoints or deployment workflow.
 ## Schema and parity evidence
 
 The A2 slice introduced .NET schema version 2;
-[the current schema is 11](dotnet-identity-custody.md#state-lifecycle-and-persistence-decision),
-retaining H's schema-7 definitions and schema-8 Issue submission persistence.
+[the current schema is 12](dotnet-identity-custody.md#state-lifecycle-and-persistence-decision),
+retaining H's schema-7 definitions, schema-8 Issue submission persistence,
+schema-9 installation pause, schema-10 RequestBundle custody and schema-11
+Issue submission cancellation facts.
 Ordinary open refuses historical versions.
-`UpgradeStore(path)` deliberately validates retained v1–v10 format/definition/
+`UpgradeStore(path)` deliberately validates retained v1–v11 format/definition/
 manifests, adds missing storage in one transaction and preserves all earlier
 identity, submission, source and initialization facts. Repeating the explicit
 upgrade is idempotent. Python state and unknown schemas remain refused.

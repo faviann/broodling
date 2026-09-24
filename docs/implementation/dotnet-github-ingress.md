@@ -41,6 +41,53 @@ failures grant no admission. Source facts captured before a proposal refuses may
 remain, and valid unsupported proposals retain their rejected decision/findings.
 Use A2 `Status` and `History` for retained observation without a new acquisition.
 
+## Service-owned repository preparation
+
+`BroodlingStore.PrepareRequestBundleRepositoryAsync` is the #107 preparation
+seam. It resolves the Work Unit through authenticated `gh api`, validates the
+returned GitHub identity and default branch, and acquires a durable bare
+repository under the configured service repository root. The accepted endpoint
+is derived as the exact canonical
+`https://github.com/OWNER/REPOSITORY.git` URL; clone metadata containing another
+host, a non-default port, user information, query/fragment, or a non-HTTPS
+scheme is refused. A Work Unit's retained repository identity pin is checked before the
+preparation is committed, and a newly verified identity is retained with the
+Work Unit.
+
+An existing destination is first checked without credentials: it must be a bare
+repository whose `origin` is that exact canonical endpoint. A contradictory
+directory or origin is refused before any credential-bearing Git operation or
+modification. A new bare repository is initialized with that canonical origin,
+and every acquisition refresh forwards the explicit
+`+refs/heads/*:refs/broodling/upstream/*` refspec, including for bare
+repositories. That acquisition-owned namespace is separate from
+`refs/heads/broodling/*`, which materialized Attempts own, and from
+`refs/broodling/starting/*`, which existing Git custody retains. Refresh pruning
+therefore cannot delete or move an active Attempt or a B1 pin. Git HTTPS
+credentials are supplied only to the child process as a process-only,
+process-scoped Basic `http.extraHeader` using `x-access-token:<token>`; token
+values are not persisted in SQLite, Git config or the retained preparation.
+
+Metadata is read again after repository initialization/fetch and before Git
+custody retention. A
+changed repository identity, default branch or canonical endpoint refuses the
+acquisition, so the fetched content cannot be retained under stale metadata.
+Caller cancellation is preserved; an active acquisition process and its owned
+process tree are terminated, and the root plus inherited output pipes are
+reaped before the operation returns. Git and `gh` acquisition helpers are
+synchronously owned by those commands, so no general process-group supervisor
+is introduced. There is no arbitrary acquisition wall-clock timeout.
+
+The resulting immutable `RepositoryPreparation` separately retains the default
+branch, requested branch ref and exact starting commit. `RegisterRequestBundleRepositoryFile`
+constructs the existing Git-blob capture input from that exact commit, so later
+refreshes, branch/default changes and worktree changes cannot retarget a
+completed bundle. Replaying an already prepared bundle returns its durable
+selection without re-acquisition. `AdmitAttempt(submissionId, workspaceRoot)`
+consumes this state and visibly refuses missing preparation, unsupported
+retained Git state or a pull-request Contract target that contradicts the
+retained default branch. Explicit local `AdmitAttempt` remains unchanged.
+
 ## Trusted reviewed-source proposal
 
 `ReviewedIssueProposal` is a small .NET replacement for the existing operator's
@@ -72,13 +119,20 @@ this boundary for composed operator submission. D adds no separate command or
 public HTTP intake. The callable pre-Contract `RequestBundle` capture seam now
 retains acquisition inputs, policy and limits with the #105 submission identity,
 supports registering references as they are discovered, and seals completed
-membership for bundle-scoped reads. It does not define selection policy or
-perform remote traversal; those remain later #100 work.
+membership for bundle-scoped reads. The generic capture API does not define
+linked-reference selection policy or perform linked-reference traversal; those
+remain later #100 work. #107's repository preparation is limited to the
+Work Unit's service-owned repository, default branch and retained starting
+commit.
 
 ## Validation
 
-`GitHubAdmissionTests` runs controlled local `gh` executables through the real
-process boundary and real SQLite admission, with no network or provider calls.
+`GitHubAdmissionTests` and `RepositoryPreparationTests` run controlled local
+`gh` and Git executables through the real process boundary and real SQLite
+admission, with no network or provider calls. Preparation tests cover canonical
+metadata/identity refusal, pre-credential origin validation, explicit bare
+refspec refresh, process-only Basic Git auth, durable replay, a concurrent
+identity-pin race and prepared Attempt target/starting-commit checks.
 It checks exact captured bytes and one explicit request, identity and response
 refusals, safe transport errors/cancellation, explicit supplementary grants,
 reviewed-source byte pins, immutable replay after reopen, changed-source lineage

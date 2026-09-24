@@ -14,6 +14,10 @@ var attempt = store.AdmitAttempt(revisionId,
     workspaceRoot: "/srv/broodling-dotnet/attempts",
     revision: "HEAD");
 
+// A completed prepared submission supplies the retained repository and B1.
+var preparedAttempt = store.AdmitAttempt(submissionId,
+    workspaceRoot: "/srv/broodling-dotnet/attempts");
+
 var current = store.RequireCurrentAttempt(attempt.AttemptId);
 var status = store.Status(revisionId); // exact revision, including Attempts
 var history = store.History(WorkReference.Parse("acme/widget", 123));
@@ -26,6 +30,16 @@ Contract decision. B1 records the physical common Git directory, exact SHA-1
 commit, original requested revision spelling and a fingerprint of the Contract's
 sorted source ID/digest pairs. Existing Contract/source identities and canonical
 bytes are unchanged. Entitled bytes remain in their existing immutable store.
+
+The prepared-submission overload consumes the completed RequestBundle's immutable
+repository preparation. It computes the workspace root with the supplied caller
+workspace path while using the retained service-owned bare repository as the Git
+common directory, then records the retained exact starting commit and requested
+branch ref as B1. Before allocation it accepts only the retained default PR
+target; a later repository default, caller effect input or moving branch cannot
+silently retarget this prepared environment. Unsupported or missing retained
+state is a visible admission refusal. The explicit local overload validates its
+original caller checkout path before the shared admission core.
 
 The supported checkout profile is checked before status can invoke conversion
 drivers. Configured external filters, unsupported byte conversions, sparse
@@ -79,9 +93,10 @@ status/history commands expose the same facts. Observation uses a coherent
 deferred snapshot without reserving the writer; an admitted later revision does
 not inherit another revision's Attempt.
 
-B introduced .NET schema 3; the current schema 11 retains H's schema-7
+B introduced .NET schema 3; the current schema 12 retains H's schema-7
 definitions, schema-8 Issue submission persistence, schema-9 installation pause
-and schema-10 RequestBundle custody plus schema-11 cancellation facts. Explicit `UpgradeStore` recognizes unchanged v1–v10
+and schema-10 RequestBundle custody, schema-11 cancellation facts and schema-12
+repository preparation. Explicit `UpgradeStore` recognizes unchanged v1–v11
 definition identities, applies
 missing migrations in one transaction and preserves existing facts. Ordinary
 open refuses old versions. Authentic retained

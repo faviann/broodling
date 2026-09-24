@@ -65,7 +65,7 @@ material and current Attempt authority. It acquires C's stable enclosure lock
 before the short SQLite writer and releases both before the external SDK call.
 No subprocess owns that lock during native execution.
 
-F introduced schema **5**, retained within the current schema **11**, with one
+F introduced schema **5**, retained within the current schema **12**, with one
 `native_submissions` row per provisioned Attempt. SQL
 constraints/triggers protect the request/key and permit only
 `prepared → dispatched → correlated|blocked`. Preparation and dispatch require
@@ -108,11 +108,12 @@ and HEAD drift from original B1, checked again after the call. Dirty files alone
 an error message, or a run ID alone cannot establish recovery.
 
 Ordinary open never creates or upgrades a store. Explicit upgrade recognizes
-the unchanged definition hashes for schemas 1–10 and applies missing migrations in one
+the unchanged definition hashes for schemas 1–11 and applies missing migrations in one
 transaction. Schema 8 adds durable Issue submission persistence, schema 9 adds
 the [persisted installation pause](dotnet-installation-pause.md), schema 10 adds
-[RequestBundle capture](dotnet-identity-custody.md#application-api), and schema 11
-adds immutable Issue submission cancellation facts.
+[RequestBundle capture](dotnet-identity-custody.md#application-api), schema 11 adds
+immutable Issue submission cancellation facts, and schema 12 adds retained
+repository preparation.
 The authentic pre-F schema-4 fixture retains all prior records,
 including first provisioning acknowledgment and abandonment. Upgrade invents no
 past dispatch. Its provenance and exact hashes are in the
@@ -256,9 +257,10 @@ guards, receipt validation, result/disposition retention and application wait.
 retirement and explicit replacement in historical schema 7, preserving the prior
 definitions; schema 8 adds Issue submission persistence, schema 9 adds the
 installation pause boundary, schema 10 adds interruption-safe RequestBundle
-capture and immutable bundle-scoped reads, and schema 11 adds immutable Issue
+capture and immutable bundle-scoped reads, schema 11 adds immutable Issue
 submission cancellation facts that bind replay to the original Attempt,
-including a durable no-Attempt result.
+including a durable no-Attempt result, and schema 12 adds service-owned
+repository preparation.
 The local null-output stable-result gap, dispatched quarantine and independent
 operator review requirements remain.
 
