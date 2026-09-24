@@ -108,11 +108,12 @@ and HEAD drift from original B1, checked again after the call. Dirty files alone
 an error message, or a run ID alone cannot establish recovery.
 
 Ordinary open never creates or upgrades a store. Explicit upgrade recognizes
-the unchanged definition hashes for schemas 1–10 and applies missing migrations in one
-transaction. Schema 8 adds durable Issue submission persistence, schema 9 adds
-the [persisted installation pause](dotnet-installation-pause.md), schema 10 adds
-[RequestBundle capture](dotnet-identity-custody.md#application-api), and schema 11
-adds immutable Issue submission cancellation facts.
+ the unchanged definition hashes for schemas 1–11 and applies missing migrations in one
+ transaction. Schema 8 adds durable Issue submission persistence, schema 9 adds
+ the [persisted installation pause](dotnet-installation-pause.md), schema 10 adds
+ [RequestBundle capture](dotnet-identity-custody.md#application-api), schema 11 adds
+ immutable Issue submission cancellation facts, and schema 12 adds retained
+ repository preparation.
 The authentic pre-F schema-4 fixture retains all prior records,
 including first provisioning acknowledgment and abandonment. Upgrade invents no
 past dispatch. Its provenance and exact hashes are in the
@@ -253,12 +254,13 @@ gateway, forge, provider account, deployment or evaluation.
 [G completion](dotnet-receipt-completion.md) implements completed-Work-Unit
 guards, receipt validation, result/disposition retention and application wait.
 [H lifecycle](dotnet-retirement-replacement.md) adds abandonment/stop composition,
-retirement and explicit replacement in historical schema 7, preserving the prior
-definitions; schema 8 adds Issue submission persistence, schema 9 adds the
-installation pause boundary, schema 10 adds interruption-safe RequestBundle
-capture and immutable bundle-scoped reads, and schema 11 adds immutable Issue
-submission cancellation facts that bind replay to the original Attempt,
-including a durable no-Attempt result.
+ retirement and explicit replacement in historical schema 7, preserving the prior
+ definitions; schema 8 adds Issue submission persistence, schema 9 adds the
+ installation pause boundary, schema 10 adds interruption-safe RequestBundle
+ capture and immutable bundle-scoped reads, schema 11 adds immutable Issue
+ submission cancellation facts that bind replay to the original Attempt,
+ including a durable no-Attempt result, and schema 12 adds service-owned
+ repository preparation.
 The local null-output stable-result gap, dispatched quarantine and independent
 operator review requirements remain.
 

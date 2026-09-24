@@ -85,6 +85,14 @@ content remains in the source repository's retained object store; it is not
 copied into a second archive. The capture API records inputs without defining
 reference-selection policy or performing remote traversal.
 
+For a service-owned GitHub preparation, `PrepareRequestBundleRepositoryAsync`
+retains the selected canonical repository, default PR branch, requested branch
+ref and exact starting commit in an immutable bundle-scoped row. It reuses the
+existing Git retention pin and does not retain credentials. Repository-file
+registration uses that starting commit as its Git-blob revision input; it never
+re-resolves the default branch. See [GitHub preparation](dotnet-github-ingress.md)
+for the credential and existing-bare-repository boundary.
+
 `SourceSubmission` is the trusted low-level presentation boundary from baseline
 `entitlement.py`, not the later supplied-source Contract ingress. Trusted
 `caller`/`broodling_policy` origins can present material; the Work Unit's exact
@@ -132,7 +140,8 @@ rewritten. Foreign keys and immediate write transactions enforce custody.
 recognized .NET versions 1–10 to version 11 in one transaction, preserving retained
 facts and initialization identity. Ordinary open refuses historical versions.
 The [H reference](dotnet-retirement-replacement.md#explicit-replacement-and-schema)
-records the current schema boundary; authentic v1–v9 fixtures exercise upgrades,
+records the current schema boundary; authentic v1–v9 fixtures and a schema-10
+completed-RequestBundle regression exercise upgrades,
 including preservation of an existing paused installation from schema 9.
 Python databases, migration history and imports are intentionally unsupported;
 they must remain at separate paths and must never be silently replaced.

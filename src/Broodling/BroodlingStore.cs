@@ -128,6 +128,8 @@ public sealed partial class BroodlingStore : IDisposable
                     store.Execute(StoreSchema.RequestBundleSql, transaction);
                 if (store.Information.SchemaVersion < 11)
                     store.Execute(StoreSchema.CancellationSql, transaction);
+                if (store.Information.SchemaVersion < 12)
+                    store.Execute(StoreSchema.RepositoryPreparationSql, transaction);
                 if (store.Information.SchemaVersion < StoreSchema.Version)
                 {
                     store.Execute("UPDATE store_metadata SET version = $p0, definition_hash = $p1, manifest_hash = $p2 WHERE singleton = 1",

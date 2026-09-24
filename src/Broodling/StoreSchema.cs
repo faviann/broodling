@@ -79,7 +79,9 @@ internal static class StoreSchema
         """;
     internal const string VersionElevenSql = VersionTenSql + "\n" + CancellationSql;
     internal static string VersionElevenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionElevenSql));
-    internal const string Sql = VersionElevenSql;
+    internal const string VersionTwelveSql = VersionElevenSql + "\n" + RepositoryPreparationSql;
+    internal static string VersionTwelveDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionTwelveSql));
+    internal const string Sql = VersionTwelveSql;
 
     internal const string IssueSubmissionSql = """
         CREATE TABLE issue_submissions (
@@ -193,6 +195,28 @@ internal static class StoreSchema
         BEGIN SELECT RAISE(ABORT, 'RequestBundle reference identity and first capture are immutable'); END;
         CREATE TRIGGER request_bundle_references_no_delete BEFORE DELETE ON request_bundle_references
         BEGIN SELECT RAISE(ABORT, 'RequestBundle membership is immutable'); END;
+        """;
+
+    internal const string RepositoryPreparationSql = """
+        CREATE TABLE request_bundle_repositories (
+            bundle_id TEXT PRIMARY KEY REFERENCES request_bundles(bundle_id),
+            repository TEXT NOT NULL,
+            default_branch TEXT NOT NULL,
+            starting_revision TEXT NOT NULL,
+            starting_commit_oid TEXT NOT NULL CHECK (length(starting_commit_oid) = 40
+                AND starting_commit_oid NOT GLOB '*[^0-9a-f]*'),
+            prepared_at TEXT NOT NULL
+        ) STRICT;
+        CREATE TRIGGER request_bundle_repository_insert BEFORE INSERT ON request_bundle_repositories
+        WHEN NOT EXISTS (SELECT 1 FROM request_bundles WHERE bundle_id = NEW.bundle_id AND state = 'capturing')
+        BEGIN SELECT RAISE(ABORT, 'Repository preparation requires an open RequestBundle capture'); END;
+        CREATE TRIGGER request_bundle_repository_update BEFORE UPDATE ON request_bundle_repositories
+        WHEN OLD.bundle_id <> NEW.bundle_id OR OLD.repository <> NEW.repository
+          OR OLD.default_branch <> NEW.default_branch OR OLD.starting_revision <> NEW.starting_revision
+          OR OLD.starting_commit_oid <> NEW.starting_commit_oid OR OLD.prepared_at <> NEW.prepared_at
+        BEGIN SELECT RAISE(ABORT, 'Repository preparation is immutable'); END;
+        CREATE TRIGGER request_bundle_repository_no_delete BEFORE DELETE ON request_bundle_repositories
+        BEGIN SELECT RAISE(ABORT, 'Repository preparation history is immutable'); END;
         """;
 
     // Result and disposition are one row: no intermediate successful custody can commit.

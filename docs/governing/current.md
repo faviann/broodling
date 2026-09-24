@@ -121,12 +121,17 @@ status; host containment, process supervision and physical-cessation maintenance
 remain operator/host responsibilities. #106 adds interruption-safe RequestBundle
 capture checkpoints, immutable completion and bundle-scoped reads. #115 fetches
 and pins each exact accepted commit under a Broodling-owned ref before successful
-disposition. #119 adds bounded, unretained native phase/active-node observation
-for correlated Attempts, reported separately from retained facts and as
-unavailable on transport loss. Remaining #100 intent includes remote reference selection/acquisition,
-public HTTP intake, a bundled proposer, automatic progression/completion, Compose,
-maintenance and backup/restore; those remain unimplemented. The ASP.NET host is not authority
-to add them.
+disposition. #107 adds
+service-owned GitHub repository preparation: the retained default PR branch and
+exact starting commit are separate facts, and prepared Attempt admission uses
+those retained facts rather than caller checkout or later repository state.
+Repository-file capture continues through the retained commit. Linked-reference
+selection and traversal remain outside this slice. #119 adds bounded, unretained
+native phase/active-node observation for correlated Attempts, reported separately
+from retained facts and as unavailable on transport loss. Remaining #100 intent
+includes public HTTP intake, a bundled proposer, automatic progression/completion,
+Compose, maintenance and backup/restore; those remain unimplemented. The ASP.NET
+host is not authority to add them.
 
 ## Lifecycle and retention limits
 

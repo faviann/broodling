@@ -48,7 +48,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Persisted installation pause, transition ordering and dispatch drain | `InstallationPauseTests`, `StoreLifecycleTests`: [installation pause](../docs/implementation/dotnet-installation-pause.md) |
 | Interrupted first capture, growing reference checkpoints, immutable RequestBundle completion and scoped source/Git reads | `RequestBundleTests`: [state](../docs/implementation/dotnet-identity-custody.md) |
 | Original B1 custody, allocation, owned materialization and surviving Git children | `AttemptAdmissionTests`, `GitCustodyTests`, `WorktreeProvisioningTests`, `ProvisioningProcessTests`: [materialization](../docs/implementation/dotnet-worktree-materialization.md) |
-| Controlled GitHub acquisition and reviewed bytes | `GitHubAdmissionTests`, [retained issue fixtures](fixtures/ingress/README.md): [ingress](../docs/implementation/dotnet-github-ingress.md) |
+| Controlled GitHub issue and service-owned repository acquisition | `GitHubAdmissionTests`, `RepositoryPreparationTests`, [retained issue fixtures](fixtures/ingress/README.md): [ingress](../docs/implementation/dotnet-github-ingress.md) |
 | Frozen dispatch, caller death, launcher policy, released SDK/native transport | `NativeDispatchTests`, `DispatchProcessTests`, `NativePolicyTests`, `NativeTransportTests`: [dispatch](../docs/implementation/dotnet-native-dispatch.md) |
 | Bounded native progress observation, unavailable/timeout mapping and unchanged retained facts | `NativeObservationTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#dispatch-recovery-and-completion) |
 | Receipt validation, atomic exact-Attempt completion, late results | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
@@ -82,9 +82,9 @@ The [baseline record](../docs/migration/130-baseline-validation.md),
 [passed migration review](../docs/migration/130-migration-review.md) distinguish
 exact-baseline Python runs from later candidates and controlled .NET results.
 The [retirement validation](../docs/migration/140-retirement.md) records the
-post-retirement suite and local release smoke. Two tests can fail intermittently
-under concurrent process launches; this predates retirement and is tracked in
-[#151](https://github.com/faviann/broodling/issues/151). Earlier unexplained
+post-retirement suite and local release smoke. Issue #151 is closed; its former
+intermittent process-launch note is not a waiver for a current failure. The
+current supported run and its environment are authoritative. Earlier unexplained
 Git/provider and acquisition failures remain in the G and migration review records.
 
 Python application tests, pytest tooling and Python schema fixtures are retired.

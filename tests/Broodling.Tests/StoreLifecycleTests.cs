@@ -131,6 +131,52 @@ public sealed class StoreLifecycleTests
     }
 
     [Test]
+    public async Task SchemaElevenToTwelveUpgradePreservesCompletedRequestBundleManifestExactly()
+    {
+        using var fixture = new StoreFixture();
+        string submissionId;
+        string bundleId;
+        string manifestJson;
+        string manifestSha256;
+        using (var store = fixture.Initialize())
+        {
+            var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+            submissionId = submission.SubmissionId;
+            var bundle = store.BeginRequestBundleCapture(submissionId,
+                new RequestBundlePlan("inputs-v1"u8.ToArray(), "policy-v1"u8.ToArray(), "limits-v1"u8.ToArray()));
+            bundleId = bundle.BundleId;
+            store.RegisterRequestBundleReference(bundleId,
+                RequestBundleReferenceInput.Source("issue", "issue selector"u8.ToArray()));
+            store.CaptureRequestBundleSource(bundleId, "issue",
+                new SourceSubmission("primary_issue", "https://github.com/acme/widget/issues/12",
+                    "retained issue"u8.ToArray()));
+            var completed = store.CompleteRequestBundleCapture(bundleId);
+            manifestJson = completed.ManifestJson!;
+            manifestSha256 = completed.ManifestSha256!;
+        }
+
+        RecastCurrentStoreAsSchemaEleven(fixture);
+        var before = File.ReadAllBytes(fixture.Path);
+        await Assert.That(() => fixture.Open()).Throws<StoreStateException>();
+        await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(before)).IsTrue();
+
+        using (var upgraded = fixture.Application.UpgradeStore(fixture.Path))
+        {
+            await Assert.That(upgraded.Information.SchemaVersion).IsEqualTo(12);
+            var completed = upgraded.GetRequestBundle(submissionId);
+            await Assert.That(completed.BundleId).IsEqualTo(bundleId);
+            await Assert.That(completed.ManifestJson).IsEqualTo(manifestJson);
+            await Assert.That(completed.ManifestSha256).IsEqualTo(manifestSha256);
+            await Assert.That(completed.Repository).IsNull();
+        }
+
+        using var reopened = fixture.Open();
+        var replayed = reopened.GetRequestBundle(submissionId);
+        await Assert.That(replayed.ManifestJson).IsEqualTo(manifestJson);
+        await Assert.That(replayed.ManifestSha256).IsEqualTo(manifestSha256);
+    }
+
+    [Test]
     public async Task AuthenticSchemaSixPreservesEveryRowAndReplaysExactCompletionOfflineAfterUpgrade()
     {
         using var fixture = new StoreFixture();
@@ -333,6 +379,30 @@ public sealed class StoreLifecycleTests
         using var restore = connection.CreateCommand();
         restore.CommandText = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
         restore.ExecuteNonQuery();
+    }
+
+    private static void RecastCurrentStoreAsSchemaEleven(StoreFixture fixture)
+    {
+        using var connection = fixture.Connect();
+        using var transaction = connection.BeginTransaction(deferred: false);
+        using (var drop = connection.CreateCommand())
+        {
+            drop.Transaction = transaction;
+            drop.CommandText = "DROP TRIGGER request_bundle_repository_insert; "
+                + "DROP TRIGGER request_bundle_repository_update; "
+                + "DROP TRIGGER request_bundle_repository_no_delete; "
+                + "DROP TABLE request_bundle_repositories;";
+            drop.ExecuteNonQuery();
+        }
+
+        var manifestHash = StoreSchema.ManifestHash(connection, transaction);
+        using var update = connection.CreateCommand();
+        update.Transaction = transaction;
+        update.CommandText = "UPDATE store_metadata SET version = 11, definition_hash = $definition, manifest_hash = $manifest";
+        update.Parameters.AddWithValue("$definition", StoreSchema.VersionElevenDefinitionHash);
+        update.Parameters.AddWithValue("$manifest", manifestHash);
+        update.ExecuteNonQuery();
+        transaction.Commit();
     }
 
     private static string RetainedFacts(StoreFixture fixture, params string[] tables)

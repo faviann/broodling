@@ -13,7 +13,11 @@ public sealed partial class BroodlingStore
 
     private sealed record BundleManifestV1(string Version, string BundleId, string SubmissionId,
         string WorkUnitId, string AcquisitionInputs, string AcquisitionPolicy, string AcquisitionLimits,
+        BundleManifestRepositoryV1? Repository,
         IReadOnlyList<BundleManifestReferenceV1> References);
+
+    private sealed record BundleManifestRepositoryV1(string Repository, string DefaultBranch,
+        string StartingRevision, string StartingCommit);
 
     private sealed record BundleManifestReferenceV1(string ReferenceId, int Ordinal, string CaptureKind,
         string Selector, string? SourceId, string? ContentSha256, string? GitCommitOid, string? GitPath,
@@ -189,7 +193,9 @@ public sealed partial class BroodlingStore
         var issue = ReadIssueSubmission(bundle.SubmissionId, transaction)!;
         var manifest = new BundleManifestV1("v1", bundle.BundleId, bundle.SubmissionId, issue.WorkUnitId,
             Convert.ToBase64String(bundle.AcquisitionInputs), Convert.ToBase64String(bundle.AcquisitionPolicy),
-            Convert.ToBase64String(bundle.AcquisitionLimits), bundle.References.Select(reference =>
+            Convert.ToBase64String(bundle.AcquisitionLimits), ReadRepositoryPreparation(bundle.BundleId, transaction) is { } repository
+                ? new(repository.Repository, repository.DefaultBranch, repository.StartingRevision, repository.StartingCommit)
+                : null, bundle.References.Select(reference =>
                 new BundleManifestReferenceV1(reference.ReferenceId, reference.Ordinal, reference.CaptureKind,
                     Convert.ToBase64String(reference.Selector), reference.SourceId, reference.ContentSha256,
                     reference.GitCommitOid, reference.GitPath, reference.GitBlobOid)).ToArray());
@@ -297,8 +303,9 @@ public sealed partial class BroodlingStore
             while (rows.Read())
                 referenceIds.Add(rows.GetString(0));
         var references = referenceIds.Select(referenceId => ReadBundleReference(id, referenceId, transaction)!).ToArray();
+        var repository = ReadRepositoryPreparation(id, transaction);
         return new(id, submissionId, state, inputs, policy, limits, manifestJson, manifestSha256,
-            createdAt, completedAt, references);
+            createdAt, completedAt, repository, references);
     }
 
     private RequestBundleReference? ReadBundleReference(string bundleId, string referenceId,
@@ -331,6 +338,15 @@ public sealed partial class BroodlingStore
 
     private static string? NullableText(SqliteDataReader row, int ordinal) =>
         row.IsDBNull(ordinal) ? null : row.GetString(ordinal);
+
+    private RepositoryPreparation? ReadRepositoryPreparation(string bundleId, SqliteTransaction? transaction)
+    {
+        using var command = Command("SELECT bundle_id, repository, default_branch, starting_revision, starting_commit_oid, prepared_at "
+            + "FROM request_bundle_repositories WHERE bundle_id = $p0", transaction, bundleId);
+        using var row = command.ExecuteReader();
+        return !row.Read() ? null : new(row.GetString(0), row.GetString(1), row.GetString(2),
+            row.GetString(3), row.GetString(4), row.GetString(5));
+    }
 
     private void ReadGitInput(string bundleId, string referenceId, SqliteTransaction transaction,
         out string repository, out string revision, out string path)
