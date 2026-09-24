@@ -41,7 +41,7 @@ and SHA-256 live in [bridge/requirements.txt](../../src/Broodling/bridge/require
 
 The sole production Python source file is
 [zeroshot_bridge.py](../../src/Broodling/bridge/zeroshot_bridge.py). It translates
-one version/submit/wait/stop request into the official SDK, returns public fields
+one version/submit/wait/stop/status request into the official SDK, returns public fields
 or typed error classification and exits. It owns no Broodling policy, database,
 lifecycle or recovery. C# validates versions and owns authority, credentials,
 same-key reconciliation and receipt validation. Controlled Python SDK/provider
@@ -72,6 +72,20 @@ correlation, wait/stop use only the frozen locator and run identity with an empt
 explicit SDK environment; they need no old workspace or dispatch credentials.
 Cancelling/killing a bridge waiter detaches that caller rather than stopping native
 execution. Completed receipt replay needs no target.
+
+`BroodlingStore.ObserveAsync` reads a correlated Attempt's current native phase and
+active nodes through the same retained locator and run ID. It returns null
+without native contact when no run is correlated. The 10-second observation bound
+covers the version preflight and native status read. A cancelled or expired
+preflight stops before status starts; the bridge gives the SDK the remaining time
+for status, so the SDK stops its own command on timeout. Once status starts, caller
+cancellation detaches without killing its bridge. Each read is stamped with its
+observation time; it is never persisted
+and never updates admission, abandonment, completion or authority. A timeout,
+transport loss, unknown run or unsupported runtime returns an unavailable
+observation with a safe reason, not an execution failure. Retained status never
+contacts native and is unaffected. A `finished` phase is progress only: result
+consumption and disposition remain `WaitAsync`'s responsibility.
 
 Completion rechecks currentness, admitted Contract, invocation/run binding and
 exact authorized delivery. Native failure records abandonment; invalid receipts,

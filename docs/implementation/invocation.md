@@ -16,6 +16,7 @@ commands. The retired Python API is preserved at the
 | Resume the exact recorded revision | `Invocation.ResumeAsync`: [native dispatch](dotnet-native-dispatch.md) |
 | Inspect retained revision/lineage without external calls | `BroodlingStore.Status/History`: [admission and observation](dotnet-contract-admission.md#persistence-recovery-and-observation) |
 | Pause, inspect drain status or explicitly release admission/dispatch | `BroodlingStore.PauseInstallation/GetInstallationStatus/ReleaseInstallation`: [installation pause](dotnet-installation-pause.md) |
+| Read bounded, unretained native phase/active-node progress for a correlated Attempt | `BroodlingStore.ObserveAsync`: [native integration](zeroshot-native-integration.md#dispatch-recovery-and-completion) |
 | Consume the correlated native result or replay retained completion | `Invocation.WaitAsync` / `BroodlingStore.WaitAsync`: [completion](dotnet-receipt-completion.md) |
 | Abandon before requesting native stop | `BroodlingStore.StopAsync`: [lifecycle](dotnet-retirement-replacement.md) |
 | Explicit safe retirement/replacement | `RetireAttempt`, `AdmitRetry`, `PrepareRetry`, `RetryAsync`: [lifecycle](dotnet-retirement-replacement.md) |
@@ -27,7 +28,7 @@ never creates or upgrades state.
 Retain `status.Revision.ContractRevisionId` and the exact Attempt ID from
 `status.Attempts`; `status.Submissions` records native correlation. Status/history
 use coherent reads without reserving SQLite's writer or refreshing native
-progress. Completion belongs to the exact Attempt, not a moving Work Unit tip.
+progress; `ObserveAsync` reads native progress separately. Completion belongs to the exact Attempt, not a moving Work Unit tip.
 
 Repeating submit reacquires bytes and reruns the proposer; changed bytes or
 proposal meaning can create another immutable revision. Resume continues only

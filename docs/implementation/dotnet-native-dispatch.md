@@ -179,7 +179,8 @@ with `dotnet publish src/Broodling.Codex --configuration Release`; the
 both complete outputs without installing or deploying them.
 
 `INativeTransport` exposes `SubmitAsync(requestJson, credentials)`,
-`WaitAsync(locator, runId)` and `StopAsync(locator, runId)` for G/H. The Python
+`WaitAsync(locator, runId)`, `StopAsync(locator, runId)` and
+`StatusAsync(locator, runId, bound)` for G/H and progress observation. The Python
 bridge only translates supplied fields to `Client`, targets, `Preset` and
 `UniformRuntime`, calls the SDK, and returns its public fields/errors. It owns no
 Broodling policy or durable state. Reconnect uses only the frozen SDK version,
@@ -187,6 +188,8 @@ canonical local state directory or direct origin, and run identity, with empty
 explicit SDK environment. It needs no usable old workspace/profile/credentials.
 Unknown runs fail closed. `NativeResult` carries run ID, success, arbitrary JSON
 output (including null) and failure unchanged; foreign run identities refuse.
+`NativeProgress` carries only the SDK's current phase and the node names of its
+active executions.
 
 Cancellation/killing detaches only the bridge process, never the whole process
 tree or native work. After the submit request is handed to it, cancellation
@@ -194,8 +197,12 @@ detaches the caller while the bridge remains alive awaiting its native submit
 child, retaining the initiation lock until that command finishes. The submit
 bridge is spawned by `libbroodling_git.so` and inherits the installation
 initiation lock description, a read-only store descriptor; its child does not (see
-[installation pause](dotnet-installation-pause.md)). Explicit native stop is a
-separate transport operation.
+[installation pause](dotnet-installation-pause.md)). The status observation bound
+covers its version preflight and SDK read. Cancellation or timeout during preflight
+stops before status starts. Once status starts, caller cancellation detaches at
+once without killing its bridge; the remaining bound is passed to the SDK so it
+can stop its own native command. Explicit native stop is a separate transport
+operation.
 Neither terminal success nor force-stop grants cleanup authority.
 
 ## Thin operator commands

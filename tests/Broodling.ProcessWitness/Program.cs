@@ -177,4 +177,5 @@ internal sealed class CrashTransport(INativeTransport inner, string mode) : INat
     }
     public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => inner.WaitAsync(locator, runId, cancellationToken);
     public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => inner.StopAsync(locator, runId, cancellationToken);
+    public Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound, CancellationToken cancellationToken = default) => inner.StatusAsync(locator, runId, bound, cancellationToken);
 }
