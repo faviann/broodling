@@ -80,7 +80,7 @@ configuration and pinned dependencies, including GitHub CLI. See
 | Frozen effect authority | Supported behavior |
 | --- | --- |
 | Empty required-effect set | LocalTarget execution is permitted, but native success returns no stable accepted result; Broodling therefore refuses successful disposition. |
-| Exactly one `pull_request` effect with a target branch for a GitHub Work Unit | DirectTarget native PR delivery. A matching successful `v1/pr/opened` receipt supplies the stable non-B1 `headRevision`; the disposition for that exact Attempt commits atomically with the receipt. |
+| Exactly one `pull_request` effect with a target branch for a GitHub Work Unit | DirectTarget native PR delivery. A matching successful `v1/pr/opened` receipt supplies the stable non-B1 `headRevision`; after that exact commit is fetched and pinned locally, the disposition for that exact Attempt commits atomically with the receipt. |
 | Other, mixed, multiple or underspecified effects | Refusal. Merge, standalone push, issue mutation, deployment and generic effect execution are unsupported. |
 
 PR delivery includes native commit, push and open-or-update. It promises neither
@@ -119,10 +119,11 @@ pre-Contract Issue submission identity and inspection through the callable
 SQLite store. #157 adds persisted admission/dispatch pause controls and drain
 status; host containment, process supervision and physical-cessation maintenance
 remain operator/host responsibilities. #106 adds interruption-safe RequestBundle
-capture checkpoints, immutable completion and bundle-scoped reads. Remaining
-#100 intent includes remote reference selection/acquisition, public HTTP intake,
-a bundled proposer, automatic progression/completion, Compose, maintenance and
-retention features; those remain unimplemented. The ASP.NET host is not authority
+capture checkpoints, immutable completion and bundle-scoped reads. #115 fetches
+and pins each exact accepted commit under a Broodling-owned ref before successful
+disposition. Remaining #100 intent includes remote reference selection/acquisition,
+public HTTP intake, a bundled proposer, automatic progression/completion, Compose,
+maintenance and backup/restore; those remain unimplemented. The ASP.NET host is not authority
 to add them.
 
 ## Lifecycle and retention limits
