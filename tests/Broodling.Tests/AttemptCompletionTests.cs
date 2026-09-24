@@ -214,6 +214,50 @@ public sealed class AttemptCompletionTests
     }
 
     [Test]
+    public async Task CancellingDuringAcceptedFetchDetachesAndStopsGit()
+    {
+        using var fixture = new CompletionFixture();
+        await fixture.Dispatch();
+        var entered = Path.Combine(fixture.Git.State.Root, "fetch-entered");
+        var redirect = "url." + fixture.Git.Origin + ".insteadOf";
+        var stalled = $"url.ext::sh -c echo% $$% >% {entered};% exec% sleep% 30.insteadOf";
+        fixture.Git.Git("config", "--unset", redirect);
+        fixture.Git.Git("config", "protocol.ext.allow", "always");
+        fixture.Git.Git("config", stalled, "https://github.com/acme/widget.git");
+        using var cancellation = new CancellationTokenSource();
+        var waiting = fixture.Store.WaitAsync(fixture.Attempt.AttemptId, fixture.Transport, cancellation.Token);
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!File.Exists(entered) || File.ReadAllText(entered).Length == 0)
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("The fetch transport never started.");
+            await Task.Delay(10);
+        }
+        var transport = int.Parse(File.ReadAllText(entered));
+        cancellation.Cancel();
+        await Assert.That(async () => await waiting).Throws<OperationCanceledException>();
+        await Assert.That(Running(transport)).IsFalse();
+        await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
+        fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
+        fixture.Git.Git("config", "--unset", stalled);
+        fixture.Git.Git("config", redirect, "https://github.com/acme/widget.git");
+        await Assert.That((await fixture.Wait()).AcceptedRevision).IsEqualTo(fixture.Accepted);
+    }
+
+    // A killed helper can linger briefly as a zombie until its reparented reaper collects it.
+    private static bool Running(int pid)
+    {
+        for (var attempt = 0; attempt < 500; attempt++)
+        {
+            string stat;
+            try { stat = File.ReadAllText($"/proc/{pid}/stat"); }
+            catch (IOException) { return false; }
+            if (stat[(stat.LastIndexOf(')') + 2)..].StartsWith('Z')) return false;
+            Thread.Sleep(10);
+        }
+        return true;
+    }
+
+    [Test]
     public async Task ConflictingAcceptedPinRefusesWithoutRepointingOrCompleting()
     {
         using var fixture = new CompletionFixture();

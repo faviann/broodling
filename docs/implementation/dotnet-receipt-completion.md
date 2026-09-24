@@ -61,7 +61,10 @@ and branch are gone and `git gc --prune=now` has run.
 A failed fetch, a still-missing object or a conflicting pin raises
 `ResultRetentionError` (`result_retention_error`) without a completion row. The
 Attempt stays current and the next wait consumes the same native result again.
-A pin alone is not success; a later retry converges on the unchanged pin. The
+A pin alone is not success; a later retry converges on the unchanged pin.
+Cancelling the wait during the fetch kills and reaps that Git process tree and
+detaches the caller without disposition; a pin created before cancellation
+remains. The fetch has no product timeout. The
 Broodling host therefore needs Git fetch access to the frozen origin URL, with
 the host user's own Git credential configuration and no terminal prompt, until
 completion is retained.
@@ -137,7 +140,8 @@ transport/cancel versus failure, late success, rollback after insertion,
 independent finalizers, frozen invocation rechecks and no-effect refusal. It
 also owns #115's accepted-object retention: survival of origin, workspace and
 branch removal plus `gc --prune=now`, an unpublished commit that completes once
-pushed, a conflicting pin, and the pin surviving a rolled-back write.
+pushed, cancellation during a stalled fetch, a conflicting pin, and the pin
+surviving a rolled-back write.
 `CompletionPersistenceTests` owns direct-SQL receipt/binding refusals,
 immutability, justified currentness loss and completed-work admission guards.
 Its two-result historical fixture bypasses only new-admission prohibition while
@@ -217,7 +221,9 @@ a cause or repair. No unrelated Git/provisioning code was changed.
 
 #115 validation on 24 September 2026 used the same SDK, runtime, TUnit version,
 `BROODLING_TEST_PYTHON` and build settings. `dotnet test --solution
-Broodling.sln` passed **372 of 372, 0 skipped**, 59.190 seconds. The Release
-build had **0 warnings, 0 errors**, 25.78 seconds. `git diff --check` is clean.
+Broodling.sln` passed **373 of 373, 0 skipped**, 61.403 seconds. The Release
+build had **0 warnings, 0 errors**, 8.45 seconds. `git diff --check` is clean.
 With the accepted pin removed by hand, the garbage-collection regression failed
-because the fetched objects had been pruned.
+because the fetched objects had been pruned. Without cancellable fetch the
+cancellation regression blocked until the stalled transport exited; without the
+process-tree kill its transport survived the detached wait.

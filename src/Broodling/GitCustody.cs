@@ -116,11 +116,39 @@ internal static class GitCustody
         Pin(state.Repository, state.CommitOid, "refs/broodling/starting/" + state.CommitOid, enclosureLock);
 
     /// <summary>Delivery happens in the native target, so the accepted commit is fetched by exact ID when absent locally.</summary>
-    internal static void RetainAccepted(string repository, string originUrl, string oid)
+    internal static async Task RetainAcceptedAsync(string repository, string originUrl, string oid, CancellationToken cancellationToken)
     {
         if (Run(repository, ["rev-list", "--objects", "--no-walk", "--missing=error", oid]).ExitCode != 0)
-            Text(repository, "fetch", "--no-tags", "--no-write-fetch-head", "--no-recurse-submodules", originUrl, oid);
+        {
+            var fetch = await FetchAsync(repository, originUrl, oid, cancellationToken);
+            if (fetch.ExitCode != 0) throw Failure(fetch);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
         Pin(repository, oid, "refs/broodling/accepted/" + oid);
+    }
+
+    private static async Task<Result> FetchAsync(string repository, string originUrl, string oid, CancellationToken cancellationToken)
+    {
+        using var process = Process.Start(StartInfo(repository,
+            ["fetch", "--no-tags", "--no-write-fetch-head", "--no-recurse-submodules", originUrl, oid]))
+            ?? throw new UnsupportedStartingState("Git could not be started.");
+        process.StandardInput.Close();
+        using var output = new MemoryStream();
+        var stdout = process.StandardOutput.BaseStream.CopyToAsync(output, CancellationToken.None);
+        var stderr = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // A detached caller must not leave transport helpers writing into custody.
+            process.Kill(entireProcessTree: true);
+            process.WaitForExit();
+            throw;
+        }
+        await stdout;
+        return new(process.ExitCode, output.ToArray(), await stderr);
     }
 
     private static void Pin(string repository, string oid, string reference, AdministrativeGitProcess.EnclosureLock? enclosureLock = null)

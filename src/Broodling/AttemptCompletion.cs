@@ -62,8 +62,8 @@ public sealed partial class BroodlingStore
         var request = JsonNode.Parse(submitted.RequestJson)!;
         try
         {
-            GitCustody.RetainAccepted((string)request["repository"]!, (string)request["originUrl"]!,
-                result.Output.GetProperty("headRevision").GetString()!);
+            await GitCustody.RetainAcceptedAsync((string)request["repository"]!, (string)request["originUrl"]!,
+                result.Output.GetProperty("headRevision").GetString()!, cancellationToken);
         }
         catch (UnsupportedStartingState error) { throw new ResultRetentionError(error.Message); }
         using (var transaction = connection.BeginTransaction(deferred: false))
