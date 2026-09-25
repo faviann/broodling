@@ -1,0 +1,6 @@
+# The Broodling image builds only the host and its application library.
+*
+!src/Broodling/
+!src/Broodling.Host/
+**/bin/
+**/obj/
