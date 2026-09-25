@@ -94,7 +94,8 @@ canonical HTTPS or literal-loopback HTTP; the status reader uses the same check.
 Preparation first establishes exact B1 custody: the direct
 `refs/broodling/starting/<B1>` pin in the Attempt's common Git directory. It then
 captures the result-fetch origin from that directory's `remote.origin.url`. The
-origin must name the admitted GitHub repository and carry no user information. A
+origin must name the admitted GitHub repository and carry no credentials: a URL
+has no user information except the `git` user of an `ssh://` URL. A
 crash after pinning but before the SQLite commit leaves only the pin, which grants
 nothing. Preparation then rechecks current authority and pause in one immediate
 transaction, including the explicit-replacement exception. That transaction
@@ -169,9 +170,10 @@ stays unresolved, and an exact replay returns the same ID. For the same key, the
 stock target answers a different proposed ID with the original ID. That reply is
 `foreign_run`, never adopted.
 
-Settling a reply uses a second short transaction. It rechecks only the stored
-Attempt, request and identity binding, not custody, credentials, installed files
-or current authority. An acknowledgement commits `dispatched → correlated` with
+Settling a reply uses a second short transaction. It checks only that the stored
+record is still the HTTP record and intended run ID that was sent, whose content
+SQL guards keep immutable, not custody, credentials, installed files or current
+authority. An acknowledgement commits `dispatched → correlated` with
 `run_id = intended_run_id`, even after pause, abandonment or custody loss. A
 conflict records `replay_blocked_reason = submission_conflict` once, in either
 phase. It blocks every later send but does not settle dispatch, so an
@@ -257,7 +259,7 @@ constants, not operator settings:
 | --- | --- |
 | HTTP JSON body in either direction; assembled incoming WebSocket message | 4 MiB, counted as bytes arrive regardless of chunking, fragmentation or declared length |
 | Outgoing WebSocket message | 1 MiB, refused before sending |
-| HTTP response headers / JSON nesting | 32 KiB / 64 levels; duplicate properties refuse at any level |
+| HTTP response headers / JSON nesting | 32 KiB / 64 levels; duplicate properties and undecodable strings refuse at any level |
 | Operation budgets | Progress 10s, submit 60s, stop 30s, wait setup and first status 30s, each later wait read 10s |
 
 One budget encloses every exchange in an operation: setup, headers, body or

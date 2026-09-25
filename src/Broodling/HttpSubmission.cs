@@ -50,13 +50,14 @@ public sealed partial class BroodlingStore
         }
         var intended = Guid.CreateVersion7().ToString();
         Execute("INSERT OR IGNORE INTO execution_assets VALUES ($p0, $p1)", transaction, asset!.Sha256, asset.Content());
+        // A row retained by an earlier preparation is reused, so it must still be the approved content.
+        if (RetainedAsset(asset.Sha256, transaction) is null) throw RetainedDiffers();
         Execute("""
             INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state, intended_run_id,
                 asset_sha256, binding_json) VALUES ($p0, 'http.v1', $p1, $p2, 'prepared', $p3, $p4, $p5)
             """, transaction, attemptId, HttpSubmissionKey(attemptId), HttpRequest(attempt, transaction, intended, asset),
             intended, asset.Sha256, HttpBinding(attempt, directOrigin, resultOrigin!, asset).ToJsonString());
         var result = ReadSubmission(attemptId, transaction)!;
-        RequireRetainedHttpSubmission(attempt, result, transaction); // Also covers a previously retained asset row.
         transaction.Commit();
         return result;
     }
@@ -110,13 +111,16 @@ public sealed partial class BroodlingStore
         }
 
         bool stale;
+        var sent = record.IntendedRunId;
         using (var transaction = connection.BeginTransaction(deferred: false))
         {
-            // Retaining a fact rechecks only the stored binding: no custody, credentials, installed
-            // files or current authority. A late acknowledgement is still acceptance evidence.
+            // Retaining a fact needs only the record that was sent, whose content SQL keeps immutable:
+            // no custody, credentials, installed files or current authority. A late acknowledgement
+            // is still acceptance evidence.
             attempt = ReadAttempt(attemptId, transaction);
             record = ReadSubmission(attemptId, transaction)!;
-            RequireRetainedHttpSubmission(attempt, record, transaction);
+            if (record.Format != NativeSubmission.Http || record.IntendedRunId != sent)
+                throw new SubmissionConflict("The HTTP submission changed while its request was in flight.");
             if (conflict)
                 Execute("UPDATE native_submissions SET replay_blocked_reason = 'submission_conflict' WHERE attempt_id = $p0 AND replay_blocked_reason IS NULL",
                     transaction, attemptId);
@@ -156,8 +160,7 @@ public sealed partial class BroodlingStore
     /// </summary>
     private void RequireRetainedHttpSubmission(AttemptRecord attempt, NativeSubmission record, SqliteTransaction transaction)
     {
-        using var command = Command("SELECT content FROM execution_assets WHERE asset_sha256 = $p0", transaction, record.AssetSha256);
-        var asset = ExecutionAsset.FromRetained(command.ExecuteScalar() as byte[]);
+        var asset = RetainedAsset(record.AssetSha256, transaction);
         var work = ReadWorkUnit(attempt.WorkUnitId, transaction)!;
         JsonNode? binding;
         try { binding = JsonNode.Parse(record.BindingJson ?? ""); }
@@ -169,8 +172,17 @@ public sealed partial class BroodlingStore
             || DirectTargetExchange.CanonicalOrigin(origin) is null || !ValidResultOrigin(resultOrigin, work)
             || !JsonNode.DeepEquals(binding, HttpBinding(attempt, origin, resultOrigin, asset))
             || HttpRequest(attempt, transaction, record.IntendedRunId, asset) != record.RequestJson)
-            throw new SubmissionConflict("The retained HTTP submission differs from admitted authority, its approved asset or a supported binding.");
+            throw RetainedDiffers();
     }
+
+    private ExecutionAsset? RetainedAsset(string? sha256, SqliteTransaction transaction)
+    {
+        using var command = Command("SELECT content FROM execution_assets WHERE asset_sha256 = $p0", transaction, sha256);
+        return ExecutionAsset.FromRetained(command.ExecuteScalar() as byte[]);
+    }
+
+    private static SubmissionConflict RetainedDiffers() =>
+        new("The retained HTTP submission differs from admitted authority, its approved asset or a supported binding.");
 
     private static string HttpSubmissionKey(string attemptId) => "broodling:http:v1:" + attemptId;
 
@@ -220,7 +232,8 @@ public sealed partial class BroodlingStore
         return origin;
     }
 
+    /// <summary>A URL origin carries no userinfo, except the conventional <c>git</c> user of an SSH URL.</summary>
     private static bool ValidResultOrigin(string origin, WorkUnit work) =>
         work.Host == "github.com" && NativeProfile.GitHubOriginRepository(origin) == work.Owner + "/" + work.Repository
-        && !(Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.UserInfo != "");
+        && (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) || uri.UserInfo == "" || uri.Scheme == "ssh" && uri.UserInfo == "git");
 }

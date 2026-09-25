@@ -180,15 +180,23 @@ internal static class DirectTargetExchange
         && body.EnumerateObject().All(property => property.Name is "code" or "message" or "details")
             ? code.GetString() : null;
 
-    /// <summary>Complete UTF-8 JSON within the depth limit and without duplicate properties at any level.</summary>
+    /// <summary>
+    /// Complete JSON within the depth limit and without duplicate properties at any level. Every string
+    /// and property name must decode: the parser leaves their contents unchecked, so malformed UTF-8 or
+    /// a lone escaped surrogate would otherwise surface later, as a non-transport failure, when read.
+    /// </summary>
     internal static JsonElement ParseJson(ReadOnlyMemory<byte> bytes)
     {
         try
         {
             using var document = JsonDocument.Parse(bytes, Json);
+            var reader = new Utf8JsonReader(bytes.Span);
+            while (reader.Read())
+                if (reader.TokenType is JsonTokenType.String or JsonTokenType.PropertyName) reader.GetString();
             return document.RootElement.Clone();
         }
-        catch (JsonException) { throw new NativeTransportError("invalid_response"); }
+        catch (Exception error) when (error is JsonException or InvalidOperationException)
+        { throw new NativeTransportError("invalid_response"); }
     }
 }
 

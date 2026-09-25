@@ -118,6 +118,7 @@ public sealed class HttpSubmissionTests
     [Arguments(null)]
     [Arguments("https://github.com/acme/other.git")]
     [Arguments("https://x-access-token:canary-secret-value@github.com/acme/widget.git")]
+    [Arguments("ssh://git:canary-secret-value@github.com/acme/widget.git")]
     public async Task ResultOriginMustNameAdmittedRepositoryWithoutCredentials(string? origin)
     {
         using var fixture = new HttpFixture(origin);
@@ -125,6 +126,14 @@ public sealed class HttpSubmissionTests
         await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)).IsNull();
         fixture.Store.Dispose();
         await Assert.That(Encoding.UTF8.GetString(File.ReadAllBytes(fixture.Git.State.Path)).Contains("canary-secret-value")).IsFalse();
+    }
+
+    [Test]
+    public async Task SshUrlResultOriginMayCarryTheGitUserLikeTheScpForm()
+    {
+        using var fixture = new HttpFixture("ssh://git@github.com/acme/widget.git");
+        await Assert.That((string)JsonNode.Parse(fixture.Prepare().BindingJson!)!["resultOrigin"]!)
+            .IsEqualTo("ssh://git@github.com/acme/widget.git");
     }
 
     [Test]

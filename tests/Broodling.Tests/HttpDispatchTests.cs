@@ -150,6 +150,7 @@ public sealed class HttpDispatchTests
     [Arguments(200, "extra", "invalid_response")]
     [Arguments(409, "conflict-run-id", "invalid_response")]
     [Arguments(409, "conflict-missing-message", "invalid_response")]
+    [Arguments(409, "conflict-invalid-utf8", "invalid_response")]
     [Arguments(409, "unknown-code", "TargetError")]
     [Arguments(500, "conflict", "TargetError")]
     [Arguments(500, "canary", "TargetError")]
@@ -168,6 +169,8 @@ public sealed class HttpDispatchTests
             "extra" => $$"""{"runId":"{{intended}}","accepted":true}""",
             "conflict-run-id" => $$"""{"code":"request.conflict","message":"conflict","runId":"{{intended}}"}""",
             "conflict-missing-message" => """{"code":"request.conflict"}""",
+            // Raw 0xFF: malformed text is no valid conflict, so it sets no replay block.
+            "conflict-invalid-utf8" => "{\"code\":\"request.conflict\",\"message\":\"\u00FF\"}",
             "unknown-code" => """{"code":"request.other","message":"other"}""",
             "conflict" => StockTarget.Conflict,
             _ => """{"code":"SECRET_CANARY","message":"SECRET_CANARY","details":{"runId":"SECRET_CANARY"}}"""

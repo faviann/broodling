@@ -199,6 +199,7 @@ public sealed class NativeObservationTests
     [Arguments("unknown", "RunNotFoundError")]
     [Arguments("foreign", "foreign_run")]
     [Arguments("stalled", "TimeoutError")]
+    [Arguments("malformed", "invalid_response")]
     public async Task IntendedHttpProgressIsUnavailableUnlessTheExactRunAnswersInTime(string answer, string reason)
     {
         await using var target = new StockTarget { StallAt = answer == "stalled" ? "run/status" : null };
@@ -209,6 +210,11 @@ public sealed class NativeObservationTests
             target.Reply = (request, id) => (string)request["method"]! != "run/status" ? null
                 : new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["error"] = new JsonObject
                     { ["code"] = -32000, ["message"] = "run was not found", ["data"] = new JsonObject { ["code"] = "NOT_FOUND" } } }.ToJsonString();
+        // The exact run, but one status string is an undecodable lone surrogate.
+        if (answer == "malformed")
+            target.Reply = (request, id) => (string)request["method"]! != "run/status" ? null
+                : new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = DirectTargetSessionTests.Running(run) }
+                    .ToJsonString().Replace("opaque-cursor", "\\uDC00");
         target.Projections.Enqueue(DirectTargetSessionTests.Running(run with { Title = "Another run" }));
         var clock = new FakeTimeProvider();
         fixture.Store.DirectTargetClock = clock;
