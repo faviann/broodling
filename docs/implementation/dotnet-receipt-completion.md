@@ -100,7 +100,7 @@ handback.
 
 ## Durable authority and upgrades
 
-G introduced schema **6**, retained unchanged within the current schema **12**. It uses
+G introduced schema **6**, retained unchanged in the fresh `broodling.application` schema. It uses
 one immutable `attempt_completions` row for the receipt and
 successful disposition. A single row avoids intermediate receipt-only custody;
 an insertion trigger removes current authority in the same transaction. The
@@ -124,13 +124,9 @@ depending on connection-specific recursive-delete triggers. Original schema
 definitions remain frozen. Replacement hardening for provisioning/submission
 rows is not included: the same mutations were permitted by the Python baseline.
 
-Ordinary open now refuses schemas 1–6. Deliberate upgrade retains their original
-definition hashes and applies missing schema changes atomically without
-reinterpreting old facts. The authentic pre-G schema-5 fixture was captured
-from F's public API before these edits; see its
-[provenance](../../tests/Broodling.Tests/Fixtures/README.md). Upgrade witnesses
-compare every prior fact, including frozen native submission, and cover reopen
-and repeated upgrade. Python state/import compatibility is excluded.
+Ordinary open and explicit upgrade refuse pre-transition .NET schemas without
+changing them; see the [state lifecycle](dotnet-identity-custody.md). Python
+state/import compatibility is excluded.
 
 ## Evidence and limits
 
@@ -147,7 +143,7 @@ immutability, justified currentness loss and completed-work admission guards.
 Its two-result historical fixture bypasses only new-admission prohibition while
 seeding the second Attempt; it demonstrates nonunique Work Unit cardinality and
 exact reads, not a supported way to create a new Attempt after completion.
-`StoreLifecycleTests` owns authentic prior-schema upgrades. One composed
+`StoreLifecycleTests` owns unchanged refusal of authentic pre-transition stores. One composed
 `InvocationTests` path covers wait, repeated submit, reopen and offline operator
 handback, without duplicating boundary failure matrices.
 

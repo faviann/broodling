@@ -9,7 +9,7 @@ commands. The retired Python API is preserved at the
 
 | Operation | Current API and owning reference |
 | --- | --- |
-| Initialize, open or explicitly upgrade a store | `BroodlingApplication.InitializeStore/OpenStore/UpgradeStore`: [state lifecycle](dotnet-identity-custody.md) |
+| Initialize or open a store; an upgrade request refuses pre-transition state | `BroodlingApplication.InitializeStore/OpenStore/UpgradeStore`: [state lifecycle](dotnet-identity-custody.md) |
 | Accept and inspect a URL-only Issue submission before Contract preparation | `BroodlingStore.SubmitIssue/FindIssueSubmission/GetIssueSubmission/IssueHistory`: [state lifecycle](dotnet-identity-custody.md) |
 | Retain, resume, complete and read pre-Contract RequestBundle capture | `BeginRequestBundleCapture/RegisterRequestBundleReference/CaptureRequestBundleSource/CaptureRequestBundleGitBlob/CompleteRequestBundleCapture/GetRequestBundle/ReadRequestBundleReference`: [state lifecycle](dotnet-identity-custody.md) |
 | Prepare a service-owned GitHub repository and consume its retained B1 | `PrepareRequestBundleRepositoryAsync/RegisterRequestBundleRepositoryFile/AdmitAttempt(submissionId, workspaceRoot)`: [GitHub preparation](dotnet-github-ingress.md), [B1 custody](dotnet-attempt-allocation.md) |

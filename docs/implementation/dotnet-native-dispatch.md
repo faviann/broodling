@@ -65,7 +65,7 @@ material and current Attempt authority. It acquires C's stable enclosure lock
 before the short SQLite writer and releases both before the external SDK call.
 No subprocess owns that lock during native execution.
 
-F introduced schema **5**, retained within the current schema **12**, with one
+F introduced schema **5**, retained within the fresh `broodling.application` schema, with one
 `native_submissions` row per provisioned Attempt. SQL
 constraints/triggers protect the request/key and permit only
 `prepared → dispatched → correlated|blocked`. Preparation and dispatch require
@@ -107,17 +107,13 @@ requires unchanged persisted invocation, validated owned source/branch/origin,
 and HEAD drift from original B1, checked again after the call. Dirty files alone,
 an error message, or a run ID alone cannot establish recovery.
 
-Ordinary open never creates or upgrades a store. Explicit upgrade recognizes
-the unchanged definition hashes for schemas 1–11 and applies missing migrations in one
-transaction. Schema 8 adds durable Issue submission persistence, schema 9 adds
-the [persisted installation pause](dotnet-installation-pause.md), schema 10 adds
-[RequestBundle capture](dotnet-identity-custody.md#application-api), schema 11 adds
-immutable Issue submission cancellation facts, and schema 12 adds retained
-repository preparation.
-The authentic pre-F schema-4 fixture retains all prior records,
-including first provisioning acknowledgment and abandonment. Upgrade invents no
-past dispatch. Its provenance and exact hashes are in the
-[fixture record](../../tests/Broodling.Tests/Fixtures/README.md).
+Ordinary open never creates a store. Ordinary open and explicit upgrade refuse
+pre-transition schemas 1–12 without changing them; see the
+[state lifecycle](dotnet-identity-custody.md). The fresh schema retains durable
+Issue submission persistence, the
+[persisted installation pause](dotnet-installation-pause.md),
+[RequestBundle capture](dotnet-identity-custody.md#application-api), immutable
+Issue submission cancellation facts and retained repository preparation.
 
 ## Fixed policy and transport
 
@@ -255,8 +251,7 @@ precise stub SDK: **they do not establish real DirectTarget PR delivery**.
 ambient suppression, credential rotation, managed launcher identity and local
 native gateway profile expansion. The expansion uses no target or provider.
 `InvocationTests` keeps composed submit/resume and operator checks small.
-Schema lifecycle tests preserve every retained old fact and ordinary-open
-refusal. All native runs use disposable local controlled providers, no live
+Schema lifecycle tests refuse pre-transition state without changing it. All native runs use disposable local controlled providers, no live
 gateway, forge, provider account, deployment or evaluation.
 
 [G completion](dotnet-receipt-completion.md) implements completed-Work-Unit
@@ -282,10 +277,10 @@ operator review requirements remain.
 | `src/Broodling/NativeBinding.cs` | Retained run binding and the single interpretation of frozen request facts |
 | `src/Broodling/CodexLauncher.cs`, `src/Broodling.Codex/{Program.cs,Broodling.Codex.csproj}` | C# launcher policy, same-PID exec and self-contained packaging |
 | `src/Broodling/Invocation.cs`, `src/Broodling.Host/{InvocationCommands.cs,Program.cs}` | Callable and thin operator submit/resume |
-| `src/Broodling/{StoreSchema.cs,BroodlingStore.cs,ContractAdmission.cs,WorktreeProvisioning.cs,Errors.cs}` | Schema 5/upgrades, retained inspection, materialization guard and typed errors |
+| `src/Broodling/{StoreSchema.cs,BroodlingStore.cs,ContractAdmission.cs,WorktreeProvisioning.cs,Errors.cs}` | Schema, retained inspection, materialization guard and typed errors |
 | `tests/Broodling.Tests/{NativeDispatchTests.cs,NativeTransportTests.cs,NativePolicyTests.cs,DispatchProcessTests.cs,InvocationTests.cs,NativeFixture.cs,StoreLifecycleTests.cs}` | Owning-boundary and small composed witnesses |
 | `tests/Broodling.ProcessWitness/Program.cs` | SIGKILL preparation/dispatch/correlation boundaries |
-| `tests/Broodling.Tests/Fixtures/{dotnet-v4.sql,corrupt-submit.py,receipt-sdk.py,gateway-profile.py,slow-codex,inspect-codex,README.md}` | Authentic schema 4, controlled provider/SDK fixtures and provenance |
+| `tests/Broodling.Tests/Fixtures/{corrupt-submit.py,receipt-sdk.py,gateway-profile.py,slow-codex,inspect-codex,README.md}` | Controlled provider/SDK fixtures and provenance |
 | `Broodling.sln`, `src/Broodling/Broodling.csproj`, `tests/Broodling.Tests/Broodling.Tests.csproj` | Launcher build, bridge packaging and test assets |
 | `README.md`, `docs/implementation/{dotnet-native-dispatch.md,dotnet-worktree-materialization.md,invocation.md,zeroshot-native-integration.md}`, `tests/README.md` | Current migration API, materialization handoff and evidence/limits |
 

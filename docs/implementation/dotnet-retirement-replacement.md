@@ -106,15 +106,15 @@ H integrates with G in historical schema **7**, retaining the exact G schema-6
 DDL and all v1–v6 definition hashes. Issue-submission persistence extends the
 current schema to **8**, retaining those definitions; schema **9** adds
 the persisted installation pause gate, schema **10** adds RequestBundle capture,
-schema **11** adds immutable Issue submission cancellation facts, and current
-schema **12** adds service-owned repository preparation. Recognized older .NET stores require
-deliberate atomic upgrades and ordinary open refuses old schemas. Safe
+schema **11** adds immutable Issue submission cancellation facts, and schema
+**12** adds service-owned repository preparation. The fresh
+`broodling.application` schema retains these definitions; ordinary open and
+explicit upgrade refuse pre-transition stores without changing them. Safe
 replacement allocation and preparation remain permitted while paused, but
 replacement dispatch still requires explicit release.
 Retirement/retry facts resist update, delete and `INSERT OR REPLACE`; SQL refuses
 dispatched cleanup authority and missing/changed retry submission targets.
-No Python database/import compatibility was added. Authentic G6 upgrade evidence
-retains completed and abandoned Attempts alongside all earlier facts. G's
+No Python database/import compatibility was added. G's
 completed-Work-Unit refusal remains in admission/retry/API/SQL, with completed-Attempt
 abandonment refusal, factual current-authority-loss guard and Attempt
 `INSERT OR REPLACE` protection. H replaces only
@@ -133,10 +133,8 @@ constructing the fixture; every guard is restored before testing safe retry.
 `RetirementProcessTests` drives real SQLite/Git with the test-only caller: SIGKILL
 before/after retirement removal, orphan exclusion, premature retry refusal and
 retry allocation/preparation transaction deaths. `InvocationTests` adds one
-composed stop/quarantine/abandonment handback. `StoreLifecycleTests` compares all
-old facts through authentic v1–v8 upgrades, including completion, currentness,
-request/run, provisioning, abandonment and source/Contract/B1 facts. G's authentic
-F schema-5 prepared fixture remains unchanged.
+composed stop/quarantine/abandonment handback. `StoreLifecycleTests` refuses
+authentic pre-transition stores without changing them.
 
 Before G integration, on 22 September 2026, `dotnet test --solution Broodling.sln` passed **238 tests,
 0 failed, 0 skipped**, using SDK 10.0.401, runtime 10.0.12 and TUnit 1.68.17.

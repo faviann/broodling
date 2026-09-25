@@ -28,14 +28,10 @@ F now [composes this seam](dotnet-native-dispatch.md) before dispatch and guards
 `ProvisionAttempt` against every dispatched candidate. Its external SDK call
 releases the stable enclosure lock and SQLite writer after durable intent.
 
-C introduced .NET schema 4; [H lifecycle](dotnet-retirement-replacement.md) uses
-current schema 12 (historical H schema 7, schema-8 Issue submission persistence,
-schema-9 installation pause, schema-10 RequestBundle custody and schema-11
-cancellation facts). Explicit upgrade recognizes unchanged v1–v11 definition hashes and
-applies missing migrations transactionally; ordinary open still
-refuses old schemas. The actual pre-C schema-3 fixture retains its B1,
-allocation and abandonment, alongside all earlier Contract/source facts.
-Upgrade neither fabricates past provisioning nor imports Python state.
+C introduced .NET schema 4; [H lifecycle](dotnet-retirement-replacement.md)
+definitions are retained in the fresh `broodling.application` schema. Ordinary
+open and explicit upgrade refuse pre-transition .NET and Python state without
+changing it; there is no migration or import.
 
 ## Ownership and convergence
 

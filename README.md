@@ -41,7 +41,7 @@ Application behavior is callable without HTTP. Follow the seam you need:
 
 | Operation | Reference |
 | --- | --- |
-| Explicit store initialization/upgrade, Work Unit identity and source custody | [State API](docs/implementation/dotnet-identity-custody.md) |
+| Explicit fresh store initialization, Work Unit identity and source custody | [State API](docs/implementation/dotnet-identity-custody.md) |
 | Supplied-source or explicit GitHub issue admission, typed caller proposer | [Ingress](docs/implementation/work-reference-ingress.md) |
 | Original B1 and owned worktree | [Allocation](docs/implementation/dotnet-attempt-allocation.md), [materialization](docs/implementation/dotnet-worktree-materialization.md) |
 | Submit, inspect, resume, wait and stop | [Invocation](docs/implementation/invocation.md) |

@@ -93,15 +93,12 @@ status/history commands expose the same facts. Observation uses a coherent
 deferred snapshot without reserving the writer; an admitted later revision does
 not inherit another revision's Attempt.
 
-B introduced .NET schema 3; the current schema 12 retains H's schema-7
-definitions, schema-8 Issue submission persistence, schema-9 installation pause
-and schema-10 RequestBundle custody, schema-11 cancellation facts and schema-12
-repository preparation. Explicit `UpgradeStore` recognizes unchanged v1–v11
-definition identities, applies
-missing migrations in one transaction and preserves existing facts. Ordinary
-open refuses old versions. Authentic retained
-[fixtures](../../tests/Broodling.Tests/Fixtures/README.md) exercise this;
-there is no Python schema compatibility or import.
+B introduced .NET schema 3; the fresh `broodling.application` schema retains H's
+definitions, Issue submission persistence, installation pause, RequestBundle
+custody, cancellation facts and repository preparation. Ordinary open and
+`UpgradeStore` refuse pre-transition .NET and Python state without changing it;
+there is no upgrade, schema compatibility or import. See the
+[state lifecycle](dotnet-identity-custody.md).
 
 ## Evidence and next slices
 

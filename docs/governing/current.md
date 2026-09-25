@@ -148,6 +148,10 @@ runtime state and DirectTarget state/home are durable operating state. Preserve
 their identities and absolute paths as described by the operations guide. .NET
 uses deliberate separate fresh state; the owner must choose drain or explicit
 abandon-and-retain for existing Python work before any operational switch.
-There is no import, in-flight takeover or implicit deletion authority. The
+There is no import, in-flight takeover or implicit deletion authority.
+The DirectTarget HTTP integration likewise requires an explicitly initialized
+fresh `broodling.application` store: ordinary open and `upgrade-store` refuse
+pre-transition .NET, Python and foreign stores without changing them or their
+associated resources. The
 separate #77 smoke environment was disposable and has been removed; its committed
 validation record remains.

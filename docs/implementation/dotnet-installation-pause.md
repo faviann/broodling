@@ -108,8 +108,6 @@ checks. Replacement execution/dispatch still enters the ordinary dispatch gate
 and requires release. Correlated reads, startup observation and result capture
 do not check the pause.
 
-Schema 9 adds `installation_control` to the unchanged schema-8 definitions.
-Ordinary open refuses schemas 7 and 8; explicit upgrade adds the table and the
-default unpaused row atomically after applying any earlier recognized
-migrations. The authentic schema-8 fixture is
-`tests/Broodling.Tests/Fixtures/dotnet-v8.sql`.
+Initialization creates `installation_control` with the default unpaused row.
+Pre-transition stores are refused unchanged rather than upgraded, so an
+existing persisted pause is neither released nor carried over.

@@ -124,27 +124,31 @@ refuse source updates/deletes, identity rewrites/unpinning and submission rewrit
 ## State lifecycle and persistence decision
 
 Initialization exclusively reserves a new filesystem path and creates a distinct
-`broodling.dotnet` schema (currently version 12). It refuses existing files and orphan SQLite
+`broodling.application` schema (version 1). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
 Store paths inside a marked disposable Attempt enclosure refuse, including paths
 through parent symlinks. Caller paths containing malformed UTF-16 refuse with
 `invalid_store_path` before physical path resolution or any filesystem access:
 a lone surrogate cannot create, open or upgrade a legitimate U+FFFD filename.
 Well-formed replacement and supplementary characters remain valid path text.
-Open uses SQLite read/write mode without create, checks
-format/version/definition and retained schema manifest, then configures WAL and
-full synchronization. An incompatible or unknown file is not initialized or
-rewritten. Foreign keys and immediate write transactions enforce custody.
+Open first checks format/version/definition, retained schema manifest and
+installation control through an immutable read of the main file alone, so
+refusal never replays a journal, checkpoints a WAL or creates sidecars. Only a
+current store is then opened in SQLite read/write mode without create, checked
+again and configured for WAL and full synchronization. An incompatible or
+unknown file is not initialized or rewritten. Foreign keys and immediate write
+transactions enforce custody.
 
-`UpgradeStore` accepts an already-current store unchanged and explicitly upgrades
-recognized .NET versions 1–11 to version 12 in one transaction, preserving retained
-facts and initialization identity. Schema 11 retains the immutable Issue submission
-cancellation facts; schema 12 adds service-owned repository preparation. Ordinary open refuses historical versions.
-The [H reference](dotnet-retirement-replacement.md#explicit-replacement-and-schema)
-completed-RequestBundle regression plus the schema-11-to-12 migration regression exercise upgrades,
-including preservation of an existing paused installation from schema 9.
-Python databases, migration history and imports are intentionally unsupported;
-they must remain at separate paths and must never be silently replaced.
+The HTTP integration requires fresh state. Pre-transition `broodling.dotnet`
+stores (schemas 1–12), Python databases and foreign files are unsupported:
+ordinary open and `UpgradeStore` refuse them with `incompatible_store` without
+changing their files, and there is no migration, import or history reader.
+`UpgradeStore` accepts an already-current store unchanged; this format has no
+earlier version to upgrade. Until the first build carrying this format ships,
+schema additions edit the version-1 definition in place; a store initialized
+from an earlier in-progress definition fails the definition-hash check and is
+refused, not upgraded. Existing stores must remain at separate paths and must
+never be silently replaced.
 
 Direct `Microsoft.Data.Sqlite` 10.0.12 is used instead of EF Core. The operations
 need explicit writer acquisition, short atomic writes, immutable SQL constraints
@@ -172,7 +176,9 @@ TUnit tests use real SQLite for canonical replay/reopen, per-component
 non-aliasing, concurrent identity/source convergence, competing pins, atomic
 rollback, immutable source bytes/provenance and direct SQL amendment refusal.
 Lifecycle cases preserve existing bytes when open/upgrade/initialize refuse
-missing, foreign, Python-shaped, corrupt or incompatible state. These supplement
+missing, foreign, Python-shaped, corrupt or incompatible state, including
+authentic pre-transition schema-1, -10 and -12 stores and a schema-12 store
+whose last write exists only in an uncheckpointed WAL. These supplement
 the [exact frozen Python baseline](../migration/130-baseline-validation.md);
 the [retirement record](../migration/140-retirement.md) describes the current gate.
 

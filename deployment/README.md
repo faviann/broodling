@@ -38,8 +38,9 @@ consistent backup. Do not run two implementations against that authority.
 .NET starts with a deliberately chosen **separate fresh store and paths**; there
 is no Python database import, reinterpretation or in-flight takeover. Ordinary
 open refuses missing/foreign/old schemas. Restore a missing existing store;
-do not initialize an empty replacement. Explicit `upgrade-store` applies only
-to supported earlier **.NET** schemas, preserving retained facts.
+do not initialize an empty replacement. The DirectTarget HTTP integration also
+requires fresh state: ordinary open and `upgrade-store` refuse pre-transition
+**.NET** stores unchanged; there is no .NET upgrade or import path.
 
 The owner decision is a future operational gate, not a prerequisite for finishing
 source retirement. This guide and #140 authorize no deployment, state switch,
@@ -127,10 +128,10 @@ dotnet /RELEASE/host/Broodling.Host.dll initialize-store /NEW/state.sqlite3
 dotnet /RELEASE/host/Broodling.Host.dll history /NEW/state.sqlite3 OWNER/REPO 123
 ```
 
-Initialization exclusively creates a new path. For supported old .NET state,
-stop callers, make a consistent backup and deliberately use
-`dotnet /RELEASE/host/Broodling.Host.dll upgrade-store /EXISTING/DOTNET/state.sqlite3`. Current format is
-`broodling.dotnet`, schema **10**; v1–v9 require explicit upgrade. Use the
+Initialization exclusively creates a new path. Current format is
+`broodling.application`, schema **1**. Pre-transition `broodling.dotnet`
+stores (schemas 1–12) are unsupported and `upgrade-store` refuses them without
+change; leave them and their associated resources in place. Use the
 persisted installation pause/status/release commands for operator maintenance;
 they do not stop native execution or prove container cessation.
 See [state lifecycle](../docs/implementation/dotnet-identity-custody.md).
