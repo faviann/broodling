@@ -55,7 +55,7 @@ RequestBundle through the checkpoint API. It then associated each submission
 with a pull-request Contract that has no RequestBundle binding: admitted
 through `AdmitSources` for issue 12, and recorded with `RecordContractRevision`
 but undecided for issue 13. `RequestAdmissionTests` restores it to check that
-neither association is returned, admitted or converted into bundle authority.
+both associations stay readable but acquire no admission or Attempt authority.
 Python's `sqlite3.Connection.iterdump` produced the dump.
 
 - Application assembly SHA-256: `ced6bc100eed4d14b459636b3733ef3f76bc63ea283b2ba61875581e541217c6`.

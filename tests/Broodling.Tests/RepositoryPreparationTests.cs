@@ -183,9 +183,9 @@ public sealed class RepositoryPreparationTests
 
         var admitted = store.AdmitRequestBundle(submission.SubmissionId, ContractIngressTests.Propose, "caller");
         await Assert.That(admitted.Revision.Contract.RequiredEffects.Single().TargetBranch).IsEqualTo("main");
-        // The caller cannot choose another start for bundle-bound authority.
-        await Assert.That(() => store.AdmitHttpAttempt(admitted.Revision.ContractRevisionId, prepared.Repository, "main"))
-            .Throws<AttemptAdmissionError>();
+        // The caller cannot choose another start, such as the moved upstream tip, for bundle-bound authority.
+        await Assert.That(() => store.AdmitHttpAttempt(admitted.Revision.ContractRevisionId, prepared.Repository,
+            "refs/broodling/upstream/main")).Throws<AttemptAdmissionError>();
         var attempt = store.AdmitHttpAttempt(submission.SubmissionId);
         await Assert.That(attempt.ResourceKind).IsEqualTo(AttemptRecord.Http);
         await Assert.That(RunGit(prepared.Repository, "rev-parse", "refs/broodling/starting/" + prepared.StartingCommit).Trim())

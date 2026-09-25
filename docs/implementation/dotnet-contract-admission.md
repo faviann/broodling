@@ -85,12 +85,7 @@ pause checks. The decision also moves the submission from `capturing` to
 undecided revision. A later call decides it without calling the proposer again,
 and it returns an existing decision even while paused, as `Admit` does. A new
 proposal refuses under pause, and a cancelled submission is refused before the
-proposer runs. Replay requires the associated Contract to be bound to the
-submission's exact completed bundle identity and manifest digest. State written
-before #111 can associate a completed bundle with an unbound Contract. Replay
-refuses that association with `IssueSubmissionConflict`, creates no decision and
-never converts it into bundle authority. `AdmitHttpAttempt(submissionId)`
-refuses it too. When concurrent callers propose for one submission, the first
+proposer runs. When concurrent callers propose for one submission, the first
 association wins. The other caller discards its uncommitted proposal and returns
 the winning revision's status.
 
@@ -100,8 +95,23 @@ omitted when absent: Contracts recorded without a bundle keep their exact bytes
 and identities. Public `RecordContractRevision` refuses a bound Contract, and
 `AssociateIssueSubmission` gives a bundled submission only a Contract bound to
 its own bundle. Each bound revision therefore belongs to one submission, and its
-admission is always submission-guarded. An Attempt for it starts only from the
-retained preparation through `AdmitHttpAttempt(submissionId)`.
+admission is always submission-guarded.
+
+One store rule governs progression. Once an associated Issue submission's
+RequestBundle has completed, the revision must carry exactly that bundle's
+identity and manifest digest. `Admit`, every Attempt admission and replacement
+check this rule in their committing transaction, before any replay. So do
+`AdmitRequestBundle` replay, because it decides through `Admit`, and
+`AssociateIssueSubmission`, including its idempotent replay. A bound Contract's
+Attempt must also start from exactly the bundle's retained preparation. A
+caller-selected repository or revision is refused.
+
+State written before #111 can associate a completed bundle with an unbound
+Contract. That association stays readable through `Status`, `History` and
+submission reads. Every route that would decide it, confirm it or start or
+replace an Attempt from it refuses with `IssueSubmissionConflict`, and nothing is
+converted into bundle authority. Revisions with no bundled submission, including
+supplied-source Contracts, use the revision-based APIs unchanged.
 
 ## Persistence, recovery and observation
 

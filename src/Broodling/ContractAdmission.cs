@@ -162,7 +162,7 @@ public sealed partial class BroodlingStore
             throw new InvalidContractProposal("A proposer is required.");
         var submission = GetIssueSubmission(submissionId);
         if (submission.ContractRevisionId is { } bound)
-            return BoundAdmission(submissionId, bound);
+            return BoundAdmission(bound);
         RequireUnpaused();
         if (submission.State == "cancelled")
             throw new IssueSubmissionConflict("A cancelled Issue submission cannot acquire Contract authority.");
@@ -190,18 +190,11 @@ public sealed partial class BroodlingStore
                 transaction.Commit();
             }
         }
-        return BoundAdmission(submissionId, revisionId);
+        return BoundAdmission(revisionId);
     }
 
-    /// <summary>
-    /// Decide or replay an associated revision only when it is bound to the submission's exact
-    /// completed bundle. An older association to an unbound Contract is refused, never admitted
-    /// or converted into bundle authority.
-    /// </summary>
-    private AdmissionStatus BoundAdmission(string submissionId, string revisionId)
+    private AdmissionStatus BoundAdmission(string revisionId)
     {
-        if (GetContractRevision(revisionId).Contract.RequestBundle != Binding(GetRequestBundle(submissionId)))
-            throw new IssueSubmissionConflict("The Issue submission's Contract is not bound to its completed RequestBundle.");
         Admit(revisionId);
         return Status(revisionId);
     }
@@ -209,6 +202,29 @@ public sealed partial class BroodlingStore
     /// <summary>The binding a Contract admitted from this bundle carries; none until it completes.</summary>
     private static ContractRequestBundle? Binding(RequestBundle? bundle) =>
         bundle is { State: "complete" } ? new(bundle.BundleId, bundle.ManifestSha256!) : null;
+
+    /// <summary>
+    /// The one authority rule for progressing a revision: once an associated Issue submission's
+    /// RequestBundle completed, the revision must carry exactly that bundle's binding. An older
+    /// association to an unbound Contract stays readable but acquires no admission or Attempt
+    /// through any route. Returns the bound bundle, or null for an ordinary unbundled revision.
+    /// </summary>
+    private RequestBundle? RequireBundleAuthority(ContractRevision revision, SqliteTransaction transaction)
+    {
+        var submissions = new List<string>();
+        using (var command = Command("SELECT submission_id FROM issue_submissions WHERE contract_revision_id = $p0",
+            transaction, revision.ContractRevisionId))
+        using (var row = command.ExecuteReader())
+            while (row.Read()) submissions.Add(row.GetString(0));
+        RequestBundle? bound = null;
+        foreach (var bundle in submissions.Select(id => ReadRequestBundle(id, transaction)).OfType<RequestBundle>())
+        {
+            if (revision.Contract.RequestBundle != Binding(bundle))
+                throw new IssueSubmissionConflict("The Contract is not bound to its Issue submission's completed RequestBundle.");
+            bound = bundle;
+        }
+        return bound;
+    }
 
     /// <summary>
     /// Take the attributed Executable Request and the PR target from the digest-verified manifest,
@@ -348,6 +364,7 @@ public sealed partial class BroodlingStore
         using var transaction = connection.BeginTransaction(deferred: false);
         var revision = ReadRevision(revisionId, transaction) ?? throw new UnknownRecord("Unknown Contract revision.");
         RequireIssueSubmissionNotCancelled(revisionId, transaction);
+        RequireBundleAuthority(revision, transaction);
         var existing = ReadDecision(revisionId, transaction);
         if (existing is not null)
         {

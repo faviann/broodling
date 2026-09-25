@@ -158,12 +158,8 @@ public sealed partial class BroodlingStore
             ?? throw new UnknownRecord("Unknown Issue submission.");
         if (submission.State == "cancelled")
             throw new IssueSubmissionConflict("A cancelled Issue submission cannot acquire Contract authority.");
-        if (submission.ContractRevisionId is { } existing)
-        {
-            if (existing != contractRevisionId)
-                throw new IssueSubmissionConflict("The Issue submission is already bound to another Contract revision.");
-            return submission;
-        }
+        if (submission.ContractRevisionId is { } existing && existing != contractRevisionId)
+            throw new IssueSubmissionConflict("The Issue submission is already bound to another Contract revision.");
 
         var revision = ReadRevision(contractRevisionId, transaction)
             ?? throw new UnknownRecord("Unknown Contract revision.");
@@ -175,8 +171,11 @@ public sealed partial class BroodlingStore
         var bundle = ReadRequestBundle(submissionId, transaction);
         if (bundle is { State: not "complete" })
             throw new IssueSubmissionConflict("The Issue submission's RequestBundle must complete before Contract association.");
+        // Checked on replay too: an older unbound association is not confirmed as bundle authority.
         if (revision.Contract.RequestBundle != Binding(bundle))
             throw new IssueSubmissionConflict("The Contract revision is not bound to this Issue submission's RequestBundle.");
+        if (submission.ContractRevisionId is not null)
+            return submission;
         Execute("UPDATE issue_submissions SET contract_revision_id = $p0 WHERE submission_id = $p1", transaction,
             contractRevisionId, submissionId);
         return ReadIssueSubmission(submissionId, transaction)!;

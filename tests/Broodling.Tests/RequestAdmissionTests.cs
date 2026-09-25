@@ -159,25 +159,32 @@ public sealed class RequestAdmissionTests
     }
 
     [Test]
-    [Arguments(12)]
-    [Arguments(13)]
-    public async Task EarlierUnboundAssociationIsNeitherReturnedNorAdmittedAsBundleAuthority(int issue)
+    public async Task EarlierUnboundAssociationsStayReadableButAcquireNoAuthorityThroughAnyRoute()
     {
         // Authentic pre-#111 state: issue 12's completed bundle was associated with an admitted
         // unbound Contract, issue 13's with a recorded but undecided one.
+        using var git = new AttemptFixture();
         using var fixture = new StoreFixture();
         StoreLifecycleTests.Restore(fixture.Path, "application-v1-unbound-association.sql");
         using var store = fixture.Open();
-        var submission = store.FindIssueSubmission($"https://github.com/acme/widget/issues/{issue}")!;
-        var decision = store.FindAdmissionDecision(submission.ContractRevisionId!)?.DecisionId;
+        var admitted = store.FindIssueSubmission("https://github.com/acme/widget/issues/12")!;
+        var undecided = store.FindIssueSubmission("https://github.com/acme/widget/issues/13")!;
 
-        await Assert.That(() => store.AdmitRequestBundle(submission.SubmissionId,
+        await Assert.That(() => store.AdmitRequestBundle(admitted.SubmissionId,
             _ => throw new InvalidOperationException("An associated submission was proposed."), "caller"))
             .Throws<IssueSubmissionConflict>();
-        await Assert.That(() => store.AdmitHttpAttempt(submission.SubmissionId)).Throws<AttemptAdmissionError>();
-        await Assert.That(store.FindAdmissionDecision(submission.ContractRevisionId!)?.DecisionId).IsEqualTo(decision);
-        var retained = store.GetIssueSubmission(submission.SubmissionId);
-        await Assert.That((retained.State, retained.ContractRevisionId)).IsEqualTo((submission.State, submission.ContractRevisionId));
+        await Assert.That(() => store.AssociateIssueSubmission(admitted.SubmissionId, admitted.ContractRevisionId!))
+            .Throws<IssueSubmissionConflict>();
+        await Assert.That(() => store.AdmitHttpAttempt(admitted.ContractRevisionId!, git.Repository, git.Head))
+            .Throws<IssueSubmissionConflict>();
+        await Assert.That(() => store.Admit(undecided.ContractRevisionId!)).Throws<IssueSubmissionConflict>();
+
+        var status = store.Status(admitted.ContractRevisionId!);
+        await Assert.That(status.Decision!.Admitted).IsTrue();
+        await Assert.That(status.Attempts).IsEmpty();
+        await Assert.That(store.FindAdmissionDecision(undecided.ContractRevisionId!)).IsNull();
+        await Assert.That(store.GetIssueSubmission(undecided.SubmissionId).ContractRevisionId)
+            .IsEqualTo(undecided.ContractRevisionId);
     }
 
     private static string Request(params string[] declarations) =>

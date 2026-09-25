@@ -37,11 +37,12 @@ repository preparation. It requires the submission's Contract to be bound to tha
 bundle, whose [admission](dotnet-contract-admission.md#bundle-bound-admission)
 already fixed the retained PR target. It uses the retained service-owned bare
 repository as the Git common directory and records the retained exact starting
-commit and requested branch ref as B1. A later repository default, caller input
-or moving branch cannot retarget this prepared environment, and the
-revision-based `AdmitHttpAttempt` refuses a bundle-bound Contract. A submission
-without a bound Contract is refused with `AttemptAdmissionError`, or
-`UnknownRecord` when it has no RequestBundle. The explicit local overload
+commit and requested branch ref as B1. Every Attempt route, including the
+revision-based ones and replacement, applies the store's
+[bundle authority rule](dotnet-contract-admission.md#bundle-bound-admission). A
+later repository default, caller input or moving branch therefore cannot retarget
+a bound Contract. An unbound association with a completed bundle cannot start an
+Attempt. A submission without a RequestBundle is refused with `UnknownRecord`. The explicit local overload
 validates its original caller checkout path before the shared admission core.
 
 The supported checkout profile is checked before status can invoke conversion
