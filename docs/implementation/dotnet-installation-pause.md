@@ -27,8 +27,8 @@ and `inFlightInitiationDrained`. The last two are independent facts:
   conflict does not settle it, and neither do abandonment, stop, a terminal or
   unknown-run observation, local drainage or verified maintenance retirement.
   A LocalTarget bridge conflict (`blocked`) is not counted. A counted entry whose
-  Attempt has a `stopped_target` retirement is not executing: the target was
-  verified stopped, and restart over the same ledger ends any such run.
+  Attempt has a `stopped_target` retirement is one the host procedure recorded as
+  stopped with its target; restart over the same ledger ends any such run.
 - `inFlightInitiationDrained` is true when no local process holds the
   installation initiation lock at the moment of the reading. It is a local fact
   only; it does not prove that no external submission can still create a run.

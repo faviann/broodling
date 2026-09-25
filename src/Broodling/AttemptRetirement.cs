@@ -161,42 +161,43 @@ public sealed partial class BroodlingStore
     /// <summary>
     /// Retire a dispatched HTTP Attempt during verified maintenance. The host procedure stops the target
     /// and supplies a current check on every call; this records it with the retirement and deletes nothing.
-    /// It requires the pause, a check made after that pause took effect and naming this Attempt's target,
+    /// It requires the pause, a complete check made during that pause and naming this Attempt's target,
     /// no local dispatch still initiating, a non-current (abandoned or completed) Attempt with dispatch
     /// intent, and its retained B1 and accepted pins. Drainage is required, never authority by itself.
     /// A submission without correlation stays <c>dispatched</c>. Replacement remains a separate operation.
+    /// An existing retirement is returned unchanged, whatever its basis.
     /// </summary>
     public AttemptRetirement RetireStoppedTargetAttempt(string attemptId, StoppedTargetCheck check)
     {
         if (FindRetirement(attemptId) is { RetiredAt: not null } retired) return retired;
-        // Retention is checked outside the writer: Git and SQLite cannot share a transaction, and pins are never removed.
-        var attempt = GetAttempt(attemptId);
-        if (attempt.ResourceKind == AttemptRecord.Http)
-        {
-            GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
-            if (FindCompletion(attemptId) is { } completion)
-                GitCustody.RequireAcceptedRetained(attempt.B1.Repository, completion.AcceptedRevision);
-        }
+        if (new[] { check.DirectOrigin, check.ContainerName, check.StateMount, check.HomeMount }.Any(string.IsNullOrWhiteSpace))
+            throw new MaintenanceUnverified("The stopped-target check is incomplete.");
         using var transaction = connection.BeginTransaction(deferred: false);
         if (ReadRetirement(attemptId, transaction) is { RetiredAt: not null } retained) { transaction.Commit(); return retained; }
         var control = ReadInstallationControl(transaction);
         if (!control.IsPaused)
             throw new MaintenanceUnverified("Maintenance retirement requires the installation pause.");
-        if (check.VerifiedAt < DateTimeOffset.Parse(control.ChangedAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind))
-            throw new MaintenanceUnverified("The stopped-target check predates the current pause; verify the target again.");
+        // Host and application share a clock. A future check would otherwise outlive a later release and re-pause.
+        if (check.VerifiedAt < DateTimeOffset.Parse(control.ChangedAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+            || check.VerifiedAt > DateTimeOffset.UtcNow)
+            throw new MaintenanceUnverified("The stopped-target check was not made during the current pause; verify the target again.");
         // A sender that committed intent before the stop holds this lock until its send returns.
         if (!AdministrativeGitProcess.EnclosureLock.IsFree(Path))
             throw new MaintenanceUnverified("A local dispatch is still initiating.");
-        attempt = ReadAttempt(attemptId, transaction);
+        var attempt = ReadAttempt(attemptId, transaction);
         if (attempt.ResourceKind != AttemptRecord.Http || attempt.IsCurrent
             || ReadSubmission(attemptId, transaction) is not { Format: NativeSubmission.Http, State: not "prepared" } submission)
             throw new CessationUnconfirmed("Maintenance retirement requires a non-current DirectTarget Attempt with dispatch intent.");
         if (check.DirectOrigin != submission.Locator.Address)
             throw new MaintenanceUnverified("The stopped-target check names another target.");
+        // Short local ref reads under the writer, against the Attempt and completion read here.
+        GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
+        if (ReadCompletion(attemptId, transaction) is { } completion)
+            GitCustody.RequireAcceptedRetained(attempt.B1.Repository, completion.AcceptedRevision);
         Execute("""
             INSERT INTO attempt_retirements (attempt_id, basis, ceased_at, stopped_target_json)
             VALUES ($p0, 'stopped_target', $p1, $p2)
-            """, transaction, attemptId, check.VerifiedAt.ToString("O", CultureInfo.InvariantCulture),
+            """, transaction, attemptId, check.VerifiedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
             JsonSerializer.Serialize(check, CheckJson));
         return AcknowledgeRetirement(attemptId, transaction);
     }

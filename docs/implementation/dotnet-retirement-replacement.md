@@ -145,26 +145,28 @@ dotnet /RELEASE/host/Broodling.Host.dll retire-attempt /EXISTING/DOTNET/state.sq
 ```
 
 `RetireStoppedTargetAttempt(attemptId, StoppedTargetCheck)` records every member
-as supplied; parsing requires all of them and nothing else. Under one SQLite
-writer it requires the persisted pause, `verifiedAt` at or after that pause took
-effect (an earlier check never carries over a release or interruption), the
-check's origin equal to the Attempt's retained binding origin, a drained
-initiation lock, a non-current HTTP Attempt (abandoned or completed) with
-dispatch intent, and, checked beforehand in Git, its B1 pin and any accepted
-pin. Drainage is an additional condition, never authorization: a sender that
+as supplied and refuses a blank one; the command parser also requires each member
+exactly once, exactly spelled, and nothing else. Under one SQLite writer it
+requires the persisted pause, `verifiedAt` no earlier than that pause took effect
+and no later than now (host and application share a clock, so an earlier or
+future check never carries over a release or interruption), the check's origin
+equal to the Attempt's retained binding origin, a drained initiation lock, a
+non-current HTTP Attempt (abandoned or completed) with dispatch intent, and its
+B1 pin and any accepted pin, read from Git while the writer is held. Drainage is an additional condition, never authorization: a sender that
 committed intent before the stop holds that lock until its send returns.
 Pause/check/drainage refusals are `maintenance_unverified`; ineligible Attempts
 are `cessation_unconfirmed`. A native terminal label, a stop result, local
 drainage or a missing directory grants nothing on its own.
 
-Success inserts basis `stopped_target`, `ceased_at = verifiedAt`, the check JSON
+Success inserts basis `stopped_target`, `ceased_at` (`verifiedAt` in UTC), the check JSON
 and `retired_at` in one transaction. SQL ties that basis to a non-current HTTP
 Attempt with dispatch intent while paused. Nothing is deleted: an HTTP Attempt
 owns no Broodling worktree, and Zeroshot's checkout and ledger are native state.
 Frozen request/asset, B1 and accepted pins, receipt and completion stay; a
 completed Attempt is retired without abandonment. An uncorrelated submission
 stays `dispatched` and counted in `unresolvedDispatches`. A retained retirement
-is returned unchanged on repeat. Replacement still refuses dispatched
+is returned unchanged on repeat, whatever its basis, so the host procedure must
+check the returned `basis` rather than treat exit 0 as its own verified retirement. Replacement still refuses dispatched
 predecessors; widening it belongs to #123. LocalTarget worktree Attempts keep the
 policy above.
 

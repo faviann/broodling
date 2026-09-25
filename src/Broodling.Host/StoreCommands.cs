@@ -57,13 +57,15 @@ public static class StoreCommands
         }
     }
 
-    /// <summary>Every member is required and nothing else is accepted; the host procedure supplies the facts.</summary>
+    /// <summary>Every member is required, exactly once and exactly spelled; nothing else is accepted.</summary>
     private static StoppedTargetCheck ParseStoppedTargetCheck(string json)
     {
         try
         {
             return JsonSerializer.Deserialize<StoppedTargetCheck>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web)
             {
+                PropertyNameCaseInsensitive = false,
+                AllowDuplicateProperties = false,
                 UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
                 RespectRequiredConstructorParameters = true,
                 RespectNullableAnnotations = true
