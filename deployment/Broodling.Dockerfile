@@ -3,8 +3,8 @@
 # from the repository root:
 #   docker build -f deployment/Broodling.Dockerfile -t broodling:REVISION .
 # It carries no gh, Python, SDK, Codex launcher or native client. The invocation commands (submit,
-# resume, wait, stop), retire-attempt and replace-attempt run from the release artifact on a host with gh and the
-# caller checkout's common Git directory.
+# resume, wait, stop), retire-attempt and replace-attempt run from the release artifact on a host
+# with gh and the caller checkout's common Git directory.
 
 # The official SDK wheel, only for its pinned native binary (the same pin as bridge/requirements.txt).
 FROM scratch AS wheel

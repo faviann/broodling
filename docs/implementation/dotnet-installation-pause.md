@@ -125,8 +125,8 @@ successor while paused, because it does not dispatch and its predecessor has
 already completed the existing abandonment/retirement/current-authority
 checks. Replacement of work retired under verified `stopped_target` maintenance
 goes further: its admission and first preparation require the pause. Replacement
-execution/dispatch still enters the ordinary dispatch gate and requires release. Correlated reads, startup observation and result capture
-do not check the pause.
+execution/dispatch still enters the ordinary dispatch gate and requires release.
+Correlated reads, startup observation and result capture do not check the pause.
 
 Initialization creates `installation_control` with the default unpaused row.
 A pre-transition store is not opened (see the

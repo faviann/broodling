@@ -101,16 +101,16 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// Admit and prepare one explicit HTTP successor, never dispatching it. It targets the predecessor's
-    /// retained DirectTarget origin, which verified maintenance checked. Repeating it returns the
-    /// successor's existing submission unchanged.
+    /// retained DirectTarget origin; for a <c>stopped_target</c> predecessor that is the origin its
+    /// maintenance check named. Repeating it returns the successor's existing submission unchanged.
     /// </summary>
     public NativeSubmission PrepareRetry(string predecessorId, string retryKey)
     {
-        var attempt = AdmitRetry(predecessorId, retryKey);
-        if (FindSubmission(attempt.AttemptId) is { } existing) return existing;
+        // Resolved first, so a predecessor without a retained origin leaves no successor behind.
         var origin = FindSubmission(predecessorId)?.Locator.Address
             ?? throw new SubmissionNotReady("The predecessor has no retained DirectTarget origin.");
-        return PrepareHttpSubmission(attempt.AttemptId, origin);
+        var attempt = AdmitRetry(predecessorId, retryKey);
+        return FindSubmission(attempt.AttemptId) ?? PrepareHttpSubmission(attempt.AttemptId, origin);
     }
 
     public NativeSubmission PrepareRetry(string predecessorId, string retryKey, string workspaceRoot, NativeProfile profile)

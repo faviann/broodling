@@ -245,6 +245,9 @@ public sealed class ReplacementTests
             fixture.Commit("today's HEAD must not become B1\n");
             local = fixture.LocalResources();
             store.PauseInstallation(); // Explicit safe replacement allocation remains permitted while paused.
+            // Without a retained origin the one-call operation refuses before admitting anything.
+            await Assert.That(() => store.PrepareRetry(original.AttemptId, "replace")).Throws<SubmissionNotReady>();
+            await Assert.That(store.FindRetry("replace")).IsNull();
             successor = Retry();
             await Assert.That(successor.AttemptId == original.AttemptId).IsFalse();
             await Assert.That(successor.ResourceKind).IsEqualTo(AttemptRecord.Http);
@@ -298,7 +301,6 @@ public sealed class ReplacementTests
         store.PauseInstallation();
         var prepared = store.PrepareRetry(original.AttemptId, "after-maintenance");
         await Assert.That(prepared.AttemptId).IsEqualTo(successor.AttemptId);
-        await Assert.That(successor.AttemptId == original.AttemptId).IsFalse();
         await Assert.That(successor.ContractRevisionId).IsEqualTo(original.ContractRevisionId);
         await Assert.That(successor.B1).IsEqualTo(original.B1);
         await Assert.That(successor.ResourceKind).IsEqualTo(AttemptRecord.Http);

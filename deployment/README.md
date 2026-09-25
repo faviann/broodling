@@ -158,8 +158,8 @@ as PID 1.
   The store-only commands `upgrade-store`, `status`, `history` and the
   installation pause commands work the same way.
 - The invocation commands (`submit`, `resume`, `wait`, `stop`),
-  `retire-attempt` and `replace-attempt` are not supported in the image in this revision; run them
-  from the release artifact. `submit` acquires the issue and repository through
+  `retire-attempt` and `replace-attempt` are not supported in the image in this
+  revision; run them from the release artifact. `submit` acquires the issue and repository through
   `gh`, which the image lacks, so it refuses with `github_source_error`. An
   Attempt's source custody is the common Git directory of the caller checkout
   named to `submit`, at its host path, which the image does not mount.
@@ -659,9 +659,11 @@ cancelled wait only detaches. Restore access to the same target and wait again.
 Stop records abandonment first, then requests native stop when the run is known.
 A dispatched Attempt returns cessation refusal/quarantine even after terminal
 stop. Unknown correlation is never redispatched to discover a run. Explicit
-never-dispatched retirement and replacement remain [callable operations](../docs/implementation/dotnet-retirement-replacement.md),
-not an automatic CLI recovery sequence; only replacement after verified
-maintenance retirement has the `replace-attempt` command.
+never-dispatched retirement and replacement remain
+[callable operations](../docs/implementation/dotnet-retirement-replacement.md),
+not an automatic CLI recovery sequence. `replace-attempt` replaces an abandoned,
+retired HTTP predecessor at its retained origin; only a `stopped_target`
+predecessor requires the pause.
 
 ### Bundled Contract proposer
 

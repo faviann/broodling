@@ -189,10 +189,13 @@ dotnet /RELEASE/host/Broodling.Host.dll replace-attempt /EXISTING/DOTNET/state.s
 ```
 
 It calls `PrepareRetry(predecessorId, retryKey)`, which admits the successor and
-prepares its submission at the predecessor's retained origin, the one the check
-verified, and prints that prepared submission (`attemptId`, `intendedRunId`,
+prepares its submission at the predecessor's retained origin, here the one the
+check named, and prints that prepared submission (`attemptId`, `intendedRunId`,
 `state`). Repeating it with the same key prints the successor's existing
-submission. Both the successor's admission and its first preparation require the
+submission. A predecessor without a retained origin is refused before anything is
+admitted. The command also replaces an HTTP predecessor retired with
+`no_dispatch_intent`, which needs no pause. For a `stopped_target` predecessor,
+both the successor's admission and its first preparation require the
 persisted pause, checked under the writer (`maintenance_unverified` otherwise), so
 a successor admitted before a release cannot be prepared, by any caller, until the
 installation is paused again. The command never dispatches: after
@@ -215,10 +218,10 @@ current Attempt. The retirement is either a safe never-dispatched proof or, for 
 HTTP predecessor only, [verified maintenance](#verified-maintenance-retirement)
 with basis `stopped_target` (#123). The predecessor keeps its dispatched history,
 including an unresolved dispatch still counted in `unresolvedDispatches`; its
-successor gets its own Attempt identity, submission key and intended run ID. It validates original object custody and source bytes, never
-resolving today's HEAD or original requested spelling anew, and never salvaging
-candidate edits. The successor preserves Work Unit, Contract and original B1/
-source bindings with a new branch/enclosure/worktree. One SQLite transaction
+successor gets its own Attempt identity, submission key and intended run ID. It
+validates original object custody and source bytes, never resolving today's HEAD
+or original requested spelling anew, and never salvaging candidate edits. The
+successor preserves Work Unit, Contract and original B1/source bindings with a new branch/enclosure/worktree. One SQLite transaction
 retains its key, lineage, chosen root/full target and allocation before host setup.
 A deferred FK prevents lineage-only commits; triggers check safe predecessor,
 original bindings and allocation. Same key/parameters converge across callers
