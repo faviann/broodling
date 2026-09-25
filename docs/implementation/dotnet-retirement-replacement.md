@@ -168,9 +168,11 @@ owns no Broodling worktree, and Zeroshot's checkout and ledger are native state.
 Frozen request/asset, B1 and accepted pins, receipt and completion stay; a
 completed Attempt is retired without abandonment; a later `stop` of any retired
 Attempt returns its retirement without abandoning it or contacting the target. An uncorrelated submission
-stays `dispatched` and counted in `unresolvedDispatches`. A retained retirement
-is returned unchanged on repeat, whatever its basis, so the host procedure must
-check the returned `basis` rather than treat exit 0 as its own verified retirement. Replacement still refuses dispatched
+stays `dispatched` and counted in `unresolvedDispatches`. An already
+acknowledged retirement (`retired_at` set) is returned unchanged on repeat,
+whatever its basis, so the host procedure must check the returned `basis` rather
+than treat exit 0 as its own verified retirement. An unacknowledged safe proof
+goes through the normal checks, which refuse it. Replacement still refuses dispatched
 predecessors; widening it belongs to #123. LocalTarget worktree Attempts keep the
 policy above.
 

@@ -167,7 +167,8 @@ public sealed partial class BroodlingStore
     /// call and no later than now, naming this Attempt's target, no local dispatch still initiating, a non-current (abandoned or completed) Attempt with dispatch
     /// intent, and its retained B1 and accepted pins. Drainage is required, never authority by itself.
     /// A submission without correlation stays <c>dispatched</c>. Replacement remains a separate operation.
-    /// An existing retirement is returned unchanged, whatever its basis.
+    /// An already acknowledged retirement is returned unchanged, whatever its basis; an unacknowledged
+    /// proof goes through the normal checks.
     /// </summary>
     public AttemptRetirement RetireStoppedTargetAttempt(string attemptId, StoppedTargetCheck check)
     {
