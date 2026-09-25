@@ -337,11 +337,25 @@ public sealed class InvocationTests
         output.GetStringBuilder().Clear();
         await Assert.That(await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop"],
             fixture.Git.State.Application, output, error)).IsEqualTo(1);
-        using var handback = JsonDocument.Parse(output.ToString());
-        await Assert.That(handback.RootElement.GetProperty("quarantined").GetBoolean()).IsTrue();
-        await Assert.That(handback.RootElement.GetProperty("attempt").GetProperty("abandonment").GetProperty("reason").GetString())
-            .IsEqualTo("operator requested stop");
+        using (var handback = JsonDocument.Parse(output.ToString()))
+        {
+            await Assert.That(handback.RootElement.GetProperty("quarantined").GetBoolean()).IsTrue();
+            await Assert.That(handback.RootElement.GetProperty("attempt").GetProperty("abandonment").GetProperty("reason").GetString())
+                .IsEqualTo("operator requested stop");
+            // A compact status summary, not the frozen request and its execution asset.
+            await Assert.That(handback.RootElement.GetProperty("submission").ToString()).IsEqualTo(JsonSerializer.Serialize(new
+            {
+                format = NativeSubmission.Http, state = "correlated", intendedRunId = submission.IntendedRunId,
+                runId = submission.RunId, replayBlockedReason = (string?)null
+            }));
+        }
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
+        // Ended authority is handed back from the Attempt's state; nothing is sent again.
+        output.GetStringBuilder().Clear();
+        await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.Git.State.Path, revision, config],
+            fixture.Git.State.Application, output, error)).IsEqualTo(0);
+        using (var resumed = JsonDocument.Parse(output.ToString()))
+            await Assert.That(resumed.RootElement.GetProperty("attempts")[0].GetProperty("isCurrent").GetBoolean()).IsFalse();
         await Assert.That(target.Stages.Count(stage => stage == "run")).IsEqualTo(1);
     }
 

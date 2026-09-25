@@ -41,7 +41,13 @@ public static class InvocationCommands
                 var submission = store.FindSubmission(args[2]);
                 output.WriteLine(JsonSerializer.Serialize(new
                 {
-                    attempt, submission, quarantined = submission is { State: not "prepared" }, error = refusal,
+                    attempt,
+                    // The status facts only; the frozen request (with an HTTP Attempt's whole asset) stays in the store.
+                    submission = submission is null ? null : new
+                    {
+                        submission.Format, submission.State, submission.IntendedRunId, submission.RunId, submission.ReplayBlockedReason
+                    },
+                    quarantined = submission is { State: not "prepared" }, error = refusal,
                     message = attempt.Abandonment is null ? "Stop refused; inspect retained authority."
                         : attempt.Retirement is null ? "Attempt abandoned. Cessation unconfirmed; retain its resources and use operator containment. No automatic retry."
                         : "Attempt abandoned with retained safe cessation proof. Retirement and replacement remain explicit operations."
