@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Microsoft.AspNetCore.Routing;
 
 namespace Broodling.Host;
 
@@ -13,7 +12,7 @@ internal static class HttpReads
 
     internal static void Map(WebApplication app, BroodlingApplication application, string storePath)
     {
-        IResult Read(HttpContext context, Func<BroodlingStore, object> read)
+        IResult Read(Func<BroodlingStore, object> read)
         {
             try
             {
@@ -32,8 +31,7 @@ internal static class HttpReads
                     _ => 500
                 };
                 if (status == 500)
-                    app.Logger.LogError(exception, "Retained read failed for {Route}.",
-                        (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText);
+                    app.Logger.LogError(exception, "Retained read failed.");
                 return Results.Json(new
                 {
                     error = exception is BroodlingException known ? known.Code : "read_failed",
@@ -42,19 +40,19 @@ internal static class HttpReads
             }
         }
 
-        app.MapGet("/health", (HttpContext context) => Read(context, _ => new { status = "ok" }));
-        app.MapGet("/issues", (string url, HttpContext context) => Read(context, store => new
+        app.MapGet("/health", () => Read(_ => new { status = "ok" }));
+        app.MapGet("/issues", (string url) => Read(store => new
         {
             submissions = store.IssueHistory(url),
             revisions = store.History(WorkReference.ParseIssueUrl(url))
         }));
-        app.MapGet("/submissions/{id}", (string id, HttpContext context) => Read(context, store => store.GetIssueSubmission(id)));
-        app.MapGet("/submissions/{id}/bundle", (string id, HttpContext context) => Read(context, store => store.GetRequestBundle(id)));
+        app.MapGet("/submissions/{id}", (string id) => Read(store => store.GetIssueSubmission(id)));
+        app.MapGet("/submissions/{id}/bundle", (string id) => Read(store => store.GetRequestBundle(id)));
         // Reference identities can contain '/', which a route segment cannot carry decoded.
-        app.MapGet("/bundles/{bundleId}/reference", (string bundleId, string id, HttpContext context) =>
-            Read(context, store => store.ReadRequestBundleReference(bundleId, id)));
-        app.MapGet("/revisions/{id}", (string id, HttpContext context) => Read(context, store => store.Status(id)));
-        app.MapGet("/attempts/{id}", (string id, HttpContext context) => Read(context, store =>
+        app.MapGet("/bundles/{bundleId}/reference", (string bundleId, string id) =>
+            Read(store => store.ReadRequestBundleReference(bundleId, id)));
+        app.MapGet("/revisions/{id}", (string id) => Read(store => store.Status(id)));
+        app.MapGet("/attempts/{id}", (string id) => Read(store =>
         {
             // An Attempt's Contract revision never changes; its Status is one coherent snapshot.
             var status = store.Status(store.GetAttempt(id).ContractRevisionId);
