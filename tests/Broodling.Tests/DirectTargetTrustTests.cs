@@ -49,39 +49,70 @@ public sealed class DirectTargetTrustTests
     }
 
     [Test]
-    public async Task EachOperationReadsTheRootFileSoARegeneratedRootNeedsNoRestart()
+    public async Task EachTlsConnectionOfOneOperationRereadsTheRoot()
     {
         var first = PrivateAuthority.Create();
+        var second = PrivateAuthority.Create();
         await using var target = new StockTarget(first.Server);
+        target.Projections.Enqueue(DirectTargetSessionTests.Running());
+        var directory = Directory.CreateTempSubdirectory("broodling-root-");
+        try
+        {
+            var root = Path.Combine(directory.FullName, "root.crt");
+            File.WriteAllText(root, first.RootPem);
+            // Regenerated after the discovery connection, before the session and WSS connections of the same open.
+            target.Discovery = () =>
+            {
+                File.WriteAllText(root, second.RootPem);
+                target.Certificate = second.Server;
+                return Task.CompletedTask;
+            };
+            using var budget = DirectTargetBudget.Start(DirectTargetLimits.Progress, new FakeTimeProvider(), default);
+            await using var session = await DirectTargetSession.OpenAsync(DirectTargetSessionTests.Binding(target.Origin), root, budget);
+            await Assert.That((await session.StatusAsync(budget)).Progress.Phase).IsEqualTo("running");
+            await Assert.That(target.Connections).IsEqualTo(3);
+        }
+        finally { directory.Delete(true); }
+    }
+
+    [Test]
+    public async Task AMissingRootFailsOnlyItsOperationAndDispatchRecordsNoIntent()
+    {
+        var authority = PrivateAuthority.Create();
+        await using var target = new StockTarget(authority.Server);
         using var fixture = new HttpFixture();
         fixture.PrepareAt(target.Origin);
         var root = Path.Combine(fixture.Git.State.Root, "zeroshot-root.crt");
-        // Opening names the root without reading it. A missing root fails dispatch before any intent or contact.
+        // Opening names the root without reading it.
         using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, root);
         await Assert.That(async () => await store.DispatchHttpAsync(fixture.Attempt.AttemptId, HttpDispatchTests.Credentials()))
             .Throws<NativeTransportError>();
         await Assert.That(store.FindSubmission(fixture.Attempt.AttemptId)!.State).IsEqualTo("prepared");
         await Assert.That(target.Connections).IsEqualTo(0);
 
-        File.WriteAllText(root, first.RootPem);
-        var run = (await store.DispatchHttpAsync(fixture.Attempt.AttemptId, HttpDispatchTests.Credentials())).Run!;
-        target.Projections.Enqueue(DirectTargetSessionTests.Running(run));
-        await Assert.That(await store.ObserveAsync(fixture.Attempt.AttemptId, null)).IsTypeOf<NativeObservation.Available>();
-
-        var second = PrivateAuthority.Create();
-        target.Certificate = second.Server;
-        await Assert.That((await store.ObserveAsync(fixture.Attempt.AttemptId, null) as NativeObservation.Unavailable)!.Reason)
-            .IsEqualTo("transport_failed");
-        File.WriteAllText(root, second.RootPem);
-        target.Projections.Enqueue(DirectTargetSessionTests.Running(run));
-        await Assert.That(await store.ObserveAsync(fixture.Attempt.AttemptId, null)).IsTypeOf<NativeObservation.Available>();
-
-        // A missing root fails only the operation, before any connection; retained reads are unaffected.
+        File.WriteAllText(root, authority.RootPem);
+        await store.DispatchHttpAsync(fixture.Attempt.AttemptId, HttpDispatchTests.Credentials());
         File.Delete(root);
-        var connections = target.Connections;
+        var stages = target.Stages.Count;
         await Assert.That((await store.ObserveAsync(fixture.Attempt.AttemptId, null) as NativeObservation.Unavailable)!.Reason)
             .IsEqualTo("transport_failed");
-        await Assert.That(target.Connections).IsEqualTo(connections);
+        await Assert.That(target.Stages.Count).IsEqualTo(stages);
         await Assert.That(store.Status(fixture.Attempt.ContractRevisionId).Submissions.Single().State).IsEqualTo("correlated");
+    }
+
+    /// <summary>Completion's own path to the reader: trust itself is covered above.</summary>
+    [Test]
+    public async Task CorrelatedHttpsWaitCompletesThroughTheConfiguredRoot()
+    {
+        var authority = PrivateAuthority.Create();
+        await using var target = new StockTarget(authority.Server);
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, "correlated");
+        var root = Path.Combine(fixture.Git.State.Root, "zeroshot-root.crt");
+        File.WriteAllText(root, authority.RootPem);
+        var accepted = fixture.Git.Deliver();
+        target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "succeeded", CompletionFixture.Receipt(head: accepted)));
+        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, root);
+        await Assert.That((await store.WaitAsync(fixture.Attempt.AttemptId, null)).AcceptedRevision).IsEqualTo(accepted);
     }
 }

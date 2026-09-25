@@ -81,9 +81,10 @@ public sealed partial class BroodlingStore
         // Credential and Git checks may be slow; they never hold the SQLite writer.
         var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).Environment();
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
-        // Read before intent: a missing root means nothing can be sent, so it records nothing.
+        // Checked before intent: a missing root means nothing can be sent, so it records nothing.
+        // Each connection reads the root again.
         var origin = DirectTargetExchange.CanonicalOrigin(record.Locator.Address)!;
-        var trust = DirectTargetExchange.Trust(origin, directTargetRoot);
+        if (directTargetRoot is not null && origin.Scheme == Uri.UriSchemeHttps) DirectTargetExchange.ReadRoot(directTargetRoot).Dispose();
 
         var conflict = false;
         // Held from before the intent commits until this caller can no longer send. It is local only:
@@ -105,7 +106,7 @@ public sealed partial class BroodlingStore
             }
             try
             {
-                await DirectTargetSubmission.SubmitAsync(origin, trust, record.RequestJson, record.IntendedRunId!, ephemeral,
+                await DirectTargetSubmission.SubmitAsync(origin, directTargetRoot, record.RequestJson, record.IntendedRunId!, ephemeral,
                     DirectTargetClock, cancellationToken);
             }
             catch (SubmissionConflict) { conflict = true; }

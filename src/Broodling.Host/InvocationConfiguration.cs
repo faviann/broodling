@@ -13,8 +13,8 @@ internal abstract record InvocationConfiguration
 
     /// <summary>
     /// <see cref="DirectRootCertificate"/> optionally names the absolute path of the PEM root that HTTPS
-    /// connections trust instead of system trust. Only its shape is checked here; the file is read by each
-    /// DirectTarget operation, so a missing file never prevents startup or retained reads.
+    /// connections trust instead of system trust. Only its shape is checked here; each new DirectTarget
+    /// TLS connection reads the file, so a missing file never prevents startup or retained reads.
     /// </summary>
     internal sealed record Direct(string Target, string DirectOrigin, string? DirectRootCertificate = null) : InvocationConfiguration;
 

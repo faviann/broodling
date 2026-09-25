@@ -354,6 +354,26 @@ public sealed class InvocationTests
         using var store2 = fixture.Git.State.Open();
         var attempt = store2.Status(revision).Attempts.Single();
         var submission = store2.FindSubmission(attempt.AttemptId)!;
+        // A configuration naming another origin or the other kind refuses before contact or abandonment.
+        var elsewhere = Path.Combine(fixture.Root, "elsewhere.json");
+        var localConfig = Path.Combine(fixture.Root, "local.json");
+        File.WriteAllText(elsewhere, new JsonObject { ["target"] = "direct", ["directOrigin"] = "http://127.0.0.1:9" }.ToJsonString());
+        File.WriteAllText(localConfig, JsonSerializer.Serialize(new
+        {
+            target = "local", pythonExecutable = NativeFixture.Python, stateDirectory = fixture.NativeState, workspaceRoot = fixture.Git.Workspaces,
+            realCodex = fixture.Codex.RealCodex, profileHome = fixture.Home, codexHome = fixture.CodexHome, launcher = NativeFixture.Launcher
+        }));
+        foreach (var mismatched in new[] { elsewhere, localConfig })
+        {
+            error.GetStringBuilder().Clear();
+            await Assert.That(await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop", mismatched],
+                fixture.Git.State.Application, output, error)).IsEqualTo(1);
+            await Assert.That(error.ToString()).Contains("submission_conflict");
+            await Assert.That(await InvocationCommands.RunAsync(["wait", fixture.Git.State.Path, attempt.AttemptId, mismatched],
+                fixture.Git.State.Application, output, error)).IsEqualTo(1);
+        }
+        await Assert.That(store2.GetAttempt(attempt.AttemptId).Abandonment).IsNull();
+        await Assert.That(target.Stages.Count(stage => stage == "discovery")).IsEqualTo(1);
         // Explicit stop forces the confirmed run; a Direct configuration supplies no Python, only the root.
         target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "failed", "force_stopped"));
         output.GetStringBuilder().Clear();

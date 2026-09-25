@@ -203,8 +203,8 @@ The optional `directRootCertificate` is the absolute path of a PEM root
 certificate, such as Caddy's `tls internal` root. When it is set, HTTPS and WSS
 connections to the DirectTarget trust exactly that root, not system trust. When
 it is unset, system trust applies. No option disables certificate validation.
-Each DirectTarget operation reads the file when it starts, so a regenerated root
-is used without restarting Broodling. A missing or unreadable file fails only
+Each new TLS connection rereads the file, so a regenerated root is used without
+restarting Broodling. A missing or unreadable file fails only
 that operation, as a transport failure; a dispatch fails before recording any
 dispatch intent. `check-target` uses this same file, but until #186 it still
 accepts only a loopback HTTP origin, `http://127.0.0.1:<port>`.
@@ -406,7 +406,9 @@ Correlated resume and retained status/history need neither. `wait` and `stop`
 take the same optional `config.json`, and the retained record decides what they
 use from it. A LocalTarget record needs a LocalTarget configuration for its
 pinned SDK Python. An HTTP record connects to its retained origin, and uses a
-Direct configuration only for its root certificate. For an HTTPS target with a
+Direct configuration only for its root certificate. A configuration of the other
+kind, or a Direct origin that differs from the retained one, refuses before any
+target contact or abandonment. For an HTTPS target with a
 private root, pass the Direct `config.json` to `wait` and `stop`. Without it,
 system trust applies and the connection fails. `stop` then records the
 abandonment and reports native stop as not sent (`transport_failed`); running

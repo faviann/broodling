@@ -9,9 +9,8 @@ public sealed class BroodlingApplication
     public BroodlingStore InitializeStore(string path) => BroodlingStore.Initialize(path);
     /// <summary>
     /// <paramref name="directTargetRootCertificate"/> optionally names an absolute path to the PEM root that
-    /// this session's HTTPS DirectTarget connections trust instead of system trust. It is read at the start
-    /// of each DirectTarget operation, never at open, and a retained Attempt's origin still decides where
-    /// each operation connects.
+    /// this session's HTTPS DirectTarget connections trust instead of system trust. Each new TLS connection
+    /// rereads it; opening the store does not. A retained Attempt's origin still decides where it connects.
     /// </summary>
     public BroodlingStore OpenStore(string path, string? directTargetRootCertificate = null) =>
         BroodlingStore.Open(path, directTargetRootCertificate);

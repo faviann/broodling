@@ -218,7 +218,9 @@ a `directOrigin` that passes that rule and an optional absolute
 workspace and all four Codex-profile paths. Mixed, unknown or secret fields
 refuse. Operator `wait` and `stop` take the same optional configuration: a
 LocalTarget record uses its pinned SDK Python, and an HTTP record uses a Direct
-configuration's root certificate. See the [release guide](../../deployment/README.md#invocation-configuration).
+configuration's root certificate. A supplied configuration of the other kind, or
+a Direct origin that differs from the retained binding, refuses before target
+contact or abandonment. See the [release guide](../../deployment/README.md#invocation-configuration).
 
 ## Dispatch, recovery and completion
 
@@ -300,14 +302,16 @@ cookies and ambient credentials. It always verifies TLS, including the host
 name. By default it uses system trust. A store session opened with
 `OpenStore(path, directTargetRootCertificate)` instead trusts exactly that PEM
 root for HTTPS and WSS, with custom root trust that ignores the system store.
-The root file is read at the start of each DirectTarget operation (submit,
-progress, wait and stop), never when the store opens. A missing or unreadable
-file fails that operation as `transport_failed` before any connection. A
-dispatch reads it before its intent commits, so that failure records nothing. A wait
-makes all its connections during setup and then polls over one WebSocket, so a
-root regenerated mid-wait does not affect it. If the TLS proxy restarts, the
-wait detaches with a transport failure, and a new wait reads the new root. It never
-retries. Failures are fixed `NativeTransportError` kinds (`TimeoutError`,
+Each TLS handshake rereads the root file and accepts only a matching host name
+and a server-authentication chain from the presented certificates to that root,
+with revocation unchecked as for ordinary TLS. The file is never read when the
+store opens. A missing or unreadable file fails that connection, and so its
+operation, as `transport_failed`. A dispatch also checks that the root is
+readable before its intent commits, so that failure records nothing. A wait
+connects during setup and then polls over one open WebSocket, so a root
+regenerated mid-wait does not affect it. If the TLS proxy restarts, the wait
+detaches with a transport failure, and a new wait connects under the new root.
+It never retries. Failures are fixed `NativeTransportError` kinds (`TimeoutError`,
 `transport_failed`, `invalid_response`, `request_too_large`) and never include
 response bytes. Discovery accepts only the stock
 `zeroshot.native-v2-target/v2` document with `authentication: none`, `audience:

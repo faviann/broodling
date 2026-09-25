@@ -53,6 +53,17 @@ public static class InvocationCommands
             var configuration = configPath is null ? null : InvocationConfiguration.Read(configPath);
             using var store = application.OpenStore(args[1], (configuration as InvocationConfiguration.Direct)?.DirectRootCertificate);
             transport ??= configuration is InvocationConfiguration.Local local ? new ZeroshotTransport(local.PythonExecutable) : null;
+            if (args[0] is "wait" or "stop" && configuration is not null)
+            {
+                // A supplied configuration must describe the retained target, refused before contact or
+                // abandonment. The retained binding, not the configuration, still decides where it connects.
+                var retainedKind = store.GetAttempt(args[2]).ResourceKind;
+                var retainedOrigin = store.FindSubmission(args[2])?.Locator.Address;
+                if (configuration is InvocationConfiguration.Direct direct
+                        ? retainedKind != AttemptRecord.Http || retainedOrigin is not null && retainedOrigin != direct.DirectOrigin
+                        : retainedKind != AttemptRecord.Worktree)
+                    throw new SubmissionConflict("The configured target differs from the retained Attempt's target.");
+            }
             if (args[0] == "wait")
             {
                 // The store routes on the retained record; only a LocalTarget bridge record uses the transport.

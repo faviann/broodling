@@ -45,12 +45,12 @@ internal sealed class DirectTargetSession : IAsyncDisposable
 
     /// <summary>
     /// Discovery, session creation, WebSocket connection and initialization. Every connection is made
-    /// here, under the trust read once for this session; later reads reuse the open WebSocket.
+    /// here; later reads reuse the open WebSocket.
     /// </summary>
     internal static async Task<DirectTargetSession> OpenAsync(NativeRunBinding run, string? rootCertificate, DirectTargetBudget budget)
     {
         var (origin, source) = Target(run);
-        var session = new DirectTargetSession(run, source, DirectTargetExchange.CreateHandler(DirectTargetExchange.Trust(origin, rootCertificate)));
+        var session = new DirectTargetSession(run, source, DirectTargetExchange.CreateHandler(origin, rootCertificate));
         try
         {
             using (var http = DirectTargetExchange.CreateClient(session.handler))
