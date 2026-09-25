@@ -76,7 +76,7 @@ public sealed partial class BroodlingStore
 
     /// <summary>Durable intent, external call without SQLite writer, then convergent factual correlation.</summary>
     public async Task<NativeSubmission> DispatchAsync(string attemptId, NativeProfile profile, INativeTransport transport,
-        DispatchCredentials? credentials = null, CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
         var attempt = RequireCurrentAttempt(attemptId);
         RequireBridgeAttempt(attempt);
@@ -85,8 +85,8 @@ public sealed partial class BroodlingStore
         if (record.State == "blocked") throw new SubmissionConflict("The native submission has a retained conflict.");
         RequireUnpaused();
         var frozen = record.Frozen;
-        // Version/executable/credential checks may be slow. Never hold the SQLite writer for them.
-        var ephemeral = profile.ValidateDispatch(record, attempt, credentials);
+        // Version/executable checks may be slow. Never hold the SQLite writer for them.
+        profile.ValidateDispatch(record, attempt);
         // Held from before the dispatched intent until the transport can no longer submit.
         using var initiation = HoldInitiation();
         using (var held = DispatchLock(attempt))
@@ -113,8 +113,8 @@ public sealed partial class BroodlingStore
         try
         {
             runId = transport is IInitiationAwareNativeTransport aware
-                ? await aware.SubmitAsync(record.RequestJson, ephemeral, initiation, cancellationToken)
-                : await transport.SubmitAsync(record.RequestJson, ephemeral, cancellationToken);
+                ? await aware.SubmitAsync(record.RequestJson, initiation, cancellationToken)
+                : await transport.SubmitAsync(record.RequestJson, cancellationToken);
         }
         catch (SubmissionConflict error) { conflict = error; }
         if (conflict is null && string.IsNullOrWhiteSpace(runId))
@@ -235,21 +235,17 @@ public sealed partial class BroodlingStore
 
     private string BuildInvocation(AttemptRecord attempt, SqliteTransaction transaction, NativeProfile? profile = null, JsonObject? frozen = null)
     {
-        var (task, work, authorization) = AdmittedTask(attempt, transaction);
+        var (task, _, authorization) = AdmittedTask(attempt, transaction);
         var delivery = authorization.Mode;
         var request = new JsonObject
         {
             ["submissionKey"] = "broodling:dotnet:v1:" + attempt.AttemptId, ["title"] = "Broodling Attempt " + attempt.AttemptId,
             ["task"] = task, ["preset"] = new JsonObject { ["name"] = "software-change", ["delivery"] = delivery },
-            ["runtime"] = NativeProfile.Runtime(delivery), ["workspace"] = attempt.Allocation.WorktreePath,
+            ["runtime"] = NativeProfile.Runtime(), ["workspace"] = attempt.Allocation.WorktreePath,
             ["repository"] = attempt.B1.Repository, ["branch"] = attempt.Allocation.Branch, ["startingCommit"] = attempt.B1.CommitOid,
             ["materialSha256"] = attempt.B1.MaterialSha256,
             ["originUrl"] = frozen is null ? Origin(attempt) : (string)frozen["originUrl"]!,
             ["target"] = frozen is null ? profile!.Target(delivery) : frozen["target"]!.DeepClone()
-        };
-        if (delivery == "pull_request") request["source"] = new JsonObject
-        {
-            ["repository"] = work.Owner + "/" + work.Repository, ["branch"] = authorization.TargetBranch, ["revision"] = attempt.B1.CommitOid
         };
         if (ReadRetry("attempt_id", attempt.AttemptId, transaction) is { } retry
             && (retry.TargetJson is null || !JsonNode.DeepEquals(JsonNode.Parse(retry.TargetJson), request["target"])))

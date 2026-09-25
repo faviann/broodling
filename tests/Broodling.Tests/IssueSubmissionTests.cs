@@ -248,7 +248,7 @@ public sealed class IssueSubmissionTests
                 + $"VALUES ('{secondSubmissionId}', '{first.WorkUnitId}', 2, '{first.IssueUrl}', 'accepted', '{fixture.Git.RevisionId}', '{first.ReceivedAt}')");
 
             attempt = fixture.Provision(store);
-            var transport = new ControlledTransport { Submit = (_, _) => Task.FromResult("shared-run") };
+            var transport = new ControlledTransport { Submit = _ => Task.FromResult("shared-run") };
             dispatched = await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
             var survivorBeforeCancellation = store.GetIssueSubmission(secondSubmissionId);
             survivorState = survivorBeforeCancellation.State;

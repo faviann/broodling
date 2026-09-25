@@ -54,14 +54,14 @@ internal sealed class NativeFixture : IDisposable
 
 internal sealed class ControlledTransport : INativeTransport
 {
-    internal Func<string, IReadOnlyDictionary<string, string>, Task<string>> Submit { get; set; } = (_, _) => Task.FromResult("native-run");
+    internal Func<string, Task<string>> Submit { get; set; } = _ => Task.FromResult("native-run");
     internal int Calls { get; private set; }
     internal Func<NativeLocator, string, CancellationToken, Task<NativeResult>> Wait { get; set; } = (_, _, _) => throw new InvalidOperationException("Unexpected wait");
     internal int WaitCalls { get; private set; }
     internal Func<NativeLocator, string, CancellationToken, Task<NativeResult>> Stop { get; set; } = (_, _, _) => throw new InvalidOperationException("Unexpected stop");
     internal int StopCalls { get; private set; }
-    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default)
-    { Calls++; return Submit(requestJson, credentials); }
+    public Task<string> SubmitAsync(string requestJson, CancellationToken cancellationToken = default)
+    { Calls++; return Submit(requestJson); }
     internal List<NativeRunBinding> Bindings { get; } = [];
     public Task<NativeResult> WaitAsync(NativeRunBinding run, CancellationToken cancellationToken = default)
     { WaitCalls++; Bindings.Add(run); return Wait(run.Locator, run.RunId, cancellationToken); }

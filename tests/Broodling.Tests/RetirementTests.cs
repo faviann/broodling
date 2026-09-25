@@ -152,7 +152,7 @@ public sealed class RetirementTests
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
         var attempt = fixture.Provision(store);
-        var transport = new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() };
+        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<NativeTransportError>();
         await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "unresolved", transport)).Throws<CessationUnconfirmed>();
         await Assert.That(transport.Calls).IsEqualTo(1);

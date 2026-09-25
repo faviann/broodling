@@ -65,6 +65,10 @@ public sealed class HttpDispatchTests
     [Arguments("asset", "prepared")]
     [Arguments("no-credentials", "prepared")]
     [Arguments("foreign-gateway", "dispatched")]
+    [Arguments("gateway-suffix", "prepared")]
+    [Arguments("blank-token", "prepared")]
+    [Arguments("blank-key", "dispatched")]
+    [Arguments("oversized-token", "prepared")]
     [Arguments("pin-missing", "prepared")]
     [Arguments("pin-symbolic", "dispatched")]
     [Arguments("pin-conflicting", "prepared")]
@@ -86,6 +90,10 @@ public sealed class HttpDispatchTests
                 break;
             case "no-credentials": credentials = null; break;
             case "foreign-gateway": credentials = new("github-token", "https://gateway.example.test/v1", "gateway-key"); break;
+            case "gateway-suffix": credentials = new("github-token", NativeProfile.GatewayBaseUrl + "/", "gateway-key"); break;
+            case "blank-token": credentials = new("", NativeProfile.GatewayBaseUrl, "gateway-key"); break;
+            case "blank-key": credentials = new("github-token", NativeProfile.GatewayBaseUrl, " "); break;
+            case "oversized-token": credentials = new(new string('s', 4097), NativeProfile.GatewayBaseUrl, "gateway-key"); break;
             case "pin-missing": fixture.Git.Git("update-ref", "-d", attempt.B1.RetentionRef); break;
             case "pin-symbolic":
                 fixture.Git.Git("update-ref", "-d", attempt.B1.RetentionRef);
@@ -102,7 +110,7 @@ public sealed class HttpDispatchTests
             "stale" => typeof(StaleAttempt),
             "paused" => typeof(InstallationPaused),
             "blocked" or "asset" => typeof(SubmissionConflict),
-            "no-credentials" or "foreign-gateway" => typeof(UnsupportedRuntime),
+            "no-credentials" or "foreign-gateway" or "gateway-suffix" or "blank-token" or "blank-key" or "oversized-token" => typeof(UnsupportedRuntime),
             _ => typeof(SubmissionNotReady)
         });
         await Assert.That(target.Connections).IsEqualTo(0);

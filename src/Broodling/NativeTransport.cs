@@ -12,10 +12,10 @@ public sealed record NativeResult(string RunId, bool Succeeded, JsonElement Outp
 /// <summary>The SDK's current run phase and the nodes of its active executions.</summary>
 public sealed record NativeProgress(string Phase, IReadOnlyList<string> ActiveNodes);
 
-/// <summary>Submits one frozen request with separate current credentials; returns the acknowledged run ID.</summary>
+/// <summary>Submits one frozen LocalTarget request; returns the acknowledged run ID.</summary>
 public interface INativeSubmitter
 {
-    Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default);
+    Task<string> SubmitAsync(string requestJson, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Reads a retained run's terminal result or bounded progress, without credentials.</summary>
@@ -37,7 +37,7 @@ public interface INativeTransport : INativeSubmitter, INativeReader, INativeStop
 /// <summary>Internal transport seam for the one bridge that must inherit the initiation lock.</summary>
 internal interface IInitiationAwareNativeTransport
 {
-    Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, SafeHandle initiation,
+    Task<string> SubmitAsync(string requestJson, SafeHandle initiation,
         CancellationToken cancellationToken = default);
 }
 
@@ -53,18 +53,16 @@ public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNative
         bridge = Path.GetFullPath(bridgeScript);
     }
 
-    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials,
-        CancellationToken cancellationToken = default) => SubmitCore(requestJson, credentials, null, cancellationToken);
+    public Task<string> SubmitAsync(string requestJson, CancellationToken cancellationToken = default) =>
+        SubmitCore(requestJson, null, cancellationToken);
 
-    async Task<string> IInitiationAwareNativeTransport.SubmitAsync(string requestJson,
-        IReadOnlyDictionary<string, string> credentials, SafeHandle initiation, CancellationToken cancellationToken) =>
-        await SubmitCore(requestJson, credentials, initiation, cancellationToken);
+    async Task<string> IInitiationAwareNativeTransport.SubmitAsync(string requestJson, SafeHandle initiation,
+        CancellationToken cancellationToken) => await SubmitCore(requestJson, initiation, cancellationToken);
 
-    private async Task<string> SubmitCore(string requestJson, IReadOnlyDictionary<string, string> credentials,
-        SafeHandle? initiation, CancellationToken cancellationToken)
+    private async Task<string> SubmitCore(string requestJson, SafeHandle? initiation, CancellationToken cancellationToken)
     {
         await RequireVersion(cancellationToken);
-        var response = await Call(new { op = "submit", request = JsonNode.Parse(requestJson), credentials }, cancellationToken, initiation);
+        var response = await Call(new { op = "submit", request = JsonNode.Parse(requestJson) }, cancellationToken, initiation);
         return RequiredString(response, "runId");
     }
 

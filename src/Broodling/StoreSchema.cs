@@ -225,23 +225,14 @@ internal static class StoreSchema
               AND json_array_length(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects') = 1
               AND json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].kind') = 'pull_request'
               AND w.host = 'github.com'
-              AND ((s.format = 'bridge'
-                    AND s.submission_key = 'broodling:dotnet:v1:' || a.attempt_id
-                    AND json_extract(s.request_json, '$.submissionKey') = s.submission_key
-                    AND json_extract(s.request_json, '$.preset.name') = 'software-change'
-                    AND json_extract(s.request_json, '$.preset.delivery') = 'pull_request'
-                    AND json_extract(s.request_json, '$.source.branch')
-                        = json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
-                    AND json_extract(s.request_json, '$.source.repository') = w.owner || '/' || w.repository
-                    AND json_extract(s.request_json, '$.source.revision') = a.b1_commit_oid)
-                OR (s.format = 'http.v1' AND s.run_id = s.intended_run_id
-                    AND s.submission_key = 'broodling:http:v1:' || a.attempt_id
-                    AND json_extract(s.request_json, '$.runId') = s.intended_run_id
-                    AND json_extract(s.request_json, '$.submission.submissionKey') = s.submission_key
-                    AND json_extract(s.request_json, '$.submission.source.branch')
-                        = json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
-                    AND json_extract(s.request_json, '$.submission.source.repository') = w.owner || '/' || w.repository
-                    AND json_extract(s.request_json, '$.submission.source.revision') = a.b1_commit_oid))
+              AND s.format = 'http.v1' AND s.run_id = s.intended_run_id
+              AND s.submission_key = 'broodling:http:v1:' || a.attempt_id
+              AND json_extract(s.request_json, '$.runId') = s.intended_run_id
+              AND json_extract(s.request_json, '$.submission.submissionKey') = s.submission_key
+              AND json_extract(s.request_json, '$.submission.source.branch')
+                  = json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
+              AND json_extract(s.request_json, '$.submission.source.repository') = w.owner || '/' || w.repository
+              AND json_extract(s.request_json, '$.submission.source.revision') = a.b1_commit_oid
               AND json_type(NEW.receipt_json) = 'object'
               AND (SELECT count(*) FROM json_each(NEW.receipt_json)) = 7
               AND (SELECT count(*) FROM json_each(NEW.receipt_json) WHERE type = 'text'

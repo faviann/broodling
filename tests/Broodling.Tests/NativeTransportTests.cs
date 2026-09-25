@@ -88,7 +88,7 @@ public sealed class NativeTransportTests
         using (var initiation = fixture.DirectInitiation())
         {
             var transport = (IInitiationAwareNativeTransport)new ZeroshotTransport(NativeFixture.Python, script);
-            submit = transport.SubmitAsync("{}", new Dictionary<string, string>(), initiation, cancellation.Token);
+            submit = transport.SubmitAsync("{}", initiation, cancellation.Token);
             clock = Stopwatch.StartNew();
             while (!File.Exists(started) && clock.Elapsed < TimeSpan.FromSeconds(20)) await Task.Delay(50);
             await Assert.That(File.Exists(started)).IsTrue();
@@ -114,9 +114,9 @@ public sealed class NativeTransportTests
         var prepared = store.PrepareSubmission(attempt.AttemptId, fixture.Profile);
         // Accept through the real released SDK, then lose only the caller's acknowledgment.
         string? acceptedId = null;
-        var lostAck = new ControlledTransport { Submit = async (request, credentials) =>
+        var lostAck = new ControlledTransport { Submit = async request =>
         {
-            acceptedId = await transport.SubmitAsync(request, credentials);
+            acceptedId = await transport.SubmitAsync(request);
             throw new NativeTransportError();
         } };
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, lostAck)).Throws<NativeTransportError>();
@@ -124,15 +124,15 @@ public sealed class NativeTransportTests
         await Assert.That(result.Succeeded).IsTrue();
         await Assert.That(result.Output.ValueKind).IsEqualTo(JsonValueKind.Null);
         await Assert.That(result.Failure).IsNull();
-        await Assert.That(await transport.SubmitAsync(prepared.RequestJson, new Dictionary<string, string>())).IsEqualTo(acceptedId);
+        await Assert.That(await transport.SubmitAsync(prepared.RequestJson)).IsEqualTo(acceptedId);
         var different = JsonNode.Parse(prepared.RequestJson)!;
         different["task"] = "Actually different task";
-        var realConflict = await Assert.ThrowsAsync<SubmissionConflict>(async () => await transport.SubmitAsync(different.ToJsonString(), new Dictionary<string, string>()));
+        var realConflict = await Assert.ThrowsAsync<SubmissionConflict>(async () => await transport.SubmitAsync(different.ToJsonString()));
         await Assert.That(realConflict!.ExistingRunId).IsEqualTo(acceptedId);
         File.WriteAllText(Path.Combine(attempt.Allocation.WorktreePath, "original.txt"), "owned native progress\n");
         AttemptFixture.RunGit(attempt.Allocation.WorktreePath, "add", ".");
         AttemptFixture.RunGit(attempt.Allocation.WorktreePath, "commit", "-m", "owned native progress");
-        var driftConflict = await Assert.ThrowsAsync<SubmissionConflict>(async () => await transport.SubmitAsync(prepared.RequestJson, new Dictionary<string, string>()));
+        var driftConflict = await Assert.ThrowsAsync<SubmissionConflict>(async () => await transport.SubmitAsync(prepared.RequestJson));
         await Assert.That(driftConflict!.ExistingRunId).IsEqualTo(realConflict.ExistingRunId);
         await Assert.That(driftConflict.Message).IsEqualTo(realConflict.Message);
         var correlated = await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
@@ -201,35 +201,7 @@ public sealed class NativeTransportTests
     }
 
     [Test]
-    public async Task PreciseStubSdkChecksDirectDispatchAndUnchangedReceiptButProvesNoRealDelivery()
-    {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var admitted = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose,
-            [new("pr", "Deliver PR", "pull_request", "main")]);
-        var attempt = store.ProvisionAttempt(store.AdmitAttempt(admitted.Revision.ContractRevisionId, fixture.Git.Repository, fixture.Git.Workspaces).AttemptId);
-        var profile = new NativeProfile(fixture.NativeState, directOrigin: "http://stub-target.invalid/receipt", toolPath: "/usr/bin:/bin");
-        var transport = new ZeroshotTransport(NativeFixture.Python, NativeFixture.Fixture("receipt-sdk.py"));
-        var submission = await store.DispatchAsync(attempt.AttemptId, profile, transport,
-            new("SYNTHETIC_GH_SECRET", NativeProfile.GatewayBaseUrl, "SYNTHETIC_GATEWAY_SECRET"));
-        Directory.Delete(attempt.Allocation.WorktreePath, true);
-        var result = await transport.WaitAsync(submission.Run!);
-        await Assert.That(result.Output.GetProperty("headRevision").GetString()).IsEqualTo(new string('b', 40));
-        await Assert.That(result.Output.GetProperty("pullRequestId").GetString()).IsEqualTo("50");
-        await Assert.That(result.Output.EnumerateObject().Count()).IsEqualTo(7);
-        await Assert.That((await transport.StopAsync(submission.Run!)).Failure).IsEqualTo("force_stopped");
-        foreach (var kind in new[] { "null", "false", "number", "string", "array" })
-        {
-            var value = await transport.WaitAsync(submission.Run! with { Locator = new("direct", "http://stub-target.invalid/" + kind) });
-            await Assert.That(value.Output.GetRawText()).IsEqualTo(kind switch
-            {
-                "null" => "null", "false" => "false", "number" => "12.5", "string" => "\"unchanged\"", _ => "[false, null, 7]"
-            });
-        }
-    }
-
-    [Test]
-    public async Task ReconnectRejectsReboundLocalStateAndDirectUnknownTargetReachesTransportWithoutCredentials()
+    public async Task ReconnectRejectsReboundLocalStateAndNeverReachesADirectTarget()
     {
         using var fixture = new NativeFixture();
         Directory.CreateDirectory(fixture.NativeState);
@@ -241,13 +213,11 @@ public sealed class NativeTransportTests
             await Assert.That(async () => await NativeFixture.Transport().WaitAsync(NativeFixture.Run(locator, "unknown"))).Throws<UnsupportedRuntime>();
         }
         finally { Directory.Delete(fixture.NativeState); }
-        // Reserve an unavailable local endpoint; no forge/provider target is contacted.
-        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        var error = await Assert.ThrowsAsync<NativeTransportError>(async () => await NativeFixture.Transport().WaitAsync(
-            NativeFixture.Run(new("direct", "http://127.0.0.1:" + port), "01a00000-0000-7000-8000-000000000000")));
-        await Assert.That(error!.Kind).IsEqualTo("TargetError");
+        // DirectTarget is HTTP-only: the bridge refuses a direct locator before starting Python.
+        await using var target = new StockTarget();
+        var direct = NativeFixture.Run(new("direct", target.Origin.GetLeftPart(UriPartial.Authority)), "01a00000-0000-7000-8000-000000000000");
+        await Assert.That(async () => await NativeFixture.Transport().WaitAsync(direct)).Throws<UnsupportedRuntime>();
+        await Assert.That(async () => await NativeFixture.Transport().StopAsync(direct)).Throws<UnsupportedRuntime>();
+        await Assert.That(target.Connections).IsEqualTo(0);
     }
 }

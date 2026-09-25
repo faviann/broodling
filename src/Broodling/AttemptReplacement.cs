@@ -104,9 +104,9 @@ public sealed partial class BroodlingStore
     }
 
     public Task<NativeSubmission> RetryAsync(string predecessorId, string retryKey, string workspaceRoot, NativeProfile profile,
-        INativeTransport transport, DispatchCredentials? credentials = null, CancellationToken cancellationToken = default)
+        INativeTransport transport, CancellationToken cancellationToken = default)
     {
         var prepared = PrepareRetry(predecessorId, retryKey, workspaceRoot, profile);
-        return DispatchAsync(prepared.AttemptId, profile, transport, credentials, cancellationToken);
+        return DispatchAsync(prepared.AttemptId, profile, transport, cancellationToken);
     }
 }

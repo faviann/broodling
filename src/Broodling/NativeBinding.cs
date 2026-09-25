@@ -21,13 +21,12 @@ public enum NativeRunIdentity { Intended, Confirmed }
 internal sealed record FrozenSubmission(string Delivery, NativeLocator Locator, string Title, string Size,
     NativeSource? Source, string Repository, string OriginUrl)
 {
+    /// <summary>The bridge facts: no-effect LocalTarget work has no PR source.</summary>
     internal static FrozenSubmission Read(string requestJson)
     {
         var request = JsonNode.Parse(requestJson)!;
-        var source = request["source"];
         return new((string)request["preset"]!["delivery"]!, NativeLocator.Read(request["target"]!["locator"]!),
-            (string)request["title"]!, (string)request["runtime"]!["size"]!,
-            source is null ? null : new((string)source["repository"]!, (string)source["branch"]!, (string)source["revision"]!),
+            (string)request["title"]!, (string)request["runtime"]!["size"]!, null,
             (string)request["repository"]!, (string)request["originUrl"]!);
     }
 

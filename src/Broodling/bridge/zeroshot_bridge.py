@@ -9,11 +9,9 @@ import sys
 
 
 def target(value, workspace=None):
-    from zeroshot import DirectTarget, LocalTarget
+    from zeroshot import LocalTarget
 
-    if value["kind"] == "local":
-        return LocalTarget(workspace, state_dir=value["address"])
-    return DirectTarget(value["address"], workspace=workspace)
+    return LocalTarget(workspace, state_dir=value["address"])
 
 
 async def call(value):
@@ -28,13 +26,12 @@ async def call(value):
 
     if value["op"] == "submit":
         request = value["request"]
-        environment = dict(request["target"]["environment"])
-        environment.update(value["credentials"])
-        async with Client(target=target(request["target"]["locator"], request["workspace"]), environment=environment) as client:
+        async with Client(target=target(request["target"]["locator"], request["workspace"]),
+                          environment=dict(request["target"]["environment"])) as client:
             try:
                 run = await client.submit(request["task"], title=request["title"],
                     preset=Preset(**request["preset"]), runtime=UniformRuntime(**request["runtime"]),
-                    submission_key=request["submissionKey"], **(request.get("source") or {}))
+                    submission_key=request["submissionKey"])
                 return {"ok": True, "runId": run.id}
             except SubmissionConflictError as error:
                 return {"ok": False, "error": "submission_conflict", "existingRunId": error.existing_run_id}

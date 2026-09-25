@@ -19,7 +19,7 @@
     <None Update="Fixtures\dotnet-v10.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures\dotnet-v12.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures\held-git.sh" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="Fixtures\corrupt-submit.py;Fixtures\receipt-sdk.py;Fixtures\gateway-profile.py;Fixtures\slow-codex;Fixtures\inspect-codex" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\corrupt-submit.py;Fixtures\slow-codex;Fixtures\inspect-codex" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

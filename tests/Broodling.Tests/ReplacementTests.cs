@@ -114,10 +114,10 @@ public sealed class ReplacementTests
         await Assert.That(async () => await store.DispatchAsync(successor.AttemptId, changed, new ControlledTransport())).Throws<AttemptConflict>();
         await Assert.That(store.FindSubmission(successor.AttemptId)).IsNull();
         var prepared = store.PrepareRetry(original.AttemptId, "same", fixture.Git.Workspaces, fixture.Profile);
-        var transport = new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() };
+        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
         await Assert.That(async () => await store.RetryAsync(original.AttemptId, "same", fixture.Git.Workspaces, fixture.Profile, transport)).Throws<NativeTransportError>();
         File.WriteAllText(Path.Combine(successor.Allocation.WorktreePath, "candidate-progress"), "retain even after lost acknowledgment");
-        transport.Submit = (_, _) => Task.FromResult("retry-run");
+        transport.Submit = _ => Task.FromResult("retry-run");
         var correlated = await store.RetryAsync(original.AttemptId, "same", fixture.Git.Workspaces, fixture.Profile, transport);
         await Assert.That(correlated.RunId).IsEqualTo("retry-run");
         await Assert.That(correlated.RequestJson).IsEqualTo(prepared.RequestJson);

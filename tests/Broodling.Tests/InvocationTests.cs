@@ -143,7 +143,7 @@ public sealed class InvocationTests
     {
         using var fixture = new NativeFixture();
         using var gh = new IssueFixture(fixture.Root);
-        var transport = new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() };
+        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
         string revisionId;
         string attemptId;
         using (var store = fixture.Git.State.Open())
@@ -157,7 +157,7 @@ public sealed class InvocationTests
             await Assert.That(status.Submissions.Single().State).IsEqualTo("dispatched");
         }
         gh.RemoveExecutable();
-        transport.Submit = (_, _) => Task.FromResult("callable-run");
+        transport.Submit = _ => Task.FromResult("callable-run");
         using var reopened = fixture.Git.State.Open();
         var recovered = await new Invocation(reopened, new InvocationTarget.Local("/unused", fixture.Profile, transport)).ResumeAsync(revisionId);
         await Assert.That(recovered.Attempts.Single().AttemptId).IsEqualTo(attemptId);
@@ -211,16 +211,16 @@ public sealed class InvocationTests
         var args = new[] { "submit", fixture.Git.State.Path, config, "acme/widget", "12", fixture.Git.Repository, fixture.Git.Head, "-", reviewed, "caller" };
         var output = new StringWriter();
         var error = new StringWriter();
-        var transport = new ControlledTransport { Submit = (_, _) => throw new System.ComponentModel.Win32Exception("SECRET_CANARY") };
+        var transport = new ControlledTransport { Submit = _ => throw new System.ComponentModel.Win32Exception("SECRET_CANARY") };
         await Assert.That(await InvocationCommands.RunAsync(args, fixture.Git.State.Application, output, error, source: gh.Source, transport: transport)).IsEqualTo(1);
         await Assert.That(error.ToString().Contains("SECRET_CANARY")).IsFalse();
         await Assert.That(error.ToString().Contains("history/status")).IsTrue();
         using var store = fixture.Git.State.Open();
         var retained = store.History(ContractIngressTests.Reference).Last();
-        transport.Submit = (_, _) => throw new OperationCanceledException();
+        transport.Submit = _ => throw new OperationCanceledException();
         await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.Git.State.Path, retained.Revision.ContractRevisionId, config],
             fixture.Git.State.Application, output, error, transport: transport)).IsEqualTo(130);
-        transport.Submit = (_, _) => Task.FromResult("operator-run");
+        transport.Submit = _ => Task.FromResult("operator-run");
         await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.Git.State.Path, retained.Revision.ContractRevisionId, config],
             fixture.Git.State.Application, output, error, transport: transport)).IsEqualTo(0);
         using var result = JsonDocument.Parse(output.ToString());
@@ -361,6 +361,13 @@ public sealed class InvocationTests
         await Assert.That(async () => await new Invocation(otherStore, new InvocationTarget.Direct(target.Origin.GetLeftPart(UriPartial.Authority)))
             .ResumeAsync(other.Git.RevisionId, other.Git.Repository, other.Git.Head)).Throws<AttemptAdmissionError>();
         await Assert.That(otherStore.Status(other.Git.RevisionId).Attempts.Count).IsEqualTo(0);
+        // Authorized PR work never falls back to the bridge.
+        var pullRequest = AttemptFixture.PullRequestRevision(otherStore);
+        var bridge = new ControlledTransport();
+        await Assert.That(async () => await new Invocation(otherStore, Local(other, bridge))
+            .ResumeAsync(pullRequest, other.Git.Repository, other.Git.Head)).Throws<AttemptAdmissionError>();
+        await Assert.That(otherStore.Status(pullRequest).Attempts.Count).IsEqualTo(0);
+        await Assert.That(bridge.Calls).IsEqualTo(0);
 
         using var http = new HttpFixture();
         var transport = new ControlledTransport();
@@ -368,6 +375,11 @@ public sealed class InvocationTests
             new NativeProfile(Path.Combine(http.Git.State.Root, "native")), transport)).ResumeAsync(http.Attempt.ContractRevisionId))
             .Throws<UnsupportedRuntime>();
         await Assert.That(http.Store.FindSubmission(http.Attempt.AttemptId)).IsNull();
+        // A prepared HTTP Attempt keeps its retained origin; a differently configured one is refused.
+        var prepared = http.Prepare(target: target.Origin.GetLeftPart(UriPartial.Authority));
+        await Assert.That(async () => await new Invocation(http.Store, new InvocationTarget.Direct("http://127.0.0.1:9"))
+            .ResumeAsync(http.Attempt.ContractRevisionId)).Throws<SubmissionConflict>();
+        await Assert.That(http.Store.FindSubmission(http.Attempt.AttemptId)).IsEqualTo(prepared);
         await Assert.That(transport.Calls).IsEqualTo(0);
         await Assert.That(target.Connections).IsEqualTo(0);
     }

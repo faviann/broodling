@@ -183,8 +183,10 @@ public sealed class RepositoryPreparationTests
             new GitHubRepositoryCredentials("configured-token"), fixture.Source);
         await Assert.That(RunGit(prepared.Repository, "rev-parse", "refs/broodling/upstream/main").Trim())
             .IsEqualTo(fixture.AdvancedCommit);
+        // Authorized PR work is an HTTP Attempt; the worktree path serves no-effect work.
+        RequiredEffect[] effects = kind == "http" ? [new("pr", "Open PR", "pull_request", "main")] : [];
         var admitted = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()],
-            ContractIngressTests.Propose, [new("pr", "Open PR", "pull_request", "main")], "caller");
+            ContractIngressTests.Propose, effects, "caller");
         store.AssociateIssueSubmission(submission.SubmissionId, admitted.Revision.ContractRevisionId);
         var attempt = kind == "http" ? store.AdmitHttpAttempt(submission.SubmissionId)
             : store.AdmitAttempt(submission.SubmissionId, Path.Combine(fixture.State.Root, "attempts"));

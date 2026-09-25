@@ -76,6 +76,17 @@ public sealed partial class BroodlingStore
         throw new AttemptAdmissionError("An HTTP Attempt requires exactly one authorized pull-request effect.");
     }
 
+    /// <summary>The bridge worktree path serves no-effect work; authorized PR work is always an HTTP Attempt.</summary>
+    private static void RequireLocalDelivery(Contract contract)
+    {
+        try
+        {
+            if (Closability.AuthorizeDelivery(contract).Mode == "none") return;
+        }
+        catch (InvalidContractProposal) { }
+        throw new AttemptAdmissionError("A worktree Attempt serves only no-effect work; authorized pull-request work uses an HTTP Attempt.");
+    }
+
     /// <summary>
     /// Admit from one completed Issue submission's retained repository
     /// preparation. The caller cannot replace its repository or starting commit.
@@ -138,6 +149,7 @@ public sealed partial class BroodlingStore
         }
         if (ReadDecision(revisionId, transaction)?.Admitted != true)
             throw new AttemptAdmissionError("An Attempt requires a committed admitted Contract decision.");
+        if (root is not null) RequireLocalDelivery(contract.Contract);
         RequireUnpaused(transaction);
         var now = Now();
         var allocation = root is null ? null : new WorkspaceAllocation(root, System.IO.Path.Combine(root, id),

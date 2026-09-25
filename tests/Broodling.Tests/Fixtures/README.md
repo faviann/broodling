@@ -44,10 +44,7 @@ produced the dump; restoring it reproduces the original schema and every row.
 - Original manifest hash: `06e016bef175105c38b3329629e46cdc1aabca4c44ab94abbf143c53e9178f5e`.
 - SQL fixture SHA-256: `927458271c7171d3d84da1f37c08d4dcd08671610584b6a1ab4bc30b86c07f21`.
 
-The F Python files here are test fixtures only. `receipt-sdk.py` substitutes SDK
-constructors/results around the production translator and proves precise PR
-receipt transport, not real DirectTarget delivery. `corrupt-submit.py` succeeds
-at version probing and corrupts only the submit response. `gateway-profile.py`
-materializes the pinned native gateway profile locally without executing work.
+The Python file here is a test fixture only. `corrupt-submit.py` succeeds at
+version probing and corrupts only the LocalTarget bridge's submit response.
 `slow-codex` and `inspect-codex` are controlled provider witnesses for waiter
 detachment/stop and C# exec policy; they use no provider account.

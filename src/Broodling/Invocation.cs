@@ -70,7 +70,7 @@ public sealed class Invocation(BroodlingStore store, InvocationTarget target)
             case InvocationTarget.Local local when attempt.ResourceKind == AttemptRecord.Worktree:
                 // No reacquisition, B1 selection or materialization once dispatch may have happened.
                 if (store.FindSubmission(attempt.AttemptId) is null) store.ProvisionAttempt(attempt.AttemptId);
-                await store.DispatchAsync(attempt.AttemptId, local.Profile, local.Transport, credentials, cancellationToken);
+                await store.DispatchAsync(attempt.AttemptId, local.Profile, local.Transport, cancellationToken);
                 break;
             default:
                 throw new UnsupportedRuntime("The configured target kind differs from the retained Attempt's resource kind.");
