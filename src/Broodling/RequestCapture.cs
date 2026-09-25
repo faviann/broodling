@@ -59,15 +59,19 @@ public sealed partial class BroodlingStore
             return bundle;
 
         var total = 0L;
-        void Measure(string referenceId, long size)
+        void Check(string referenceId, long size)
         {
-            total += size;
             if (size > bounds.MaxItemBytes)
                 throw new CaptureRefused("reference_limit_exceeded", referenceId,
                     $"The captured item exceeds {bounds.MaxItemBytes} bytes.");
-            if (total > bounds.MaxTotalBytes)
+            if (total + size > bounds.MaxTotalBytes)
                 throw new CaptureRefused("reference_limit_exceeded", referenceId,
                     $"The captured bundle exceeds {bounds.MaxTotalBytes} bytes in total.");
+        }
+        void Measure(string referenceId, long size)
+        {
+            Check(referenceId, size);
+            total += size;
         }
 
         // First capture wins; always continue from the retained bytes.
@@ -81,6 +85,8 @@ public sealed partial class BroodlingStore
                 {
                     throw new CaptureRefused("reference_unavailable", referenceId, error.Message);
                 }
+                // An oversized acquisition is refused before it becomes a durable capture.
+                Check(referenceId, acquired.Content.LongLength);
                 CaptureRequestBundleSource(bundle.BundleId, referenceId, acquired);
             }
             var content = ReadCapturedBundleReference(bundle.BundleId, referenceId).Content;

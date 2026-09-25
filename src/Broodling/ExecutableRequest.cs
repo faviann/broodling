@@ -59,7 +59,7 @@ internal static partial class ExecutableRequest
     [GeneratedRegex(@"\A {0,3}(`{3,}|~{3,})(.*)\z", RegexOptions.CultureInvariant)]
     private static partial Regex Fence();
 
-    [GeneratedRegex(@"\A {0,3}[-*+][ \t]+([A-Za-z0-9][A-Za-z0-9._-]*):[ \t]+(\S+)[ \t]*\z", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A {0,3}-[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*):[ \t]+(\S+)[ \t]*\z", RegexOptions.CultureInvariant)]
     private static partial Regex Declaration();
 
     [GeneratedRegex(@"\Ahttps://(?i:github\.com)/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/issues/([0-9]+)(?:#issuecomment-([0-9]+))?\z",

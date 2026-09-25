@@ -183,7 +183,9 @@ resumes or returns only a bundle frozen under exactly this v1 plan. A bundle
 begun with any other inputs, policy or limits, even through the generic
 checkpoint API, is a `RequestBundleConflict`.
 A repository file's size is read from Git first; a file over the per-member
-limit or the remaining total is refused without being read or captured.
+limit or the remaining total is refused without being read or captured. Other
+acquired sources are measured before their first capture, so an oversized
+source is refused without being captured either.
 The following retain a refusal instead of an incomplete bundle:
 
 | Finding code | Cause |

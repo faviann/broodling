@@ -157,6 +157,7 @@ public sealed class RequestCaptureTests
     [Arguments("unlabeled-declaration", "invalid_reference_declaration")]
     [Arguments("duplicate-label", "invalid_reference_declaration")]
     [Arguments("declaration-before-comment", "invalid_reference_declaration")]
+    [Arguments("non-hyphen-declaration", "invalid_reference_declaration")]
     public async Task RequestGrammarViolationsAreRetainedRefusalsBeforeAnyReferenceAcquisition(string variant, string code)
     {
         using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
@@ -168,6 +169,7 @@ public sealed class RequestCaptureTests
             "unsupported-version" => "## Request\n<!-- broodling-request:v2 -->\nA\n",
             "unlabeled-declaration" => Request("- https://github.com/acme/widget/issues/7"),
             "declaration-before-comment" => Request("- design: repo:docs/design.md <!--", "  rationale", "-->"),
+            "non-hyphen-declaration" => Request("* design: repo:docs/design.md"),
             _ => Request("- spec: repo:docs/a.md", "- Spec: repo:docs/b.md")
         });
         using var store = fixture.State.Initialize();
@@ -195,6 +197,7 @@ public sealed class RequestCaptureTests
     [Arguments("unresolved-path")]
     [Arguments("reference-count")]
     [Arguments("item-size")]
+    [Arguments("source-size")]
     [Arguments("total-size")]
     public async Task UnavailableMaterialAndExceededBoundsAreRetainedRefusals(string variant)
     {
@@ -204,7 +207,7 @@ public sealed class RequestCaptureTests
         if (variant != "primary-unavailable")
             fixture.SetIssue(12, variant switch
             {
-                "reference-unavailable" or "reference-gone" => Request("- design: https://github.com/acme/widget/issues/7"),
+                "reference-unavailable" or "reference-gone" or "source-size" => Request("- design: https://github.com/acme/widget/issues/7"),
                 "unresolved-path" => Request("- spec: repo:docs/missing.md"),
                 "reference-count" => Request("- a: repo:docs/a.md", "- large: repo:docs/large.md"),
                 _ => Request("- large: repo:docs/large.md")
@@ -212,10 +215,12 @@ public sealed class RequestCaptureTests
         // The fixture's repository is visible, so its 404s are genuine absence.
         if (variant == "reference-gone")
             fixture.Gone("/repos/acme/widget/issues/7");
+        if (variant == "source-size")
+            fixture.SetIssue(7, new string('y', 5000));
         var limits = variant switch
         {
             "reference-count" => new RequestBundleLimits(1, 1024 * 1024, 8 * 1024 * 1024),
-            "item-size" => new RequestBundleLimits(50, 4096, 8 * 1024 * 1024),
+            "item-size" or "source-size" => new RequestBundleLimits(50, 4096, 8 * 1024 * 1024),
             "total-size" => new RequestBundleLimits(50, 4096, 3000),
             _ => null
         };
@@ -226,11 +231,11 @@ public sealed class RequestCaptureTests
 
         await AssertRefused(store, bundle, variant is "primary-unavailable" or "reference-unavailable"
             or "reference-gone" or "unresolved-path" ? "reference_unavailable" : "reference_limit_exceeded");
-        await Assert.That(ApiReads(fixture)).IsEqualTo(variant is "reference-unavailable" or "reference-gone"
+        await Assert.That(ApiReads(fixture)).IsEqualTo(variant is "reference-unavailable" or "reference-gone" or "source-size"
             ? PrimaryPath + " /repos/acme/widget/issues/7" : PrimaryPath);
-        if (variant is "item-size" or "total-size")
-            await Assert.That(bundle.References.Single(reference => reference.ReferenceId == "repo:docs/large.md").IsCaptured)
-                .IsFalse();
+        if (variant is "item-size" or "total-size" or "source-size")
+            await Assert.That(bundle.References.Single(reference => reference.ReferenceId
+                == (variant == "source-size" ? "github:acme/widget/issues/7" : "repo:docs/large.md")).IsCaptured).IsFalse();
     }
 
     private static async Task AssertRefused(BroodlingStore store, RequestBundle bundle, string code)
