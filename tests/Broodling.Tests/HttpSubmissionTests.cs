@@ -290,6 +290,7 @@ public sealed class HttpSubmissionTests
 
         fixture.Git.State.Execute("UPDATE native_submissions SET state = 'dispatched'");
         await Refused("UPDATE native_submissions SET state = 'prepared'");
+        await Refused("UPDATE native_submissions SET state = 'correlated'");
         await Assert.That(() => Complete()).Throws<SqliteException>();
         // A conflict fact may be recorded once, never cleared, and does not resolve dispatch.
         fixture.Git.State.Execute("UPDATE native_submissions SET replay_blocked_reason = 'submission_conflict'");

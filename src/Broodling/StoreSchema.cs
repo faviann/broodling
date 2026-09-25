@@ -398,7 +398,7 @@ internal static class StoreSchema
                 OR (format = 'http.v1' AND state <> 'blocked' AND intended_run_id IS NOT NULL
                     AND asset_sha256 IS NOT NULL AND binding_json IS NOT NULL
                     AND (replay_blocked_reason IS NULL OR state <> 'prepared')
-                    AND ((state = 'correlated' AND run_id = intended_run_id)
+                    AND ((state = 'correlated' AND run_id IS intended_run_id)
                         OR (state <> 'correlated' AND run_id IS NULL))))
         ) STRICT;
         CREATE TRIGGER submission_requires_current BEFORE INSERT ON native_submissions
