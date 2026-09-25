@@ -60,7 +60,9 @@ repository acquisition by `submit`, Python 3.13+ only for the no-effect
 LocalTarget bridge, and ordinary
 non-PID-1 child ownership as described by
 [materialization](../docs/implementation/dotnet-worktree-materialization.md).
-Run Broodling as an unprivileged dedicated account. Only the host-side
+Run Broodling as an unprivileged dedicated account; with the
+[Broodling image](#broodling-image), commands that share its store run as its
+user `1654:1654`. Only the host-side
 `check-target` command needs access to the local rootful Docker socket; the
 [Broodling image](#images) never mounts one. In an LXC, the host
 operator must enable Docker nesting and the UID/GID operations rootful Docker
@@ -153,19 +155,25 @@ as PID 1.
 - Arguments select a store, inspection or maintenance command instead. For
   example, a new installation initializes its store once with
   `docker compose run --rm --no-deps broodling initialize-store /var/lib/broodling/state.sqlite3`.
-  `upgrade-store`, `status`, `history`, the installation pause commands and
-  `retire-attempt` work the same way.
-- The invocation commands (`submit`, `resume`, `wait`, `stop`) are not
-  supported in the image in this revision; run them from the release artifact.
-  `submit` acquires the issue and repository through `gh`, which the image
-  lacks, so it refuses with `github_source_error`. An Attempt's source custody
-  is the common Git directory of the caller checkout named to `submit`, at its
-  host path, which the image does not mount; resuming or waiting on the Attempt
-  needs it.
+  The store-only commands `upgrade-store`, `status`, `history` and the
+  installation pause commands work the same way.
+- The invocation commands (`submit`, `resume`, `wait`, `stop`) and
+  `retire-attempt` are not supported in the image in this revision; run them
+  from the release artifact. `submit` acquires the issue and repository through
+  `gh`, which the image lacks, so it refuses with `github_source_error`. An
+  Attempt's source custody is the common Git directory of the caller checkout
+  named to `submit`, at its host path, which the image does not mount.
+  Resuming or waiting on the Attempt needs it, and `retire-attempt` checks the
+  Attempt's B1 and accepted-revision pins there.
 - The operator provides the state directory, mounted read/write at
   `/var/lib/broodling` and owned by `1654:1654` (for example mode `0700`). The
   image never changes mounted ownership. Mount the public root directory
   read-only at `/tls-root`.
+- Release-artifact commands that share the image's store, so that the reader
+  serves what they retain, must run as UID/GID `1654:1654` against the same
+  state directory's host path: the store uses SQLite WAL, whose sidecar files
+  must stay usable by the image user. This combination is not demonstrated in
+  this revision.
 - The image health check runs `GET http://127.0.0.1:8080/health` with no
   credentials. It fails while the store is unavailable.
 - It mounts no Docker socket. `check-target` inspects containers on the Docker
@@ -234,7 +242,9 @@ on them and then publishes exactly those images to GHCR:
 - A branch push publishes `sha-<full commit>` candidates, so a pull request's
   head is published before merge.
 - A `v*` tag publishes that tag name and attaches the release record to a
-  GitHub release of the same name.
+  GitHub release of the same name. Publish a version by pushing the tag only.
+  Do not create the GitHub release first: that also creates the tag, and the
+  workflow's release creation then fails after the images were pushed.
 - Pull requests from forks only build and demonstrate.
 
 Published tags are never moved: a run refuses to publish over an existing tag,
@@ -244,7 +254,10 @@ too; that half-published tag is not a release and has no record. Publish again
 from a new commit or a new version tag.
 
 Each publishing run uploads a `release-record` artifact, `release-record.json`
-(kind `broodling.image-release/v1`), which records:
+(kind `broodling.image-release/v1`). For a `sha-` candidate that workflow
+artifact is the only copy, and it expires under the repository's artifact
+retention; a `v*` version keeps its record on the GitHub release. The record
+contains:
 
 - the source revision, and the version or `sha-` tag;
 - `images.broodling` and `images.zeroshot` as `repository@sha256:DIGEST`, and
