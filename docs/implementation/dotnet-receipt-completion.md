@@ -157,8 +157,12 @@ A wait ends in one of four ways:
   failures are not reported; #120 owns reporting observer failures when it
   attaches the observer to the host.
 
-Cancelling `RunAsync` detaches every wait without stopping or abandoning the
-run. The next process rediscovers the same correlated records and reconnects
+Each successful scan also detaches any wait whose Attempt has left that set,
+for example after an independent stop or abandonment ends its authority. Such a
+wait can no longer retain a result and would otherwise poll a still-running
+target indefinitely. Detaching neither stops the run nor changes the Attempt's
+disposition. A scan that cannot read the store detaches nothing. Cancelling
+`RunAsync` detaches every wait without stopping or abandoning the run. The next process rediscovers the same correlated records and reconnects
 through their retained bindings. Concurrent observers, or an observer racing an
 explicit wait, converge through the final write described above. A retained
 completion is never selected again, so it stays readable with no target or

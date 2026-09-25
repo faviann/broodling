@@ -20,32 +20,48 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
     /// <summary>Observe until cancelled. Cancellation detaches every wait; no run is stopped or abandoned.</summary>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        var observing = new Dictionary<string, Task>();
+        var observing = new Dictionary<string, (Task Wait, CancellationTokenSource Detach)>();
         try
         {
             while (true)
             {
-                foreach (var ended in observing.Where(pair => pair.Value.IsCompleted).Select(pair => pair.Key).ToArray())
-                    observing.Remove(ended);
-                foreach (var attemptId in Discover())
-                    if (!observing.ContainsKey(attemptId))
-                        observing[attemptId] = Task.Run(() => ObserveAsync(attemptId, cancellationToken));
+                foreach (var (attemptId, ended) in observing.Where(pair => pair.Value.Wait.IsCompleted).ToArray())
+                {
+                    observing.Remove(attemptId);
+                    ended.Detach.Dispose();
+                }
+                // A failed read says nothing about eligibility, so it neither starts nor detaches a wait.
+                if (Discover() is { } eligible)
+                {
+                    // Eligibility never returns once lost. A wait whose Attempt has lost it can no longer
+                    // retain anything and would poll the target for the process lifetime, so detach it.
+                    foreach (var (attemptId, active) in observing)
+                        if (!eligible.Contains(attemptId)) active.Detach.Cancel();
+                    foreach (var attemptId in eligible)
+                        if (!observing.ContainsKey(attemptId))
+                        {
+                            var detach = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                            observing[attemptId] = (Task.Run(() => ObserveAsync(attemptId, detach.Token)), detach);
+                        }
+                }
                 Interlocked.Increment(ref scans);
                 await Task.Delay(Cadence, Clock, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        await Task.WhenAll(observing.Values);
+        await Task.WhenAll(observing.Values.Select(active => active.Wait));
+        foreach (var active in observing.Values) active.Detach.Dispose();
     }
 
-    private IReadOnlyList<string> Discover()
+    /// <summary>Eligible Attempt IDs, or null when the store could not be read.</summary>
+    private IReadOnlyList<string>? Discover()
     {
         try
         {
             using var store = application.OpenStore(storePath);
             return store.ObservableAttempts();
         }
-        catch (Exception) { return []; } // Storage may be briefly unavailable; the next scan reads again.
+        catch (Exception) { return null; } // Storage may be briefly unavailable; the next scan reads again.
     }
 
     private async Task ObserveAsync(string attemptId, CancellationToken cancellationToken)
@@ -58,8 +74,9 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
             // A retained-submission conflict before contact, such as a changed release pin, is retried.
             catch (ReceiptRefused refusal) { store.RefuseCompletion(attemptId, refusal.Message); }
         }
-        // Native failure has already recorded abandonment. Any other failure leaves the Attempt
-        // eligible, so the next scan retries it; configuration can be fixed without a restart.
+        // Native failure has already recorded abandonment, and a detached wait's Attempt is no longer
+        // eligible. Any other failure leaves the Attempt eligible, so the next scan retries it;
+        // configuration can be fixed without a restart.
         // Reporting these failures belongs to the host that attaches the observer (#120).
         catch (Exception) { }
     }

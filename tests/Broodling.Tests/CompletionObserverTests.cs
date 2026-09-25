@@ -9,7 +9,8 @@ namespace Broodling.Tests;
 /// <summary>
 /// Automatic completion observation with no caller waiting, over real SQLite/Git and the loopback
 /// stock-target stand-in. Receipt, pin and finalization semantics belong to <see cref="AttemptCompletionTests"/>;
-/// these witnesses cover discovery, retry cadence, refusal retention and restart.
+/// these witnesses cover discovery, detachment, retry cadence, refusal retention and restart. Concurrent
+/// finalizers converge through <c>WaitAsync</c> itself (<see cref="AttemptCompletionTests"/>).
 /// </summary>
 public sealed class CompletionObserverTests
 {
@@ -148,32 +149,47 @@ public sealed class CompletionObserverTests
     }
 
     [Test]
-    public async Task ConcurrentObserversRetainOneResultAndLeaveRetainedWorkAlone()
+    public async Task ObservationDetachesOnceItsAttemptLosesAuthority()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, "correlated");
+        target.Reply = Status(() => DirectTargetSessionTests.Running(submission.Frozen.Run(submission.IntendedRunId!)));
+        await using var observer = new Observer(fixture);
+        await Until(() => target.Count("run/status") > 0);
+
+        var abandonment = fixture.Store.AbandonAttempt(fixture.Attempt.AttemptId, "Ended while observed.");
+        await observer.Scan();
+        // A still-attached wait reads the running run again after its two-second pause.
+        var reads = target.Count("run/status");
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        await Assert.That(target.Count("run/status")).IsEqualTo(reads);
+        await Assert.That(target.Count("run/force")).IsEqualTo(0);
+        var attempt = fixture.Store.GetAttempt(fixture.Attempt.AttemptId);
+        await Assert.That(attempt.Abandonment).IsEqualTo(abandonment);
+        await Assert.That(attempt.CompletionRefusal).IsNull();
+        await Assert.That(fixture.Store.FindCompletion(attempt.AttemptId)).IsNull();
+    }
+
+    [Test]
+    public async Task RetainedCompletionIsNeverRediscovered()
     {
         await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var submission = fixture.PrepareAt(target.Origin, "correlated");
         var accepted = fixture.Git.Deliver();
-        var answer = Status(() => Finished(submission, accepted));
-        // Hold each read until both observers have asked, so both finalize the same result.
-        target.Reply = (request, id) =>
+        target.Reply = Status(() => Finished(submission, accepted));
+
+        int reads;
+        await using (var observer = new Observer(fixture))
         {
-            SpinWait.SpinUntil(() => target.Count("run/status") >= 2, TimeSpan.FromSeconds(10));
-            return answer(request, id);
-        };
-
-        await using (var one = new Observer(fixture))
-        await using (var two = new Observer(fixture))
             await Until(() => fixture.Store.FindCompletion(fixture.Attempt.AttemptId) is not null);
-        await Assert.That(target.Count("run/status")).IsEqualTo(2);
-        await Assert.That(fixture.Scalar("SELECT count(*) FROM attempt_completions")).IsEqualTo("1");
-        var attempt = fixture.Store.GetAttempt(fixture.Attempt.AttemptId);
-        await Assert.That(attempt.CompletionRefusal).IsNull();
-        await Assert.That(attempt.Abandonment).IsNull();
-
-        await using (var later = new Observer(fixture))
-            for (var scan = 0; scan < 3; scan++) await later.Scan();
-        await Assert.That(target.Count("run/status")).IsEqualTo(2);
+            reads = target.Count("run/status");
+            for (var scan = 0; scan < 3; scan++) await observer.Scan();
+        }
+        await using (var restarted = new Observer(fixture))
+            for (var scan = 0; scan < 3; scan++) await restarted.Scan();
+        await Assert.That(target.Count("run/status")).IsEqualTo(reads);
     }
 
     private static JsonObject Finished(NativeSubmission submission, string accepted) =>
