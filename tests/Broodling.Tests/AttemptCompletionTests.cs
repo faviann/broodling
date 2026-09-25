@@ -353,4 +353,79 @@ public sealed class AttemptCompletionTests
         store.RequireCurrentAttempt(attempt.AttemptId);
         await Assert.That(store.FindCompletion(attempt.AttemptId)).IsNull();
     }
+
+    [Test]
+    [Arguments("prepared")]
+    [Arguments("dispatched")]
+    public async Task HttpWaitRefusesUnacknowledgedWorkBeforeContact(string state)
+    {
+        await using var target = new DirectTargetSessionTests.StockTarget();
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, state);
+        // Even a finished run under the intended ID is never consumed without acknowledgement.
+        target.Projections.Enqueue(HttpFinished(submission, "succeeded", CompletionFixture.Receipt()));
+        await Assert.That(async () => await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null)).Throws<SubmissionNotReady>();
+        await Assert.That(target.Connections).IsEqualTo(0);
+        fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
+    }
+
+    [Test]
+    public async Task CorrelatedHttpWaitPinsTheAuthorizedDeliveryAndReplaysItOffline()
+    {
+        var target = new DirectTargetSessionTests.StockTarget();
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, "correlated");
+        var accepted = fixture.Git.Deliver();
+        target.Projections.Enqueue(HttpFinished(submission, "succeeded", CompletionFixture.Receipt(head: accepted)));
+
+        var completion = await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null);
+        await Assert.That(completion.RunId).IsEqualTo(submission.IntendedRunId);
+        await Assert.That(completion.AcceptedRevision).IsEqualTo(accepted);
+        await Assert.That(fixture.Git.Git("rev-parse", "refs/broodling/accepted/" + accepted).Trim()).IsEqualTo(accepted);
+        await Assert.That(target.Count("run/force")).IsEqualTo(0);
+        await target.DisposeAsync();
+        await Assert.That(await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null)).IsEqualTo(completion);
+    }
+
+    [Test]
+    public async Task CorrelatedHttpNativeFailureAbandonsWithOnlyASafeLabel()
+    {
+        await using var target = new DirectTargetSessionTests.StockTarget();
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, "correlated");
+        target.Projections.Enqueue(HttpFinished(submission, "failed", "canary_secret_reason"));
+
+        await Assert.That(async () => await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null)).Throws<SubmissionNotReady>();
+        var abandonment = fixture.Store.GetAttempt(fixture.Attempt.AttemptId).Abandonment!;
+        await Assert.That(abandonment.Reason).IsEqualTo("Zeroshot run failed: native_failed");
+        await Assert.That(target.Count("run/force")).IsEqualTo(0);
+        await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
+    }
+
+    [Test]
+    [Arguments("foreign", "foreign_run")]
+    [Arguments("unavailable", "TargetError")]
+    public async Task DetachedHttpWaitLeavesAuthorityUntouched(string answer, string kind)
+    {
+        await using var target = new DirectTargetSessionTests.StockTarget();
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, "correlated");
+        if (answer == "unavailable") target.Session = (503, """{"code":"target.unavailable","message":"busy"}""");
+        target.Projections.Enqueue(HttpFinished(submission, "failed", "runtime_failed", title: "Another run"));
+
+        await DirectTargetSessionTests.Fails(() => fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null), kind);
+        fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
+        await Assert.That(target.Count("run/force")).IsEqualTo(0);
+        await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
+    }
+
+    private static JsonObject HttpFinished(NativeSubmission submission, string status, object detail, string? title = null)
+    {
+        var terminal = new JsonObject { ["status"] = status };
+        if (status == "succeeded") terminal["output"] = JsonNode.Parse(((JsonElement)detail).GetRawText());
+        else terminal["reason"] = (string)detail;
+        var run = submission.Frozen.Run(submission.IntendedRunId!);
+        return DirectTargetSessionTests.Projection(new JsonObject { ["phase"] = "finished", ["terminalResult"] = terminal },
+            title is null ? run : run with { Title = title });
+    }
 }

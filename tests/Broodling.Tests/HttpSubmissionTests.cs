@@ -28,6 +28,15 @@ internal sealed class HttpFixture : IDisposable
     internal NativeSubmission Prepare(BroodlingStore? store = null, string? attemptId = null, string target = Target) =>
         (store ?? Store).PrepareHttpSubmission(attemptId ?? Attempt.AttemptId, target, () => ExecutionAsset.Load(Assets));
 
+    /// <summary>Prepare against a loopback target, then take only the phase steps the SQL guards allow; no submission is sent.</summary>
+    internal NativeSubmission PrepareAt(Uri target, string state = "prepared")
+    {
+        Prepare(target: target.GetLeftPart(UriPartial.Authority));
+        if (state != "prepared") Git.State.Execute("UPDATE native_submissions SET state = 'dispatched'");
+        if (state == "correlated") Git.State.Execute("UPDATE native_submissions SET state = 'correlated', run_id = intended_run_id");
+        return Store.FindSubmission(Attempt.AttemptId)!;
+    }
+
     internal string Scalar(string sql)
     {
         using var connection = Git.State.Connect();

@@ -159,7 +159,7 @@ public sealed class NativeObservationTests
     {
         await using var target = new DirectTargetSessionTests.StockTarget();
         using var fixture = new HttpFixture();
-        fixture.Prepare(target: target.Origin.GetLeftPart(UriPartial.Authority));
+        fixture.PrepareAt(target.Origin);
         await Assert.That(await fixture.Store.ObserveAsync(fixture.Attempt.AttemptId, null)).IsNull();
         await Assert.That(target.Connections).IsEqualTo(0);
     }
@@ -172,10 +172,7 @@ public sealed class NativeObservationTests
     {
         await using var target = new DirectTargetSessionTests.StockTarget();
         using var fixture = new HttpFixture();
-        var prepared = fixture.Prepare(target: target.Origin.GetLeftPart(UriPartial.Authority));
-        fixture.Git.State.Execute(state == "correlated"
-            ? "UPDATE native_submissions SET state = 'dispatched'; UPDATE native_submissions SET state = 'correlated', run_id = intended_run_id"
-            : "UPDATE native_submissions SET state = 'dispatched'");
+        var prepared = fixture.PrepareAt(target.Origin, state == "correlated" ? "correlated" : "dispatched");
         if (state == "abandoned-paused")
         {
             fixture.Store.AbandonAttempt(fixture.Attempt.AttemptId, "Operator stopped observing authority.");
@@ -206,8 +203,7 @@ public sealed class NativeObservationTests
     {
         await using var target = new DirectTargetSessionTests.StockTarget { StallAt = answer == "stalled" ? "run/status" : null };
         using var fixture = new HttpFixture();
-        var prepared = fixture.Prepare(target: target.Origin.GetLeftPart(UriPartial.Authority));
-        fixture.Git.State.Execute("UPDATE native_submissions SET state = 'dispatched'");
+        var prepared = fixture.PrepareAt(target.Origin, "dispatched");
         var run = prepared.Frozen.Run(prepared.IntendedRunId!);
         if (answer == "unknown")
             target.Reply = (request, id) => (string)request["method"]! != "run/status" ? null

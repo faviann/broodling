@@ -27,6 +27,19 @@ uses F's frozen source bytes, original B1, execution settings and delivery
 selectors; it never revalidates the old workspace or today's dispatch profile.
 Only the pinned transport, locator and run identity are needed for the wait.
 
+An HTTP (`http.v1`) record routes on its retained format and ignores any bridge
+transport, so the caller may pass null. A prepared or dispatched but
+unacknowledged record refuses with `SubmissionNotReady` before target contact,
+even when progress already shows a finished run. Only authorized Resume can
+establish correlation. A correlated record waits through
+[`DirectTargetRun.WaitAsync`](zeroshot-native-integration.md#directtarget-run-status-reader)
+with a fresh session for the retained binding. It needs no dispatch credentials,
+checkout or source Git to observe. The result then follows the same run,
+receipt, accepted-object and disposition path below. The accepted commit is
+fetched from the frozen result origin into the recorded shared custody
+directory. A native failure label is already one of the allowlisted fixed labels
+or `native_failed` before it reaches the abandonment reason.
+
 The SQLite writer is released before native contact. The returned run must
 match; transport failure or cancellation leaves authority unchanged so the
 caller can wait again. Native failure records abandonment and raises

@@ -30,14 +30,15 @@ public sealed partial class BroodlingStore
         var attempt = RequireCurrentAttempt(attemptId, transaction);
         var submission = ReadSubmission(attemptId, transaction);
         if (submission is not { State: "correlated", RunId: not null })
-            throw new SubmissionNotReady("Completion requires an already-correlated native run.");
+            throw new SubmissionNotReady("Completion requires an already-correlated native run; an unacknowledged submission is resumed, never waited on.");
         // Reconstruct from admitted facts and frozen execution settings, never today's workspace/configuration.
         ValidateFrozenInvocation(attempt, submission, transaction);
         return submission;
     }
 
     /// <summary>Wait without a writer reservation; pin the accepted commit, then retain receipt, disposition and authority loss atomically.</summary>
-    public async Task<AttemptCompletion> WaitAsync(string attemptId, INativeReader transport, CancellationToken cancellationToken = default)
+    /// <remarks>An HTTP record uses its retained binding and ignores any bridge transport.</remarks>
+    public async Task<AttemptCompletion> WaitAsync(string attemptId, INativeReader? transport, CancellationToken cancellationToken = default)
     {
         if (FindCompletion(attemptId) is { } existing) return existing;
         NativeSubmission submitted;
@@ -48,7 +49,10 @@ public sealed partial class BroodlingStore
             transaction.Commit();
         }
         // Cancellation and transport errors detach the caller; neither abandons nor requests stop.
-        var result = await transport.WaitAsync(submitted.Run!, cancellationToken);
+        var result = submitted.Format == NativeSubmission.Http
+            ? await DirectTargetRun.WaitAsync(submitted.Run!, DirectTargetClock, cancellationToken)
+            : await (transport ?? throw new SubmissionNotReady("Waiting on a bridge run requires native transport."))
+                .WaitAsync(submitted.Run!, cancellationToken);
         if (result.RunId != submitted.RunId) throw new SubmissionConflict("The result belongs to another native run.");
         if (!result.Succeeded)
         {
