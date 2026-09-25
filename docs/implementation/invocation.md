@@ -24,6 +24,7 @@ commands. The retired Python API is preserved at the
 | Pause, inspect drain status or explicitly release admission/dispatch | `BroodlingStore.PauseInstallation/GetInstallationStatus/ReleaseInstallation`: [installation pause](dotnet-installation-pause.md) |
 | Read bounded, unretained native phase/active-node progress for a correlated Attempt, or a dispatched HTTP Attempt by its intended ID | `BroodlingStore.ObserveAsync`: [native integration](zeroshot-native-integration.md#dispatch-recovery-and-completion) |
 | Consume the correlated native result or replay retained completion | `Invocation.WaitAsync` / `BroodlingStore.WaitAsync`: [completion](dotnet-receipt-completion.md) |
+| Consume correlated HTTP results with no caller waiting, for one process lifetime | `CompletionObserver.RunAsync`: [automatic observation](dotnet-receipt-completion.md#automatic-completion-observation) |
 | Abandon before requesting native stop | `BroodlingStore.StopAsync`: [lifecycle](dotnet-retirement-replacement.md) |
 | Explicit safe retirement/replacement | `RetireAttempt`, `AdmitRetry`, `PrepareRetry`, `RetryAsync`: [lifecycle](dotnet-retirement-replacement.md) |
 

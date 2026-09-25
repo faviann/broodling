@@ -115,6 +115,52 @@ access or working native target. Existing `resume`, `status` and `history`
 commands include completion facts; Ctrl+C from wait returns caller-detached
 handback.
 
+## Automatic completion observation
+
+[#118](https://github.com/faviann/broodling/issues/118) adds
+`CompletionObserver`, which retains a correlated HTTP result when no caller is
+waiting:
+
+```csharp
+await new CompletionObserver(new BroodlingApplication(), databasePath).RunAsync(processLifetime);
+```
+
+It scans at startup and then every 15 seconds for Attempts whose retained
+`http.v1` submission is correlated, that still hold current authority and that
+have no completion refusal. It consumes each through `WaitAsync` in its own
+store session, one wait per Attempt at a time. It reads only durable correlation
+records, so it works the same whichever process or caller acknowledged the run.
+It never prepares, dispatches or stops, and it continues while the installation
+is paused. LocalTarget bridge records need a Python transport and cannot produce
+a successful disposition, so the observer ignores them.
+
+A wait ends in one of four ways:
+
+- Success retains the completion as above.
+- Native failure records abandonment as above. Its reason is the inspectable
+  outcome.
+- A `SubmissionConflict` (a receipt or binding that does not match frozen
+  authority) cannot change on a later read of the same retained run. The
+  observer retains a `completion_refusals` row (Attempt, fixed reason, time),
+  read as `AttemptRecord.CompletionRefusal` through `Status`, `History` and the
+  read-only Attempt route. The refusal leaves authority and disposition
+  unchanged: the Attempt stays current and unabandoned, and an explicit wait can
+  still consume it. No observer retries it, including after a restart.
+- Every other failure leaves the Attempt eligible, and the next scan retries it.
+  This covers transport loss, an unsupported target reply, a failed accepted-commit
+  fetch or pin, and storage errors. Retries therefore happen at most once per
+  scan interval, and an operator can repair target configuration without a
+  restart.
+
+Cancelling `RunAsync` detaches every wait without stopping or abandoning the
+run. The next process rediscovers the same correlated records and reconnects
+through their retained bindings. Concurrent observers, or an observer racing an
+explicit wait, converge through the final write described above. A retained
+completion is never selected again, so it stays readable with no target or
+origin. Attaching the observer to the ASP.NET host's lifetime belongs to
+[#120](https://github.com/faviann/broodling/issues/120); the host remains
+read-only.
+
 ## Durable authority and upgrades
 
 G introduced schema **6**, retained unchanged in the fresh `broodling.application` schema. It uses

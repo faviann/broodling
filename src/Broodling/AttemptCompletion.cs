@@ -13,10 +13,42 @@ public sealed record AttemptCompletion(string AttemptId, string WorkUnitId, stri
     public string AcceptedRevision => DeliveryReceipt.GetProperty("headRevision").GetString()!;
 }
 
+/// <summary>
+/// The correlated run's result can never complete: its receipt or binding refused, and re-reading the
+/// same retained run cannot change that. It ends automatic observation only; the Attempt keeps its
+/// authority and disposition.
+/// </summary>
+public sealed record CompletionRefusal(string AttemptId, string Reason, string RefusedAt);
+
 public sealed partial class BroodlingStore
 {
     /// <summary>Exact historical lookup, with no current/latest substitution or native contact.</summary>
     public AttemptCompletion? FindCompletion(string attemptId) => ReadCompletion(attemptId);
+
+    /// <summary>Correlated HTTP Attempts that still hold authority and have no retained refusal.</summary>
+    internal IReadOnlyList<string> ObservableAttempts()
+    {
+        using var command = Command("""
+            SELECT attempt_id FROM attempts JOIN native_submissions USING (attempt_id)
+            WHERE is_current = 1 AND format = 'http.v1' AND state = 'correlated'
+              AND attempt_id NOT IN (SELECT attempt_id FROM completion_refusals)
+            ORDER BY attempts.rowid
+            """);
+        using var row = command.ExecuteReader();
+        var result = new List<string>();
+        while (row.Read()) result.Add(row.GetString(0));
+        return result;
+    }
+
+    /// <summary>Retain a refusal for a still-current Attempt; ended authority already has its disposition.</summary>
+    internal void RefuseCompletion(string attemptId, string reason)
+    {
+        using var transaction = connection.BeginTransaction(deferred: false);
+        if (ReadAttempt(attemptId, transaction) is { IsCurrent: true, Abandonment: null })
+            Execute("INSERT INTO completion_refusals VALUES ($p0, $p1, $p2) ON CONFLICT (attempt_id) DO NOTHING",
+                transaction, attemptId, reason, Now());
+        transaction.Commit();
+    }
 
     private AttemptCompletion? ReadCompletion(string attemptId, SqliteTransaction? transaction = null)
     {

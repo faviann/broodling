@@ -146,8 +146,10 @@ operator PR invocation through it, with the bridge DirectTarget path removed. A
 controlled witness runs the unmodified stock native boundary; production
 topology (#155) and image publication (#121) remain open. #113 serves retained
 work and frozen references over read-only HTTP from the ASP.NET host, opening
-existing state only. Remaining #100 intent includes public HTTP submission
-intake, a bundled proposer, automatic progression/completion, Compose,
+existing state only. #118 adds a callable completion observer that retains
+correlated HTTP results with no caller waiting; attaching it to the host process
+belongs to #120. Remaining #100 intent includes public HTTP submission intake, a
+bundled proposer, automatic progression, that host attachment, Compose,
 maintenance and backup/restore; those remain unimplemented. The ASP.NET host is
 not authority to add them.
 
