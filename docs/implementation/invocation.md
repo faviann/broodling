@@ -52,8 +52,8 @@ continue, while acknowledgement-loss recovery reuses only the frozen request/key
 and still requires current dispatch credentials (HTTP) and authority.
 
 While paused, new ordinary admission, materialization/preparation and dispatch
-initiation refuse. The safe replacement path may still allocate and prepare its
-successor; execution and correlated/result-capture observation remain available.
+initiation refuse. The explicit replacement path may still allocate and prepare its
+successor (after verified maintenance retirement, only while paused); execution and correlated/result-capture observation remain available.
 Pause status reports two separate facts. `unresolvedDispatches` counts durably
 `dispatched` submissions whose run is unknown; that uncertainty persists until
 correlation and may persist forever for a quarantined abandoned Attempt.

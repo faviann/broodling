@@ -187,7 +187,8 @@ local initiation and a current host check that the correct target and its state
 mounts are stopped. It records that check and leaves a completed Attempt
 unabandoned. An abandoned Attempt retired this way can then be explicitly replaced
 (#123) from the same Contract, RequestBundle binding and original B1; the
-successor may be prepared under the pause but dispatches only after release.
+successor is admitted and prepared only under the pause and dispatches only after
+release.
 An HTTP Attempt's prepared submission retains the complete request,
 approved asset bytes and an intended run identity; that is neither dispatch intent
 nor native acceptance. Broodling records abandonment and requests native

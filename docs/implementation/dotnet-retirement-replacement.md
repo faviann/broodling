@@ -19,9 +19,10 @@ var successor = store.AdmitRetry(attemptId, retryKey, workspaceRoot, profile);
 var prepared = store.PrepareRetry(attemptId, retryKey, workspaceRoot, profile);
 var submitted = await store.RetryAsync(attemptId, retryKey, workspaceRoot,
     profile, transport);
-// An HTTP predecessor's successor is prepared and dispatched as an HTTP Attempt,
-// also after verified stopped-target maintenance retired dispatched work.
+// An HTTP predecessor's successor is prepared and dispatched as an HTTP Attempt.
 var httpSuccessor = store.AdmitRetry(httpAttemptId, retryKey);
+// Admit and prepare it at the predecessor's retained origin; never dispatches.
+var httpPrepared = store.PrepareRetry(httpAttemptId, retryKey);
 ```
 
 These are explicit operations, not an automatically executed sequence. Each
@@ -177,9 +178,26 @@ stays `dispatched` and counted in `unresolvedDispatches`. An already
 acknowledged retirement (`retired_at` set) is returned unchanged on repeat,
 whatever its basis, so the host procedure must check the returned `basis` rather
 than treat exit 0 as its own verified retirement. An unacknowledged safe proof
-goes through the normal checks, which refuse it. An abandoned Attempt retired this
-way can be explicitly [replaced](#explicit-replacement-and-schema); a completed one
-cannot. LocalTarget worktree Attempts keep the policy above.
+goes through the normal checks, which refuse it. LocalTarget worktree Attempts
+keep the policy above.
+
+An abandoned Attempt retired this way can then be replaced (#123), still within
+the maintenance pause, with the image command:
+
+```bash
+dotnet /RELEASE/host/Broodling.Host.dll replace-attempt /EXISTING/DOTNET/state.sqlite3 PREDECESSOR_ATTEMPT_ID RETRY_KEY
+```
+
+It calls `PrepareRetry(predecessorId, retryKey)`, which admits the successor and
+prepares its submission at the predecessor's retained origin, the one the check
+verified, and prints that prepared submission (`attemptId`, `intendedRunId`,
+`state`). Repeating it with the same key prints the successor's existing
+submission. Both the successor's admission and its first preparation require the
+persisted pause, checked under the writer (`maintenance_unverified` otherwise), so
+a successor admitted before a release cannot be prepared, by any caller, until the
+installation is paused again. The command never dispatches: after
+`release-installation`, Resume dispatches the successor through the ordinary gate.
+A completed Attempt cannot be replaced.
 
 This is safe because the pinned Zeroshot ends every non-terminal run as
 `runtime_lost` before serving anything when restarted over the same ledger,
@@ -209,8 +227,8 @@ An old key returns its historical successor after replacement without reviving
 authority. A successor keeps its predecessor's resource kind: an HTTP
 predecessor takes `AdmitRetry(predecessorId, retryKey)` and its successor also
 has no local directory. Its retry records no root or target; the successor's own
-`PrepareHttpSubmission` freezes its target binding and a new intended run ID,
-also while paused. A prepared-only HTTP record keeps the `no_dispatch_intent`
+`PrepareHttpSubmission` freezes its target binding and a new intended run ID.
+A prepared-only HTTP record keeps the `no_dispatch_intent`
 basis; any later phase quarantines. Provision/prepare/dispatch independently guard currentness. Direct
 `PrepareSubmission` enforces the frozen retry target too. Dispatched retry
 recovery reuses F's correlation seam without reprovisioning candidate material.
@@ -222,9 +240,10 @@ the persisted installation pause gate, schema **10** adds RequestBundle capture,
 schema **11** adds immutable Issue submission cancellation facts, and schema
 **12** adds service-owned repository preparation. The fresh
 `broodling.application` schema retains these definitions
-([state lifecycle](dotnet-identity-custody.md)). Safe
-replacement allocation and preparation remain permitted while paused, but
-replacement dispatch still requires explicit release.
+([state lifecycle](dotnet-identity-custody.md)). Replacement
+of never-dispatched work may be allocated and prepared while paused or not;
+replacement after `stopped_target` retirement requires the pause for both.
+Replacement dispatch always requires explicit release.
 Retirement/retry facts resist update, delete and `INSERT OR REPLACE`; SQL refuses
 dispatched cleanup authority outside the `stopped_target` conditions, retry of a
 dispatched predecessor with any other retirement basis and missing/changed retry
@@ -245,8 +264,10 @@ LocalTarget refusal and the `retire-attempt` command.
 `ReplacementTests` owns original material, atomic allocation, same-key
 concurrency, historical replay, target enforcement and SQL binding refusals, plus
 replacement of an unresolved DirectTarget predecessor after `stopped_target`
-retirement: the same bundle-bound task and B1, preparation while paused, dispatch
-refused until release and then through Resume, and unchanged predecessor history.
+retirement: admission and first preparation refused outside the pause, the same
+bundle-bound task, origin and B1, same-key handback, dispatch refused until release
+and then through Resume, unchanged predecessor history, and the `replace-attempt`
+command.
 `ReplacementCompletionTests` checks the integrated completed-Work-Unit refusal
 at API and SQL boundaries, plus completed retry-key identity handback without
 renewed authority. Its historical seed bypasses only ordinary admission while
