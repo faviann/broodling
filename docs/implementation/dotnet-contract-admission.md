@@ -113,9 +113,10 @@ model `gpt-5.6-sol` through the OpenAI-compatible Chat Completions API
 describes its configuration.
 
 - The initial context is the Executable Request text, the fixed authority
-  (Work Unit, request pin, PR effect, producer and bundle binding) and a compact
-  manifest: each member's reference identity, capture kind, digest, selector
-  and Git path, without its content. Fixed instructions describe the output
+  (Work Unit, request pin, PR effect, producer and bundle binding) and the same
+  compact manifest native agents receive (#114), projected from the
+  digest-verified retained manifest: each member's reference identity, capture
+  kind, selector, digest and any Git commit and path, without its content. Fixed instructions describe the output
   shape. They tell the model to preserve every requirement, expressing other
   requested actions as obligations and unmet conditions as prerequisites, and
   never to change the authority.

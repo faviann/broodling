@@ -460,7 +460,8 @@ RequestBundle, Contract revision, refusal findings, submission rows or error
 messages. A missing key, another base URL or a gateway refusal is a
 non-retryable `ContractProposerError`. Transport loss, timeout, HTTP
 408/429/5xx, a reply cut off at the output limit or ended by any other finish
-reason than `stop`, non-text content, tool calls on the final call and any
+reason than `stop` (absent counts as `stop`; `tool_calls` only with tool
+calls), non-text content, tool calls on the final call and any
 other unusable gateway response are retryable. Neither retains anything, so a later call proposes
 again from the same frozen request. A bound or refused submission never calls
 the gateway.
