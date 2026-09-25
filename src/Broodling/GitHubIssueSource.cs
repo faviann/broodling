@@ -6,19 +6,90 @@ using System.Text.Json;
 
 namespace Broodling;
 
-public sealed class GitHubSourceError(string message) : BroodlingException("github_source_error", message);
+/// <summary>
+/// A refused GitHub read. Only 410, a 404 inside a repository the credentials
+/// can read, or a response naming another object (including a pull request for
+/// an issue) is deterministic; everything else, including an unexplained 404,
+/// is retryable.
+/// </summary>
+public sealed class GitHubSourceError(string message, bool retryable = true)
+    : BroodlingException("github_source_error", message)
+{
+    public bool Retryable { get; } = retryable;
+}
 
 public sealed record AcquiredIssue(WorkReference Reference, SourceSubmission Source);
 
-/// <summary>Acquire only the named issue through the operator's authenticated GitHub CLI.</summary>
+/// <summary>Acquire only explicitly selected issues or comments through the authenticated GitHub CLI.</summary>
 public sealed class GitHubIssueSource(string executable = "gh")
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
-    public async Task<AcquiredIssue> AcquireAsync(WorkReference reference, CancellationToken cancellationToken = default)
+    public Task<AcquiredIssue> AcquireAsync(WorkReference reference, CancellationToken cancellationToken = default) =>
+        AcquireAsync(reference, null, "primary_issue", cancellationToken);
+
+    internal async Task<AcquiredIssue> AcquireAsync(WorkReference reference, GitHubRepositoryCredentials? credentials,
+        string kind, CancellationToken cancellationToken)
+    {
+        var content = await ReadAsync(reference,
+            $"/repos/{reference.Owner}/{reference.Repository}/issues/{reference.IssueNumber.ToString(CultureInfo.InvariantCulture)}",
+            credentials, cancellationToken);
+        return Validate(reference, content, kind);
+    }
+
+    /// <summary>Acquire one exact issue comment, without its surrounding discussion.</summary>
+    internal async Task<SourceSubmission> AcquireCommentAsync(WorkReference issue, long commentId,
+        GitHubRepositoryCredentials? credentials, CancellationToken cancellationToken)
+    {
+        var id = commentId.ToString(CultureInfo.InvariantCulture);
+        var locator = issue.IssueLocator + "#issuecomment-" + id;
+        var content = await ReadAsync(issue, $"/repos/{issue.Owner}/{issue.Repository}/issues/comments/{id}",
+            credentials, cancellationToken);
+        try
+        {
+            _ = StrictUtf8.GetCharCount(content);
+            using var document = JsonDocument.Parse(content);
+            var comment = document.RootElement;
+            if (comment.ValueKind != JsonValueKind.Object)
+                throw new GitHubSourceError("GitHub comment response is not an object.");
+            RequireLocator(comment, "html_url", locator);
+            RequireLocator(comment, "issue_url",
+                $"https://api.github.com/repos/{issue.Owner}/{issue.Repository}/issues/{issue.IssueNumber.ToString(CultureInfo.InvariantCulture)}");
+            if (!comment.TryGetProperty("body", out var body) || body.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
+                throw new GitHubSourceError("GitHub comment response has an invalid body.");
+            _ = body.ValueKind == JsonValueKind.String ? body.GetString() : null;
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or DecoderFallbackException)
+        {
+            throw new GitHubSourceError("GitHub comment response is not valid comment JSON.");
+        }
+        return new("referenced_document", locator, content, mediaType: "application/json",
+            retrievedAt: DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture), origin: "broodling_policy",
+            entitlement: ReferenceEntitlement);
+    }
+
+    internal static readonly SourceEntitlement ReferenceEntitlement = new("broodling_policy", "request_bundle_reference");
+
+    private async Task<byte[]> ReadAsync(WorkReference reference, string path,
+        GitHubRepositoryCredentials? credentials, CancellationToken cancellationToken)
     {
         if (reference.Host != "github.com")
-            throw new GitHubSourceError("Primary issue acquisition requires github.com.");
+            throw new GitHubSourceError("GitHub acquisition requires github.com.");
+        var (exitCode, output) = await RunAsync(path, credentials, cancellationToken);
+        if (exitCode == 0)
+            return output;
+        // GitHub answers 404 for private objects the credentials cannot see, so
+        // absence is a fact only inside a repository these credentials can read.
+        var status = Status(output);
+        if (status == "410" || status == "404"
+            && (await RunAsync($"/repos/{reference.Owner}/{reference.Repository}", credentials, cancellationToken)).ExitCode == 0)
+            throw new GitHubSourceError("The GitHub object is not available.", retryable: false);
+        throw new GitHubSourceError("GitHub acquisition failed.");
+    }
+
+    private async Task<(int ExitCode, byte[] Output)> RunAsync(string path,
+        GitHubRepositoryCredentials? credentials, CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
@@ -31,15 +102,16 @@ public sealed class GitHubIssueSource(string executable = "gh")
                 RedirectStandardError = true
             }
         };
+        if (credentials is not null)
+            process.StartInfo.Environment["GH_TOKEN"] = credentials.Token;
         foreach (var argument in new[]
         {
             "api", "--hostname", "github.com", "--method", "GET",
             "--header", "Accept: application/vnd.github+json",
             "--header", "X-GitHub-Api-Version: 2022-11-28",
-            $"/repos/{reference.Owner}/{reference.Repository}/issues/{reference.IssueNumber.ToString(CultureInfo.InvariantCulture)}"
+            path
         })
             process.StartInfo.ArgumentList.Add(argument);
-        byte[] content;
         try
         {
             process.Start();
@@ -48,23 +120,36 @@ public sealed class GitHubIssueSource(string executable = "gh")
                 process.StandardOutput.BaseStream.CopyToAsync(output, linked.Token),
                 process.StandardError.BaseStream.CopyToAsync(Stream.Null, linked.Token),
                 process.WaitForExitAsync(linked.Token));
-            if (process.ExitCode != 0)
-                throw new GitHubSourceError("GitHub primary issue acquisition failed.");
-            content = output.ToArray();
+            return (process.ExitCode, output.ToArray());
         }
         catch (OperationCanceledException)
         {
             StopRead(process);
             cancellationToken.ThrowIfCancellationRequested();
-            throw new GitHubSourceError("GitHub primary issue acquisition failed.");
+            throw new GitHubSourceError("GitHub acquisition failed.");
         }
         catch (Exception exception) when (exception is IOException or Win32Exception or InvalidOperationException or ArgumentException)
         {
             StopRead(process);
             // CLI errors can contain credentials and private response details. Never retain them as an inner exception.
-            throw new GitHubSourceError("GitHub primary issue acquisition failed.");
+            throw new GitHubSourceError("GitHub acquisition failed.");
         }
-        return Validate(reference, content);
+    }
+
+    // gh prints GitHub's error document, including its status, on stdout.
+    private static string? Status(byte[] output)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(output);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("status", out var status)
+                && status.ValueKind == JsonValueKind.String ? status.GetString() : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static void StopRead(Process process)
@@ -73,7 +158,7 @@ public sealed class GitHubIssueSource(string executable = "gh")
         catch (Exception exception) when (exception is InvalidOperationException or Win32Exception) { }
     }
 
-    private static AcquiredIssue Validate(WorkReference reference, byte[] content)
+    private static AcquiredIssue Validate(WorkReference reference, byte[] content, string kind)
     {
         try
         {
@@ -82,39 +167,46 @@ public sealed class GitHubIssueSource(string executable = "gh")
             using var document = JsonDocument.Parse(content);
             var issue = document.RootElement;
             if (issue.ValueKind != JsonValueKind.Object)
-                throw new GitHubSourceError("GitHub primary issue response is not an object.");
+                throw new GitHubSourceError("GitHub issue response is not an object.");
             if (issue.TryGetProperty("pull_request", out _))
-                throw new GitHubSourceError("The primary work reference must be an issue, not a pull request.");
+                throw new GitHubSourceError("The GitHub reference must be an issue, not a pull request.", retryable: false);
             if (!issue.TryGetProperty("number", out var number) || number.ValueKind != JsonValueKind.Number
-                || !number.TryGetInt64(out var parsedNumber) || parsedNumber != reference.IssueNumber)
-                throw new GitHubSourceError("GitHub primary issue number does not match the reference.");
-            var repositoryUrl = $"https://api.github.com/repos/{reference.Owner}/{reference.Repository}";
-            if (!StringEquals(issue, "html_url", reference.IssueLocator) || !StringEquals(issue, "repository_url", repositoryUrl))
-                throw new GitHubSourceError("GitHub primary issue locator does not match the reference.");
+                || !number.TryGetInt64(out var parsedNumber))
+                throw new GitHubSourceError("GitHub issue response has no number.");
+            if (parsedNumber != reference.IssueNumber)
+                throw new GitHubSourceError("GitHub issue number does not match the reference.", retryable: false);
+            RequireLocator(issue, "html_url", reference.IssueLocator);
+            RequireLocator(issue, "repository_url", $"https://api.github.com/repos/{reference.Owner}/{reference.Repository}");
             if (!issue.TryGetProperty("title", out var title) || title.ValueKind != JsonValueKind.String
                 || string.IsNullOrWhiteSpace(title.GetString()))
-                throw new GitHubSourceError("GitHub primary issue response has no title.");
+                throw new GitHubSourceError("GitHub issue response has no title.");
             if (!issue.TryGetProperty("body", out var body) || body.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
-                throw new GitHubSourceError("GitHub primary issue response has an invalid body.");
+                throw new GitHubSourceError("GitHub issue response has an invalid body.");
+            _ = body.ValueKind == JsonValueKind.String ? body.GetString() : null;
             if (!issue.TryGetProperty("node_id", out var identity) || identity.ValueKind != JsonValueKind.String
                 || string.IsNullOrWhiteSpace(identity.GetString()))
-                throw new GitHubSourceError("GitHub primary issue response has no stable identity.");
+                throw new GitHubSourceError("GitHub issue response has no stable identity.");
             var nodeId = identity.GetString()!;
             if (reference.IssueIdentity is not null && reference.IssueIdentity != nodeId)
-                throw new GitHubSourceError("GitHub primary issue identity does not match the reference.");
+                throw new GitHubSourceError("GitHub issue identity does not match the reference.", retryable: false);
             var acquiredReference = WorkReference.Parse(reference.SubmittedRepository, reference.SubmittedIssue,
                 reference.RepositoryIdentity, nodeId);
-            return new(acquiredReference, new("primary_issue", reference.IssueLocator, content,
+            return new(acquiredReference, new(kind, reference.IssueLocator, content,
                 mediaType: "application/json", retrievedAt: DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
-                origin: "broodling_policy"));
+                origin: "broodling_policy", entitlement: kind == "primary_issue" ? null : ReferenceEntitlement));
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or DecoderFallbackException)
         {
-            throw new GitHubSourceError("GitHub primary issue response is not valid issue JSON.");
+            throw new GitHubSourceError("GitHub issue response is not valid issue JSON.");
         }
     }
 
-    private static bool StringEquals(JsonElement element, string property, string expected) =>
-        element.TryGetProperty(property, out var actual) && actual.ValueKind == JsonValueKind.String
-        && string.Equals(actual.GetString(), expected, StringComparison.OrdinalIgnoreCase);
+    // A missing locator is a malformed response; a different one names another object.
+    private static void RequireLocator(JsonElement element, string property, string expected)
+    {
+        if (!element.TryGetProperty(property, out var actual) || actual.ValueKind != JsonValueKind.String)
+            throw new GitHubSourceError("GitHub response has no " + property + ".");
+        if (!string.Equals(actual.GetString(), expected, StringComparison.OrdinalIgnoreCase))
+            throw new GitHubSourceError("GitHub response locator does not match the reference.", retryable: false);
+    }
 }

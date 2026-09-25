@@ -80,11 +80,14 @@ Capture requires an unbound submission, so `AssociateIssueSubmission` refuses a
 submission whose bundle is still capturing; association and completion are
 ordered by the store's writer reservation.
 `ReadRequestBundleReference(bundleId, referenceId)` only serves captured members
-of a completed bundle. It returns the immutable source bytes or reads the exact
+of a sealed (completed or refused) bundle. It returns the immutable source bytes or reads the exact
 Git blob through its Broodling-pinned commit, checking the recorded digest. Git
 content remains in the source repository's retained object store; it is not
-copied into a second archive. The capture API records inputs without defining
-reference-selection policy or performing remote traversal.
+copied into a second archive. These checkpoint operations record inputs without
+defining reference-selection policy or performing remote traversal;
+[`CaptureRequestBundleAsync`](dotnet-github-ingress.md#executable-request-capture)
+owns that policy. A refused bundle keeps its captured members, seals its
+membership and retains its findings in `RequestBundle.Findings`.
 
 For a service-owned GitHub preparation, `PrepareRequestBundleRepositoryAsync`
 retains the selected canonical repository, default PR branch, requested branch

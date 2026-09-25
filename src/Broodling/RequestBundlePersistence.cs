@@ -49,7 +49,7 @@ public sealed partial class BroodlingStore
         var now = DateTimeOffset.UtcNow.ToString("O");
         Execute("UPDATE issue_submissions SET state = 'capturing' WHERE submission_id = $p0 AND state = 'accepted'",
             transaction, submissionId);
-        Execute("INSERT INTO request_bundles VALUES ($p0, $p1, $p2, $p3, $p4, 'capturing', NULL, NULL, $p5, NULL)",
+        Execute("INSERT INTO request_bundles VALUES ($p0, $p1, $p2, $p3, $p4, 'capturing', NULL, NULL, $p5, NULL, NULL)",
             transaction, bundleId, submissionId, inputs, policy, limits, now);
         var result = ReadRequestBundle(submissionId, transaction)!;
         transaction.Commit();
@@ -124,7 +124,11 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>Capture one exact local Git blob after pinning its commit in existing Git custody.</summary>
-    public RequestBundleReference CaptureRequestBundleGitBlob(string bundleId, string referenceId)
+    public RequestBundleReference CaptureRequestBundleGitBlob(string bundleId, string referenceId) =>
+        CaptureRequestBundleGitBlob(bundleId, referenceId, null);
+
+    /// <summary>A bounded capture throws <see cref="GitBlobTooLarge"/> before reading an oversized blob.</summary>
+    internal RequestBundleReference CaptureRequestBundleGitBlob(string bundleId, string referenceId, long? maxBytes)
     {
         string repositoryInput, revisionInput, path;
         using (var transaction = connection.BeginTransaction(deferred: true))
@@ -150,7 +154,7 @@ public sealed partial class BroodlingStore
         // capture until this exact result and membership checkpoint commit.
         var state = GitCustody.ResolvePinned(repositoryInput, revisionInput);
         GitCustody.Retain(state);
-        var blob = GitCustody.ReadPinnedBlob(state.Repository, state.CommitOid, path);
+        var blob = GitCustody.ReadPinnedBlob(state.Repository, state.CommitOid, path, maxBytes: maxBytes);
         var contentSha256 = Digests.Bytes(blob.Content);
 
         using var write = connection.BeginTransaction(deferred: false);
@@ -210,6 +214,31 @@ public sealed partial class BroodlingStore
         return completed;
     }
 
+    /// <summary>
+    /// Seal an open capture with its deterministic findings. The submission is
+    /// rejected before any Contract; material captured so far stays inspectable.
+    /// </summary>
+    internal RequestBundle RefuseRequestBundleCapture(string bundleId, IReadOnlyList<RequestCaptureFinding> findings)
+    {
+        using var transaction = connection.BeginTransaction(deferred: false);
+        var bundle = ReadRequestBundleById(bundleId, transaction)
+            ?? throw new UnknownRecord("Unknown RequestBundle.");
+        if (bundle.State == "refused")
+        {
+            transaction.Commit();
+            return bundle;
+        }
+        if (bundle.State != "capturing" || !SubmissionCanCapture(bundle.SubmissionId, transaction))
+            throw new RequestBundleConflict("This Issue submission is no longer eligible for capture refusal.");
+        Execute("UPDATE request_bundles SET state = 'refused', findings_json = $p0 WHERE bundle_id = $p1 AND state = 'capturing'",
+            transaction, JsonSerializer.Serialize(findings), bundleId);
+        Execute("UPDATE issue_submissions SET state = 'rejected' WHERE submission_id = $p0 AND state = 'capturing'",
+            transaction, bundle.SubmissionId);
+        var refused = ReadRequestBundleById(bundleId, transaction)!;
+        transaction.Commit();
+        return refused;
+    }
+
     /// <summary>Inspect one submission's bundle and its exact registered membership.</summary>
     public RequestBundle GetRequestBundle(string submissionId)
     {
@@ -220,8 +249,18 @@ public sealed partial class BroodlingStore
         return result;
     }
 
-    /// <summary>Read captured content only through a completed bundle membership.</summary>
-    public RequestBundleReferenceContent ReadRequestBundleReference(string bundleId, string referenceId)
+    /// <summary>
+    /// Read captured content only through sealed bundle membership. A refused
+    /// bundle's captured members remain readable for inspection.
+    /// </summary>
+    public RequestBundleReferenceContent ReadRequestBundleReference(string bundleId, string referenceId) =>
+        ReadBundleContent(bundleId, referenceId, sealedOnly: true);
+
+    /// <summary>Capture reads its own first captures on resume instead of refetching them.</summary>
+    internal RequestBundleReferenceContent ReadCapturedBundleReference(string bundleId, string referenceId) =>
+        ReadBundleContent(bundleId, referenceId, sealedOnly: false);
+
+    private RequestBundleReferenceContent ReadBundleContent(string bundleId, string referenceId, bool sealedOnly)
     {
         RequestBundleReference reference;
         EntitledSource? source = null;
@@ -229,8 +268,8 @@ public sealed partial class BroodlingStore
         {
             var bundle = ReadRequestBundleById(bundleId, transaction)
                 ?? throw new UnknownRecord("Unknown RequestBundle.");
-            if (bundle.State != "complete")
-                throw new RequestBundleConflict("Only a completed RequestBundle can be read.");
+            if (sealedOnly && bundle.State == "capturing")
+                throw new RequestBundleConflict("Only a completed or refused RequestBundle can be read.");
             reference = ReadBundleReference(bundleId, referenceId, transaction)
                 ?? throw new UnknownRecord("The reference is outside this RequestBundle.");
             if (!reference.IsCaptured)
@@ -279,8 +318,8 @@ public sealed partial class BroodlingStore
     {
         string id, submissionId, state, createdAt;
         byte[] inputs, policy, limits;
-        string? manifestJson, manifestSha256, completedAt;
-        using (var command = Command("SELECT bundle_id, submission_id, acquisition_inputs, acquisition_policy, acquisition_limits, state, manifest_json, manifest_sha256, created_at, completed_at FROM request_bundles WHERE bundle_id = $p0",
+        string? manifestJson, manifestSha256, completedAt, findingsJson;
+        using (var command = Command("SELECT bundle_id, submission_id, acquisition_inputs, acquisition_policy, acquisition_limits, state, manifest_json, manifest_sha256, created_at, completed_at, findings_json FROM request_bundles WHERE bundle_id = $p0",
             transaction, bundleId))
         using (var row = command.ExecuteReader())
         {
@@ -295,6 +334,7 @@ public sealed partial class BroodlingStore
             manifestSha256 = row.IsDBNull(7) ? null : row.GetString(7);
             createdAt = row.GetString(8);
             completedAt = row.IsDBNull(9) ? null : row.GetString(9);
+            findingsJson = row.IsDBNull(10) ? null : row.GetString(10);
         }
         var referenceIds = new List<string>();
         using (var command = Command("SELECT reference_id FROM request_bundle_references WHERE bundle_id = $p0 ORDER BY ordinal",
@@ -304,8 +344,9 @@ public sealed partial class BroodlingStore
                 referenceIds.Add(rows.GetString(0));
         var references = referenceIds.Select(referenceId => ReadBundleReference(id, referenceId, transaction)!).ToArray();
         var repository = ReadRepositoryPreparation(id, transaction);
+        var findings = findingsJson is null ? [] : JsonSerializer.Deserialize<RequestCaptureFinding[]>(findingsJson)!;
         return new(id, submissionId, state, inputs, policy, limits, manifestJson, manifestSha256,
-            createdAt, completedAt, repository, references);
+            createdAt, completedAt, repository, references, findings);
     }
 
     private RequestBundleReference? ReadBundleReference(string bundleId, string referenceId,

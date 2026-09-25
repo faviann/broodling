@@ -33,7 +33,8 @@ public sealed class SourceSubmission(string kind, string locator, byte[] content
         {
             throw new SourceNotEntitled("Source metadata contains invalid Unicode.");
         }
-        if (Kind is not ("primary_issue" or "referenced_document" or "repository_file" or "caller_statement"))
+        if (Kind is not ("primary_issue" or "referenced_document" or "repository_file" or "caller_statement"
+            or "executable_request"))
             throw new SourceNotEntitled("Unrecognized source kind.");
         if (string.IsNullOrWhiteSpace(Locator))
             throw new SourceNotEntitled("A source locator is required.");
