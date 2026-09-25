@@ -101,13 +101,16 @@ internal static class StoreSchema
             acquisition_inputs BLOB NOT NULL,
             acquisition_policy BLOB NOT NULL,
             acquisition_limits BLOB NOT NULL,
-            state TEXT NOT NULL CHECK (state IN ('capturing', 'complete')),
+            state TEXT NOT NULL CHECK (state IN ('capturing', 'complete', 'refused')),
             manifest_json TEXT,
             manifest_sha256 TEXT CHECK (manifest_sha256 IS NULL OR length(manifest_sha256) = 64),
             created_at TEXT NOT NULL,
             completed_at TEXT,
+            findings_json TEXT CHECK (findings_json IS NULL OR json_valid(findings_json)),
             CHECK ((state = 'capturing' AND manifest_json IS NULL AND manifest_sha256 IS NULL AND completed_at IS NULL)
-                OR (state = 'complete' AND manifest_json IS NOT NULL AND manifest_sha256 IS NOT NULL AND completed_at IS NOT NULL))
+                OR (state = 'complete' AND manifest_json IS NOT NULL AND manifest_sha256 IS NOT NULL AND completed_at IS NOT NULL)
+                OR (state = 'refused' AND manifest_json IS NULL AND manifest_sha256 IS NULL AND completed_at IS NULL)),
+            CHECK ((state = 'refused') = (findings_json IS NOT NULL))
         ) STRICT;
         CREATE TABLE request_bundle_references (
             bundle_id TEXT NOT NULL REFERENCES request_bundles(bundle_id),
@@ -145,12 +148,11 @@ internal static class StoreSchema
           OR OLD.acquisition_inputs <> NEW.acquisition_inputs
           OR OLD.acquisition_policy <> NEW.acquisition_policy
           OR OLD.acquisition_limits <> NEW.acquisition_limits
-          OR OLD.created_at <> NEW.created_at OR OLD.state <> 'capturing' OR NEW.state <> 'complete'
-          OR NEW.manifest_json IS NULL OR NEW.manifest_sha256 IS NULL OR NEW.completed_at IS NULL
-          OR EXISTS (SELECT 1 FROM request_bundle_references AS r
+          OR OLD.created_at <> NEW.created_at OR OLD.state <> 'capturing'
+          OR (NEW.state = 'complete' AND EXISTS (SELECT 1 FROM request_bundle_references AS r
               WHERE (r.bundle_id = OLD.bundle_id OR r.bundle_id = NEW.bundle_id)
                 AND (r.content_sha256 IS NULL OR (r.capture_kind = 'source' AND r.source_id IS NULL)
-                    OR (r.capture_kind = 'git_blob' AND (r.git_repository IS NULL OR r.git_commit_oid IS NULL OR r.git_blob_oid IS NULL))))
+                    OR (r.capture_kind = 'git_blob' AND (r.git_repository IS NULL OR r.git_commit_oid IS NULL OR r.git_blob_oid IS NULL)))))
         BEGIN SELECT RAISE(ABORT, 'RequestBundle identity and completed manifest are immutable'); END;
         CREATE TRIGGER request_bundles_no_delete BEFORE DELETE ON request_bundles
         BEGIN SELECT RAISE(ABORT, 'RequestBundle history is immutable'); END;
@@ -494,7 +496,7 @@ internal static class StoreSchema
         CREATE TABLE entitled_sources (
             source_id TEXT PRIMARY KEY,
             work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
-            kind TEXT NOT NULL CHECK (kind IN ('primary_issue', 'referenced_document', 'repository_file', 'caller_statement')),
+            kind TEXT NOT NULL CHECK (kind IN ('primary_issue', 'referenced_document', 'repository_file', 'caller_statement', 'executable_request')),
             locator TEXT NOT NULL,
             content BLOB NOT NULL,
             content_sha256 TEXT NOT NULL CHECK (length(content_sha256) = 64),

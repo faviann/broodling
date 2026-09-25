@@ -1,0 +1,206 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
+
+namespace Broodling;
+
+/// <summary>
+/// One normalized v1 reference target. Its reference ID is the bundle identity
+/// used for deduplication; issue URLs normalize owner/repository case.
+/// </summary>
+internal sealed record RequestTarget(string ReferenceId, string? Path, WorkReference? Issue, long? CommentId)
+{
+    public static RequestTarget RepositoryFile(string path) => new("repo:" + path, path, null, null);
+
+    public static RequestTarget? GitHub(string owner, string repository, string issue, string? comment)
+    {
+        WorkReference reference;
+        try { reference = WorkReference.Parse(owner + "/" + repository, issue); }
+        catch (InvalidWorkReference) { return null; }
+        long? commentId = null;
+        if (comment is not null)
+        {
+            if (!long.TryParse(comment, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) || parsed <= 0)
+                return null;
+            commentId = parsed;
+        }
+        var number = reference.IssueNumber.ToString(CultureInfo.InvariantCulture);
+        var id = $"github:{reference.Owner}/{reference.Repository}/issues/{number}"
+            + (commentId is { } c ? "#issuecomment-" + c.ToString(CultureInfo.InvariantCulture) : "");
+        return new(id, null, reference, commentId);
+    }
+}
+
+internal sealed record RequestDeclaration(string Label, string Target, RequestTarget Selected);
+
+internal sealed record ExecutableRequestSection(string Text, IReadOnlyList<RequestDeclaration> Declarations);
+
+/// <summary>
+/// The version-one Executable Request convention: one marked issue-body section
+/// with an optional Available references subsection of labeled declarations.
+/// Rules are syntactic; nothing here judges relevance.
+/// </summary>
+internal static partial class ExecutableRequest
+{
+    internal const string Convention = "broodling-request:v1";
+
+    [GeneratedRegex(@"<!--[ \t]*broodling-request:([^\s>]*)[ \t]*-->", RegexOptions.CultureInvariant)]
+    private static partial Regex Marker();
+
+    [GeneratedRegex(@"\A {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*\z", RegexOptions.CultureInvariant)]
+    private static partial Regex Heading();
+
+    [GeneratedRegex(@"\A {0,3}(`{3,}|~{3,})(.*)\z", RegexOptions.CultureInvariant)]
+    private static partial Regex Fence();
+
+    [GeneratedRegex(@"\A {0,3}[-*+][ \t]+([A-Za-z0-9][A-Za-z0-9._-]*):[ \t]+(\S+)[ \t]*\z", RegexOptions.CultureInvariant)]
+    private static partial Regex Declaration();
+
+    [GeneratedRegex(@"\Ahttps://(?i:github\.com)/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/issues/([0-9]+)(?:#issuecomment-([0-9]+))?\z",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex DeclaredGitHub();
+
+    // A link ends at anything other than URL-continuing text, so sentence
+    // punctuation may follow it but other paths, queries or fragments may not.
+    [GeneratedRegex(@"https://(?i:github\.com)/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/issues/([0-9]+)(?:#issuecomment-([0-9]+))?(?![A-Za-z0-9_/#?=&%-])",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex BodyLink();
+
+    private sealed record Line(int Start, string Text, bool Fenced, int HeadingLevel, string HeadingText);
+
+    /// <summary>Select the one marked section, or explain why none can be selected.</summary>
+    internal static ExecutableRequestSection? Parse(string body, List<RequestCaptureFinding> findings)
+    {
+        var lines = Lines(body);
+        var markers = new List<(int Index, string Version, bool WholeLine)>();
+        for (var index = 0; index < lines.Count; index++)
+        {
+            if (lines[index].Fenced) continue;
+            foreach (Match match in Marker().Matches(lines[index].Text))
+                markers.Add((index, match.Groups[1].Value, match.Value == lines[index].Text.Trim()));
+        }
+        if (markers.Count == 0)
+            findings.Add(new("request_section_missing", "request", $"No <!-- {Convention} --> section marker was found."));
+        foreach (var marker in markers.Where(marker => marker.Version != "v1"))
+            findings.Add(new("request_section_unsupported", "line " + (marker.Index + 1),
+                $"The request section convention '{marker.Version}' is not supported."));
+        if (markers.Count > 1)
+            findings.Add(new("request_section_multiple", "request", "More than one request section marker was found."));
+        if (findings.Count > 0) return null;
+
+        var (markerIndex, _, wholeLine) = markers[0];
+        var headingIndex = markerIndex - 1;
+        while (headingIndex >= 0 && lines[headingIndex].HeadingLevel == 0 && lines[headingIndex].Text.Trim().Length == 0)
+            headingIndex--;
+        if (!wholeLine || headingIndex < 0 || lines[headingIndex].HeadingLevel == 0)
+        {
+            findings.Add(new("request_section_ambiguous", "line " + (markerIndex + 1),
+                "The request section marker must be its own line directly beneath a Markdown heading."));
+            return null;
+        }
+
+        var section = lines[headingIndex];
+        var end = SectionEnd(lines, headingIndex, lines.Count);
+        var text = body[section.Start..(end < lines.Count ? lines[end].Start : body.Length)];
+
+        var subsections = Enumerable.Range(headingIndex + 1, end - headingIndex - 1)
+            .Where(index => lines[index].HeadingLevel > 0
+                && string.Equals(lines[index].HeadingText, "Available references", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (subsections.Length > 1)
+        {
+            findings.Add(new("invalid_reference_declaration", "line " + (subsections[1] + 1),
+                "The request section has more than one Available references subsection."));
+            return null;
+        }
+        var declarations = new List<RequestDeclaration>();
+        if (subsections.Length == 1)
+        {
+            var start = subsections[0];
+            for (var index = start + 1; index < SectionEnd(lines, start, end); index++)
+            {
+                var line = lines[index];
+                if (!line.Fenced && line.HeadingLevel == 0 && line.Text.Trim().Length == 0) continue;
+                var subject = "line " + (index + 1);
+                var match = line.Fenced || line.HeadingLevel > 0 ? Match.Empty : Declaration().Match(line.Text);
+                var target = match.Success ? Target(match.Groups[2].Value) : null;
+                if (target is null)
+                    findings.Add(new("invalid_reference_declaration", subject,
+                        "Available references accepts only '- label: repo:path' or a GitHub issue/comment URL."));
+                else if (declarations.Any(existing => existing.Label == match.Groups[1].Value))
+                    findings.Add(new("invalid_reference_declaration", subject, "The reference label is declared more than once."));
+                else if (declarations.Any(existing => existing.Selected.ReferenceId == target.ReferenceId))
+                    findings.Add(new("invalid_reference_declaration", subject, "The reference target is declared more than once."));
+                else
+                    declarations.Add(new(match.Groups[1].Value, match.Groups[2].Value, target));
+            }
+        }
+        return findings.Count > 0 ? null : new(text, declarations);
+    }
+
+    /// <summary>Supported GitHub issue/comment links in a captured reference body, in first-occurrence order.</summary>
+    internal static IEnumerable<(RequestTarget Target, string Url)> Links(string body)
+    {
+        foreach (Match match in BodyLink().Matches(body))
+            if (RequestTarget.GitHub(match.Groups[1].Value, match.Groups[2].Value, match.Groups[3].Value,
+                    match.Groups[4].Success ? match.Groups[4].Value : null) is { } target)
+                yield return (target, match.Value);
+    }
+
+    private static RequestTarget? Target(string target)
+    {
+        if (target.StartsWith("repo:", StringComparison.Ordinal))
+            return target.Length > "repo:".Length ? RequestTarget.RepositoryFile(target["repo:".Length..]) : null;
+        var match = DeclaredGitHub().Match(target);
+        return match.Success
+            ? RequestTarget.GitHub(match.Groups[1].Value, match.Groups[2].Value, match.Groups[3].Value,
+                match.Groups[4].Success ? match.Groups[4].Value : null)
+            : null;
+    }
+
+    private static int SectionEnd(IReadOnlyList<Line> lines, int heading, int limit)
+    {
+        var index = heading + 1;
+        while (index < limit && (lines[index].HeadingLevel == 0 || lines[index].HeadingLevel > lines[heading].HeadingLevel))
+            index++;
+        return index;
+    }
+
+    // Headings and markers inside fenced code are content, so a shell comment
+    // in a request's example cannot end the section.
+    private static List<Line> Lines(string body)
+    {
+        var lines = new List<Line>();
+        char fenceChar = '\0';
+        var fenceLength = 0;
+        var start = 0;
+        while (start < body.Length)
+        {
+            var newline = body.IndexOf('\n', start);
+            var next = newline < 0 ? body.Length : newline + 1;
+            var text = body[start..(newline < 0 ? body.Length : newline)].TrimEnd('\r');
+            var fence = Fence().Match(text);
+            if (fenceLength > 0)
+            {
+                if (fence.Success && fence.Groups[1].Value[0] == fenceChar && fence.Groups[1].Length >= fenceLength
+                    && fence.Groups[2].Value.Trim().Length == 0)
+                    fenceLength = 0;
+                lines.Add(new(start, text, true, 0, ""));
+            }
+            else if (fence.Success && !(fence.Groups[1].Value[0] == '`' && fence.Groups[2].Value.Contains('`')))
+            {
+                fenceChar = fence.Groups[1].Value[0];
+                fenceLength = fence.Groups[1].Length;
+                lines.Add(new(start, text, true, 0, ""));
+            }
+            else if (Heading().Match(text) is { Success: true } heading)
+            {
+                var title = Regex.Replace(heading.Groups[2].Value, @"(?:\A|[ \t]+)#+\z", "").Trim();
+                lines.Add(new(start, text, false, heading.Groups[1].Length, title));
+            }
+            else
+                lines.Add(new(start, text, false, 0, ""));
+            start = next;
+        }
+        return lines;
+    }
+}

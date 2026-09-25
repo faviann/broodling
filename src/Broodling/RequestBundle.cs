@@ -127,7 +127,8 @@ public sealed class RequestBundle
     internal RequestBundle(string bundleId, string submissionId, string state,
         byte[] acquisitionInputs, byte[] acquisitionPolicy, byte[] acquisitionLimits,
         string? manifestJson, string? manifestSha256, string createdAt, string? completedAt,
-        RepositoryPreparation? repository, IReadOnlyList<RequestBundleReference> references)
+        RepositoryPreparation? repository, IReadOnlyList<RequestBundleReference> references,
+        IReadOnlyList<RequestCaptureFinding> findings)
     {
         BundleId = bundleId;
         SubmissionId = submissionId;
@@ -141,6 +142,7 @@ public sealed class RequestBundle
         CompletedAt = completedAt;
         Repository = repository;
         References = Array.AsReadOnly(references.ToArray());
+        Findings = Array.AsReadOnly(findings.ToArray());
     }
 
     public string BundleId { get; }
@@ -156,7 +158,13 @@ public sealed class RequestBundle
     public RepositoryPreparation? Repository { get; }
     public RepositoryPreparation? RepositoryPreparation => Repository;
     public IReadOnlyList<RequestBundleReference> References { get; }
+
+    /// <summary>Retained deterministic capture findings; nonempty only for a refused bundle.</summary>
+    public IReadOnlyList<RequestCaptureFinding> Findings { get; }
 }
+
+/// <summary>One retained reason a capture was refused before admission.</summary>
+public sealed record RequestCaptureFinding(string Code, string Subject, string Detail);
 
 public sealed class RequestBundleReferenceContent(string bundleId, string referenceId,
     string contentSha256, byte[] content, string? gitCommitOid, string? gitPath)

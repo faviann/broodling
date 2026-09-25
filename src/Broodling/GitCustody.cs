@@ -70,7 +70,7 @@ internal static class GitCustody
         var separator = Array.IndexOf(entry, (byte)'\t');
         var end = Array.IndexOf(entry, (byte)0);
         if (separator <= 0 || end <= separator)
-            throw new UnsupportedStartingState("The exact Git path is not present in the pinned commit.");
+            throw new UnresolvedRepositoryPath("The exact Git path is not present in the pinned commit.");
         string metadata;
         string returnedPath;
         try
@@ -83,8 +83,9 @@ internal static class GitCustody
             throw new UnsupportedStartingState("The selected Git path is not valid UTF-8.");
         }
         var fields = metadata.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (returnedPath != path || fields.Length != 3 || fields[1] != "blob"
-            || fields[2].Length != 40 || fields[2].Any(c => !char.IsAsciiHexDigitLower(c)))
+        if (returnedPath != path || fields.Length != 3 || fields[1] != "blob")
+            throw new UnresolvedRepositoryPath("The exact Git path does not identify a file in the pinned commit.");
+        if (fields[2].Length != 40 || fields[2].Any(c => !char.IsAsciiHexDigitLower(c)))
             throw new UnsupportedStartingState("The exact Git path does not identify a retained file blob.");
         var blob = fields[2];
         if (expectedBlobOid is not null && blob != expectedBlobOid)

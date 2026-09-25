@@ -352,13 +352,15 @@ public sealed class RepositoryPreparationTests
 
     private static string RunGit(string repository, params string[] arguments) => AttemptFixture.RunGit(repository, arguments);
 
-    private sealed class RepositoryPreparationFixture : IDisposable
+    internal sealed class RepositoryPreparationFixture : IDisposable
     {
         internal StoreFixture State { get; } = new();
         internal string Seed { get; }
         internal string Remote { get; }
         internal string RepositoryRoot { get; }
         internal string GhCalls { get; }
+        internal string GhPaths { get; }
+        internal string Responses { get; }
         internal string GitCalls { get; }
         internal string OriginSetupStarted { get; }
         internal string FetchStarted { get; }
@@ -383,6 +385,8 @@ public sealed class RepositoryPreparationTests
             Remote = Path.Combine(State.Root, "remote.git");
             RepositoryRoot = Path.Combine(State.Root, "service-repositories");
             GhCalls = Path.Combine(State.Root, "gh-calls");
+            GhPaths = Path.Combine(State.Root, "gh-paths");
+            Responses = Path.Combine(State.Root, "responses");
             GitCalls = Path.Combine(State.Root, "git-calls");
             OriginSetupStarted = Path.Combine(State.Root, "origin-setup-started");
             FetchStarted = Path.Combine(State.Root, "fetch-started");
@@ -409,7 +413,14 @@ public sealed class RepositoryPreparationTests
             RunGitIn(Seed, "push", "origin", "develop");
             SetMetadata();
 
-            ExecutableFile.Write(gh, "#!/bin/sh\nset -eu\nprintf 'GH_TOKEN=%s\\n' \"$GH_TOKEN\" >> '" + GhCalls + "'\ncat '" + metadata + "'\n");
+            // Repository metadata answers its exact path; other API paths are
+            // served from Responses, with GitHub's 404 document when absent.
+            ExecutableFile.Write(gh, "#!/bin/sh\nset -eu\nprintf 'GH_TOKEN=%s\\n' \"$GH_TOKEN\" >> '" + GhCalls + "'\n"
+                + "for api; do :; done\nprintf '%s\\n' \"$api\" >> '" + GhPaths + "'\n"
+                + "if [ \"$api\" = /repos/acme/widget ]; then cat '" + metadata + "'; exit 0; fi\n"
+                + "if [ -f '" + Responses + "'\"$api.fail\" ]; then printf '{\"message\":\"Bad Gateway\",\"status\":\"502\"}'; exit 1; fi\n"
+                + "if [ -f '" + Responses + "'\"$api\" ]; then cat '" + Responses + "'\"$api\"; exit 0; fi\n"
+                + "printf '{\"message\":\"Not Found\",\"status\":\"404\"}'\nexit 1\n");
             WriteStandardGit();
             if (OperatingSystem.IsLinux())
             {
@@ -429,6 +440,54 @@ public sealed class RepositoryPreparationTests
             RunGitIn(Seed, "branch", "-f", "develop", "HEAD");
             RunGitIn(Seed, "push", "--force", "origin", "develop");
         }
+
+        internal void CommitFile(string path, string content)
+        {
+            var file = Path.Combine(Seed, path);
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, content);
+            RunGitIn(Seed, "add", ".");
+            RunGitIn(Seed, "commit", "-m", "add " + path);
+            RunGitIn(Seed, "push", "origin", "main");
+        }
+
+        internal void SetResponse(string apiPath, object value)
+        {
+            var file = Responses + apiPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, JsonSerializer.Serialize(value));
+        }
+
+        internal void SetIssue(long number, string body, string owner = "acme", string repository = "widget") =>
+            SetResponse($"/repos/{owner}/{repository}/issues/{number}", new
+            {
+                number,
+                title = "Issue " + number,
+                body,
+                html_url = $"https://github.com/{owner}/{repository}/issues/{number}",
+                repository_url = $"https://api.github.com/repos/{owner}/{repository}",
+                node_id = "I_" + number
+            });
+
+        internal void SetComment(long issue, long id, string body) =>
+            SetResponse("/repos/acme/widget/issues/comments/" + id, new
+            {
+                id,
+                body,
+                html_url = $"https://github.com/acme/widget/issues/{issue}#issuecomment-{id}",
+                issue_url = "https://api.github.com/repos/acme/widget/issues/" + issue,
+                node_id = "IC_" + id
+            });
+
+        internal void Fail(string apiPath, bool fail)
+        {
+            var marker = Responses + apiPath + ".fail";
+            Directory.CreateDirectory(Path.GetDirectoryName(marker)!);
+            if (fail) File.WriteAllText(marker, "");
+            else File.Delete(marker);
+        }
+
+        internal string[] ReadGhPaths() => File.Exists(GhPaths) ? File.ReadAllLines(GhPaths) : [];
 
         internal void SetDefaultBranch(string branch)
         {
