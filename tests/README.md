@@ -31,9 +31,11 @@ The image startup tests also require rootful Docker access. They build the actua
 `deployment/DirectTarget.Dockerfile` using the pinned SDK binary, so an uncached
 build needs access to the pinned image/package sources. They also use the pinned
 `zeroshot-tls` Caddy image; when it is absent, the run pulls it by digest and removes
-it afterwards. Each run owns and removes its test images, containers, networks,
-disposable volumes and host directories, all named with unique `broodling-186-`,
-`broodling-180-` or `broodling-104-` prefixes. The ADR stack tests (`TargetStack`)
+it afterwards unless another concurrent run still uses it. Each run owns and removes
+its uniquely tagged test images, its containers, networks and disposable volumes,
+named with unique `broodling-186-` (ADR stack) or `broodling-180-` (stock target)
+prefixes, and its host directories, unique `target-stack-*` and
+`target-readiness-*` children of `~/.cache/broodling-tests`. The ADR stack tests (`TargetStack`)
 give each case its own Docker network with the origin's alias; only `zeroshot-tls`
 publishes, on a host-loopback port Docker chooses. Refusal cases use `--network none`.
 The [stock target](fixtures/README.md#controlled-stock-directtarget)

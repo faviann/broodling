@@ -125,6 +125,9 @@ public sealed class TargetReadiness
                     new Mount(inventory.RootKeyMount, "/tls-root-key", false, true),
                     new Mount(inventory.RootCertificateMount, "/tls-root", false, true)]),
                 "zeroshot-tls root key and certificate mounts differ from inventory.");
+            // broodling and zeroshot see the public directory, so Caddy's data (its intermediate key) must stay outside it.
+            Require(tlsMounts.All(mount => mount.Destination == "/tls-root" || !Overlap(mount.Source, inventory.RootCertificateMount)),
+                "zeroshot-tls storage must not be inside the public root directory.");
             var broodlingMounts = Mounts(broodling);
             var publicRoot = broodlingMounts.Where(mount => mount.Source == inventory.RootCertificateMount).ToArray();
             Require(publicRoot.Length > 0 && publicRoot.All(mount => mount is { ReadWrite: false, Bind: true }),

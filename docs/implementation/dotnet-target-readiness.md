@@ -95,7 +95,10 @@ be running and run as the package-defined user `10443:10443`. It must use
 ordinary isolation, drop `ALL` capabilities and add only `NET_BIND_SERVICE`,
 publish only `443/tcp` and carry the origin's host name as an alias on the
 recorded network. Its mounts at `/tls-root-key` and `/tls-root` must be exactly
-the recorded key and public root directories, both read-only binds.
+the recorded key and public root directories, both read-only binds. No other
+`zeroshot-tls` mount may equal, contain or lie within the public root directory,
+so Caddy's data, with its intermediate key, stays out of what `broodling` and
+`zeroshot` mount.
 
 `broodling` must mount the public root directory, only as a read-only bind, and
 no other mount of it may equal, contain or lie within any other `zeroshot-tls`

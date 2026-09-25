@@ -83,6 +83,7 @@ public sealed class TargetReadinessTests
     [Arguments("tls-key-source", "root key and certificate")]
     [Arguments("tls-key-rw", "root key and certificate")]
     [Arguments("tls-certificate-missing", "root key and certificate")]
+    [Arguments("tls-data-in-public-root", "storage must not be inside the public root")]
     [Arguments("broodling-key", "broodling must not mount")]
     [Arguments("broodling-key-parent", "broodling must not mount")]
     [Arguments("broodling-caddy-data", "broodling must not mount")]
@@ -139,6 +140,7 @@ public sealed class TargetReadinessTests
             case "tls-key-source": tls["Mounts"]![0]!["Source"] = fixture.Root; break;
             case "tls-key-rw": tls["Mounts"]![0]!["RW"] = true; break;
             case "tls-certificate-missing": tls["Mounts"]!.AsArray().RemoveAt(1); break;
+            case "tls-data-in-public-root": tls["Mounts"]![2] = Bind(Path.Combine(fixture.Inventory.RootCertificateMount, "data"), "/data", true); break;
             case "broodling-key": broodlingMounts.Add(Bind(fixture.Inventory.RootKeyMount, "/key", false)); break;
             case "broodling-key-parent": broodlingMounts.Add(Bind(fixture.Root, "/srv", false)); break;
             case "broodling-caddy-data": broodlingMounts.Add(tls["Mounts"]![2]!.DeepClone()); break;

@@ -59,7 +59,8 @@ internal static class TargetImage
         foreach (var image in new[] { Controlled, Direct })
             if (image.IsValueCreated && image.Value.IsCompletedSuccessfully)
                 RequireSuccess(await DockerCommand("image", "rm", await image.Value));
-        if (pulledTls is not null) RequireSuccess(await DockerCommand("image", "rm", pulledTls));
+        // Best effort: a concurrent run may still use the pinned image it found present, and then keeps it.
+        if (pulledTls is not null) await DockerCommand("image", "rm", pulledTls);
     }
 
     internal sealed record Result(int Code, string Output, string Error);
