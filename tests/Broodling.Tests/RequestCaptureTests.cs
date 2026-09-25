@@ -132,6 +132,7 @@ public sealed class RequestCaptureTests
     [Arguments("unsupported-version", "request_section_unsupported")]
     [Arguments("unlabeled-declaration", "invalid_reference_declaration")]
     [Arguments("duplicate-label", "invalid_reference_declaration")]
+    [Arguments("declaration-before-comment", "invalid_reference_declaration")]
     public async Task RequestGrammarViolationsAreRetainedRefusalsBeforeAnyReferenceAcquisition(string variant, string code)
     {
         using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
@@ -142,6 +143,7 @@ public sealed class RequestCaptureTests
             "not-beneath-heading" => "## Request\nIntro\n<!-- broodling-request:v1 -->\nA\n",
             "unsupported-version" => "## Request\n<!-- broodling-request:v2 -->\nA\n",
             "unlabeled-declaration" => Request("- https://github.com/acme/widget/issues/7"),
+            "declaration-before-comment" => Request("- design: repo:docs/design.md <!--", "  rationale", "-->"),
             _ => Request("- spec: repo:docs/a.md", "- Spec: repo:docs/b.md")
         });
         using var store = fixture.State.Initialize();

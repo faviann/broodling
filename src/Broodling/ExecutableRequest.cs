@@ -205,11 +205,14 @@ internal static partial class ExecutableRequest
                 lines.Add(new(start, text, LineKind.Marker, Label: marker.Groups[1].Value));
             else
             {
-                inComment = text.LastIndexOf("<!--", StringComparison.Ordinal) > text.LastIndexOf("-->", StringComparison.Ordinal);
+                // An opener hides the following lines, but visible text before it
+                // still classifies this line.
+                var opener = text.LastIndexOf("<!--", StringComparison.Ordinal);
+                inComment = opener > text.LastIndexOf("-->", StringComparison.Ordinal);
                 if (Heading().Match(text) is { Success: true } heading)
                     lines.Add(new(start, text, LineKind.Heading, heading.Groups[1].Length,
                         Regex.Replace(heading.Groups[2].Value, @"(?:\A|[ \t]+)#+\z", "").Trim()));
-                else if (inComment || Comment().IsMatch(text))
+                else if (inComment && text[..opener].Trim().Length == 0 || Comment().IsMatch(text))
                     lines.Add(new(start, text, LineKind.Comment));
                 else
                     lines.Add(new(start, text, text.Trim().Length == 0 ? LineKind.Blank : LineKind.Text));
