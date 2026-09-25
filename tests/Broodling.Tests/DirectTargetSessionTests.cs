@@ -292,20 +292,25 @@ public sealed class DirectTargetSessionTests
         return await session.StatusAsync(budget);
     }
 
-    internal static JsonObject Projection(JsonObject status) => new()
+    /// <summary>A projection of <paramref name="run"/>, by default this class's fixed binding.</summary>
+    internal static JsonObject Projection(JsonObject status, NativeRunBinding? run = null)
     {
-        ["runId"] = RunId, ["title"] = "Fix the widget", ["size"] = "small", ["atCursor"] = "opaque-cursor",
-        ["source"] = new JsonObject { ["repository"] = Source.Repository, ["branch"] = Source.Branch, ["revision"] = Source.Revision },
-        ["status"] = status
-    };
+        run ??= Binding(new Uri("http://127.0.0.1:1"));
+        return new()
+        {
+            ["runId"] = run.RunId, ["title"] = run.Title, ["size"] = run.Size, ["atCursor"] = "opaque-cursor",
+            ["source"] = new JsonObject { ["repository"] = run.Source!.Repository, ["branch"] = run.Source.Branch, ["revision"] = run.Source.Revision },
+            ["status"] = status
+        };
+    }
 
-    internal static JsonObject Running() => Projection(new JsonObject
+    internal static JsonObject Running(NativeRunBinding? run = null) => Projection(new JsonObject
     {
         ["phase"] = "running",
         ["activeExecutions"] = new JsonArray(
             new JsonObject { ["execution"] = "execution-1", ["node"] = "worker" },
             new JsonObject { ["execution"] = "execution-2", ["node"] = "verifier" })
-    });
+    }, run);
 
     internal static async Task<Exception> Fails<T>(Func<Task<T>> action, string kind)
     {

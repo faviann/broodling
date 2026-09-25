@@ -219,6 +219,20 @@ observation with a safe reason, not an execution failure. Retained status never
 contacts native and is unaffected. A `finished` phase is progress only: result
 consumption and disposition remain `WaitAsync`'s responsibility.
 
+For an HTTP record, `ObserveAsync` routes on the retained `http.v1` format and
+ignores any bridge transport. A merely prepared record returns null without
+contacting the target. A dispatched record without acknowledgement is read
+through its intended run ID. A correlated record is read through its confirmed
+ID. Every observation reports that identity as `Intended` or `Confirmed`, so a
+caller cannot infer acknowledgement from available progress. The read is one
+session and status request under the 10-second progress budget, and it is
+validated by the [run status reader](#directtarget-run-status-reader) against
+the retained title, size and PR source. The read also works while the
+installation is paused or after abandonment. It writes nothing and never
+correlates, completes or abandons. An unknown, foreign or malformed run, a
+timeout or transport loss is an unavailable observation with that fixed kind.
+Bridge observations always report `Confirmed`.
+
 Completion rechecks currentness, admitted Contract, invocation/run binding and
 exact authorized delivery. Native failure records abandonment; invalid receipts,
 late success after abandonment and no-effect stable-result gaps refuse successful
@@ -229,9 +243,9 @@ completion. Store errors grant no partial disposition.
 [`DirectTargetExchange.cs`](../../src/Broodling/DirectTargetExchange.cs) holds the
 fixed client bounds of the selected
 [HTTP/OECP contract](https://github.com/faviann/broodling/issues/167#issuecomment-5823939438).
-Target readiness discovery, HTTP submission and the run status reader below use
-it; public observation, wait and stop do not use it yet. The bounds are internal
-constants, not operator settings:
+Target readiness discovery, HTTP submission, the run status reader below and
+public HTTP observation use it; public wait and stop do not use it yet. The
+bounds are internal constants, not operator settings:
 
 | Resource | Limit |
 | --- | --- |
@@ -258,8 +272,7 @@ protocol shape. It does not attest native or image bytes or durable target state
 ### DirectTarget run status reader
 
 [`DirectTargetSession.cs`](../../src/Broodling/DirectTargetSession.cs) is the one
-validated status reader that progress, wait and stop will share. It is not yet
-wired to a public operation. Its input is a `NativeRunBinding`: the direct
+validated status reader that progress, wait and stop share. Its input is a `NativeRunBinding`: the direct
 locator's retained origin, the run ID, frozen title, size and PR source. The origin
 must be canonical HTTPS or literal-loopback HTTP, with no path, query, fragment or
 user information. The binding carries no credentials.

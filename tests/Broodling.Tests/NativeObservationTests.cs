@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.Time.Testing;
 using TUnit.Assertions;
 using TUnit.Core;
 
@@ -150,6 +152,81 @@ public sealed class NativeObservationTests
         await Assert.That(clock.Elapsed).IsLessThan(TimeSpan.FromSeconds(10));
         await Assert.That((observation as NativeObservation.Unavailable)?.Reason).IsEqualTo(reason);
         await Assert.That(RetainedJson(store, attempt)).IsEqualTo(retained);
+    }
+
+    [Test]
+    public async Task PreparedHttpAttemptHasNoProgressAndMakesNoContact()
+    {
+        await using var target = new DirectTargetSessionTests.StockTarget();
+        using var fixture = new HttpFixture();
+        fixture.Prepare(target: target.Origin.GetLeftPart(UriPartial.Authority));
+        await Assert.That(await fixture.Store.ObserveAsync(fixture.Attempt.AttemptId, null)).IsNull();
+        await Assert.That(target.Connections).IsEqualTo(0);
+    }
+
+    [Test]
+    [Arguments("dispatched", NativeRunIdentity.Intended)]
+    [Arguments("abandoned-paused", NativeRunIdentity.Intended)]
+    [Arguments("correlated", NativeRunIdentity.Confirmed)]
+    public async Task HttpProgressNamesTheIdentityItReadAndRetainsNothing(string state, NativeRunIdentity identity)
+    {
+        await using var target = new DirectTargetSessionTests.StockTarget();
+        using var fixture = new HttpFixture();
+        var prepared = fixture.Prepare(target: target.Origin.GetLeftPart(UriPartial.Authority));
+        fixture.Git.State.Execute(state == "correlated"
+            ? "UPDATE native_submissions SET state = 'dispatched'; UPDATE native_submissions SET state = 'correlated', run_id = intended_run_id"
+            : "UPDATE native_submissions SET state = 'dispatched'");
+        if (state == "abandoned-paused")
+        {
+            fixture.Store.AbandonAttempt(fixture.Attempt.AttemptId, "Operator stopped observing authority.");
+            fixture.Store.PauseInstallation();
+        }
+        // A finished projection is still progress; it consumes no result and correlates nothing.
+        var run = prepared.Frozen.Run(prepared.IntendedRunId!);
+        target.Projections.Enqueue(DirectTargetSessionTests.Projection(new JsonObject
+        {
+            ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "succeeded", ["output"] = null }
+        }, run));
+        var retained = RetainedJson(fixture.Store, fixture.Attempt);
+
+        var observation = await fixture.Store.ObserveAsync(fixture.Attempt.AttemptId, null) as NativeObservation.Available;
+        await Assert.That(observation!.Identity).IsEqualTo(identity);
+        await Assert.That(observation.Progress.Phase).IsEqualTo("finished");
+        await Assert.That((string)target.Messages.Last()["params"]!["runId"]!).IsEqualTo(prepared.IntendedRunId);
+        await Assert.That(RetainedJson(fixture.Store, fixture.Attempt)).IsEqualTo(retained);
+        await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)!.State).IsEqualTo(state == "correlated" ? "correlated" : "dispatched");
+        await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
+    }
+
+    [Test]
+    [Arguments("unknown", "RunNotFoundError")]
+    [Arguments("foreign", "foreign_run")]
+    [Arguments("stalled", "TimeoutError")]
+    public async Task IntendedHttpProgressIsUnavailableUnlessTheExactRunAnswersInTime(string answer, string reason)
+    {
+        await using var target = new DirectTargetSessionTests.StockTarget { StallAt = answer == "stalled" ? "run/status" : null };
+        using var fixture = new HttpFixture();
+        var prepared = fixture.Prepare(target: target.Origin.GetLeftPart(UriPartial.Authority));
+        fixture.Git.State.Execute("UPDATE native_submissions SET state = 'dispatched'");
+        var run = prepared.Frozen.Run(prepared.IntendedRunId!);
+        if (answer == "unknown")
+            target.Reply = (request, id) => (string)request["method"]! != "run/status" ? null
+                : new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["error"] = new JsonObject
+                    { ["code"] = -32000, ["message"] = "run was not found", ["data"] = new JsonObject { ["code"] = "NOT_FOUND" } } }.ToJsonString();
+        target.Projections.Enqueue(DirectTargetSessionTests.Running(run with { Title = "Another run" }));
+        var clock = new FakeTimeProvider();
+        fixture.Store.DirectTargetClock = clock;
+
+        var read = fixture.Store.ObserveAsync(fixture.Attempt.AttemptId, null);
+        if (answer == "stalled")
+        {
+            await target.Stalled.Task.WaitAsync(DirectTargetSessionTests.Patience);
+            clock.Advance(DirectTargetLimits.Progress);
+        }
+        var observation = await read.WaitAsync(DirectTargetSessionTests.Patience) as NativeObservation.Unavailable;
+        await Assert.That(observation!.Identity).IsEqualTo(NativeRunIdentity.Intended);
+        await Assert.That(observation.Reason).IsEqualTo(reason);
+        await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)!.State).IsEqualTo("dispatched");
     }
 
     private static string RetainedJson(BroodlingStore store, AttemptRecord attempt) =>
