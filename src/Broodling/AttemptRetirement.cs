@@ -33,8 +33,10 @@ public sealed partial class BroodlingStore
     public async Task<AttemptRetirement> StopAsync(string attemptId, string reason, INativeStopper? transport,
         CancellationToken cancellationToken = default)
     {
-        AbandonAttempt(attemptId, reason); // Its own committed transaction, before any external call or host inspection.
+        // A retired Attempt ended its lifecycle already: an abandoned one keeps its first reason, and a
+        // completed one retired under verified maintenance is never abandoned.
         if (FindRetirement(attemptId) is { } existing) return existing;
+        AbandonAttempt(attemptId, reason); // Its own committed transaction, before any external call or host inspection.
         var submitted = FindSubmission(attemptId);
         var allocation = GetAttempt(attemptId);
         // Retained physical allocation/enclosure ownership still matters. A missing checkout

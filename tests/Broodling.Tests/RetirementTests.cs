@@ -434,6 +434,15 @@ public sealed class RetirementTests
 
         var retired = fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission.Locator.Address));
         await Assert.That(retired.Basis).IsEqualTo("stopped_target");
+        // A later operator stop hands back the retirement without abandoning the completed Attempt.
+        var output = new StringWriter();
+        await Assert.That(await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, fixture.Attempt.AttemptId, "later stop"],
+            fixture.Git.State.Application, output, new StringWriter())).IsEqualTo(0);
+        var stop = JsonNode.Parse(output.ToString())!;
+        await Assert.That(stop["attempt"]!["retirement"].Deserialize<AttemptRetirement>(new JsonSerializerOptions(JsonSerializerDefaults.Web)))
+            .IsEqualTo(retired);
+        await Assert.That((bool)stop["quarantined"]!).IsFalse();
+        await Assert.That((string)stop["message"]!).IsEqualTo("Attempt retired under verified stopped-target maintenance.");
         var status = fixture.Store.Status(fixture.Attempt.ContractRevisionId);
         await Assert.That(status.Attempts.Single().Retirement).IsEqualTo(retired);
         await Assert.That(status.Attempts.Single().Abandonment).IsNull();
@@ -512,7 +521,7 @@ public sealed class RetirementTests
         await Assert.That(await InvocationCommands.RunAsync(["stop", path, id, "later stop"], application, output, error)).IsEqualTo(0);
         var stop = JsonNode.Parse(output.ToString())!;
         await Assert.That((bool)stop["quarantined"]!).IsFalse();
-        await Assert.That((string)stop["message"]!).IsEqualTo("Attempt abandoned and retired under verified stopped-target maintenance.");
+        await Assert.That((string)stop["message"]!).IsEqualTo("Attempt retired under verified stopped-target maintenance.");
     }
 
     private static StoppedTargetCheck Check(string origin) =>

@@ -167,7 +167,8 @@ and `retired_at` in one transaction. SQL ties that basis to a non-current HTTP
 Attempt with dispatch intent while paused. Nothing is deleted: an HTTP Attempt
 owns no Broodling worktree, and Zeroshot's checkout and ledger are native state.
 Frozen request/asset, B1 and accepted pins, receipt and completion stay; a
-completed Attempt is retired without abandonment. An uncorrelated submission
+completed Attempt is retired without abandonment; a later `stop` of any retired
+Attempt returns its retirement without abandoning it or contacting the target. An uncorrelated submission
 stays `dispatched` and counted in `unresolvedDispatches`. A retained retirement
 is returned unchanged on repeat, whatever its basis, so the host procedure must
 check the returned `basis` rather than treat exit 0 as its own verified retirement. Replacement still refuses dispatched
