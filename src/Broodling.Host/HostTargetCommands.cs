@@ -18,8 +18,9 @@ public static class HostTargetCommands
             var inventory = JsonSerializer.Deserialize<TargetReadinessInventory>(File.ReadAllBytes(args[1]),
                 new JsonSerializerOptions(JsonSerializerDefaults.Web) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow })
                 ?? throw new TargetNotReady("Target inventory is invalid.");
-            var configuration = InvocationConfiguration.Read(args[2]);
-            var facts = await (readiness ?? new TargetReadiness()).CheckAsync(inventory, configuration.DirectOrigin!, cancellationToken);
+            if (InvocationConfiguration.Read(args[2]) is not InvocationConfiguration.Direct configuration)
+                throw new UnsupportedRuntime("Target readiness requires a DirectTarget invocation configuration.");
+            var facts = await (readiness ?? new TargetReadiness()).CheckAsync(inventory, configuration.DirectOrigin, cancellationToken);
             output.WriteLine(JsonSerializer.Serialize(facts, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             return 0;
         }

@@ -10,9 +10,9 @@ public static class InvocationCommands
     {
         if (!(args.Length == 10 && args[0] == "submit" || args.Length is >= 3 and <= 6 && args[0] == "resume"
             || args.Length is 3 or 4 && args[0] == "wait"
-            || args.Length == 5 && args[0] == "stop"))
+            || args.Length is 4 or 5 && args[0] == "stop"))
         {
-            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [python-executable] | stop <store> <attempt-id> <reason> <python-executable>");
+            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [python-executable] | stop <store> <attempt-id> <reason> [python-executable]");
             return 2;
         }
         try
@@ -21,12 +21,9 @@ public static class InvocationCommands
             if (args[0] == "wait")
             {
                 var completion = store.FindCompletion(args[2]);
-                if (completion is null)
-                {
-                    if (transport is null && args.Length < 4)
-                        throw new SubmissionNotReady("Waiting on an unretained result requires the pinned SDK Python executable.");
-                    completion = await store.WaitAsync(args[2], transport ?? new ZeroshotTransport(args[3]), cancellationToken);
-                }
+                // Only a LocalTarget bridge record needs the pinned SDK Python; the store routes on the retained record.
+                completion ??= await store.WaitAsync(args[2], transport ?? (args.Length == 4 ? new ZeroshotTransport(args[3]) : null),
+                    cancellationToken);
                 output.WriteLine(JsonSerializer.Serialize(completion, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return 0;
             }
@@ -34,7 +31,7 @@ public static class InvocationCommands
             {
                 string? refusal = null;
                 var exitCode = 0;
-                try { await store.StopAsync(args[2], args[3], transport ?? new ZeroshotTransport(args[4]), cancellationToken); }
+                try { await store.StopAsync(args[2], args[3], transport ?? (args.Length == 5 ? new ZeroshotTransport(args[4]) : null), cancellationToken); }
                 catch (Exception exception)
                 {
                     refusal = exception is BroodlingException known ? known.Code : exception is OperationCanceledException ? "caller_detached" : "stop_failed";
@@ -46,7 +43,7 @@ public static class InvocationCommands
                 {
                     attempt, submission, quarantined = submission is { State: not "prepared" }, error = refusal,
                     message = attempt.Abandonment is null ? "Stop refused; inspect retained authority."
-                        : attempt.Retirement is null ? "Attempt abandoned. Cessation unconfirmed; retain the checkout and use operator containment. No automatic retry."
+                        : attempt.Retirement is null ? "Attempt abandoned. Cessation unconfirmed; retain its resources and use operator containment. No automatic retry."
                         : "Attempt abandoned with retained safe cessation proof. Retirement and replacement remain explicit operations."
                 }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return exitCode;
@@ -64,10 +61,7 @@ public static class InvocationCommands
                 if (args.Length < 4) throw new SubmissionNotReady("Dispatch configuration is required for uncorrelated resume.");
             }
             var configPath = args[0] == "submit" ? args[2] : args[3];
-            var config = InvocationConfiguration.Read(configPath);
-            CodexProfile? codex = config.RealCodex is null ? null : new(config.RealCodex, config.ProfileHome!, config.CodexHome!, config.Launcher!);
-            var profile = new NativeProfile(config.StateDirectory, codex, config.DirectOrigin);
-            var invocation = new Invocation(store, config.WorkspaceRoot, profile, transport ?? new ZeroshotTransport(config.PythonExecutable));
+            var invocation = new Invocation(store, InvocationConfiguration.Read(configPath).ToTarget(transport));
             var credentials = new DispatchCredentials(Environment.GetEnvironmentVariable("GH_TOKEN"),
                 Environment.GetEnvironmentVariable("GATEWAY_BASE_URL"), Environment.GetEnvironmentVariable("GATEWAY_API_KEY"));
             if (args[0] == "submit")

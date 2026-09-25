@@ -419,7 +419,7 @@ public sealed class AttemptCompletionTests
         await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
     }
 
-    private static JsonObject HttpFinished(NativeSubmission submission, string status, object detail, string? title = null)
+    internal static JsonObject HttpFinished(NativeSubmission submission, string status, object detail, string? title = null)
     {
         var terminal = new JsonObject { ["status"] = status };
         if (status == "succeeded") terminal["output"] = JsonNode.Parse(((JsonElement)detail).GetRawText());

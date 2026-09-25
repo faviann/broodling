@@ -221,6 +221,8 @@ public sealed class TargetReadinessTests
     [Arguments("different-origin")]
     [Arguments("missing-origin")]
     [Arguments("unknown-config")]
+    [Arguments("local-field")]
+    [Arguments("local-config")]
     [Arguments("credential-config")]
     [Arguments("credential-inventory")]
     [Arguments("missing-inventory")]
@@ -234,6 +236,8 @@ public sealed class TargetReadinessTests
             case "different-origin": config["directOrigin"] = "http://127.0.0.1:18771"; break;
             case "missing-origin": config.AsObject().Remove("directOrigin"); break;
             case "unknown-config": config["extra"] = ReadinessFixture.Secret; break;
+            case "local-field": config["pythonExecutable"] = "/unavailable-python"; break;
+            case "local-config": config = JsonNode.Parse("""{"target":"local","pythonExecutable":"/p","stateDirectory":"/s","workspaceRoot":"/w"}""")!; break;
             case "credential-config": config["gatewayApiKey"] = ReadinessFixture.Secret; break;
             case "credential-inventory":
                 var inventory = JsonNode.Parse(File.ReadAllText(fixture.Arguments[1]))!;
@@ -347,8 +351,7 @@ public sealed class TargetReadinessTests
             Readiness = new TargetReadiness(Command, client, Clock);
             File.WriteAllText(Arguments[1], JsonSerializer.Serialize(Inventory, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             File.WriteAllText(Arguments[2], """
-                {"pythonExecutable":"/unavailable-python","stateDirectory":"/unavailable-state","workspaceRoot":"/unavailable-workspaces",
-                 "directOrigin":"http://127.0.0.1:18770"}
+                {"target":"direct","directOrigin":"http://127.0.0.1:18770"}
                 """);
         }
 

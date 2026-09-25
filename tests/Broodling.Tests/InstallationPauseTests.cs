@@ -151,7 +151,7 @@ public sealed class InstallationPauseTests
         var paused = fixture.Store.PauseInstallation();
         await Assert.That(paused.IsPaused).IsTrue();
 
-        var invocation = new Invocation(fixture.Store, fixture.Git.Workspaces, fixture.Profile, fixture.Transport);
+        var invocation = new Invocation(fixture.Store, new InvocationTarget.Local(fixture.Git.Workspaces, fixture.Profile, fixture.Transport));
         var resumed = await invocation.ResumeAsync(fixture.Attempt.ContractRevisionId);
         await Assert.That(resumed.Submissions.Single().RunId).IsEqualTo(submitted.RunId);
         await Assert.That(fixture.Transport.Calls).IsEqualTo(1);

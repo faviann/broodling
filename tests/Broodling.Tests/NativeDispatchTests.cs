@@ -240,7 +240,7 @@ public sealed class NativeDispatchTests
             case "branch": AttemptFixture.RunGit(attempt.Allocation.WorktreePath, "checkout", "--detach"); break;
             case "missing": Directory.Delete(attempt.Allocation.WorktreePath, true); break;
         }
-        var invocation = new Invocation(store, fixture.Git.Workspaces, fixture.Profile, transport);
+        var invocation = new Invocation(store, new InvocationTarget.Local(fixture.Git.Workspaces, fixture.Profile, transport));
         await Assert.That(async () => await invocation.ResumeAsync(attempt.ContractRevisionId)).Throws<BroodlingException>();
         await Assert.That(transport.Calls).IsEqualTo(1);
         await Assert.That(() => store.ProvisionAttempt(attempt.AttemptId)).Throws<SubmissionNotReady>();
