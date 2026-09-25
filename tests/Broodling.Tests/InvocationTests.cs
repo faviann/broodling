@@ -325,7 +325,12 @@ public sealed class InvocationTests
         }
         await Assert.That(code).IsEqualTo(0);
         using (var resumed = JsonDocument.Parse(output.ToString()))
-            await Assert.That(resumed.RootElement.GetProperty("submissions")[0].GetProperty("state").GetString()).IsEqualTo("correlated");
+        {
+            var summary = resumed.RootElement.GetProperty("submissions")[0];
+            await Assert.That(summary.GetProperty("state").GetString()).IsEqualTo("correlated");
+            // Handback output carries status facts only, not the frozen request and its execution asset.
+            await Assert.That(summary.TryGetProperty("requestJson", out _)).IsFalse();
+        }
         await Assert.That(output.ToString().Contains("canary")).IsFalse();
         await Assert.That(fixture.Git.LocalResources()).IsEqualTo(local);
 
@@ -345,8 +350,8 @@ public sealed class InvocationTests
             // A compact status summary, not the frozen request and its execution asset.
             await Assert.That(handback.RootElement.GetProperty("submission").ToString()).IsEqualTo(JsonSerializer.Serialize(new
             {
-                format = NativeSubmission.Http, state = "correlated", intendedRunId = submission.IntendedRunId,
-                runId = submission.RunId, replayBlockedReason = (string?)null
+                attemptId = attempt.AttemptId, format = NativeSubmission.Http, state = "correlated",
+                intendedRunId = submission.IntendedRunId, runId = submission.RunId, replayBlockedReason = (string?)null
             }));
         }
         await Assert.That(target.Count("run/force")).IsEqualTo(1);

@@ -42,11 +42,7 @@ public static class InvocationCommands
                 output.WriteLine(JsonSerializer.Serialize(new
                 {
                     attempt,
-                    // The status facts only; the frozen request (with an HTTP Attempt's whole asset) stays in the store.
-                    submission = submission is null ? null : new
-                    {
-                        submission.Format, submission.State, submission.IntendedRunId, submission.RunId, submission.ReplayBlockedReason
-                    },
+                    submission = Summary(submission),
                     quarantined = submission is { State: not "prepared" }, error = refusal,
                     message = attempt.Abandonment is null ? "Stop refused; inspect retained authority."
                         : attempt.Retirement is null ? "Attempt abandoned. Cessation unconfirmed; retain its resources and use operator containment. No automatic retry."
@@ -99,6 +95,22 @@ public static class InvocationCommands
         }
     }
 
-    private static void Write(AdmissionStatus status, TextWriter output) =>
-        output.WriteLine(JsonSerializer.Serialize(status, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+    /// <summary>
+    /// Handback output: retained status with each submission reduced to its status facts. The frozen
+    /// request (with an HTTP Attempt's whole asset) stays in the store; status/history show it in full.
+    /// </summary>
+    private static void Write(AdmissionStatus status, TextWriter output)
+    {
+        var handback = JsonSerializer.SerializeToNode(status, Json)!.AsObject();
+        handback["submissions"] = JsonSerializer.SerializeToNode(status.Submissions.Select(Summary), Json);
+        output.WriteLine(handback.ToJsonString());
+    }
+
+    private static object? Summary(NativeSubmission? submission) => submission is null ? null : new
+    {
+        submission.AttemptId, submission.Format, submission.State, submission.IntendedRunId, submission.RunId,
+        submission.ReplayBlockedReason
+    };
+
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 }

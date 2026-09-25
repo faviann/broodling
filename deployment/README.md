@@ -364,7 +364,10 @@ Broodling.Host stop <store> <attempt-id> <reason> [python-executable]
 Here `Broodling.Host` abbreviates `dotnet /RELEASE/host/Broodling.Host.dll`.
 `producer` normally is `caller`; `-` explicitly
 authorizes no effect. Retain JSON `revision.contractRevisionId`,
-`attempts[].attemptId` and `submissions[].runId`. Source/canonical bytes are
+`attempts[].attemptId` and `submissions[].runId`. The `submit`, `resume` and
+`stop` handback reports each submission only as its status facts (Attempt,
+format, phase, intended and confirmed run IDs, replay block); `status` and
+`history` show the complete retained record, including the frozen request. Source/canonical bytes are
 base64; inspect the exact retained material. Errors can follow committed facts:
 use history/status to find handles before choosing recovery.
 
@@ -378,8 +381,6 @@ because wait fetches and pins the exact accepted commit before recording success
 cancelled wait only detaches. Restore access to the same target and wait again.
 
 Stop records abandonment first, then requests native stop when the run is known.
-Its output reports the Attempt, quarantine and a compact submission summary
-(format, phase, intended and confirmed run IDs, replay block).
 A dispatched Attempt returns cessation refusal/quarantine even after terminal
 stop. Unknown correlation is never redispatched to discover a run. Explicit
 never-dispatched retirement/retry remain [callable operations](../docs/implementation/dotnet-retirement-replacement.md),

@@ -253,9 +253,10 @@ restricted to that installation configuration. The `<checkout>` names the source
 repository whose exact revision becomes B1; it is not an execution checkout.
 The operator command obtains current PR credentials from its environment and
 passes them explicitly to the application. `wait` and `stop` need the pinned SDK
-Python only for a LocalTarget record. Stop reports the Attempt, the quarantine
-flag and a compact submission summary (format, phase, intended and confirmed run
-IDs, replay block), never the frozen request. Correlated/rejected/ended resume
+Python only for a LocalTarget record. The submit, resume and stop handbacks
+report each submission only as its status facts (Attempt, format, phase, intended
+and confirmed run IDs, replay block); `status` and `history` remain the full
+retained-fact inspection surface, including the frozen request. Correlated/rejected/ended resume
 requires no configuration file. Status/history keep the existing command shape.
 Safe failures point to retained history/status; Ctrl+C returns detached handback.
 The callable proposer API remains available for richer source/Contract inputs.
