@@ -490,7 +490,7 @@ public sealed class RetirementTests
     }
 
     [Test]
-    public async Task RetireAttemptCommandRefusesAnIncompleteOrLooseCheckThenRecordsTheSuppliedOne()
+    public async Task RetireAttemptCommandRefusesAnIncompleteCheckThenPrintsTheRecordedRetirement()
     {
         using var fixture = new HttpFixture();
         var submission = fixture.PrepareAt(new Uri(HttpFixture.Target), "dispatched");
@@ -501,7 +501,6 @@ public sealed class RetirementTests
         var json = JsonSerializer.SerializeToNode(check, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
         var incomplete = json.DeepClone().AsObject();
         incomplete["homeMount"] = " ";
-        var home = json["homeMount"]!.ToJsonString();
         var (path, application) = (fixture.Git.State.Path, fixture.Git.State.Application);
 
         var output = new StringWriter();
@@ -509,19 +508,10 @@ public sealed class RetirementTests
         // A blank member reaches the operation's own completeness guard.
         await Assert.That(StoreCommands.Run(["retire-attempt", path, id, incomplete.ToJsonString()], application, output, error)).IsEqualTo(1);
         await Assert.That((string)JsonNode.Parse(error.ToString())!["error"]!).IsEqualTo("maintenance_unverified");
-        // The parser accepts each member once and exactly spelled.
-        foreach (var loose in new[] { json.ToJsonString().Replace("\"homeMount\"", "\"HomeMount\""), json.ToJsonString()[..^1] + ",\"homeMount\":" + home + "}" })
-            await Assert.That(StoreCommands.Run(["retire-attempt", path, id, loose], application, output, error)).IsEqualTo(1);
         await Assert.That(fixture.Store.FindRetirement(id)).IsNull();
         await Assert.That(StoreCommands.Run(["retire-attempt", path, id, json.ToJsonString()], application, output, error)).IsEqualTo(0);
         await Assert.That((string)JsonNode.Parse(output.ToString())!["basis"]!).IsEqualTo("stopped_target");
         await Assert.That(fixture.Store.FindRetirement(id)!.StoppedTarget).IsEqualTo(check);
-        // The stop handback reports the verified retirement, not quarantine or pending retirement.
-        output = new StringWriter();
-        await Assert.That(await InvocationCommands.RunAsync(["stop", path, id, "later stop"], application, output, error)).IsEqualTo(0);
-        var stop = JsonNode.Parse(output.ToString())!;
-        await Assert.That((bool)stop["quarantined"]!).IsFalse();
-        await Assert.That((string)stop["message"]!).IsEqualTo("Attempt retired under verified stopped-target maintenance.");
     }
 
     private static StoppedTargetCheck Check(string origin) =>

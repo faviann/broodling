@@ -145,8 +145,8 @@ dotnet /RELEASE/host/Broodling.Host.dll retire-attempt /EXISTING/DOTNET/state.sq
 ```
 
 `RetireStoppedTargetAttempt(attemptId, StoppedTargetCheck)` records every member
-as supplied and refuses a blank one; the command parser also requires each member
-exactly once, exactly spelled, and nothing else. Under one SQLite writer it
+as supplied and refuses a blank one; like `check-target`, the command parser
+requires every member, refuses nulls and accepts nothing else. Under one SQLite writer it
 requires the persisted pause, `verifiedAt` no earlier than that pause took effect
 and no later than now (host and application share a clock), the check's origin
 equal to the Attempt's retained binding origin, a drained initiation lock, a
