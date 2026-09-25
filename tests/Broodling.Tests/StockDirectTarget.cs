@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json;
 using static Broodling.Tests.TargetImage;
 
 namespace Broodling.Tests;
@@ -13,12 +14,6 @@ namespace Broodling.Tests;
 /// </summary>
 internal sealed class StockDirectTarget : IAsyncDisposable
 {
-    internal static readonly IReadOnlyDictionary<string, string> Credentials = new Dictionary<string, string>
-    {
-        ["GH_TOKEN"] = "fixture-github-token", ["GATEWAY_BASE_URL"] = "https://cliproxy.local.faviann.com/v1",
-        ["GATEWAY_API_KEY"] = "fixture-gateway-key"
-    };
-
     private readonly string id = "broodling-180-" + Guid.NewGuid().ToString("N");
     private readonly string image;
     private readonly string root;
@@ -64,6 +59,14 @@ internal sealed class StockDirectTarget : IAsyncDisposable
     {
         RequireSuccess(await DockerCommand("rm", "--force", id));
         await ServeAsync();
+    }
+
+    /// <summary>The native ledger's run count, read inside the target without a provider or credentials.</summary>
+    internal async Task<int> RunCountAsync()
+    {
+        var list = await DockerCommand("exec", id, "zeroshot", "list", "--target", "broodling");
+        RequireSuccess(list);
+        return JsonDocument.Parse(list.Output).RootElement.GetProperty("runs").GetArrayLength();
     }
 
     private string[] Volumes => ["--mount", $"type=volume,src={id}-state,dst=/state",
