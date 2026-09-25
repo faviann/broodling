@@ -58,8 +58,9 @@ ownership and modes.
   data) fails readiness discovery through the origin with the configured root.
   No separate startup check of the root is added.
 - Rotating the root is a deliberate, documented step: replace the key and
-  certificate together and remove Caddy's stored intermediate and leaf.
-  Broodling picks up the new root on its next connection.
+  certificate together, remove Caddy's stored intermediate and leaf, and update
+  Traefik's copy of the root certificate. Broodling picks up the new root on its
+  next connection.
 - The published LXC port is free to choose; exact-origin native clients on the
   LAN reach 443 through Traefik.
 
