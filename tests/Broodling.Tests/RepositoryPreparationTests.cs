@@ -238,6 +238,24 @@ public sealed class RepositoryPreparationTests
     }
 
     [Test]
+    public async Task StalledMetadataReadEndsAsARetryableFailureAndKillsItsProcess()
+    {
+        using var fixture = new RepositoryPreparationFixture();
+        var pid = Path.Combine(fixture.State.Root, "stalled-gh-pid");
+        var stalled = Path.Combine(fixture.State.Root, "stalled-gh");
+        ExecutableFile.Write(stalled, "#!/bin/sh\nprintf '%s\\n' \"$$\" > '" + pid + "'\nexec sleep 300\n");
+        if (OperatingSystem.IsLinux())
+            File.SetUnixFileMode(stalled, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var source = new GitHubRepositorySource(stalled, fixture.Git) { MetadataDeadline = TimeSpan.FromSeconds(2) };
+
+        var error = await Assert.That(async () => await source.AcquireAsync(WorkReference.Parse("acme/widget", 12),
+            new GitHubRepositoryCredentials("configured-token"), fixture.RepositoryRoot)).Throws<GitHubRepositoryError>();
+
+        await Assert.That(error!.Retryable).IsTrue();
+        await Assert.That(Directory.Exists("/proc/" + File.ReadAllText(pid).Trim())).IsFalse();
+    }
+
+    [Test]
     public async Task AbruptInitialRepositoryEstablishmentCanResumeOnRetry()
     {
         using var fixture = new RepositoryPreparationFixture();

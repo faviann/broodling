@@ -188,16 +188,16 @@ admission records above. The preparer is constructed with the application, the
 store path, the service repository root and a lifetime token that is cancelled at
 shutdown.
 
-- It returns a `IssueSubmissionPreparation`: `Decided` with the admission status
+- It returns an `IssueSubmissionPreparation`: `Decided` with the admission status
   (admitted, or rejected with its findings), `CaptureRefused` with the refused
   bundle, `ProposalRefused` with the retained refusal, `Cancelled`, or `Failed`
   with a safe code and message and `Retryable`. Retryable failures are
   retryable GitHub, repository and gateway failures, the installation pause, and
   a busy or locked SQLite store (`store_busy`). Other failures need attention:
-  identity or bundle conflicts, missing credentials, an earlier unbound
-  association, a store that is missing or incompatible, and any other SQLite
-  error, such as a guard abort (`store_error`, with SQLite's error code and
-  message). The preparer has no retry cadence; its caller decides when to call
+  identity or bundle conflicts, a missing gateway key or a `gh` that cannot be
+  started, an earlier unbound association, a store that is missing or
+  incompatible, and any other SQLite error, such as a guard abort
+  (`store_error`, with SQLite's error code and message). The preparer has no retry cadence; its caller decides when to call
   again.
 - Every result except `Failed` is retained, so a later call returns it again
   without acquisition or a model call. A cancellation or refusal that commits

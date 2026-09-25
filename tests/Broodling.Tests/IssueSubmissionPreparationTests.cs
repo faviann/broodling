@@ -206,6 +206,30 @@ public sealed class IssueSubmissionPreparationTests
     }
 
     [Test]
+    public async Task AGhThatCannotStartNeedsAttentionWithoutRejectingTheSubmission()
+    {
+        using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
+        var (submissionId, _) = Submit(fixture, 12);
+        var preparer = new IssueSubmissionPreparer(fixture.State.Application, fixture.State.Path, fixture.RepositoryRoot,
+            CancellationToken.None)
+        {
+            IssueSource = new GitHubIssueSource(Path.Combine(fixture.State.Root, "missing-gh")),
+            RepositorySource = fixture.Source,
+            Gateway = new Gateway((_, _) => throw new InvalidOperationException("Nothing was captured to propose."))
+        };
+
+        var result = (IssueSubmissionPreparation.Failed)await preparer.PrepareAsync(submissionId, GitHub, Credentials);
+
+        await Assert.That(result.Code).IsEqualTo("github_source_error");
+        await Assert.That(result.Retryable).IsFalse();
+        // Local configuration is not a refusal of the requested issue.
+        using var store = fixture.State.Open();
+        await Assert.That(store.GetIssueSubmission(submissionId).State).IsEqualTo("capturing");
+        await Assert.That(store.GetRequestBundle(submissionId).State).IsEqualTo("capturing");
+    }
+
+    [Test]
     public async Task OnlyABusyOrLockedStoreIsARetryableStoreFailure()
     {
         // A guard trigger's abort is an integrity refusal that retrying cannot resolve.

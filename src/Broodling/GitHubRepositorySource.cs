@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -43,12 +44,18 @@ public sealed record AcquiredRepository(string Repository, string DefaultBranch,
 /// <summary>
 /// Acquire GitHub repository metadata and a durable bare clone. The caller
 /// supplies only the Work Unit and service configuration; source revision and
-/// target branch are selected here.
+/// target branch are selected here. Each metadata read has a deadline and a fetch
+/// fails once its transfer stalls, so a hung acquisition ends as a retryable error.
+/// Acquisitions into the same local repository run one at a time in this process.
 /// </summary>
 public sealed class GitHubRepositorySource(string executable = "gh", string gitExecutable = "git")
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private const string UpstreamFetchRefspec = "+refs/heads/*:refs/broodling/upstream/*";
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Repositories = new();
+
+    /// <summary>The bound on one metadata read, as for issue reads; tests shorten it.</summary>
+    internal TimeSpan MetadataDeadline { get; init; } = TimeSpan.FromSeconds(30);
 
     public async Task<AcquiredRepository> AcquireAsync(WorkReference reference,
         GitHubRepositoryCredentials credentials, string repositoryRoot,
@@ -63,17 +70,27 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
 
         var metadata = await ReadMetadataAsync(reference, credentials, cancellationToken);
         var destination = Path.Combine(root, reference.Owner, reference.Repository + ".git");
-        await CloneOrFetchAsync(metadata.CloneUrl, destination, credentials, cancellationToken);
+        // Concurrent fetches into one repository can fail on its ref locks.
+        var exclusive = Repositories.GetOrAdd(destination, _ => new SemaphoreSlim(1, 1));
+        await exclusive.WaitAsync(cancellationToken);
+        try
+        {
+            await CloneOrFetchAsync(metadata.CloneUrl, destination, credentials, cancellationToken);
 
-        var verified = await ReadMetadataAsync(reference, credentials, cancellationToken);
-        if (verified != metadata)
-            throw new GitHubRepositoryError("GitHub repository identity or default branch changed during acquisition.");
+            var verified = await ReadMetadataAsync(reference, credentials, cancellationToken);
+            if (verified != metadata)
+                throw new GitHubRepositoryError("GitHub repository identity or default branch changed during acquisition.");
 
-        var startingRevision = "refs/heads/" + metadata.DefaultBranch;
-        var state = GitCustody.ResolvePinned(destination,
-            "refs/broodling/upstream/" + metadata.DefaultBranch);
-        GitCustody.Retain(state);
-        return new(state.Repository, metadata.DefaultBranch, startingRevision, state.CommitOid, metadata.RepositoryIdentity);
+            var startingRevision = "refs/heads/" + metadata.DefaultBranch;
+            var state = GitCustody.ResolvePinned(destination,
+                "refs/broodling/upstream/" + metadata.DefaultBranch);
+            GitCustody.Retain(state);
+            return new(state.Repository, metadata.DefaultBranch, startingRevision, state.CommitOid, metadata.RepositoryIdentity);
+        }
+        finally
+        {
+            exclusive.Release();
+        }
     }
 
     public Task<AcquiredRepository> AcquireAsync(WorkReference reference, string token,
@@ -175,9 +192,9 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
         {
             throw;
         }
-        catch (Exception exception) when (exception is UnauthorizedAccessException or Win32Exception)
+        catch (UnauthorizedAccessException)
         {
-            // The repository root is not writable, or git cannot be started: local configuration.
+            // The repository root is not writable: local configuration.
             throw new GitHubRepositoryError("GitHub repository acquisition failed.", retryable: false);
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or ArgumentException)
@@ -212,7 +229,8 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
     private async Task<byte[]> RunForgeAsync(IReadOnlyList<string> arguments,
         GitHubRepositoryCredentials credentials, CancellationToken cancellationToken)
     {
-        var result = await RunProcessAsync(executable, arguments, null, credentials, allowCredentials: true, cancellationToken);
+        var result = await RunProcessAsync(executable, arguments, null, credentials, allowCredentials: true,
+            cancellationToken, MetadataDeadline);
         if (result.ExitCode != 0)
             throw new GitHubRepositoryError("GitHub repository metadata acquisition failed.");
         return result.Output;
@@ -225,7 +243,7 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
     private static async Task<ProcessResult> RunProcessAsync(string executable,
         IReadOnlyList<string> arguments, string? workingDirectory, GitHubRepositoryCredentials credentials,
         bool allowCredentials,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, TimeSpan? deadline = null)
     {
         using var process = new Process
         {
@@ -250,15 +268,24 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
         process.StartInfo.Environment["GIT_CONFIG_GLOBAL"] = "/dev/null";
         if (allowCredentials)
         {
-            process.StartInfo.Environment["GIT_CONFIG_COUNT"] = "1";
+            process.StartInfo.Environment["GIT_CONFIG_COUNT"] = "3";
             process.StartInfo.Environment["GIT_CONFIG_KEY_0"] = "http.extraHeader";
             var basic = Convert.ToBase64String(Encoding.UTF8.GetBytes("x-access-token:" + credentials.Token));
             process.StartInfo.Environment["GIT_CONFIG_VALUE_0"] = "Authorization: Basic " + basic;
+            // The only credentialed Git command is the fetch. Rather than cap a large transfer,
+            // fail it once no data arrives for two minutes; the server's keepalives count as data.
+            process.StartInfo.Environment["GIT_CONFIG_KEY_1"] = "http.lowSpeedLimit";
+            process.StartInfo.Environment["GIT_CONFIG_VALUE_1"] = "1";
+            process.StartInfo.Environment["GIT_CONFIG_KEY_2"] = "http.lowSpeedTime";
+            process.StartInfo.Environment["GIT_CONFIG_VALUE_2"] = "120";
         }
         foreach (var argument in arguments)
             process.StartInfo.ArgumentList.Add(argument);
 
         using var outputStream = new MemoryStream();
+        using var expiry = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (deadline is { } bound)
+            expiry.CancelAfter(bound);
         Task output = Task.CompletedTask;
         Task<string> error = Task.FromResult("");
         try
@@ -266,7 +293,7 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
             process.Start();
             output = process.StandardOutput.BaseStream.CopyToAsync(outputStream);
             error = process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync(cancellationToken);
+            await process.WaitForExitAsync(expiry.Token);
             await output;
             return new(process.ExitCode, outputStream.ToArray(), await error);
         }
@@ -274,6 +301,8 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
         {
             await StopAndReapAsync(process, output, error);
             cancellationToken.ThrowIfCancellationRequested();
+            if (expiry.IsCancellationRequested)
+                throw new GitHubRepositoryError("GitHub repository metadata acquisition did not finish in time.");
             throw;
         }
         catch (Exception exception) when (exception is IOException or Win32Exception

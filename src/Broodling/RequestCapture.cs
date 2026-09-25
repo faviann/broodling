@@ -81,7 +81,7 @@ public sealed partial class BroodlingStore
             {
                 SourceSubmission acquired;
                 try { acquired = await acquire(); }
-                catch (GitHubSourceError error) when (!error.Retryable)
+                catch (GitHubSourceError error) when (error.Unavailable)
                 {
                     throw new CaptureRefused("reference_unavailable", referenceId, error.Message);
                 }
