@@ -279,7 +279,7 @@ public sealed class RetirementTests
     [Arguments("unknown")]
     public async Task DispatchedHttpStopForcesTheIntendedRunOnlyAfterAMatchingStatus(string precheck)
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var submission = fixture.PrepareAt(target.Origin, "dispatched");
         var run = submission.Frozen.Run(submission.IntendedRunId!);
@@ -299,7 +299,7 @@ public sealed class RetirementTests
     [Test]
     public async Task CorrelatedHttpStopForcesTheConfirmedRunWithoutPrecheck()
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var submission = fixture.PrepareAt(target.Origin, "correlated");
         target.Projections.Enqueue(HttpForceStopped(submission.Run!));
@@ -314,7 +314,7 @@ public sealed class RetirementTests
     [Test]
     public async Task UnansweredHttpForceIsAnUncertainTimeoutAfterCommittedAbandonment()
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         fixture.PrepareAt(target.Origin, "correlated");
         target.Projections.Enqueue(null);
@@ -333,7 +333,7 @@ public sealed class RetirementTests
     [Test]
     public async Task RepeatedHttpStopCanForceARunThatWasUnknownAtFirst()
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var submission = fixture.PrepareAt(target.Origin, "dispatched");
         var run = submission.Frozen.Run(submission.IntendedRunId!);
@@ -354,7 +354,7 @@ public sealed class RetirementTests
     [Test]
     public async Task IssueCancellationAbandonsTheHttpAttemptBeforeContactingTheTarget()
     {
-        await using var target = new DirectTargetSessionTests.StockTarget { StallAt = "discovery" };
+        await using var target = new StockTarget { StallAt = "discovery" };
         using var fixture = new HttpFixture();
         fixture.PrepareAt(target.Origin, "dispatched");
         var submission = fixture.Store.SubmitIssue("https://github.com/acme/widget/issues/12");

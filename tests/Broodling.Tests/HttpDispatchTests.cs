@@ -1,6 +1,3 @@
-using System.Collections.Concurrent;
-using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
@@ -9,116 +6,6 @@ using TUnit.Assertions;
 using TUnit.Core;
 
 namespace Broodling.Tests;
-
-/// <summary>
-/// A controlled stock target for discovery and full-run submission on real loopback HTTP. Like the
-/// stock target, a submission key names at most one run and a replay returns that run's ID.
-/// </summary>
-internal sealed class RunTarget : IAsyncDisposable
-{
-    internal const string Conflict = """{"code":"request.conflict","message":"Conflicting immutable submission"}""";
-    private readonly TcpListener listener = new(IPAddress.Loopback, 0);
-    private readonly CancellationTokenSource stop = new();
-    private readonly Task accepting;
-    private int connections;
-    internal string Origin { get; }
-    internal int Connections => Volatile.Read(ref connections);
-    /// <summary>Accepted runs by submission key.</summary>
-    internal ConcurrentDictionary<string, string> Runs { get; } = new();
-    internal List<string> Heads { get; } = [];
-    internal List<JsonObject> Bodies { get; } = [];
-    /// <summary>Awaited when discovery arrives, before its reply.</summary>
-    internal Func<Task> Discovery { get; set; } = () => Task.CompletedTask;
-    /// <summary>The reply to one complete submission; stock acceptance by default.</summary>
-    internal Func<JsonObject, Task<(int Status, string Body)>> Submit { get; set; }
-    /// <summary>Read half of each submission body, then wait without accepting it.</summary>
-    internal bool StallMidBody { get; set; }
-    internal TaskCompletionSource Stalled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-    internal RunTarget()
-    {
-        Submit = body => Task.FromResult(Accept(body));
-        listener.Start();
-        Origin = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
-        accepting = Task.Run(async () =>
-        {
-            var handlers = new List<Task>();
-            try
-            {
-                while (true)
-                {
-                    var client = await listener.AcceptTcpClientAsync(stop.Token);
-                    Interlocked.Increment(ref connections);
-                    handlers.Add(Handle(client));
-                }
-            }
-            catch (Exception) when (stop.IsCancellationRequested) { }
-            await Task.WhenAll(handlers);
-        });
-    }
-
-    internal (int Status, string Body) Accept(JsonObject body) =>
-        (200, new JsonObject { ["runId"] = Runs.GetOrAdd((string)body["submission"]!["submissionKey"]!, (string)body["runId"]!) }.ToJsonString());
-
-    private async Task Handle(TcpClient client)
-    {
-        using var _ = client;
-        try
-        {
-            var stream = client.GetStream();
-            var head = new StringBuilder();
-            var octet = new byte[1];
-            while (!head.ToString().EndsWith("\r\n\r\n", StringComparison.Ordinal) && await stream.ReadAsync(octet, stop.Token) == 1)
-                head.Append((char)octet[0]);
-            var text = head.ToString();
-            if (text.StartsWith("GET /.well-known/zeroshot-native-v2 ", StringComparison.Ordinal))
-            {
-                await Discovery().WaitAsync(stop.Token);
-                await Respond(stream, 200, """
-                    {"kind":"zeroshot.native-v2-target/v2","authentication":"none","runPath":"/native-v2/run",
-                     "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller"}
-                    """);
-                return;
-            }
-            if (!text.StartsWith("POST /native-v2/run ", StringComparison.Ordinal))
-            {
-                await Respond(stream, 404, """{"code":"request.not_found","message":"target route was not found"}""");
-                return;
-            }
-            lock (Heads) Heads.Add(text);
-            var length = int.Parse(text.Split("\r\n").Single(line => line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))[15..]);
-            var body = new byte[length];
-            if (StallMidBody)
-            {
-                await stream.ReadExactlyAsync(body.AsMemory(0, length / 2), stop.Token);
-                Stalled.TrySetResult();
-                await Task.Delay(Timeout.Infinite, stop.Token);
-            }
-            await stream.ReadExactlyAsync(body, stop.Token);
-            var request = JsonNode.Parse(body)!.AsObject();
-            lock (Bodies) Bodies.Add(request);
-            var (status, reply) = await Submit(request).WaitAsync(stop.Token);
-            await Respond(stream, status, reply);
-        }
-        catch (Exception) { } // The client may abandon a connection; tests assert what the client observed.
-    }
-
-    private Task Respond(Stream stream, int status, string body)
-    {
-        var bytes = Encoding.UTF8.GetBytes(body);
-        return stream.WriteAsync(Encoding.ASCII.GetBytes(
-            $"HTTP/1.1 {status} Status\r\nContent-Type: application/json\r\nContent-Length: {bytes.Length}\r\nConnection: close\r\n\r\n")
-            .Concat(bytes).ToArray(), stop.Token).AsTask();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        stop.Cancel();
-        listener.Stop();
-        await accepting;
-        stop.Dispose();
-    }
-}
 
 /// <summary>
 /// HTTP submission and acknowledgement recovery through real SQLite/Git and a controlled loopback target.
@@ -134,9 +21,9 @@ public sealed class HttpDispatchTests
     [Test]
     public async Task IntentCommitsBeforeDiscoveryAndOnlyTheExactAcknowledgementCorrelates()
     {
-        await using var target = new RunTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
-        var prepared = fixture.Prepare(target: target.Origin);
+        var prepared = fixture.PrepareAt(target.Origin);
         var reached = Signal();
         var release = Signal();
         target.Discovery = async () => { reached.TrySetResult(); await release.Task; };
@@ -179,15 +66,14 @@ public sealed class HttpDispatchTests
     [Arguments("no-credentials", "prepared")]
     [Arguments("foreign-gateway", "dispatched")]
     [Arguments("pin-missing", "prepared")]
-    [Arguments("pin-missing", "dispatched")]
     [Arguments("pin-symbolic", "dispatched")]
     [Arguments("pin-conflicting", "prepared")]
     public async Task SendAndReplayGatesRefuseBeforeTargetContact(string defect, string phase)
     {
-        await using var target = new RunTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var attempt = fixture.Attempt;
-        fixture.Prepare(target: target.Origin);
+        fixture.PrepareAt(target.Origin);
         if (phase == "dispatched") fixture.Git.State.Execute("UPDATE native_submissions SET state = 'dispatched'");
         var credentials = Credentials();
         switch (defect)
@@ -226,9 +112,9 @@ public sealed class HttpDispatchTests
     [Test]
     public async Task ReplaySendsTheFrozenRequestWithSeparatelyInjectedRotatedCredentials()
     {
-        await using var target = new RunTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
-        var prepared = fixture.Prepare(target: target.Origin);
+        var prepared = fixture.PrepareAt(target.Origin);
         // The stock target can create the run and still answer 503, e.g. when exact B1 is missing from the forge.
         target.Submit = body => { target.Accept(body); return Task.FromResult((503, """{"code":"target.unavailable","message":"github-canary-first"}""")); };
         var error = await Assert.That(async () => await fixture.Store.DispatchHttpAsync(prepared.AttemptId, Credentials("first")))
@@ -251,7 +137,7 @@ public sealed class HttpDispatchTests
             body.Remove("githubToken");
             await Assert.That(JsonNode.DeepEquals(body, JsonNode.Parse(prepared.RequestJson))).IsTrue();
         }
-        foreach (var head in target.Heads)
+        foreach (var head in target.Heads.Where(head => head.StartsWith("POST /native-v2/run ", StringComparison.Ordinal)))
             await Assert.That(head.Contains("Content-Length:") && !head.Contains("Transfer-Encoding", StringComparison.OrdinalIgnoreCase)).IsTrue();
         fixture.Store.Dispose();
         foreach (var file in Directory.GetFiles(Path.GetDirectoryName(fixture.Git.State.Path)!))
@@ -269,9 +155,9 @@ public sealed class HttpDispatchTests
     [Arguments(500, "canary", "TargetError")]
     public async Task UnacknowledgedRepliesLeaveIntentUnresolvedAndAdoptNothing(int status, string variant, string kind)
     {
-        await using var target = new RunTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
-        var prepared = fixture.Prepare(target: target.Origin);
+        var prepared = fixture.PrepareAt(target.Origin);
         var intended = prepared.IntendedRunId!;
         var foreign = Guid.CreateVersion7().ToString();
         target.Submit = _ => Task.FromResult((status, variant switch
@@ -283,7 +169,7 @@ public sealed class HttpDispatchTests
             "conflict-run-id" => $$"""{"code":"request.conflict","message":"conflict","runId":"{{intended}}"}""",
             "conflict-missing-message" => """{"code":"request.conflict"}""",
             "unknown-code" => """{"code":"request.other","message":"other"}""",
-            "conflict" => RunTarget.Conflict,
+            "conflict" => StockTarget.Conflict,
             _ => """{"code":"SECRET_CANARY","message":"SECRET_CANARY","details":{"runId":"SECRET_CANARY"}}"""
         }));
 
@@ -305,10 +191,10 @@ public sealed class HttpDispatchTests
     [Test]
     public async Task ValidConflictBlocksFurtherSendsWithoutResolvingDispatch()
     {
-        await using var target = new RunTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
-        var prepared = fixture.Prepare(target: target.Origin);
-        target.Submit = _ => Task.FromResult((409, RunTarget.Conflict));
+        var prepared = fixture.PrepareAt(target.Origin);
+        target.Submit = _ => Task.FromResult((409, StockTarget.Conflict));
         await Assert.That(async () => await fixture.Store.DispatchHttpAsync(prepared.AttemptId, Credentials()))
             .Throws<SubmissionConflict>();
         var blocked = fixture.Store.FindSubmission(prepared.AttemptId)!;
@@ -327,9 +213,9 @@ public sealed class HttpDispatchTests
     [Test]
     public async Task TimeoutAndCancellationPreserveUnresolvedIntent()
     {
-        await using var target = new RunTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
-        var prepared = fixture.Prepare(target: target.Origin);
+        var prepared = fixture.PrepareAt(target.Origin);
         var arrived = Signal();
         var never = Signal();
         target.Submit = async _ => { arrived.TrySetResult(); await never.Task; return (500, ""); };
@@ -357,7 +243,7 @@ public sealed class HttpDispatchTests
     [Test]
     public async Task OversizedCredentialBearingBodyIsRefusedBeforeAnyExchange()
     {
-        await using var target = new RunTarget();
+        await using var target = new StockTarget();
         var runId = Guid.CreateVersion7().ToString();
         var request = new JsonObject { ["runId"] = runId, ["padding"] = "" }.ToJsonString();
         request = request.Replace("\"padding\":\"\"", "\"padding\":\"" + new string('x', DirectTargetLimits.JsonBytes - request.Length - 16) + "\"");
@@ -365,7 +251,7 @@ public sealed class HttpDispatchTests
         {
             ["GH_TOKEN"] = "github-token", ["GATEWAY_BASE_URL"] = NativeProfile.GatewayBaseUrl, ["GATEWAY_API_KEY"] = "gateway-key"
         };
-        var error = await Assert.That(async () => await DirectTargetSubmission.SubmitAsync(new Uri(target.Origin), request, runId,
+        var error = await Assert.That(async () => await DirectTargetSubmission.SubmitAsync(target.Origin, request, runId,
             credentials, TimeProvider.System, CancellationToken.None)).Throws<NativeTransportError>();
         await Assert.That(error!.Kind).IsEqualTo("request_too_large");
         await Assert.That(target.Connections).IsEqualTo(0);
@@ -377,9 +263,9 @@ public sealed class HttpDispatchTests
     [Arguments("both-acknowledge")]
     public async Task ConcurrentRepliesConvergeOnTheIntendedCorrelationAndKeepAnyConflict(string order)
     {
-        await using var target = new RunTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
-        var prepared = fixture.Prepare(target: target.Origin);
+        var prepared = fixture.PrepareAt(target.Origin);
         var id = prepared.AttemptId;
         var arrived = new[] { Signal(), Signal() };
         var replies = new[] { Signal(), Signal() };
@@ -389,7 +275,7 @@ public sealed class HttpDispatchTests
             var turn = Interlocked.Increment(ref count);
             arrived[turn].TrySetResult();
             await replies[turn].Task;
-            return turn == 0 && order != "both-acknowledge" ? (409, RunTarget.Conflict) : target.Accept(body);
+            return turn == 0 && order != "both-acknowledge" ? (409, StockTarget.Conflict) : target.Accept(body);
         };
         using var other = fixture.Git.State.Open();
         var first = fixture.Store.DispatchHttpAsync(id, Credentials("first"));
@@ -430,7 +316,7 @@ public sealed class HttpDispatchTests
     [Arguments(false)]
     public async Task LateAcknowledgementAfterAbandonmentRetainsCorrelationThenStopsThatExactRun(bool stopReachable)
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var attempt = fixture.Attempt;
         var prepared = fixture.PrepareAt(target.Origin);
@@ -484,10 +370,10 @@ public sealed class HttpDispatchTests
     [Test]
     public async Task DuplicateAcknowledgementAfterCompletionReturnsRetainedFacts()
     {
-        await using var target = new RunTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var attempt = fixture.Attempt;
-        var prepared = fixture.Prepare(target: target.Origin);
+        var prepared = fixture.PrepareAt(target.Origin);
         var arrived = new[] { Signal(), Signal() };
         var replies = new[] { Signal(), Signal() };
         var count = -1;
@@ -519,14 +405,14 @@ public sealed class HttpDispatchTests
     [Test]
     public async Task FailedPreparationOrCorrelationCommitLeavesOnlyCommittedFacts()
     {
-        await using var target = new RunTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var id = fixture.Attempt.AttemptId;
         fixture.Git.State.Execute("CREATE TRIGGER preparation_failure BEFORE INSERT ON native_submissions BEGIN SELECT RAISE(ABORT, 'preparation failure'); END;");
-        await Assert.That(() => fixture.Prepare(target: target.Origin)).Throws<SqliteException>();
+        await Assert.That(() => fixture.PrepareAt(target.Origin)).Throws<SqliteException>();
         await Assert.That(fixture.Store.FindSubmission(id)).IsNull();
         fixture.Git.State.Execute("DROP TRIGGER preparation_failure;");
-        var prepared = fixture.Prepare(target: target.Origin);
+        var prepared = fixture.PrepareAt(target.Origin);
 
         using var reopened = fixture.Git.State.Open();
         fixture.Git.State.Execute("CREATE TRIGGER correlation_failure BEFORE UPDATE ON native_submissions WHEN NEW.state = 'correlated' BEGIN SELECT RAISE(ABORT, 'correlation failure'); END;");

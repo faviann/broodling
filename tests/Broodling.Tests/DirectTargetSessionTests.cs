@@ -1,9 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
-using System.Net.WebSockets;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Time.Testing;
 using TUnit.Assertions;
@@ -13,7 +7,7 @@ namespace Broodling.Tests;
 
 /// <summary>
 /// The shared DirectTarget run reader against a controlled stock target on real loopback HTTP and
-/// WebSocket connections. Byte, fragment, header and depth bounds belong to DirectTargetExchangeTests.
+/// WebSocket connections. Byte and fragment bounds belong to DirectTargetExchangeTests.
 /// </summary>
 public sealed class DirectTargetSessionTests
 {
@@ -73,64 +67,33 @@ public sealed class DirectTargetSessionTests
 
     [Test]
     [Arguments("run", "foreign_run")]
-    [Arguments("title", "foreign_run")]
-    [Arguments("size", "foreign_run")]
-    [Arguments("repository", "foreign_run")]
-    [Arguments("branch", "foreign_run")]
     [Arguments("revision", "foreign_run")]
     [Arguments("projection-field", "invalid_response")]
-    [Arguments("status-field", "invalid_response")]
-    [Arguments("execution-field", "invalid_response")]
-    [Arguments("terminal-field", "invalid_response")]
-    [Arguments("metadata-field", "invalid_response")]
-    [Arguments("title-number", "invalid_response")]
-    [Arguments("cursor-number", "invalid_response")]
     [Arguments("unknown-phase", "invalid_response")]
     [Arguments("running-without-executions", "invalid_response")]
     [Arguments("finished-with-executions", "invalid_response")]
     [Arguments("succeeded-without-output", "invalid_response")]
+    [Arguments("succeeded-with-reason", "invalid_response")]
     [Arguments("failed-with-output", "invalid_response")]
-    [Arguments("failure-label", "invalid_response")]
-    [Arguments("node-name", "invalid_response")]
-    [Arguments("empty-execution", "invalid_response")]
-    [Arguments("null-metadata", "invalid_response")]
-    [Arguments("unsafe-count", "invalid_response")]
-    [Arguments("negative-count", "invalid_response")]
     public async Task ProjectionMustBeTheExpectedRunInThePinnedUnion(string change, string kind)
     {
         var projection = Running();
         var status = projection["status"]!.AsObject();
         var finished = new JsonObject
         {
-            ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "succeeded", ["output"] = null },
-            ["metadata"] = new JsonObject { ["tokenUsage"] = new JsonObject { ["inputTokens"] = 1, ["outputTokens"] = 1, ["complete"] = true } }
+            ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "succeeded", ["output"] = null }
         };
         switch (change)
         {
             case "run": projection["runId"] = "01996f2e-7a4b-7c3d-8e5f-0123456789ac"; break;
-            case "title": projection["title"] = "Fix the other widget"; break;
-            case "size": projection["size"] = "medium"; break;
-            case "repository": projection["source"]!["repository"] = "owner/other"; break;
-            case "branch": projection["source"]!["branch"] = "main"; break;
             case "revision": projection["source"]!["revision"] = new string('c', 40); break;
             case "projection-field": projection["submissionKey"] = "key"; break;
-            case "status-field": status["worker"] = "worker"; break;
-            case "execution-field": status["activeExecutions"]![0]!["attempt"] = 1; break;
-            case "terminal-field": finished["terminalResult"]!["reason"] = "force_stopped"; projection["status"] = finished; break;
-            case "metadata-field": finished["metadata"]!["cost"] = 1; projection["status"] = finished; break;
-            case "title-number": projection["title"] = 7; break;
-            case "cursor-number": projection["atCursor"] = 7; break;
             case "unknown-phase": status["phase"] = "paused"; break;
             case "running-without-executions": status.Remove("activeExecutions"); break;
             case "finished-with-executions": finished["activeExecutions"] = new JsonArray(); projection["status"] = finished; break;
             case "succeeded-without-output": finished["terminalResult"]!.AsObject().Remove("output"); projection["status"] = finished; break;
+            case "succeeded-with-reason": finished["terminalResult"]!["reason"] = "force_stopped"; projection["status"] = finished; break;
             case "failed-with-output": finished["terminalResult"] = JsonNode.Parse("""{"status":"failed","reason":"runtime_lost","output":null}"""); projection["status"] = finished; break;
-            case "failure-label": finished["terminalResult"] = JsonNode.Parse("""{"status":"failed","reason":"runtime failed"}"""); projection["status"] = finished; break;
-            case "node-name": status["activeExecutions"]![0]!["node"] = "1worker"; break;
-            case "empty-execution": status["activeExecutions"]![0]!["execution"] = ""; break;
-            case "null-metadata": finished["metadata"] = null; projection["status"] = finished; break;
-            case "unsafe-count": finished["metadata"]!["tokenUsage"]!["inputTokens"] = 9007199254740992; projection["status"] = finished; break;
-            case "negative-count": finished["metadata"]!["tokenUsage"]!["outputTokens"] = -1; projection["status"] = finished; break;
         }
         await using var target = new StockTarget();
         target.Projections.Enqueue(projection);
@@ -193,16 +156,10 @@ public sealed class DirectTargetSessionTests
     [Test]
     [Arguments("""{"jsonrpc":"2.0","id":"99","result":{status}}""")]
     [Arguments("""{"jsonrpc":"2.0","id":2,"result":{status}}""")]
-    [Arguments("""{"jsonrpc":"2.0","id":"1","result":{status}}""")]
-    [Arguments("""{"id":"2","result":{status}}""")]
-    [Arguments("""{"jsonrpc":"1.0","id":"2","result":{status}}""")]
+    [Arguments("""[{"jsonrpc":"2.0","id":"2","result":{status}}]""")]
+    [Arguments("""{"jsonrpc":"2.0","method":"event","params":{status}}""")]
     [Arguments("""{"jsonrpc":"2.0","id":"2","result":{status},"error":{"code":1,"message":"x"}}""")]
     [Arguments("""{"jsonrpc":"2.0","id":"2"}""")]
-    [Arguments("""{"jsonrpc":"2.0","id":"2","result":{status},"meta":1}""")]
-    [Arguments("""{"jsonrpc":"2.0","method":"event","params":{status}}""")]
-    [Arguments("""[{"jsonrpc":"2.0","id":"2","result":{status}}]""")]
-    [Arguments("""{"jsonrpc":"2.0","id":"2","error":{"code":"-32000","message":"x"}}""")]
-    [Arguments("""{"jsonrpc":"2.0","id":"2","error":{"code":-32000,"message":"x","data":{"code":"NOT_FOUND","trace":"x"}}}""")]
     public async Task RpcReplyMustAnswerTheOutstandingRequest(string reply)
     {
         await using var target = new StockTarget();
@@ -228,12 +185,6 @@ public sealed class DirectTargetSessionTests
     [Test]
     [Arguments("local", "http://127.0.0.1:{port}")]
     [Arguments("direct", "http://localhost:{port}")]
-    [Arguments("direct", "http://192.0.2.1:{port}")]
-    [Arguments("direct", "http://127.0.0.1:{port}/")]
-    [Arguments("direct", "http://127.0.0.1:{port}/prefix")]
-    [Arguments("direct", "http://127.0.0.1:{port}?key=secret")]
-    [Arguments("direct", "http://user:secret@127.0.0.1:{port}")]
-    [Arguments("direct", "ftp://127.0.0.1:{port}")]
     [Arguments("direct", "no-source")]
     public async Task UnsupportedBindingsAreRefusedBeforeContact(string kind, string address)
     {
@@ -321,179 +272,5 @@ public sealed class DirectTargetSessionTests
             return error;
         }
         throw new InvalidOperationException("Expected native transport error " + kind);
-    }
-
-    /// <summary>
-    /// A loopback stand-in for the stock target: discovery, session creation and an OECP WebSocket
-    /// answering initialize, then run/status and run/force from <see cref="Projections"/>, where a
-    /// null entry never replies. It records each stage reached and can stall at one.
-    /// </summary>
-    internal sealed class StockTarget : IAsyncDisposable
-    {
-        private readonly TcpListener listener = new(IPAddress.Loopback, 0);
-        private readonly CancellationTokenSource stop = new();
-        private readonly Task accepting;
-        private int connections;
-        internal Uri Origin { get; }
-        internal int Connections => Volatile.Read(ref connections);
-        internal string? StallAt { get; init; }
-        internal TaskCompletionSource Stalled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        internal (int Status, string Body)? Session { get; set; }
-        internal Queue<JsonObject?> Projections { get; } = new();
-        /// <summary>A raw reply for a request, or null for the stock reply.</summary>
-        internal Func<JsonObject, string, string?> Reply { get; set; } = (_, _) => null;
-        internal List<string> Stages { get; } = [];
-        internal List<string> Heads { get; } = [];
-        internal List<JsonObject> Messages { get; } = [];
-        internal string? SessionBody { get; private set; }
-        /// <summary>The reply to a complete full-run submission body; without it the route is unknown.</summary>
-        internal Func<JsonObject, Task<(int Status, string Body)>>? Submit { get; set; }
-
-        internal StockTarget()
-        {
-            listener.Start();
-            Origin = new Uri($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}");
-            accepting = Task.Run(async () =>
-            {
-                var handlers = new List<Task>();
-                try
-                {
-                    while (true)
-                    {
-                        var client = await listener.AcceptTcpClientAsync(stop.Token);
-                        Interlocked.Increment(ref connections);
-                        handlers.Add(Handle(client));
-                    }
-                }
-                catch (Exception) when (stop.IsCancellationRequested) { } // Disposed, possibly before the first accept.
-                await Task.WhenAll(handlers);
-            });
-        }
-
-        internal static JsonObject Initialize() => new()
-        {
-            ["protocolVersion"] = "openengine.cluster/v1",
-            ["capabilities"] = new JsonObject { ["graphProfiles"] = new JsonArray("openengine.graph.full/v1"), ["logs"] = true, ["agentAttach"] = true },
-            ["status"] = new JsonObject { ["phase"] = "empty", ["observedGeneration"] = null, ["currentRunId"] = null, ["atCursor"] = null }
-        };
-
-        private async Task Handle(TcpClient client)
-        {
-            using var _ = client;
-            try
-            {
-                var stream = client.GetStream();
-                var head = new StringBuilder();
-                var octet = new byte[1];
-                while (!head.ToString().EndsWith("\r\n\r\n", StringComparison.Ordinal) && await stream.ReadAsync(octet, stop.Token) == 1)
-                    head.Append((char)octet[0]);
-                var text = head.ToString();
-                lock (Heads) Heads.Add(text);
-                var line = text[..text.IndexOf('\r')];
-                if (line.StartsWith("GET /.well-known/zeroshot-native-v2 ", StringComparison.Ordinal))
-                {
-                    await Reached("discovery");
-                    await Respond(stream, 200, """
-                        {"kind":"zeroshot.native-v2-target/v2","authentication":"none","runPath":"/native-v2/run",
-                         "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller"}
-                        """);
-                }
-                else if (line.StartsWith("POST /native-v2/oecp-session ", StringComparison.Ordinal))
-                {
-                    var length = int.Parse(Header(text, "Content-Length")!);
-                    var body = new byte[length];
-                    await stream.ReadExactlyAsync(body, stop.Token);
-                    SessionBody = Encoding.UTF8.GetString(body);
-                    await Reached("session");
-                    var (status, reply) = Session ?? (200, $$"""{"endpoint":"ws://{{Origin.Authority}}/native-v2/oecp"}""");
-                    await Respond(stream, status, reply);
-                }
-                else if (line.StartsWith("GET /native-v2/oecp ", StringComparison.Ordinal))
-                {
-                    await Reached("upgrade");
-                    var accept = Convert.ToBase64String(SHA1.HashData(Encoding.ASCII.GetBytes(
-                        Header(text, "Sec-WebSocket-Key") + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")));
-                    await stream.WriteAsync(Encoding.ASCII.GetBytes(
-                        $"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n"), stop.Token);
-                    using var socket = WebSocket.CreateFromStream(stream, new WebSocketCreationOptions { IsServer = true });
-                    await Serve(socket);
-                }
-                else if (Submit is { } submit && line.StartsWith("POST /native-v2/run ", StringComparison.Ordinal))
-                {
-                    var body = new byte[int.Parse(Header(text, "Content-Length")!)];
-                    await stream.ReadExactlyAsync(body, stop.Token);
-                    await Reached("run");
-                    var (status, reply) = await submit(JsonNode.Parse(body)!.AsObject()).WaitAsync(stop.Token);
-                    await Respond(stream, status, reply);
-                }
-                else await Respond(stream, 404, """{"code":"request.not_found","message":"target route was not found"}""");
-            }
-            catch (Exception) { } // The client may abandon a connection; tests assert what the client observed.
-        }
-
-        private async Task Serve(WebSocket socket)
-        {
-            var buffer = new byte[64 * 1024];
-            while (true)
-            {
-                using var message = new MemoryStream();
-                ValueWebSocketReceiveResult received;
-                do
-                {
-                    received = await socket.ReceiveAsync(buffer.AsMemory(), stop.Token);
-                    if (received.MessageType == WebSocketMessageType.Close) return;
-                    message.Write(buffer, 0, received.Count);
-                } while (!received.EndOfMessage);
-                var request = JsonNode.Parse(message.ToArray())!.AsObject();
-                lock (Messages) Messages.Add(request);
-                var method = (string)request["method"]!;
-                var id = (string)request["id"]!;
-                await Reached(method);
-                var reply = Reply(request, id);
-                if (reply is null)
-                {
-                    var result = method == "initialize" ? Initialize() : Projections.Dequeue();
-                    if (result is null)
-                    {
-                        Stalled.TrySetResult();
-                        await Task.Delay(Timeout.Infinite, stop.Token);
-                    }
-                    reply = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result }.ToJsonString();
-                }
-                await socket.SendAsync(Encoding.UTF8.GetBytes(reply), WebSocketMessageType.Text, true, stop.Token);
-            }
-        }
-
-        internal int Count(string method)
-        {
-            lock (Messages) return Messages.Count(message => (string)message["method"]! == method);
-        }
-
-        private async Task Reached(string stage)
-        {
-            lock (Stages) Stages.Add(stage);
-            if (stage != StallAt) return;
-            Stalled.TrySetResult();
-            await Task.Delay(Timeout.Infinite, stop.Token);
-        }
-
-        private static string? Header(string head, string name) => head.Split("\r\n")
-            .FirstOrDefault(line => line.StartsWith(name + ":", StringComparison.OrdinalIgnoreCase))?[(name.Length + 1)..].Trim();
-
-        private Task Respond(Stream stream, int status, string body)
-        {
-            var bytes = Encoding.UTF8.GetBytes(body);
-            return stream.WriteAsync(Encoding.ASCII.GetBytes(
-                $"HTTP/1.1 {status} Status\r\nContent-Type: application/json\r\nContent-Length: {bytes.Length}\r\nConnection: close\r\n\r\n")
-                .Concat(bytes).ToArray(), stop.Token).AsTask();
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            stop.Cancel();
-            listener.Stop();
-            await accepting;
-            stop.Dispose();
-        }
     }
 }

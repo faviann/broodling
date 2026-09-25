@@ -130,9 +130,9 @@ public sealed class DispatchProcessTests
     [Arguments("accepted")]
     public async Task KilledHttpCallerRetainsIntentAndReplayConvergesOnTheIntendedRun(string stage)
     {
-        await using var target = new RunTarget { StallMidBody = stage == "mid-body" };
+        await using var target = new StockTarget { StallMidBody = stage == "mid-body" };
         using var fixture = new HttpFixture();
-        var prepared = fixture.Prepare(target: target.Origin);
+        var prepared = fixture.PrepareAt(target.Origin);
         fixture.Store.Dispose();
         var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -181,7 +181,7 @@ public sealed class DispatchProcessTests
     [Test]
     public async Task BufferedHttpRequestCanCreateTheRunAfterCallerDeathDrainageAndUnknownRunStop()
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var prepared = fixture.PrepareAt(target.Origin);
         var run = prepared.Frozen.Run(prepared.IntendedRunId!);

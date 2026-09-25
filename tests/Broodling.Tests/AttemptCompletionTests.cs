@@ -359,7 +359,7 @@ public sealed class AttemptCompletionTests
     [Arguments("dispatched")]
     public async Task HttpWaitRefusesUnacknowledgedWorkBeforeContact(string state)
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var submission = fixture.PrepareAt(target.Origin, state);
         // Even a finished run under the intended ID is never consumed without acknowledgement.
@@ -372,7 +372,7 @@ public sealed class AttemptCompletionTests
     [Test]
     public async Task CorrelatedHttpWaitPinsTheAuthorizedDeliveryAndReplaysItOffline()
     {
-        var target = new DirectTargetSessionTests.StockTarget();
+        var target = new StockTarget();
         using var fixture = new HttpFixture();
         var submission = fixture.PrepareAt(target.Origin, "correlated");
         var accepted = fixture.Git.Deliver();
@@ -390,7 +390,7 @@ public sealed class AttemptCompletionTests
     [Test]
     public async Task CorrelatedHttpNativeFailureAbandonsWithOnlyASafeLabel()
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var submission = fixture.PrepareAt(target.Origin, "correlated");
         target.Projections.Enqueue(HttpFinished(submission, "failed", "canary_secret_reason"));
@@ -407,7 +407,7 @@ public sealed class AttemptCompletionTests
     [Arguments("unavailable", "TargetError")]
     public async Task DetachedHttpWaitLeavesAuthorityUntouched(string answer, string kind)
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var submission = fixture.PrepareAt(target.Origin, "correlated");
         if (answer == "unavailable") target.Session = (503, """{"code":"target.unavailable","message":"busy"}""");

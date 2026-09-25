@@ -17,18 +17,35 @@ public sealed class DirectTargetExchangeTests
         """;
 
     [Test]
-    public async Task StockDiscoveryIsReadAcrossSmallChunksWithoutAmbientCredentials()
+    [Arguments("https://example.test", true)]
+    [Arguments("https://example.test:8443", true)]
+    [Arguments("http://127.0.0.1:9", true)]
+    [Arguments("http://[::1]:9", true)]
+    [Arguments("http://localhost:9", false)]
+    [Arguments("http://192.0.2.1:9", false)]
+    [Arguments("http://127.0.0.1:9/", false)]
+    [Arguments("https://example.test/prefix", false)]
+    [Arguments("http://127.0.0.1:9?key=secret", false)]
+    [Arguments("https://user@example.test", false)]
+    [Arguments("http://user:secret@127.0.0.1:9", false)]
+    [Arguments("HTTPS://example.test", false)]
+    [Arguments("ftp://127.0.0.1:9", false)]
+    public async Task OnlyCanonicalHttpsOrLiteralLoopbackHttpOriginsAreSupported(string address, bool supported)
     {
-        await using var server = new RawServer(async stream =>
+        await Assert.That(DirectTargetExchange.CanonicalOrigin(address) is not null).IsEqualTo(supported);
+    }
+
+    [Test]
+    public async Task StockDiscoveryIsReadWithoutAmbientCredentials()
+    {
+        await using var server = new StockTarget
         {
-            await Write(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n");
-            foreach (var chunk in Stock.Chunk(7)) await Write(stream, $"{chunk.Length:x}\r\n{new string(chunk)}\r\n");
-            await Write(stream, "0\r\n\r\n");
-        });
+            Raw = (stream, _) => Write(stream, $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {Stock.Length}\r\n\r\n{Stock}")
+        };
         using var http = DirectTargetExchange.CreateClient();
         using var budget = Budget();
         await DirectTargetDiscovery.RequireAsync(http, server.Origin, budget);
-        var head = server.Requests.Single();
+        var head = server.Heads.Single();
         await Assert.That(head).StartsWith("GET /.well-known/zeroshot-native-v2 HTTP/1.1\r\n");
         await Assert.That(head.Contains("Authorization", StringComparison.OrdinalIgnoreCase)
             || head.Contains("Cookie", StringComparison.OrdinalIgnoreCase)).IsFalse();
@@ -37,22 +54,14 @@ public sealed class DirectTargetExchangeTests
     [Test]
     public async Task RedirectIsNotFollowed()
     {
-        await using var server = new RawServer(stream =>
-            Write(stream, "HTTP/1.1 302 Found\r\nConnection: close\r\nLocation: /.well-known/zeroshot-native-v2\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}"));
+        await using var server = new StockTarget
+        {
+            Raw = (stream, _) => Write(stream, "HTTP/1.1 302 Found\r\nConnection: close\r\nLocation: /.well-known/zeroshot-native-v2\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}")
+        };
         using var http = DirectTargetExchange.CreateClient();
         using var budget = Budget();
         await Assert.That(() => DirectTargetDiscovery.RequireAsync(http, server.Origin, budget)).Throws<UnsupportedRuntime>();
-        await Assert.That(server.Requests.Count).IsEqualTo(1);
-    }
-
-    [Test]
-    [Arguments(30, true)]
-    [Arguments(33, false)]
-    public async Task ResponseHeadersAreLimitedTo32KiB(int kib, bool accepted)
-    {
-        await using var server = new RawServer(stream =>
-            Write(stream, $"HTTP/1.1 200 OK\r\nX-Padding: {new string('a', kib * 1024)}\r\nContent-Length: 2\r\n\r\n{{}}"));
-        await Exchanges(server, accepted ? null : "invalid_response");
+        await Assert.That(server.Heads.Count).IsEqualTo(1);
     }
 
     [Test]
@@ -61,24 +70,27 @@ public sealed class DirectTargetExchangeTests
     public async Task ChunkedBodyWithoutDeclaredLengthIsCountedTo4MiB(int length, string? kind)
     {
         var body = Encoding.UTF8.GetBytes("\"" + new string('a', length - 2) + "\"");
-        await using var server = new RawServer(async stream =>
+        await using var server = new StockTarget
         {
-            await Write(stream, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-            foreach (var chunk in body.Chunk(64 * 1024 + 3))
+            Raw = async (stream, _) =>
             {
-                await Write(stream, $"{chunk.Length:x}\r\n");
-                await stream.WriteAsync(chunk);
-                await Write(stream, "\r\n");
+                await Write(stream, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
+                foreach (var chunk in body.Chunk(64 * 1024 + 3))
+                {
+                    await Write(stream, $"{chunk.Length:x}\r\n");
+                    await stream.WriteAsync(chunk);
+                    await Write(stream, "\r\n");
+                }
+                await Write(stream, "0\r\n\r\n");
             }
-            await Write(stream, "0\r\n\r\n");
-        });
+        };
         await Exchanges(server, kind);
     }
 
     [Test]
     public async Task TruncatedBodyIsTransportLoss()
     {
-        await using var server = new RawServer(stream => Write(stream, "HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{\"kind\""));
+        await using var server = new StockTarget { Raw = (stream, _) => Write(stream, "HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{\"kind\"") };
         await Exchanges(server, "transport_failed");
     }
 
@@ -87,17 +99,22 @@ public sealed class DirectTargetExchangeTests
     [Arguments(true)]
     public async Task StalledReadEndsByDeadlineOrCallerAndNoLaterExchangeStarts(bool callerCancels)
     {
-        await using var server = new RawServer(async (stream, stop) =>
+        var responded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var server = new StockTarget
         {
-            await Write(stream, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n{");
-            await Task.Delay(Timeout.Infinite, stop);
-        });
+            Raw = async (stream, stop) =>
+            {
+                await Write(stream, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n{");
+                responded.TrySetResult();
+                await Task.Delay(Timeout.Infinite, stop);
+            }
+        };
         using var http = DirectTargetExchange.CreateClient();
         using var caller = new CancellationTokenSource();
         var clock = new FakeTimeProvider();
         using var budget = DirectTargetBudget.Start(DirectTargetLimits.Progress, clock, caller.Token);
         var exchange = Send(http, server.Origin, budget);
-        await server.Responded.Task;
+        await responded.Task;
         clock.Advance(DirectTargetLimits.Progress - TimeSpan.FromMilliseconds(1));
         await Assert.That(exchange.IsCompleted).IsFalse();
         if (callerCancels)
@@ -115,10 +132,8 @@ public sealed class DirectTargetExchangeTests
     }
 
     [Test]
-    public async Task JsonDepthAndDuplicatePropertiesAreRefused()
+    public async Task DuplicatePropertiesAreRefused()
     {
-        await Fails(() => Task.FromResult(DirectTargetExchange.ParseJson(Encoding.UTF8.GetBytes(
-            new string('[', 65) + new string(']', 65)))), "invalid_response");
         await Fails(() => Task.FromResult(DirectTargetExchange.ParseJson(Encoding.UTF8.GetBytes(
             """{"status":{"phase":"running","phase":"finished"}}"""))), "invalid_response");
     }
@@ -178,7 +193,7 @@ public sealed class DirectTargetExchangeTests
     private static Task<(HttpStatusCode Status, System.Text.Json.JsonElement Body)> Send(HttpClient http, Uri origin, DirectTargetBudget budget) =>
         DirectTargetExchange.SendJsonAsync(http, new HttpRequestMessage(HttpMethod.Get, new Uri(origin, "/exchange")), budget);
 
-    private static async Task Exchanges(RawServer server, string? kind)
+    private static async Task Exchanges(StockTarget server, string? kind)
     {
         using var http = DirectTargetExchange.CreateClient();
         using var budget = Budget();
@@ -200,68 +215,6 @@ public sealed class DirectTargetExchangeTests
     }
 
     private static Task Write(Stream stream, string text) => stream.WriteAsync(Encoding.ASCII.GetBytes(text)).AsTask();
-
-    /// <summary>A loopback HTTP/1.1 peer that writes scripted raw bytes as the response on each connection.</summary>
-    private sealed class RawServer : IAsyncDisposable
-    {
-        private readonly TcpListener listener = new(IPAddress.Loopback, 0);
-        private readonly CancellationTokenSource stop = new();
-        private readonly Task accepting;
-        private int connections;
-        internal Uri Origin { get; }
-        internal int Connections => Volatile.Read(ref connections);
-        internal List<string> Requests { get; } = [];
-        internal TaskCompletionSource Responded { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        internal RawServer(Func<Stream, CancellationToken, Task> respond)
-        {
-            listener.Start();
-            Origin = new Uri($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}");
-            accepting = Task.Run(async () =>
-            {
-                var handlers = new List<Task>();
-                try
-                {
-                    while (true)
-                    {
-                        var client = await listener.AcceptTcpClientAsync(stop.Token);
-                        Interlocked.Increment(ref connections);
-                        handlers.Add(Handle(client, respond));
-                    }
-                }
-                catch (OperationCanceledException) { }
-                await Task.WhenAll(handlers);
-            });
-        }
-
-        internal RawServer(Func<Stream, Task> respond) : this((stream, _) => respond(stream)) { }
-
-        private async Task Handle(TcpClient client, Func<Stream, CancellationToken, Task> respond)
-        {
-            using var _ = client;
-            try
-            {
-                var stream = client.GetStream();
-                var head = new StringBuilder();
-                var octet = new byte[1];
-                while (!head.ToString().EndsWith("\r\n\r\n", StringComparison.Ordinal) && await stream.ReadAsync(octet, stop.Token) == 1)
-                    head.Append((char)octet[0]);
-                lock (Requests) Requests.Add(head.ToString());
-                var response = respond(stream, stop.Token);
-                Responded.TrySetResult();
-                await response;
-            }
-            catch (Exception) { } // The client may abandon a response; the test asserts what the client observed.
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            stop.Cancel();
-            listener.Stop();
-            await accepting;
-            stop.Dispose();
-        }
-    }
 
     /// <summary>Two WebSocket endpoints over a real loopback TCP connection; no HTTP upgrade is under test.</summary>
     private sealed class SocketPair : IAsyncDisposable

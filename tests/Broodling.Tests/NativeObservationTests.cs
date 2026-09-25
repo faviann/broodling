@@ -157,7 +157,7 @@ public sealed class NativeObservationTests
     [Test]
     public async Task PreparedHttpAttemptHasNoProgressAndMakesNoContact()
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         fixture.PrepareAt(target.Origin);
         await Assert.That(await fixture.Store.ObserveAsync(fixture.Attempt.AttemptId, null)).IsNull();
@@ -170,7 +170,7 @@ public sealed class NativeObservationTests
     [Arguments("correlated", NativeRunIdentity.Confirmed)]
     public async Task HttpProgressNamesTheIdentityItReadAndRetainsNothing(string state, NativeRunIdentity identity)
     {
-        await using var target = new DirectTargetSessionTests.StockTarget();
+        await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var prepared = fixture.PrepareAt(target.Origin, state == "correlated" ? "correlated" : "dispatched");
         if (state == "abandoned-paused")
@@ -201,7 +201,7 @@ public sealed class NativeObservationTests
     [Arguments("stalled", "TimeoutError")]
     public async Task IntendedHttpProgressIsUnavailableUnlessTheExactRunAnswersInTime(string answer, string reason)
     {
-        await using var target = new DirectTargetSessionTests.StockTarget { StallAt = answer == "stalled" ? "run/status" : null };
+        await using var target = new StockTarget { StallAt = answer == "stalled" ? "run/status" : null };
         using var fixture = new HttpFixture();
         var prepared = fixture.PrepareAt(target.Origin, "dispatched");
         var run = prepared.Frozen.Run(prepared.IntendedRunId!);
