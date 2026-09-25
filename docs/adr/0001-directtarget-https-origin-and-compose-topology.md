@@ -7,23 +7,25 @@ status: accepted
 Pinned Zeroshot 10.3.0 accepts only an HTTPS origin or literal-loopback HTTP,
 records that origin in native state at initialization, and its clients refuse
 any endpoint that differs from it; `target serve` provides no TLS. The homelab
-installation therefore runs one Compose project with three services: `broodling`,
-`zeroshot` (the DirectTarget) and `zeroshot-tls`, a Caddy container that forwards
-to `zeroshot` over the project network. The single, permanent DirectTarget origin
-is `https://zeroshot.dev.faviann.com`. Inside the project a network alias
-resolves that name to `zeroshot-tls` on port 443, where Caddy serves a
-certificate from its `tls internal` authority. The stack's explicit first
-initialization creates that authority's root once: the key in a location
+installation therefore runs one Compose project with three services:
+`broodling`, `zeroshot` (the DirectTarget) and `zeroshot-tls`, a Caddy container
+that forwards to `zeroshot` over the project network. The single, permanent
+DirectTarget origin is `https://zeroshot.dev.faviann.com`. Inside the project a
+network alias resolves that name to `zeroshot-tls` on port 443, where Caddy
+serves a certificate from its `tls internal` authority. The stack's explicit
+first initialization creates that authority's root once: the key in a location
 readable only by `zeroshot-tls`'s user, the certificate in a separate directory
-of public material only. Caddy signs with the configured root (`pki { ca local
-{ root { cert, key } } }`) and still issues and renews its intermediate and leaf
+of public material only. Caddy signs with the configured root (`pki { ca local {
+root { cert, key } } }`) and still issues and renews its intermediate and leaf
 certificates itself. Broodling mounts only the public directory read-only and
-re-reads the root for each new connection; no key reaches it. Outside the
-project, LAN DNS resolves the same name to Traefik, which serves the public
-wildcard certificate and forwards to `zeroshot-tls`'s port on the LXC. The
-stack's internal communication thus depends on nothing outside it, while the
-operator can use the Zeroshot CLI, HTTP requests or a browser from the LAN
-without tunnels or trust setup.
+re-reads the root for each new connection; no key reaches it. `zeroshot` mounts
+the same directory read-only for its native client (initialization and
+diagnosis). Outside the project, LAN DNS resolves the same name to Traefik,
+which serves the public wildcard certificate and forwards to `zeroshot-tls`'s
+port on the LXC, trusting the same root certificate for that HTTPS hop without
+skipping verification. The stack's internal communication thus depends on
+nothing outside it, while the operator can use the Zeroshot CLI, HTTP requests
+or a browser from the LAN without tunnels or trust setup.
 
 The three long-running services run as their production users. Broodling is
 non-root. `zeroshot-tls` runs Caddy as a non-root user that owns the key
