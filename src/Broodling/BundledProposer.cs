@@ -103,22 +103,21 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
             Timeout = Timeout.InfiniteTimeSpan,
             MaxResponseContentBufferSize = ResponseBytes
         };
-        for (var turn = 0; turn < MaxTurns; turn++)
+        for (var turn = 1; ; turn++)
         {
-            var message = await CompleteAsync(client, apiKey, messages, cancellationToken);
-            if (message["tool_calls"] is JsonArray { Count: > 0 } calls)
+            // The last allowed call forbids tools, so the model must answer.
+            var final = turn == MaxTurns;
+            var message = await CompleteAsync(client, apiKey, messages, final, cancellationToken);
+            if (!final && message["tool_calls"] is JsonArray { Count: > 0 } calls)
             {
                 var replies = new List<JsonNode>();
                 var echoed = new JsonArray();
                 foreach (var call in calls)
                 {
-                    if (call?["id"]?.GetValueKind() != JsonValueKind.String
-                        || call["function"]?["name"]?.GetValueKind() != JsonValueKind.String)
-                        throw new ContractProposerError("The gateway returned an unusable tool call.", retryable: true);
-                    var id = (string)call["id"]!;
-                    var name = (string)call["function"]!["name"]!;
-                    var arguments = call["function"]!["arguments"]?.GetValueKind() == JsonValueKind.String
-                        ? (string)call["function"]!["arguments"]! : "";
+                    if (call is not JsonObject { } entry || !Text(entry["id"], out var id)
+                        || entry["function"] is not JsonObject function || !Text(function["name"], out var name))
+                        throw new ContractProposerError("The model gateway returned an unusable response.", retryable: true);
+                    var arguments = Text(function["arguments"], out var given) ? given : "";
                     echoed.Add(new JsonObject
                     {
                         ["id"] = id, ["type"] = "function",
@@ -136,8 +135,20 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
             }
             return Proposal(input, message["content"]);
         }
-        throw new InvalidContractProposal($"The model did not reply with a proposal within {MaxTurns} turns.");
     }
+
+    private static bool Text(JsonNode? node, out string value)
+    {
+        value = "";
+        return node is JsonValue text && text.TryGetValue(out value!);
+    }
+
+    /// <summary>Model and gateway JSON is parsed eagerly; a repeated property is malformed, not resolved.</summary>
+    private static JsonNode? Parse(string text) => JsonNode.Parse(text, documentOptions: Strict);
+
+    private static JsonNode? Parse(byte[] bytes) => JsonNode.Parse(bytes, documentOptions: Strict);
+
+    private static readonly JsonDocumentOptions Strict = new() { AllowDuplicateProperties = false };
 
     /// <summary>The request text, fixed authority and member identities, never member content.</summary>
     private static JsonObject InitialContext(ContractProposalInput input, RequestBundle bundle)
@@ -145,13 +156,12 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
         var references = new JsonArray();
         foreach (var reference in bundle.References)
         {
-            JsonNode? selector;
-            try { selector = JsonNode.Parse(reference.Selector); }
-            catch (JsonException) { selector = Convert.ToBase64String(reference.Selector); }
+            // Capture always writes JSON selectors.
             references.Add(new JsonObject
             {
                 ["referenceId"] = reference.ReferenceId, ["captureKind"] = reference.CaptureKind,
-                ["contentSha256"] = reference.ContentSha256, ["gitPath"] = reference.GitPath, ["selector"] = selector
+                ["contentSha256"] = reference.ContentSha256, ["gitPath"] = reference.GitPath,
+                ["selector"] = JsonNode.Parse(reference.Selector)
             });
         }
         return new JsonObject
@@ -180,17 +190,17 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
     /// </summary>
     private static Contract Proposal(ContractProposalInput input, JsonNode? content)
     {
-        if (content?.GetValueKind() != JsonValueKind.String)
+        if (!Text(content, out var text))
             throw new InvalidContractProposal("The model replied without a proposal.");
         JsonObject proposal;
         try
         {
-            proposal = JsonNode.Parse((string)content!) as JsonObject
+            proposal = Parse(text) as JsonObject
                 ?? throw new InvalidContractProposal("The model's proposal is not a JSON object.");
         }
         catch (JsonException)
         {
-            throw new InvalidContractProposal("The model's proposal is not a JSON object.");
+            throw new InvalidContractProposal("The model's proposal is not well-formed JSON without repeated properties.");
         }
         foreach (var (name, value) in Authority(input))
             if (!proposal.ContainsKey(name))
@@ -205,7 +215,7 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
         long offset;
         try
         {
-            var request = JsonNode.Parse(arguments) as JsonObject;
+            var request = Parse(arguments) as JsonObject;
             referenceId = request?["referenceId"]?.GetValueKind() == JsonValueKind.String
                 ? (string)request["referenceId"]! : throw new JsonException();
             offset = request!["offset"] is { } given ? (long)given : 0;
@@ -248,13 +258,14 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
     }
 
     private static async Task<JsonObject> CompleteAsync(HttpClient client, string apiKey, JsonArray messages,
-        CancellationToken cancellationToken)
+        bool final, CancellationToken cancellationToken)
     {
         var body = new JsonObject
         {
             ["model"] = Model,
             ["messages"] = messages.DeepClone(),
             ["tools"] = new JsonArray(ReadToolDefinition.DeepClone()),
+            ["tool_choice"] = final ? "none" : "auto",
             ["response_format"] = new JsonObject { ["type"] = "json_object" }
         };
         using var request = new HttpRequestMessage(HttpMethod.Post, NativeProfile.GatewayBaseUrl + "/chat/completions")
@@ -289,12 +300,15 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
                     retryable: response.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests || status >= 500);
             }
         }
-        try
-        {
-            if (JsonNode.Parse(bytes)?["choices"]?[0]?["message"] is JsonObject message)
-                return message;
-        }
-        catch (Exception exception) when (exception is JsonException or InvalidOperationException) { }
-        throw new ContractProposerError("The model gateway returned an unusable response.", retryable: true);
+        JsonNode? root;
+        try { root = Parse(bytes); }
+        catch (JsonException) { root = null; }
+        if (root is not JsonObject envelope || envelope["choices"] is not JsonArray { Count: > 0 } choices
+            || choices[0] is not JsonObject choice || choice["message"] is not JsonObject message)
+            throw new ContractProposerError("The model gateway returned an unusable response.", retryable: true);
+        // A reply cut off at the output limit is not the model's proposal.
+        if (Text(choice["finish_reason"], out var finish) && finish == "length")
+            throw new ContractProposerError("The model reply reached its output limit.", retryable: true);
+        return message;
     }
 }

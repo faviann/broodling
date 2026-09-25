@@ -217,8 +217,11 @@ public sealed partial class BroodlingStore
         {
             // A concurrent caller may have bound this submission while our proposer ran.
             // Its authority stands; ours is discarded uncommitted.
-            if (ReadIssueSubmission(submissionId, transaction)!.ContractRevisionId is { } raced)
+            var current = ReadIssueSubmission(submissionId, transaction)!;
+            if (current.ContractRevisionId is { } raced)
                 revisionId = raced;
+            else if (current.ProposalRefusal is { } refused)
+                throw new ContractProposalRefused(refused);
             else
             {
                 revisionId = RecordContractRevision(proposal, transaction).ContractRevisionId;

@@ -92,10 +92,12 @@ pause checks. The decision also moves the submission from `capturing` to
 undecided revision. A later call decides it without calling the proposer again,
 and it returns an existing decision even while paused, as `Admit` does. A new
 proposal refuses under pause, and a cancelled submission is refused before the
-proposer runs. When concurrent callers propose for one submission, the first
+proposer runs. The pause is checked before the proposer runs, not again when the
+proposal commits: a proposal that finishes during a pause is still bound, and
+only its decision waits for release. When concurrent callers propose for one submission, the first
 association wins. The other caller discards its uncommitted proposal and returns
 the winning revision's status. The first committed refusal or association
-likewise stands over a later refusal. No transaction is open while the proposer
+likewise stands over a later refusal or association. No transaction is open while the proposer
 runs.
 
 ### Bundled proposer
@@ -122,16 +124,18 @@ describes its configuration.
   frozen captured bytes: a non-member is an error reply, and nothing is fetched
   upstream or read from a working tree. A read returns at most 64 KiB, with an
   offset to continue; one proposal reads at most 512 KiB and makes at most 8
-  model calls.
+  model calls. The last call forbids tools (`tool_choice: none`), so the model
+  must answer.
 - The final reply is parsed into a `Contract` with its canonical field names;
-  unrecognized fields are refused. An omitted authority field takes its fixed
+  unrecognized fields and repeated properties are refused. An omitted authority field takes its fixed
   value. A supplied one is kept, so any change refuses rather than being
-  corrected. A reply that is not such a JSON object, or that exceeds the call
-  limit, is a malformed proposal. Both are retained refusals, as above.
+  corrected. A reply that is not such a JSON object is a malformed proposal. Both
+  are retained refusals, as above.
 - Operational failures retain nothing and throw `ContractProposerError`:
   missing or invalid credentials and other gateway refusals (`Retryable` false),
-  and transport failure, a 3-minute call timeout, HTTP 408/429/5xx or an
-  unusable gateway response (`Retryable` true). The submission stays
+  and transport failure, a 3-minute call timeout, HTTP 408/429/5xx, a reply cut
+  off at the output limit (`finish_reason: length`) or an unusable gateway
+  response or tool call (`Retryable` true). The submission stays
   `capturing`, and a later call proposes again from the same frozen inputs. A
   bound or refused submission is never proposed again. Neither the key nor the
   gateway's response text appears in an error or a retained record.

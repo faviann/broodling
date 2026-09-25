@@ -62,19 +62,23 @@ public sealed class BundledProposerTests
     }
 
     [Test]
-    [Arguments("malformed", "The model's proposal is not a JSON object.")]
+    [Arguments("malformed", "The model's proposal is not well-formed JSON without repeated properties.")]
+    [Arguments("duplicate", "The model's proposal is not well-formed JSON without repeated properties.")]
     [Arguments("authority", "The proposal changed the caller's exact effect authority.")]
     public async Task MalformedOrAuthorityChangingProposalIsRetainedAsTheSubmissionsRefusal(string variant, string detail)
     {
         using var fixture = Fixture(out var store, out var submissionId, out _);
         using var session = store;
-        var gateway = new ControlledGateway(_ => ControlledGateway.Final(variant == "malformed"
-            ? "Here is the Contract: criteria csv."
-            : """
-              {"criteria": [{"criterionId": "csv", "statement": "Export CSV."}],
-               "requiredEffects": [{"effectId": "pull_request", "statement": "Open a PR to release.",
-                                    "kind": "pull_request", "targetBranch": "release"}]}
-              """));
+        var gateway = new ControlledGateway(_ => ControlledGateway.Final(variant switch
+        {
+            "malformed" => "Here is the Contract: criteria csv.",
+            "duplicate" => """{"criteria": [], "criteria": [{"criterionId": "csv", "statement": "Export CSV."}]}""",
+            _ => """
+                {"criteria": [{"criterionId": "csv", "statement": "Export CSV."}],
+                 "requiredEffects": [{"effectId": "pull_request", "statement": "Open a PR to release.",
+                                      "kind": "pull_request", "targetBranch": "release"}]}
+                """
+        }));
 
         await Assert.That(async () => await store.AdmitRequestBundleAsync(submissionId, Credentials, gateway, default))
             .Throws<ContractProposalRefused>();

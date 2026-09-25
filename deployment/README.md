@@ -449,12 +449,18 @@ profile is fixed, not configurable:
 | Credentials | Current `GATEWAY_API_KEY` and exactly `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`, read from the process environment for each proposal |
 | Trust | The host's system TLS trust for the gateway |
 
+The gateway's support for `/chat/completions` with tools, `tool_choice` and the
+`json_object` response format for `gpt-5.6-sol` is an assumption. It has not
+been confirmed against the real gateway; the historical #77 record probed only
+`/models` ([validation record](validation.md)).
+
 Supply the key through the same secret source as dispatch credentials. It is
 sent only as the gateway's bearer token. It is never written to the
 RequestBundle, Contract revision, refusal findings, submission rows or error
 messages. A missing key, another base URL or a gateway refusal is a
-non-retryable `ContractProposerError`. Transport loss, timeout and HTTP
-408/429/5xx are retryable. Neither retains anything, so a later call proposes
+non-retryable `ContractProposerError`. Transport loss, timeout, HTTP
+408/429/5xx, a reply cut off at the output limit and an unusable gateway
+response are retryable. Neither retains anything, so a later call proposes
 again from the same frozen request. A bound or refused submission never calls
 the gateway.
 
