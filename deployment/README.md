@@ -79,8 +79,9 @@ tar -C out/release -czf out/broodling-linux-x64.tar.gz host codex source-revisio
 
 Keep both complete publish directories. `host/` contains the framework-dependent
 `Broodling.Host` entrypoint, managed assemblies, runtime/dependency manifests,
-SQLite native assets, `libbroodling_git.so`, `bridge/zeroshot_bridge.py` and
-`bridge/requirements.txt`. `codex/` is the complete self-contained C# launcher,
+SQLite native assets, `libbroodling_git.so`, `bridge/zeroshot_bridge.py`,
+`bridge/requirements.txt` and the approved DirectTarget execution asset with its
+manifest under `execution-assets/`. `codex/` is the complete self-contained C# launcher,
 with its pinned .NET **10.0.12** runtime; copying only its `codex` apphost is
 insufficient. Preserve executable modes and package paths. Invoke the host with
 `dotnet /RELEASE/host/Broodling.Host.dll`; its optional `Broodling.Host` apphost
@@ -102,6 +103,17 @@ bundled native is **10.3.0**; Codex is still **0.153.4**. The application refuse
 different SDK/native versions. There is no Python Broodling package, installer
 or importable proposer. Protect and retain the selected release and dependency
 environment for replay; do not relocate a launcher already frozen in an invocation.
+
+Image builds (#121) receive the execution asset, its
+[approval manifest](../src/Broodling/execution-assets/approval.json) and the
+[generation recipe](../src/Broodling/execution-assets/generate.sh). Before
+packaging, run `src/Broodling/execution-assets/generate.sh
+/PATH/TO/pinned/zeroshot` with the SDK-bundled 10.3.0 executable. It requires
+executable SHA-256 `afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06`,
+regenerates the asset offline, verifies SHA-256
+`10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8` and checks
+native admission. It needs `python3` but no credentials, target or provider. See
+[execution asset](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset).
 
 ## State and operator commands
 

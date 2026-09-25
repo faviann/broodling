@@ -53,6 +53,36 @@ small / execution-scoped sessions through exactly
 LocalTarget uses Codex/OpenAI. Per-node runtime, model/harness selection,
 node-local OAuth PR delivery and fleet placement remain unsupported.
 
+## Approved DirectTarget execution asset
+
+The HTTP DirectTarget path (#163) submits one release-bundled graph/runtime,
+[`execution-assets/software-change-pr-codex-gateway.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway.json).
+Its identity is the SHA-256 of the exact file bytes, formatting included:
+`10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8` (77,069
+bytes). This identity is Broodling's approval. It is not a stock `profileId` or a
+native digest. The [approval manifest](../../src/Broodling/execution-assets/approval.json)
+binds the asset to native `zeroshot 10.3.0`, source
+`054ad3fd6c763b98d12f5b2e90830b97116561ad`, the Linux x86-64 executable
+`afeb4372…6ee06`, the fixed runtime policy, the symbolic `gateway`/`github`
+connections and the gateway URL. It also records the SDK 10.3.0.post1 generation
+provenance. The asset and manifest hold no credential values. The asset also
+omits the gateway URL, which `DispatchCredentials` enforces separately.
+
+[`ExecutionAsset.LoadBundled`](../../src/Broodling/ExecutionAsset.cs) checks the
+packaged files against the identity and binding compiled into the release. It
+refuses a missing, changed or unapproved asset and a manifest bound to another
+native release or policy. C# passes the graph and runtime through opaquely.
+It never expands, edits or regenerates them. Changing the asset requires a
+reviewed release with a new approved identity.
+
+[`generate.sh`](../../src/Broodling/execution-assets/generate.sh) is the
+build-time recipe. It takes the pinned native executable, runs
+`profile set --template software-change --delivery pull_request
+--uniform-runtime-config` and `profile show` with an isolated HOME/config, then
+checks the exact approved bytes. It then re-admits the graph/runtime through
+`profile set --graph --runtime-config` and requires an exact round trip. It runs
+no target or provider. It is not a runtime helper.
+
 ## Dispatch, recovery and completion
 
 Preparation retains the immutable request and submission key. A short transaction

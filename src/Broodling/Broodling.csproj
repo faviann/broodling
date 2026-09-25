@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <None Update="bridge/zeroshot_bridge.py;bridge/requirements.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="execution-assets/software-change-pr-codex-gateway.json;execution-assets/approval.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <None Include="$(BaseIntermediateOutputPath)native/$(Configuration)/libbroodling_git.so"
           Link="libbroodling_git.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

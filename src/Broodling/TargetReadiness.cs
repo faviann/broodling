@@ -17,7 +17,7 @@ public sealed class TargetNotReady(string message) : Exception(message);
 /// <summary>Inspect the selected container and discovery endpoint without submitting work or changing its lifecycle.</summary>
 public sealed class TargetReadiness
 {
-    private const string NativeSha256 = "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06";
+    private const string NativeSha256 = NativeProfile.NativeExecutableSha256;
     private const string GhSha256 = "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff";
     private static readonly string[] CredentialNames = ["GH_TOKEN", "GITHUB_TOKEN", "GATEWAY_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY"];
     private readonly Func<IReadOnlyList<string>, CancellationToken, Task<string>> command;

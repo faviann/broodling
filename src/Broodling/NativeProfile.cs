@@ -38,6 +38,8 @@ public sealed class NativeProfile
 {
     public const string SdkVersion = "10.3.0.post1";
     public const string NativeVersion = "zeroshot 10.3.0";
+    public const string NativeSourceRevision = "054ad3fd6c763b98d12f5b2e90830b97116561ad";
+    public const string NativeExecutableSha256 = "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06";
     public const string GatewayBaseUrl = "https://cliproxy.local.faviann.com/v1";
     internal static readonly string[] OperatingVariables = ["HOME", "CODEX_HOME", "LANG", "LC_ALL", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "USERPROFILE", "XDG_CACHE_HOME", "XDG_CONFIG_HOME"];
     private readonly string stateDirectory;
