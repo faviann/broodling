@@ -185,16 +185,19 @@ Issue submission through [capture](dotnet-github-ingress.md#executable-request-c
 which includes repository selection, and then `AdmitRequestBundleAsync`. It adds
 no record or schema: progress and findings stay in the capture, refusal and
 admission records above. The preparer is constructed with the application, the
-store path and the service repository root.
+store path, the service repository root and a lifetime token that is cancelled at
+shutdown.
 
 - It returns a `SubmissionPreparation`: `Decided` with the admission status
   (admitted, or rejected with its findings), `CaptureRefused` with the refused
   bundle, `ProposalRefused` with the retained refusal, `Cancelled`, or `Failed`
   with a safe code and message and `Retryable`. Retryable failures are
   retryable GitHub, repository and gateway failures, the installation pause, and
-  an unavailable or busy store. Other failures, such as identity or bundle
-  conflicts, missing credentials and an earlier unbound association, need
-  attention. The preparer has no retry cadence; its caller decides when to call
+  a busy or locked SQLite store (`store_busy`). Other failures need attention:
+  identity or bundle conflicts, missing credentials, an earlier unbound
+  association, a store that is missing or incompatible, and any other SQLite
+  error, such as a guard abort (`store_error`, with SQLite's error code and
+  message). The preparer has no retry cadence; its caller decides when to call
   again.
 - Every result except `Failed` is retained, so a later call returns it again
   without acquisition or a model call. A cancellation or refusal that commits
@@ -205,18 +208,22 @@ store path and the service repository root.
   submission is never captured or proposed again, and a later call only decides
   it.
 - The existing checks apply unchanged. Capture stops at a committed
-  cancellation. Proposal and decision refuse a cancelled submission. A new
-  proposal and an undecided Contract's decision wait for the pause to be
-  released. Capture itself does not check the pause.
+  cancellation. Proposal and decision refuse a cancelled submission. While the
+  installation is paused, a new proposal and an undecided Contract's decision
+  return the retryable `installation_paused` failure. Capture itself does not
+  check the pause.
 - One process holds one preparer. Concurrent callers for the same submission
   share its single in-flight preparation, and different submissions prepare
-  independently. The first caller's credentials and cancellation token are the
-  ones used. Another caller's token ends only its own wait; if the first caller
-  cancels, a waiting caller takes over. Each preparation runs on the thread
-  pool in its own store session. As in capture and admission, no SQLite writer
-  transaction is open during acquisition or the model call. There is no
-  cross-process lease: another process's concurrent preparation is resolved by
-  the store's first-commit-wins guards.
+  independently. The caller that starts a preparation supplies its credentials.
+  Only the lifetime token stops a preparation. A caller's token ends only its
+  own wait, so a disconnecting caller neither cancels the shared work nor wastes
+  its model call. Each preparation runs on the thread pool in its own store
+  session. As in capture and admission, no SQLite writer transaction is open
+  during acquisition or the model call.
+- There is no cross-process lease. If another process prepares the same
+  submission, the store's guards keep the first committed result, but the other
+  preparation can report a conflict that needs attention even though a later
+  call continues from what was committed.
 
 ## Persistence, recovery and observation
 

@@ -43,7 +43,12 @@ public abstract record SubmissionPreparation
 /// while different submissions prepare independently. Each preparation runs off the caller's thread in its
 /// own store session. It neither discovers nor schedules work and has no retry cadence.
 /// </summary>
-public sealed class SubmissionPreparer(BroodlingApplication application, string storePath, string repositoryRoot)
+/// <param name="lifetime">
+/// Cancelled at shutdown. It is the only token that stops a preparation; progress is kept in its committed
+/// checkpoints and a later preparer continues from them.
+/// </param>
+public sealed class SubmissionPreparer(BroodlingApplication application, string storePath, string repositoryRoot,
+    CancellationToken lifetime)
 {
     private readonly Dictionary<string, Task<SubmissionPreparation>> preparing = [];
 
@@ -54,46 +59,37 @@ public sealed class SubmissionPreparer(BroodlingApplication application, string 
     internal HttpMessageHandler? Gateway { get; init; }
 
     /// <summary>
-    /// Prepare the submission, or join its preparation already in progress. The credentials and the
-    /// cancellation token of the caller that starts a preparation are the ones it uses (gateway credentials
-    /// default to the process environment). Another caller's token only stops its own wait; if the starting
-    /// caller cancels, a caller still waiting takes over.
+    /// Prepare the submission, or join its preparation already in progress. The caller that starts a
+    /// preparation supplies the credentials it uses (gateway credentials default to the process environment).
+    /// A caller's token only ends that caller's wait; the shared preparation continues. At shutdown every
+    /// waiting caller observes cancellation.
     /// </summary>
-    public async Task<SubmissionPreparation> PrepareAsync(string submissionId, GitHubRepositoryCredentials github,
+    public Task<SubmissionPreparation> PrepareAsync(string submissionId, GitHubRepositoryCredentials github,
         GatewayCredentials? gateway = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(submissionId);
         ArgumentNullException.ThrowIfNull(github);
-        while (true)
+        Task<SubmissionPreparation>? preparation;
+        lock (preparing)
         {
-            TaskCompletionSource<SubmissionPreparation>? owner = null;
-            Task<SubmissionPreparation>? preparation;
-            lock (preparing)
-            {
-                if (!preparing.TryGetValue(submissionId, out preparation))
-                {
-                    owner = new(TaskCreationOptions.RunContinuationsAsynchronously);
-                    preparing[submissionId] = preparation = owner.Task;
-                }
-            }
-            if (owner is not null)
+            if (!preparing.TryGetValue(submissionId, out preparation))
             {
                 // SQLite and Git work in a session is synchronous; keep it off the caller's thread.
-                var run = Task.Run(() => PrepareOnceAsync(submissionId, github, gateway, cancellationToken),
-                    CancellationToken.None);
-                try { await run; }
-                catch (Exception) { } // Observed through the shared task below.
-                lock (preparing) preparing.Remove(submissionId);
-                owner.SetFromTask(run);
+                preparation = Task.Run(() => PrepareOnceAsync(submissionId, github, gateway), CancellationToken.None);
+                preparing[submissionId] = preparation;
+                preparation.ContinueWith(ended =>
+                {
+                    lock (preparing)
+                        if (preparing.TryGetValue(submissionId, out var current) && current == ended)
+                            preparing.Remove(submissionId);
+                }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
             }
-            try { return await preparation.WaitAsync(cancellationToken); }
-            // The starting caller cancelled and nothing is in flight: continue as the owner.
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
         }
+        return preparation.WaitAsync(cancellationToken);
     }
 
     private async Task<SubmissionPreparation> PrepareOnceAsync(string submissionId, GitHubRepositoryCredentials github,
-        GatewayCredentials? gateway, CancellationToken cancellationToken)
+        GatewayCredentials? gateway)
     {
         BroodlingStore? store = null;
         try
@@ -106,14 +102,20 @@ public sealed class SubmissionPreparer(BroodlingApplication application, string 
             if (submission.ContractRevisionId is null)
             {
                 var bundle = await store.CaptureRequestBundleAsync(submissionId, repositoryRoot, github,
-                    IssueSource, RepositorySource, null, cancellationToken);
+                    IssueSource, RepositorySource, null, lifetime);
                 if (bundle.State != "complete")
                     return Ended(store, store.GetIssueSubmission(submissionId))
                         ?? throw new InvalidOperationException("A refused capture left its submission unrejected.");
             }
-            var admission = await store.AdmitRequestBundleAsync(submissionId, gateway, Gateway, cancellationToken);
+            var admission = await store.AdmitRequestBundleAsync(submissionId, gateway, Gateway, lifetime);
             var decided = store.GetIssueSubmission(submissionId);
             return Ended(store, decided) ?? new SubmissionPreparation.Decided(decided, admission);
+        }
+        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
+        {
+            // Not shutdown: report it once rather than as cancellation of the waiting callers.
+            return new SubmissionPreparation.Failed(submissionId, "preparation_interrupted",
+                "Preparation was interrupted before its next checkpoint.", true);
         }
         catch (Exception failure) when (failure is BroodlingException or SqliteException)
         {
@@ -145,15 +147,27 @@ public sealed class SubmissionPreparer(BroodlingApplication application, string 
         return null;
     }
 
-    private static SubmissionPreparation.Failed Failure(string submissionId, Exception failure) => failure is BroodlingException error
-        ? new(submissionId, error.Code, error.Message, error switch
+    /// <summary>
+    /// Only temporary acquisition and gateway failures, the pause and a busy or locked store are retryable.
+    /// Store state, identity and integrity failures, including guard aborts, need attention.
+    /// </summary>
+    internal static SubmissionPreparation.Failed Failure(string submissionId, Exception failure) => failure switch
+    {
+        BroodlingException error => new(submissionId, error.Code, error.Message, error switch
         {
             GitHubSourceError source => source.Retryable,
             GitHubRepositoryError repository => repository.Retryable,
             ContractProposerError proposer => proposer.Retryable,
-            // Release of the pause, or a store that is busy or not yet readable.
-            InstallationPaused or StoreStateException => true,
+            InstallationPaused => true,
             _ => false
-        })
-        : new(submissionId, "store_unavailable", "The store is unavailable or busy.", true);
+        }),
+        // SQLite reports the error code and any guard's abort text; neither carries data or SQL.
+        SqliteException sqlite => sqlite.SqliteErrorCode is SQLiteBusy or SQLiteLocked
+            ? new(submissionId, "store_busy", sqlite.Message, true)
+            : new(submissionId, "store_error", sqlite.Message, false),
+        _ => throw new ArgumentException("Unclassified preparation failure.", nameof(failure))
+    };
+
+    private const int SQLiteBusy = 5;
+    private const int SQLiteLocked = 6;
 }
