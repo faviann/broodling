@@ -20,21 +20,30 @@ dotnet /RELEASE/host/Broodling.Host.dll release-installation /EXISTING/DOTNET/st
 The commands emit JSON with `isPaused`, `changedAt`, `unresolvedDispatches`
 and `inFlightInitiationDrained`. The last two are independent facts:
 
-- `unresolvedDispatches` counts `native_submissions` in `dispatched` state. It
-  is durable uncertainty about whether a native run exists. Pause and status
-  never rewrite it; only correlation or a retained conflict (`blocked`)
-  settles a submission.
-- `inFlightInitiationDrained` is true when no process holds the installation
-  initiation lock, so no external submission can still create a native run.
+- `unresolvedDispatches` counts `native_submissions` in `dispatched` state:
+  committed dispatch intent without retained correlation. It is durable
+  uncertainty about whether a native run exists. Pause and status never rewrite
+  it; only exact correlation settles a submission. An HTTP submission's retained
+  conflict does not settle it, and neither do abandonment, stop, a terminal or
+  unknown-run observation, or local drainage. A bridge conflict (`blocked`) is
+  not counted.
+- `inFlightInitiationDrained` is true when no local process holds the
+  installation initiation lock at the moment of the reading. It is a local fact
+  only; it does not prove that no external submission can still create a run.
 
 `isPaused: true` together with `inFlightInitiationDrained: true` means that the
 paused fact is committed, no new admission, preparation or dispatch
-transition can commit before an explicit release, and no Broodling dispatch or
-submit bridge is still initiating. A nonzero `unresolvedDispatches` at that
-point is retained history for the operator to inspect, not in-flight work.
-It does not prove that a native process started by the bridge, a target
-request or a container physically stopped; physical cessation remains an
-operator/host concern.
+transition can commit before an explicit release, and no local Broodling
+dispatch or submit bridge is still initiating. It does not fence requests
+already sent. An HTTP caller holds the lock only in its own process, so the
+lock is released when the caller returns or dies, while a request the target
+already buffered can still be accepted and create a run. A nonzero
+`unresolvedDispatches` at that point therefore still names possibly executing
+work, not merely history. Pause does not stop native execution; correlation,
+observation, completion and explicit stop remain available under their own
+guards. None of these facts proves that a native process, target request or
+container physically stopped; physical cessation remains an operator/host
+concern.
 
 ## Ordering boundary
 
@@ -52,8 +61,12 @@ points also check the pause before slow work, so a fresh admission never
 reaches the proposer while paused.
 
 The only initiation that can continue after a pause commits is an external
-`SubmitAsync` whose intent is already durably `dispatched`. The SQLite writer
-is never held across that call. Instead, `DispatchAsync` takes a shared
+submission whose intent is already durably `dispatched`. The SQLite writer
+is never held across that call. An HTTP `DispatchHttpAsync` takes the shared
+initiation lock described below before its dispatch transaction and releases it
+when its own send returns, fails or is cancelled; nothing inherits it, so caller
+death releases it too. Bytes that already reached the target are not recalled.
+The bridge `DispatchAsync` also takes a shared
 `flock` on the already-existing SQLite store file before its dispatch
 transaction and holds it until the transport returns. `ZeroshotTransport`
 spawns the submit bridge with that lock description inherited, so the lock

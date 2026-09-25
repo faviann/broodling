@@ -44,8 +44,11 @@ successor; execution and correlated/result-capture observation remain available.
 Pause status reports two separate facts. `unresolvedDispatches` counts durably
 `dispatched` submissions whose run is unknown; that uncertainty persists until
 correlation and may persist forever for a quarantined abandoned Attempt.
-`inFlightInitiationDrained` is false while any dispatch or submit bridge still
-holds the installation initiation lock, including after abandonment commits.
+An HTTP conflict or abandonment does not remove a submission from that count.
+`inFlightInitiationDrained` is false while any local dispatch or submit bridge
+still holds the installation initiation lock, including after abandonment
+commits. A drained reading is local only: a request a target already buffered can
+still create a run.
 
 After durable correlation, resume needs no dispatch configuration or credentials.
 Wait/stop reconnect using the frozen locator and run ID. A retained completion

@@ -6,10 +6,13 @@ namespace Broodling;
 /// Persisted pause state. Admission, preparation and dispatch check the pause in the
 /// same SQLite write transaction that commits them, so none can take effect after a
 /// pause commits. <see cref="UnresolvedDispatches"/> counts durable <c>dispatched</c>
-/// submissions whose native run is unknown; that uncertainty can remain forever.
-/// <see cref="InFlightInitiationDrained"/> is false while any process still holds the
-/// initiation lock that every dispatch takes before its intent commits. Neither proves
-/// that a native process, target request or container stopped.
+/// submissions without correlation, including HTTP submissions with a retained conflict
+/// or an abandoned Attempt; that uncertainty can remain forever. A bridge <c>blocked</c>
+/// row is not counted. <see cref="InFlightInitiationDrained"/> is a point-in-time local
+/// fact: no process holds the initiation lock that every dispatch takes before its intent
+/// commits. It fences nothing remote: a request a target already buffered can still create
+/// a run after its HTTP caller died. Neither proves that a native process, target request
+/// or container stopped.
 /// </summary>
 public sealed record InstallationStatus(bool IsPaused, string ChangedAt, int UnresolvedDispatches, bool InFlightInitiationDrained);
 
