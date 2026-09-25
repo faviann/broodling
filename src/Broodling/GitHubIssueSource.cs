@@ -7,9 +7,10 @@ using System.Text.Json;
 namespace Broodling;
 
 /// <summary>
-/// A refused GitHub read. Only absence (404/410) or a response naming another
-/// object, including a pull request for an issue, is deterministic; transport
-/// failures and malformed responses are retryable.
+/// A refused GitHub read. Only 410, a 404 inside a repository the credentials
+/// can read, or a response naming another object (including a pull request for
+/// an issue) is deterministic; everything else, including an unexplained 404,
+/// is retryable.
 /// </summary>
 public sealed class GitHubSourceError(string message, bool retryable = true)
     : BroodlingException("github_source_error", message)
@@ -74,6 +75,21 @@ public sealed class GitHubIssueSource(string executable = "gh")
     {
         if (reference.Host != "github.com")
             throw new GitHubSourceError("GitHub acquisition requires github.com.");
+        var (exitCode, output) = await RunAsync(path, credentials, cancellationToken);
+        if (exitCode == 0)
+            return output;
+        // GitHub answers 404 for private objects the credentials cannot see, so
+        // absence is a fact only inside a repository these credentials can read.
+        var status = Status(output);
+        if (status == "410" || status == "404"
+            && (await RunAsync($"/repos/{reference.Owner}/{reference.Repository}", credentials, cancellationToken)).ExitCode == 0)
+            throw new GitHubSourceError("The GitHub object is not available.", retryable: false);
+        throw new GitHubSourceError("GitHub acquisition failed.");
+    }
+
+    private async Task<(int ExitCode, byte[] Output)> RunAsync(string path,
+        GitHubRepositoryCredentials? credentials, CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
@@ -96,7 +112,6 @@ public sealed class GitHubIssueSource(string executable = "gh")
             path
         })
             process.StartInfo.ArgumentList.Add(argument);
-        byte[] content;
         try
         {
             process.Start();
@@ -105,11 +120,7 @@ public sealed class GitHubIssueSource(string executable = "gh")
                 process.StandardOutput.BaseStream.CopyToAsync(output, linked.Token),
                 process.StandardError.BaseStream.CopyToAsync(Stream.Null, linked.Token),
                 process.WaitForExitAsync(linked.Token));
-            if (process.ExitCode != 0)
-                throw Unavailable(output.ToArray())
-                    ? new GitHubSourceError("The GitHub object is not available.", retryable: false)
-                    : new GitHubSourceError("GitHub acquisition failed.");
-            content = output.ToArray();
+            return (process.ExitCode, output.ToArray());
         }
         catch (OperationCanceledException)
         {
@@ -123,23 +134,21 @@ public sealed class GitHubIssueSource(string executable = "gh")
             // CLI errors can contain credentials and private response details. Never retain them as an inner exception.
             throw new GitHubSourceError("GitHub acquisition failed.");
         }
-        return content;
     }
 
-    // gh prints GitHub's error document on stdout. Only an explicit absence is
-    // a fact about the object; every other failure may be operational.
-    private static bool Unavailable(byte[] output)
+    // gh prints GitHub's error document, including its status, on stdout.
+    private static string? Status(byte[] output)
     {
         try
         {
             using var document = JsonDocument.Parse(output);
             return document.RootElement.ValueKind == JsonValueKind.Object
                 && document.RootElement.TryGetProperty("status", out var status)
-                && status.ValueKind == JsonValueKind.String && status.GetString() is "404" or "410";
+                && status.ValueKind == JsonValueKind.String ? status.GetString() : null;
         }
         catch (JsonException)
         {
-            return false;
+            return null;
         }
     }
 

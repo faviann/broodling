@@ -418,8 +418,8 @@ public sealed class RepositoryPreparationTests
             ExecutableFile.Write(gh, "#!/bin/sh\nset -eu\nprintf 'GH_TOKEN=%s\\n' \"$GH_TOKEN\" >> '" + GhCalls + "'\n"
                 + "for api; do :; done\nprintf '%s\\n' \"$api\" >> '" + GhPaths + "'\n"
                 + "if [ \"$api\" = /repos/acme/widget ]; then cat '" + metadata + "'; exit 0; fi\n"
-                + "if [ -f '" + Responses + "'\"$api.fail\" ]; then printf '{\"message\":\"Bad Gateway\",\"status\":\"502\"}'; exit 1; fi\n"
-                + "if [ -f '" + Responses + "'\"$api\" ]; then cat '" + Responses + "'\"$api\"; exit 0; fi\n"
+                + "if [ -f '" + Responses + "'\"$api.gone\" ]; then printf '{\"message\":\"Gone\",\"status\":\"410\"}'; exit 1; fi\n"
+                + "if [ -f '" + Responses + "'\"$api.json\" ]; then cat '" + Responses + "'\"$api.json\"; exit 0; fi\n"
                 + "printf '{\"message\":\"Not Found\",\"status\":\"404\"}'\nexit 1\n");
             WriteStandardGit();
             if (OperatingSystem.IsLinux())
@@ -451,9 +451,11 @@ public sealed class RepositoryPreparationTests
             RunGitIn(Seed, "push", "origin", "main");
         }
 
+        internal string ResponseFile(string apiPath) => Responses + apiPath + ".json";
+
         internal void SetResponse(string apiPath, object value)
         {
-            var file = Responses + apiPath;
+            var file = ResponseFile(apiPath);
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
             File.WriteAllText(file, JsonSerializer.Serialize(value));
         }
@@ -479,12 +481,10 @@ public sealed class RepositoryPreparationTests
                 node_id = "IC_" + id
             });
 
-        internal void Fail(string apiPath, bool fail)
+        internal void Gone(string apiPath)
         {
-            var marker = Responses + apiPath + ".fail";
-            Directory.CreateDirectory(Path.GetDirectoryName(marker)!);
-            if (fail) File.WriteAllText(marker, "");
-            else File.Delete(marker);
+            Directory.CreateDirectory(Path.GetDirectoryName(Responses + apiPath)!);
+            File.WriteAllText(Responses + apiPath + ".gone", "");
         }
 
         internal string[] ReadGhPaths() => File.Exists(GhPaths) ? File.ReadAllLines(GhPaths) : [];

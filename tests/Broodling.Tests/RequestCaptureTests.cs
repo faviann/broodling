@@ -85,14 +85,12 @@ public sealed class RequestCaptureTests
     }
 
     [Test]
-    public async Task OperationalFailureIsRetryableAndResumeKeepsFirstCaptures()
+    public async Task NotFoundInAnInvisibleRepositoryIsRetryableAndResumeKeepsFirstCaptures()
     {
         using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
         fixture.SetIssue(12, Request("- design: https://github.com/acme/widget/issues/7",
-            "- notes: https://github.com/acme/widget/issues/8"));
+            "- notes: https://github.com/acme/private/issues/3"));
         fixture.SetIssue(7, "Original design.");
-        fixture.SetIssue(8, "Notes.");
-        fixture.Fail("/repos/acme/widget/issues/8", true);
         string submissionId;
         using (var store = fixture.State.Initialize())
         {
@@ -108,11 +106,13 @@ public sealed class RequestCaptureTests
             await Assert.That(store.GetIssueSubmission(submissionId).State).IsEqualTo("capturing");
         }
 
-        var primaryBytes = File.ReadAllBytes(fixture.Responses + PrimaryPath);
-        var designBytes = File.ReadAllBytes(fixture.Responses + "/repos/acme/widget/issues/7");
+        var primaryBytes = File.ReadAllBytes(fixture.ResponseFile(PrimaryPath));
+        var designBytes = File.ReadAllBytes(fixture.ResponseFile("/repos/acme/widget/issues/7"));
         fixture.SetIssue(12, Request("- other: https://github.com/acme/widget/issues/9"));
         fixture.SetIssue(7, "Edited design.");
-        fixture.Fail("/repos/acme/widget/issues/8", false);
+        // The credentials can now see the private repository and its issue.
+        fixture.SetResponse("/repos/acme/private", new { full_name = "acme/private" });
+        fixture.SetIssue(3, "Notes.", repository: "private");
         using var reopened = fixture.State.Open();
         var bundle = await Capture(reopened, fixture, submissionId);
 
@@ -121,8 +121,8 @@ public sealed class RequestCaptureTests
             .SequenceEqual(primaryBytes)).IsTrue();
         await Assert.That(reopened.ReadRequestBundleReference(bundle.BundleId, "github:acme/widget/issues/7").Content
             .SequenceEqual(designBytes)).IsTrue();
-        await Assert.That(ApiReads(fixture)).IsEqualTo(PrimaryPath
-            + " /repos/acme/widget/issues/7 /repos/acme/widget/issues/8 /repos/acme/widget/issues/8");
+        await Assert.That(ApiReads(fixture)).IsEqualTo(PrimaryPath + " /repos/acme/widget/issues/7 "
+            + "/repos/acme/private/issues/3 /repos/acme/private /repos/acme/private/issues/3");
     }
 
     [Test]
@@ -159,12 +159,13 @@ public sealed class RequestCaptureTests
         await Assert.That(() => store.AssociateIssueSubmission(bundle.SubmissionId, admitted.Revision.ContractRevisionId))
             .Throws<IssueSubmissionConflict>();
         await Assert.That(store.ReadRequestBundleReference(bundle.BundleId, "primary").Content
-            .SequenceEqual(File.ReadAllBytes(fixture.Responses + PrimaryPath))).IsTrue();
+            .SequenceEqual(File.ReadAllBytes(fixture.ResponseFile(PrimaryPath)))).IsTrue();
     }
 
     [Test]
     [Arguments("primary-unavailable")]
     [Arguments("reference-unavailable")]
+    [Arguments("reference-gone")]
     [Arguments("unresolved-path")]
     [Arguments("reference-count")]
     [Arguments("item-size")]
@@ -177,11 +178,14 @@ public sealed class RequestCaptureTests
         if (variant != "primary-unavailable")
             fixture.SetIssue(12, variant switch
             {
-                "reference-unavailable" => Request("- design: https://github.com/acme/widget/issues/7"),
+                "reference-unavailable" or "reference-gone" => Request("- design: https://github.com/acme/widget/issues/7"),
                 "unresolved-path" => Request("- spec: repo:docs/missing.md"),
                 "reference-count" => Request("- a: repo:docs/a.md", "- large: repo:docs/large.md"),
                 _ => Request("- large: repo:docs/large.md")
             });
+        // The fixture's repository is visible, so its 404s are genuine absence.
+        if (variant == "reference-gone")
+            fixture.Gone("/repos/acme/widget/issues/7");
         var limits = variant switch
         {
             "reference-count" => new RequestBundleLimits(1, 1024 * 1024, 8 * 1024 * 1024),
@@ -194,9 +198,9 @@ public sealed class RequestCaptureTests
 
         var bundle = await Capture(store, fixture, submission.SubmissionId, limits);
 
-        await AssertRefused(store, bundle, variant is "primary-unavailable" or "reference-unavailable" or "unresolved-path"
-            ? "reference_unavailable" : "reference_limit_exceeded");
-        await Assert.That(ApiReads(fixture)).IsEqualTo(variant == "reference-unavailable"
+        await AssertRefused(store, bundle, variant is "primary-unavailable" or "reference-unavailable"
+            or "reference-gone" or "unresolved-path" ? "reference_unavailable" : "reference_limit_exceeded");
+        await Assert.That(ApiReads(fixture)).IsEqualTo(variant is "reference-unavailable" or "reference-gone"
             ? PrimaryPath + " /repos/acme/widget/issues/7" : PrimaryPath);
         if (variant is "item-size" or "total-size")
             await Assert.That(bundle.References.Single(reference => reference.ReferenceId == "repo:docs/large.md").IsCaptured)

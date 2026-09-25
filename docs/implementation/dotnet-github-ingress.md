@@ -185,15 +185,20 @@ The following retain a refusal instead of an incomplete bundle:
 | --- | --- |
 | `request_section_missing`, `request_section_multiple`, `request_section_ambiguous`, `request_section_unsupported` | No usable v1 section |
 | `invalid_reference_declaration` | A declaration outside the grammar |
-| `reference_unavailable` | GitHub reports 404/410, or the response names another object (including a pull request for an issue), or a repository path is not a file at the starting commit |
+| `reference_unavailable` | GitHub reports 410, or 404 while the same credentials can read the object's repository; the response names another object (including a pull request for an issue); or a repository path is not a file at the starting commit |
 | `reference_limit_exceeded` | Count, per-member or total size |
 
 A refusal seals the bundle as `refused` with its findings and marks the
 submission `rejected`, so Contract association is refused. `GetRequestBundle`
 exposes the state, `Findings` and captured membership, and
-`ReadRequestBundleReference` reads the members captured before refusal. Other
-GitHub failures, including 403, rate limiting, 5xx, timeouts and malformed or
-incomplete responses, throw `GitHubSourceError` with `Retryable` true. #107 preparation
+`ReadRequestBundleReference` reads the members captured before refusal.
+GitHub also answers 404 for private objects that the credentials cannot see. So
+after an issue or comment 404, capture reads `/repos/OWNER/REPOSITORY` with the
+same credentials. The absence is deterministic only when that repository is
+readable. Any failure of that read leaves the 404 retryable, with no finding and
+no rejection. Other GitHub failures, including 403, rate limiting, 5xx, timeouts
+and malformed or incomplete responses, throw `GitHubSourceError` with `Retryable`
+true. #107 preparation
 errors propagate unchanged. A later call resumes without refetching committed
 members. A completed or refused bundle is returned without acquisition.
 
@@ -201,8 +206,9 @@ members. A completed or refused bundle is returned without acquisition.
 
 `RequestCaptureTests` owns the request grammar, deterministic closure, bounds and
 retained refusals, through the same controlled `gh` and real Git/SQLite. It
-covers one composed capture and replay, a retryable failure resumed after upstream
-edits, and one refusal case per grammar and acquisition policy.
+covers one composed capture and replay, a 404 in an unreadable repository resumed
+as retryable after upstream edits, and one refusal case per grammar and
+acquisition policy, including 404 in a readable repository and 410.
 `GitHubAdmissionTests` and `RepositoryPreparationTests` run controlled local
 `gh` and Git executables through the real process boundary and real SQLite
 admission, with no network or provider calls. Preparation tests cover canonical
