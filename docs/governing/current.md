@@ -172,11 +172,17 @@ proposer into one callable operation that prepares an exact submission to its
 admission decision or retained finding, or reports a failure as retryable or
 needing attention. It continues from committed checkpoints and never proposes a
 committed Contract again. Within one process each submission has one
-preparation owner, and different submissions prepare independently. Remaining
-#100 intent includes public HTTP submission intake, automatic progression
-(discovery, retry cadence and continuation past admission), that host
-attachment, Compose, maintenance and backup/restore; those remain unimplemented.
-The ASP.NET host is not authority to add them.
+preparation owner, and different submissions prepare independently. #117 adds a
+callable progression service that discovers unfinished Issue submissions at
+startup and on a cadence and, with no caller connected, prepares each through
+that operation and continues an admitted Contract from retained B1 to native
+correlation, replaying an unresolved dispatch exactly. It retries temporary
+failures with a doubling delay up to a limit, stops on refusals and conflicts,
+and never waits for, stops, abandons or replaces an Attempt. Remaining #100
+intent includes public HTTP submission intake, attaching the progression and
+completion services to the host process (#120), Compose, maintenance and
+backup/restore; those remain unimplemented. The ASP.NET host is not authority to
+add them.
 
 ## Lifecycle and retention limits
 

@@ -1,0 +1,317 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Net;
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.Time.Testing;
+using TUnit.Assertions;
+using TUnit.Core;
+using ControlledGateway = Broodling.Tests.BundledProposerTests.ControlledGateway;
+using Gateway = Broodling.Tests.IssueSubmissionPreparationTests.Gateway;
+using PreparationFixture = Broodling.Tests.RepositoryPreparationTests.RepositoryPreparationFixture;
+
+namespace Broodling.Tests;
+
+/// <summary>
+/// Automatic progression with no caller over real capture, Git and SQLite, with controlled GitHub and model
+/// gateway peers and the loopback stock-target stand-in. Preparation checkpoints, dispatch and acknowledgement
+/// races and completion belong to their owners' tests; these cover discovery, independence, retry cadence and
+/// limit, stopping, the host process and shutdown and restart.
+/// </summary>
+public sealed class SubmissionProgressorTests
+{
+    private static readonly GitHubRepositoryCredentials GitHub = new("configured-token");
+    private const string Proposal = """{"criteria": [{"criterionId": "export", "statement": "Export the data."}]}""";
+    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(60);
+
+    [Test]
+    public async Task ProgressionInTheHostProcessHoldsNoWriterAndShutdownLeavesItsDispatchForExactReplay()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new PreparationFixture();
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
+        var submissionId = Submit(fixture, 12).Single();
+        // One session for the test's own reads: every open while others write risks a spurious refusal.
+        using var store = fixture.State.Open();
+        var gateway = Proposing();
+        using var sent = new SemaphoreSlim(0);
+        target.Submit = _ =>
+        {
+            sent.Release();
+            return new TaskCompletionSource<(int, string)>().Task;
+        };
+        var (app, client) = await HttpReadTests.Start(fixture.State.Path);
+        using var __ = client;
+        // Attached the way the host's lifetime would attach it.
+        var first = new Service(fixture, target, gateway, lifetime: app.Lifetime.ApplicationStopping);
+
+        await Assert.That(await sent.WaitAsync(Bound)).IsTrue();
+        var attemptId = store.GetIssueSubmission(submissionId).AttemptIds.Single();
+        // While progression waits on the target, the same process answers reads and another session can write.
+        await Assert.That((await client.GetAsync("/health").WaitAsync(Bound)).StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var read = JsonNode.Parse(await (await client.GetAsync($"/submissions/{submissionId}").WaitAsync(Bound)).Content.ReadAsStringAsync())!;
+        await Assert.That((string)read["state"]!).IsEqualTo("admitted");
+        using (var writer = fixture.State.Connect())
+        using (var transaction = writer.BeginTransaction(deferred: false))
+            transaction.Rollback();
+        await Assert.That(first.Progressor.Progress().Single().State).IsEqualTo(SubmissionProgress.Progressing);
+
+        await app.StopAsync();
+        await first.Running.WaitAsync(Bound);
+        await app.DisposeAsync();
+        // Shutdown detached the send: the dispatch stays unresolved and the Attempt keeps its authority.
+        await Assert.That(store.RequireCurrentAttempt(attemptId).ResourceKind).IsEqualTo(AttemptRecord.Http);
+        await Assert.That(store.FindSubmission(attemptId)!.State).IsEqualTo("dispatched");
+        await Assert.That(store.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(1);
+        store.PauseInstallation();
+        var reads = fixture.ReadGhPaths().Length;
+        target.Submit = body => Task.FromResult(target.Accept(body));
+
+        await using var restarted = new Service(fixture, target, gateway, credentials: "rotated");
+        // The replay is an initiating path, so it waits for the pause to be released.
+        await restarted.ScanUntil(() => restarted.Progressor.Progress() is [{ State: SubmissionProgress.Waiting, Code: "installation_paused" }]);
+        await Assert.That(target.Bodies.Count).IsEqualTo(1);
+        store.ReleaseInstallation();
+        await restarted.ScanUntil(() => Correlated(store, submissionId));
+        var credentialReads = restarted.CredentialReads;
+        for (var scan = 0; scan < 3; scan++) await restarted.Scan();
+
+        // The same frozen request and key, sent with the current rotated credentials.
+        await Assert.That(target.Bodies.Count).IsEqualTo(2);
+        await Assert.That(JsonNode.DeepEquals(Frozen(target.Bodies[0]), Frozen(target.Bodies[1]))).IsTrue();
+        await Assert.That((string)target.Bodies[1]["githubToken"]!).IsEqualTo("github-canary-rotated");
+        await Assert.That(store.FindSubmission(attemptId)!.RunId).IsEqualTo((string)target.Bodies[0]["runId"]!);
+        // Native checks out exact retained B1 itself; the Attempt owns no client execution workspace.
+        var b1 = store.GetRequestBundle(submissionId).Repository!.StartingCommit;
+        await Assert.That((string)target.Bodies[0]["submission"]!["source"]!["revision"]!).IsEqualTo(b1);
+        var attempt = store.GetAttempt(attemptId);
+        await Assert.That(attempt.B1.CommitOid).IsEqualTo(b1);
+        await Assert.That(attempt.WorktreeAllocation).IsNull();
+        await Assert.That(store.GetIssueSubmission(submissionId).AttemptIds.Count).IsEqualTo(1);
+        // Neither capture nor the proposal ran again, and correlated work is left to the completion observer.
+        await Assert.That(gateway.Contexts.Count).IsEqualTo(1);
+        await Assert.That(fixture.ReadGhPaths().Length).IsEqualTo(reads);
+        await Assert.That(restarted.CredentialReads).IsEqualTo(credentialReads);
+        await Assert.That(restarted.Progressor.Progress()).IsEmpty();
+        await Assert.That(target.Messages).IsEmpty();
+        await Assert.That(first.Stops.IsEmpty && restarted.Stops.IsEmpty).IsTrue();
+    }
+
+    [Test]
+    public async Task SubmissionsAcceptedWhileRunningProgressPastOneWaitingOnItsModelCall()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new PreparationFixture();
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
+        fixture.SetIssue(13, "## Request\n<!-- broodling-request:v1 -->\nAdd JSON export.\n");
+        var blocked = Submit(fixture, 12).Single();
+        using var store = fixture.State.Open();
+        using var entered = new SemaphoreSlim(0);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gateway = new Gateway(async (context, cancellationToken) =>
+        {
+            if (context.Contains("CSV"))
+            {
+                entered.Release();
+                await release.Task.WaitAsync(cancellationToken);
+            }
+            return ControlledGateway.Final(Proposal);
+        });
+        await using var service = new Service(fixture, target, gateway);
+        await Assert.That(await entered.WaitAsync(Bound)).IsTrue();
+
+        var later = store.SubmitIssue("https://github.com/acme/widget/issues/13").SubmissionId;
+        await service.ScanUntil(() => Correlated(store, later));
+        await Assert.That(store.GetIssueSubmission(blocked).ContractRevisionId).IsNull();
+        // Only the blocked submission is still in progress once the other's operation has returned.
+        await Until(() => service.Progressor.Progress().Select(entry => entry.SubmissionId).SequenceEqual([blocked]));
+
+        release.SetResult();
+        await Until(() => Correlated(store, blocked));
+        await Assert.That(target.Runs.Count).IsEqualTo(2);
+        await Assert.That(service.Stops).IsEmpty();
+    }
+
+    [Test]
+    public async Task TemporaryFailuresRetryAtABoundedCadenceUntilTheLimitWhileThePauseOnlyWaits()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new PreparationFixture();
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
+        var submissionId = Submit(fixture, 12).Single();
+        using var store = fixture.State.Open();
+        var clock = new FakeTimeProvider();
+        var calls = new ConcurrentQueue<DateTimeOffset>();
+        var available = false;
+        var gateway = new Gateway((_, _) =>
+        {
+            calls.Enqueue(clock.GetUtcNow());
+            return Task.FromResult(Volatile.Read(ref available) ? ControlledGateway.Final(Proposal)
+                : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("overloaded") });
+        });
+
+        await using (var service = new Service(fixture, target, gateway, clock: clock))
+        {
+            SubmissionProgress? Entry() => service.Progressor.Progress().SingleOrDefault();
+            await service.ScanUntil(() => Entry() is { State: SubmissionProgress.Waiting, Failures: 2 });
+            var waiting = Entry()!;
+            await Assert.That(waiting.Code).IsEqualTo("contract_proposer_error");
+            await Assert.That(waiting.Retryable).IsTrue();
+            await Assert.That(waiting.RetryAt >= calls.Last() + TimeSpan.FromSeconds(30)).IsTrue();
+
+            // Paused, nothing is proposed and the retry limit is not used up.
+            store.PauseInstallation();
+            await service.ScanUntil(() => Entry() is { State: SubmissionProgress.Waiting, Code: "installation_paused" });
+            for (var scan = 0; scan < 2 * SubmissionProgressor.RetryLimit; scan++) await service.Scan();
+            await Until(() => Entry()?.State == SubmissionProgress.Waiting);
+            await Assert.That(Entry()!.Code).IsEqualTo("installation_paused");
+            await Assert.That(Entry()!.Failures).IsEqualTo(2);
+            await Assert.That(calls.Count).IsEqualTo(2);
+
+            store.ReleaseInstallation();
+            await service.ScanUntil(() => Entry()?.State == SubmissionProgress.Stopped);
+            for (var scan = 0; scan < 3; scan++) await service.Scan();
+
+            var stopped = Entry()!;
+            await Assert.That(stopped).IsEqualTo(new SubmissionProgress(submissionId, SubmissionProgress.Stopped,
+                "contract_proposer_error", waiting.Message, true, SubmissionProgressor.RetryLimit));
+            await Assert.That(service.Stops.Single()).IsEqualTo((stopped, (Exception?)null));
+            var times = calls.ToArray();
+            await Assert.That(times.Length).IsEqualTo(SubmissionProgressor.RetryLimit);
+            // Each retry waits at least twice as long as the one before, up to the maximum delay.
+            for (var retry = 1; retry < times.Length; retry++)
+                await Assert.That(times[retry] - times[retry - 1]).IsGreaterThanOrEqualTo(TimeSpan.FromTicks(Math.Min(
+                    SubmissionProgressor.Cadence.Ticks << (retry - 1), SubmissionProgressor.MaximumRetryDelay.Ticks)));
+        }
+
+        // The stop belongs to that process; a restart discovers the unchanged submission again.
+        Volatile.Write(ref available, true);
+        await using var restarted = new Service(fixture, target, gateway);
+        await Until(() => Correlated(store, submissionId));
+    }
+
+    [Test]
+    public async Task ADeterministicConflictStopsAndEndedWorkIsNeitherProgressedNorReplaced()
+    {
+        await using var target = new StockTarget();
+        target.Submit = _ => Task.FromResult((409, StockTarget.Conflict));
+        using var fixture = new PreparationFixture();
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
+        fixture.SetIssue(13, "## Request\n<!-- broodling-request:v1 -->\nAdd JSON export.\n");
+        var ids = Submit(fixture, 12, 13, 14);
+        var (conflicting, abandoned, cancelled) = (ids[0], ids[1], ids[2]);
+        using var store = fixture.State.Open();
+        await store.CaptureRequestBundleAsync(abandoned, fixture.RepositoryRoot, GitHub, new GitHubIssueSource(fixture.Gh), fixture.Source);
+        store.AdmitRequestBundle(abandoned, ContractIngressTests.Propose, "caller");
+        store.AbandonAttempt(store.AdmitHttpAttempt(abandoned).AttemptId, "Ended by its operator.");
+        await store.CancelIssueSubmissionAsync(cancelled, "No longer wanted.");
+        var gateway = Proposing();
+
+        await using var service = new Service(fixture, target, gateway);
+        await Until(() => !service.Stops.IsEmpty);
+        var credentialReads = service.CredentialReads;
+        for (var scan = 0; scan < 3; scan++) await service.Scan();
+
+        var (stop, failure) = service.Stops.Single();
+        await Assert.That(stop.SubmissionId).IsEqualTo(conflicting);
+        await Assert.That(stop.State).IsEqualTo(SubmissionProgress.Stopped);
+        await Assert.That(stop.Code).IsEqualTo("submission_conflict");
+        await Assert.That(stop.Retryable).IsFalse();
+        await Assert.That(stop.Failures).IsEqualTo(1);
+        await Assert.That(failure).IsNull();
+        // Nothing runs again: no send, no operation, and the retained replay block now carries the reason.
+        await Assert.That(target.Bodies.Count).IsEqualTo(1);
+        await Assert.That(service.CredentialReads).IsEqualTo(credentialReads);
+        await Assert.That(service.Progressor.Progress()).IsEmpty();
+        var attempt = store.RequireCurrentAttempt(store.GetIssueSubmission(conflicting).AttemptIds.Single());
+        await Assert.That(store.FindSubmission(attempt.AttemptId)!.ReplayBlockedReason).IsEqualTo("submission_conflict");
+        var ended = store.GetAttempt(store.GetIssueSubmission(abandoned).AttemptIds.Single());
+        await Assert.That(ended.Abandonment).IsNotNull();
+        await Assert.That(store.FindSubmission(ended.AttemptId)).IsNull();
+        await Assert.That(store.GetIssueSubmission(cancelled).State).IsEqualTo("cancelled");
+        await Assert.That(fixture.ReadGhPaths().Any(path => path.EndsWith("/issues/14", StringComparison.Ordinal))).IsFalse();
+        await Assert.That(gateway.Contexts.Count).IsEqualTo(1);
+    }
+
+    private static string[] Submit(PreparationFixture fixture, params long[] issues)
+    {
+        using var store = fixture.State.Initialize();
+        return issues.Select(issue => store.SubmitIssue("https://github.com/acme/widget/issues/" + issue).SubmissionId).ToArray();
+    }
+
+    private static Gateway Proposing() => new((_, _) => Task.FromResult(ControlledGateway.Final(Proposal)));
+
+    private static bool Correlated(BroodlingStore store, string submissionId) =>
+        store.GetIssueSubmission(submissionId).AttemptIds is [var attemptId]
+            && store.FindSubmission(attemptId) is { State: "correlated" };
+
+    /// <summary>A sent body without its ephemeral credentials.</summary>
+    private static JsonObject Frozen(JsonObject body)
+    {
+        var frozen = body.DeepClone().AsObject();
+        frozen.Remove("connections");
+        frozen.Remove("githubToken");
+        return frozen;
+    }
+
+    private static Task Until(Func<bool> condition) => ProvisioningProcessTests.WaitUntil(condition);
+
+    /// <summary>A progressor and its preparer over the fixture, whose scan interval advances only when a test says so.</summary>
+    private sealed class Service : IAsyncDisposable
+    {
+        private readonly FakeTimeProvider clock;
+        private readonly CancellationTokenSource cancellation = new();
+        private int credentialReads;
+        internal SubmissionProgressor Progressor { get; }
+        internal Task Running { get; }
+        internal ConcurrentQueue<(SubmissionProgress Progress, Exception? Failure)> Stops { get; } = new();
+        internal int CredentialReads => Volatile.Read(ref credentialReads);
+
+        internal Service(PreparationFixture fixture, StockTarget target, HttpMessageHandler gateway, string credentials = "current",
+            CancellationToken? lifetime = null, FakeTimeProvider? clock = null)
+        {
+            this.clock = clock ?? new FakeTimeProvider();
+            var token = lifetime ?? cancellation.Token;
+            var preparer = new IssueSubmissionPreparer(fixture.State.Application, fixture.State.Path, fixture.RepositoryRoot, token)
+            {
+                IssueSource = new GitHubIssueSource(fixture.Gh), RepositorySource = fixture.Source, Gateway = gateway
+            };
+            Progressor = new SubmissionProgressor(fixture.State.Application, fixture.State.Path, null,
+                new InvocationTarget.Direct(target.Origin.GetLeftPart(UriPartial.Authority)), preparer, () =>
+                {
+                    Interlocked.Increment(ref credentialReads);
+                    return new(GitHub, new GatewayCredentials(NativeProfile.GatewayBaseUrl, "gateway-key"),
+                        HttpDispatchTests.Credentials(credentials));
+                }, (progress, failure) => Stops.Enqueue((progress, failure))) { Clock = this.clock };
+            Running = Progressor.RunAsync(token);
+        }
+
+        /// <summary>Return once another discovery pass has run, re-advancing if the loop was not yet parked.</summary>
+        internal Task Scan()
+        {
+            var before = Progressor.Scans;
+            return Until(() =>
+            {
+                if (Progressor.Scans > before) return true;
+                clock.Advance(SubmissionProgressor.Cadence);
+                return false;
+            });
+        }
+
+        internal async Task ScanUntil(Func<bool> condition)
+        {
+            var timer = Stopwatch.StartNew();
+            while (!condition())
+            {
+                if (timer.Elapsed > Bound) throw new TimeoutException("The progressor did not settle.");
+                await Scan();
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            cancellation.Cancel();
+            await Running;
+            cancellation.Dispose();
+        }
+    }
+}

@@ -153,7 +153,7 @@ public sealed class HttpReadTests
         transaction.Rollback();
     }
 
-    private static async Task<(WebApplication App, HttpClient Client)> Start(string store)
+    internal static async Task<(WebApplication App, HttpClient Client)> Start(string store)
     {
         var app = BroodlingHost.Build(["--urls=http://127.0.0.1:0", "--Broodling:Store=" + store]);
         await app.StartAsync();

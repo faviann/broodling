@@ -52,8 +52,37 @@ public sealed class Invocation(BroodlingStore store, InvocationTarget target)
         return await ResumeAsync(admitted.Revision.ContractRevisionId, repository, revision, credentials, cancellationToken);
     }
 
-    public async Task<AdmissionStatus> ResumeAsync(string revisionId, string? repository = null, string revision = "HEAD",
-        DispatchCredentials? credentials = null, CancellationToken cancellationToken = default)
+    public Task<AdmissionStatus> ResumeAsync(string revisionId, string? repository = null, string revision = "HEAD",
+        DispatchCredentials? credentials = null, CancellationToken cancellationToken = default) =>
+        ResumeAsync(revisionId, () =>
+        {
+            if (repository is null) throw new AttemptAdmissionError("A source repository is required before first Attempt allocation.");
+            return target switch
+            {
+                InvocationTarget.Direct => store.AdmitHttpAttempt(revisionId, repository, revision),
+                InvocationTarget.Local local => store.AdmitAttempt(revisionId, repository, local.WorkspaceRoot, revision),
+                _ => throw new UnsupportedRuntime("The invocation target is unsupported.")
+            };
+        }, credentials, cancellationToken);
+
+    /// <summary>
+    /// Resume one Issue submission's bundle-bound Contract. Its first Attempt starts from the RequestBundle's
+    /// retained repository preparation (original B1), which a caller cannot replace; afterwards stored
+    /// allocation governs, as for <see cref="ResumeAsync(string, string?, string, DispatchCredentials?, CancellationToken)"/>.
+    /// Its PR authority continues only through a DirectTarget.
+    /// </summary>
+    public Task<AdmissionStatus> ResumeSubmissionAsync(string submissionId, DispatchCredentials? credentials = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (target is not InvocationTarget.Direct)
+            throw new UnsupportedRuntime("An Issue submission's pull-request authority continues only through a DirectTarget.");
+        var revisionId = store.GetIssueSubmission(submissionId).ContractRevisionId
+            ?? throw new AttemptAdmissionError("The Issue submission has no admitted Contract revision.");
+        return ResumeAsync(revisionId, () => store.AdmitHttpAttempt(submissionId), credentials, cancellationToken);
+    }
+
+    private async Task<AdmissionStatus> ResumeAsync(string revisionId, Func<AttemptRecord> allocate,
+        DispatchCredentials? credentials, CancellationToken cancellationToken)
     {
         var status = store.Status(revisionId);
         if (status.Decision is null)
@@ -62,17 +91,7 @@ public sealed class Invocation(BroodlingStore store, InvocationTarget target)
             status = store.Status(revisionId);
         }
         if (CanResumeWithoutDispatch(status)) return status;
-        var attempt = status.Attempts.LastOrDefault();
-        if (attempt is null)
-        {
-            if (repository is null) throw new AttemptAdmissionError("A source repository is required before first Attempt allocation.");
-            attempt = target switch
-            {
-                InvocationTarget.Direct => store.AdmitHttpAttempt(revisionId, repository, revision),
-                InvocationTarget.Local local => store.AdmitAttempt(revisionId, repository, local.WorkspaceRoot, revision),
-                _ => throw new UnsupportedRuntime("The invocation target is unsupported.")
-            };
-        }
+        var attempt = status.Attempts.LastOrDefault() ?? allocate();
         switch (target)
         {
             case InvocationTarget.Direct direct when attempt.ResourceKind == AttemptRecord.Http:

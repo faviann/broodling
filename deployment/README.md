@@ -402,7 +402,8 @@ Retained reads are `/issues?url=<issue-url>`, `/submissions/{id}`,
 `/submissions/{id}/bundle`, `/bundles/{id}/reference?id=<reference-id>`,
 `/revisions/{id}` and `/attempts/{id}`, mapping the application reads in
 [invocation](../docs/implementation/invocation.md). The server has no submission
-intake or automatic progression. No daemon is needed to supervise native runs.
+intake and does not yet run the callable automatic progression or completion
+services (#120). No daemon is needed to supervise native runs.
 
 ### Invocation configuration
 
@@ -752,8 +753,9 @@ predecessor requires the pause.
 The callable `AdmitRequestBundleAsync` prepares a completed RequestBundle's
 Contract with the one built-in proposer
 ([reference](../docs/implementation/dotnet-contract-admission.md#bundled-proposer)).
-The callable `IssueSubmissionPreparer` (#116) runs it after capture. No host command
-runs either yet; #117 and #120 attach them to the service. The proposer's profile
+The callable `IssueSubmissionPreparer` (#116) runs it after capture, and the
+callable `SubmissionProgressor` (#117) calls that preparer with no caller
+connected. No host command runs any of them yet; #120 attaches them to the service. The proposer's profile
 is fixed, not configurable:
 
 | Setting | Value |
