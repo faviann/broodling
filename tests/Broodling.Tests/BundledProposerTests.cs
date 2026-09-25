@@ -195,7 +195,7 @@ public sealed class BundledProposerTests
     }
 
     /// <summary>A scripted OpenAI-compatible Chat Completions peer; it makes no network call.</summary>
-    private sealed class ControlledGateway(params Func<JsonObject, HttpResponseMessage>[] turns) : HttpMessageHandler
+    internal sealed class ControlledGateway(params Func<JsonObject, HttpResponseMessage>[] turns) : HttpMessageHandler
     {
         internal List<JsonObject> Requests { get; } = [];
         internal List<Uri?> Uris { get; } = [];

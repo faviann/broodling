@@ -159,10 +159,16 @@ exact bytes. #112 adds the callable bundled proposer: the supported model
 behind the pinned gateway prepares that bundle-bound Contract from the Executable
 Request, a compact manifest and on-demand frozen-reference reads. Malformed or
 authority-changing proposals retain findings and reject the submission; gateway
-failures retain nothing and may be retried. Remaining #100 intent includes public
-HTTP submission intake, automatic progression, that host attachment, Compose,
-maintenance and backup/restore; those remain unimplemented. The ASP.NET host is
-not authority to add them.
+failures retain nothing and may be retried. #116 composes capture and that
+proposer into one callable operation that prepares an exact submission to its
+admission decision or retained finding, or reports a failure as retryable or
+needing attention. It continues from committed checkpoints and never proposes a
+committed Contract again. Within one process each submission has one
+preparation owner, and different submissions prepare independently. Remaining
+#100 intent includes public HTTP submission intake, automatic progression
+(discovery, retry cadence and continuation past admission), that host
+attachment, Compose, maintenance and backup/restore; those remain unimplemented.
+The ASP.NET host is not authority to add them.
 
 ## Lifecycle and retention limits
 
