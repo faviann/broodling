@@ -19,7 +19,8 @@ var successor = store.AdmitRetry(attemptId, retryKey, workspaceRoot, profile);
 var prepared = store.PrepareRetry(attemptId, retryKey, workspaceRoot, profile);
 var submitted = await store.RetryAsync(attemptId, retryKey, workspaceRoot,
     profile, transport);
-// An HTTP predecessor's successor is prepared and dispatched as an HTTP Attempt.
+// An HTTP predecessor's successor is prepared and dispatched as an HTTP Attempt,
+// also after verified stopped-target maintenance retired dispatched work.
 var httpSuccessor = store.AdmitRetry(httpAttemptId, retryKey);
 ```
 
@@ -176,9 +177,9 @@ stays `dispatched` and counted in `unresolvedDispatches`. An already
 acknowledged retirement (`retired_at` set) is returned unchanged on repeat,
 whatever its basis, so the host procedure must check the returned `basis` rather
 than treat exit 0 as its own verified retirement. An unacknowledged safe proof
-goes through the normal checks, which refuse it. Replacement still refuses dispatched
-predecessors; widening it belongs to #123. LocalTarget worktree Attempts keep the
-policy above.
+goes through the normal checks, which refuse it. An abandoned Attempt retired this
+way can be explicitly [replaced](#explicit-replacement-and-schema); a completed one
+cannot. LocalTarget worktree Attempts keep the policy above.
 
 This is safe because the pinned Zeroshot ends every non-terminal run as
 `runtime_lost` before serving anything when restarted over the same ledger,
@@ -191,8 +192,12 @@ sender assumption depends on the unresolved topology in #155.
 
 ## Explicit replacement and schema
 
-New retry requires abandonment, completed safe retirement and no competing
-current Attempt. It validates original object custody and source bytes, never
+New retry requires abandonment, completed retirement and no competing
+current Attempt. The retirement is either a safe never-dispatched proof or, for an
+HTTP predecessor only, [verified maintenance](#verified-maintenance-retirement)
+with basis `stopped_target` (#123). The predecessor keeps its dispatched history,
+including an unresolved dispatch still counted in `unresolvedDispatches`; its
+successor gets its own Attempt identity, submission key and intended run ID. It validates original object custody and source bytes, never
 resolving today's HEAD or original requested spelling anew, and never salvaging
 candidate edits. The successor preserves Work Unit, Contract and original B1/
 source bindings with a new branch/enclosure/worktree. One SQLite transaction
@@ -221,8 +226,9 @@ schema **11** adds immutable Issue submission cancellation facts, and schema
 replacement allocation and preparation remain permitted while paused, but
 replacement dispatch still requires explicit release.
 Retirement/retry facts resist update, delete and `INSERT OR REPLACE`; SQL refuses
-dispatched cleanup authority outside the `stopped_target` conditions and
-missing/changed retry submission targets.
+dispatched cleanup authority outside the `stopped_target` conditions, retry of a
+dispatched predecessor with any other retirement basis and missing/changed retry
+submission targets.
 No Python database/import compatibility was added. G's
 completed-Work-Unit refusal remains in admission/retry/API/SQL, with completed-Attempt
 abandonment refusal, factual current-authority-loss guard and Attempt
@@ -237,7 +243,10 @@ verified maintenance retirement: abandoned unresolved/correlated and successful
 HTTP Attempts, each pause/check/drainage/currentness/retention refusal, the
 LocalTarget refusal and the `retire-attempt` command.
 `ReplacementTests` owns original material, atomic allocation, same-key
-concurrency, historical replay, target enforcement and SQL binding refusals.
+concurrency, historical replay, target enforcement and SQL binding refusals, plus
+replacement of an unresolved DirectTarget predecessor after `stopped_target`
+retirement: the same bundle-bound task and B1, preparation while paused, dispatch
+refused until release and then through Resume, and unchanged predecessor history.
 `ReplacementCompletionTests` checks the integrated completed-Work-Unit refusal
 at API and SQL boundaries, plus completed retry-key identity handback without
 renewed authority. Its historical seed bypasses only ordinary admission while

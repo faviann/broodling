@@ -184,8 +184,11 @@ requires abandonment with no committed dispatch intent. A dispatched DirectTarge
 Attempt, abandoned or completed, can be retired only on the narrow
 `stopped_target` maintenance path (#122): under the persisted pause, with drained
 local initiation and a current host check that the correct target and its state
-mounts are stopped. It records that check, leaves a completed Attempt unabandoned
-and does not itself authorize replacement. An HTTP Attempt's prepared submission retains the complete request,
+mounts are stopped. It records that check and leaves a completed Attempt
+unabandoned. An abandoned Attempt retired this way can then be explicitly replaced
+(#123) from the same Contract, RequestBundle binding and original B1; the
+successor may be prepared under the pause but dispatches only after release.
+An HTTP Attempt's prepared submission retains the complete request,
 approved asset bytes and an intended run identity; that is neither dispatch intent
 nor native acceptance. Broodling records abandonment and requests native
 stop, while operators retain host/container containment responsibility. A safely

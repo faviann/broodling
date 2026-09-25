@@ -655,8 +655,9 @@ cancelled wait only detaches. Restore access to the same target and wait again.
 Stop records abandonment first, then requests native stop when the run is known.
 A dispatched Attempt returns cessation refusal/quarantine even after terminal
 stop. Unknown correlation is never redispatched to discover a run. Explicit
-never-dispatched retirement/retry remain [callable operations](../docs/implementation/dotnet-retirement-replacement.md),
-not an automatic CLI recovery sequence.
+never-dispatched retirement and replacement, including replacement after verified
+maintenance retirement, remain [callable operations](../docs/implementation/dotnet-retirement-replacement.md),
+not an automatic CLI recovery sequence; there is no replacement command.
 
 ### Bundled Contract proposer
 

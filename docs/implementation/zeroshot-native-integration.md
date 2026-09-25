@@ -450,7 +450,8 @@ responsibility. There is no override turning incomplete proof into cleanup
 authority. An exactly owned, proven never-dispatched Attempt can be explicitly
 retired and replaced from original B1 under the lifecycle seam. Dispatched HTTP
 DirectTarget work is retired only by the explicit
-[verified maintenance retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement).
+[verified maintenance retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement),
+after which an abandoned Attempt can be explicitly replaced.
 
 ## Resource model for maintenance consumers
 
