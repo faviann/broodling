@@ -10,9 +10,9 @@ namespace Broodling.Tests;
 /// Codex provider and a controlled forge: shimmed <c>git</c>/<c>gh</c> backed by a host bare
 /// repository for <c>acme/widget</c>. State volumes are disposable and credentials are fake.
 /// Unlike the startup tests' <c>--network none</c>, serving needs a bridge network so the port
-/// can be published, on host loopback only; no fixture makes an outbound call. An optional
-/// Broodling reader, bound to the bridge gateway on the host, is named <c>broodling</c> inside the
-/// target, and a mounted file replaces only the helper's image-level reader origin.
+/// can be published, on host loopback only. The only outbound call a fixture makes is to an optional
+/// Broodling reader, bound to the bridge gateway on the host and named <c>broodling</c> inside the
+/// target; a mounted file replaces only the helper's image-level reader origin.
 /// </summary>
 internal sealed class StockDirectTarget : IAsyncDisposable
 {

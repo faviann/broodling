@@ -32,7 +32,9 @@ target's fixed dependency paths:
 
 - `codex` answers each node from its response schema. Its worker writes known
   candidate bytes to `README.md`, verifiers accept, and a corrected reply
-  resumes the requested thread.
+  resumes the requested thread. When the task lists a RequestBundle, the worker
+  also reads each listed reference through the installed `broodling-reference`
+  helper and writes its output to `references/<index>`.
 - `git` maps `https://github.com/acme/widget.git` to a mounted host bare
   repository and marks only that repository as a safe directory, because the
   target's isolated identities do not own it. Native clears the Git environment
@@ -42,6 +44,7 @@ target's fixed dependency paths:
   an open PR with no required checks.
 
 A successful run produces a controlled PR receipt, not a real GitHub PR or
-semantic-quality result. Credentials are fixed fake values and no fixture makes
-a network call.
+semantic-quality result. Credentials are fixed fake values. The only network
+call a fixture makes is the helper's read from the test's own Broodling reader
+on the host.
 
