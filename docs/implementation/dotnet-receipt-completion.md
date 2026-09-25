@@ -124,8 +124,8 @@ handback.
 waiting:
 
 ```csharp
-await new CompletionObserver(new BroodlingApplication(), databasePath, directTargetRootCertificate)
-    .RunAsync(processLifetime);
+await new CompletionObserver(new BroodlingApplication(), databasePath, directTargetRootCertificate,
+    (attemptId, failure) => report(attemptId, failure)).RunAsync(processLifetime);
 ```
 
 The third argument is the DirectTarget root certificate that explicit waits
@@ -169,11 +169,13 @@ A wait ends in one of five ways:
   `SubmissionNotReady` mean authority has ended, so the next scan no longer
   selects the Attempt. Retries happen at most once per scan interval, and an
   operator can repair target configuration without a restart.
-- Any other exception is an unexpected service failure, not a retry. It faults
-  only that Attempt's observation, which stays attached and is not retried in
-  this process, while other observations continue. When `RunAsync` stops, its
-  task faults with every such failure. The library has no logging, so #120 owns
-  reporting these when it attaches the observer to the host.
+- Any other exception is an unexpected service failure, not a retry. The
+  observer passes the Attempt ID and exception once to the required
+  `unexpectedFailure` callback, and a callback that throws is ignored. That
+  Attempt is not observed again in this process, while other observations
+  continue; a restart observes it again. The library has no logging, so #120
+  owns what the callback reports when it attaches the observer to the host. An
+  unexpected failure of discovery itself ends `RunAsync` with that exception.
 
 Each successful scan also detaches any wait whose Attempt has left that set,
 for example after an independent stop or abandonment ends its authority. Such a

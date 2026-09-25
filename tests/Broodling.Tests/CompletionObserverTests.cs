@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Time.Testing;
@@ -232,12 +233,14 @@ public sealed class CompletionObserverTests
         private readonly FakeTimeProvider clock = new();
         private readonly CancellationTokenSource cancellation = new();
         private readonly CompletionObserver observer;
+        private readonly ConcurrentQueue<Exception> unexpected = new();
         private readonly Task running;
         internal int Scans => observer.Scans;
 
         internal Observer(HttpFixture fixture)
         {
-            observer = new CompletionObserver(new BroodlingApplication(), fixture.Git.State.Path, null) { Clock = clock };
+            observer = new CompletionObserver(new BroodlingApplication(), fixture.Git.State.Path, null,
+                (_, failure) => unexpected.Enqueue(failure)) { Clock = clock };
             running = observer.RunAsync(cancellation.Token);
         }
 
@@ -268,6 +271,8 @@ public sealed class CompletionObserverTests
             cancellation.Cancel();
             await running;
             cancellation.Dispose();
+            // Every scenario here is an expected outcome; none may reach the host's failure report.
+            if (!unexpected.IsEmpty) throw new AggregateException(unexpected);
         }
     }
 }

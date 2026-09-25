@@ -12,7 +12,12 @@ namespace Broodling;
 /// The PEM root that explicit waits trust for HTTPS DirectTarget connections, passed to every session;
 /// null deliberately selects system trust.
 /// </param>
-public sealed class CompletionObserver(BroodlingApplication application, string storePath, string? directTargetRootCertificate)
+/// <param name="unexpectedFailure">
+/// Called once with the Attempt ID when its observation fails in a way no scan can resolve. That
+/// Attempt is not observed again in this process; other observations continue.
+/// </param>
+public sealed class CompletionObserver(BroodlingApplication application, string storePath, string? directTargetRootCertificate,
+    Action<string, Exception> unexpectedFailure)
 {
     /// <summary>The scan interval, and so the longest pause before a failed wait is retried.</summary>
     internal static readonly TimeSpan Cadence = TimeSpan.FromSeconds(15);
@@ -23,20 +28,16 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
     /// <summary>Completed discovery passes, so tests can tell a scan has happened.</summary>
     internal int Scans => Volatile.Read(ref scans);
 
-    /// <summary>
-    /// Observe until cancelled. Cancellation detaches every wait; no run is stopped or abandoned. An
-    /// unexpected failure ends only its own Attempt's observation, which is not retried in this process,
-    /// and the returned task then faults with every such failure once observation stops.
-    /// </summary>
+    /// <summary>Observe until cancelled. Cancellation detaches every wait; no run is stopped or abandoned.</summary>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        var observing = new Dictionary<string, (Task Wait, CancellationTokenSource Detach)>();
+        var observing = new Dictionary<string, (Task<bool> Wait, CancellationTokenSource Detach)>();
         try
         {
             while (true)
             {
-                // A faulted wait stays attached, so an unexpected failure is surfaced rather than retried.
-                foreach (var (attemptId, ended) in observing.Where(pair => pair.Value.Wait.IsCompletedSuccessfully).ToArray())
+                // A wait that failed unexpectedly stays attached, so it is reported once rather than retried.
+                foreach (var (attemptId, ended) in observing.Where(pair => pair.Value.Wait is { IsCompleted: true, Result: true }).ToArray())
                 {
                     observing.Remove(attemptId);
                     ended.Detach.Dispose();
@@ -60,10 +61,8 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        var waits = Task.WhenAll(observing.Values.Select(active => active.Wait));
-        try { await waits; }
-        catch (Exception) when (waits.Exception is { } faults) { throw faults; }
-        finally { foreach (var active in observing.Values) active.Detach.Dispose(); }
+        await Task.WhenAll(observing.Values.Select(active => active.Wait));
+        foreach (var active in observing.Values) active.Detach.Dispose();
     }
 
     /// <summary>Eligible Attempt IDs, or null when the store is temporarily unreadable.</summary>
@@ -77,7 +76,8 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
         catch (Exception failure) when (failure is StoreStateException or SqliteException) { return null; }
     }
 
-    private async Task ObserveAsync(string attemptId, CancellationToken cancellationToken)
+    /// <returns>False after an unexpected failure, which keeps the Attempt from being observed again.</returns>
+    private async Task<bool> ObserveAsync(string attemptId, CancellationToken cancellationToken)
     {
         try
         {
@@ -91,12 +91,18 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
         }
         catch (Exception failure) when (failure is OperationCanceledException && cancellationToken.IsCancellationRequested
             || Retryable(failure)) { }
+        catch (Exception failure)
+        {
+            try { unexpectedFailure(attemptId, failure); }
+            catch (Exception) { } // A failing report must not stop observation.
+            return false;
+        }
+        return true;
     }
 
     /// <summary>
     /// Failures a later scan may resolve, or that end observation because the Attempt left eligibility.
-    /// Anything else is unexpected: it faults the observation instead of becoming a silent retry, and
-    /// <see cref="RunAsync"/> surfaces it to the host that attaches the observer (#120).
+    /// Anything else is unexpected: it is reported instead of becoming a silent retry.
     /// </summary>
     private static bool Retryable(Exception failure) => failure
         // Target unreachable, misconfigured or not yet serving the run, including an unreadable root.
