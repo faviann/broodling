@@ -53,6 +53,66 @@ findings. Delivery admission supports no effect or one GitHub `pull_request`
 effect naming a nonempty target branch. This grants no implicit merge, deployment
 or wider effect authority and does not resolve the no-effect stable-result gap.
 
+## Bundle-bound admission
+
+`AdmitRequestBundle(submissionId, propose, constructedBy)` admits one Issue
+submission's completed [RequestBundle](dotnet-github-ingress.md#executable-request-capture)
+under the trusted URL-to-PR profile. It uses the same proposal checks and `Admit`
+as supplied sources; there is no second Contract pipeline.
+
+- It takes its authority from the digest-verified manifest. The bundle must be
+  complete, and its manifest must match the retained digest and name this
+  bundle, submission and Work Unit. The attributed Executable Request is the
+  manifest's `request` member, whose retained source must be this Work Unit's
+  `executable_request` at the recorded digest. The PR target branch is the
+  manifest's repository selection, which the retained preparation row must
+  equal.
+- The proposer receives that Executable Request as its only source, plus
+  `RequestBundle` for the manifest and members. The primary issue and available
+  references are supporting material read through the bundle. A proposal that
+  attributes them refuses, so their capture cannot add requested work.
+- Broodling supplies one `pull_request` effect to that retained PR target
+  branch. The proposal must preserve it and carry `BundleBinding`
+  unchanged. A changed branch, binding, pin, Work Unit or producer refuses and
+  records nothing.
+- Unsupported obligations, prerequisites and other refusals remain rejection
+  findings, exactly as for supplied sources.
+
+The revision is recorded and associated with the submission in one transaction.
+`Admit` then decides it, applying the submission cancellation and installation
+pause checks. The decision also moves the submission from `capturing` to
+`admitted` or `rejected`. An interruption before the decision leaves the bound,
+undecided revision. A later call decides it without calling the proposer again,
+and it returns an existing decision even while paused, as `Admit` does. A new
+proposal refuses under pause, and a cancelled submission is refused before the
+proposer runs. When concurrent callers propose for one submission, the first
+association wins. The other caller discards its uncommitted proposal and returns
+the winning revision's status.
+
+A bound Contract's canonical JSON carries `requestBundle` with `bundleId` and
+`manifestSha256`, so its revision identity covers the exact bundle. The field is
+omitted when absent: Contracts recorded without a bundle keep their exact bytes
+and identities. Public `RecordContractRevision` refuses a bound Contract, and
+`AssociateIssueSubmission` gives a bundled submission only a Contract bound to
+its own bundle. Each bound revision therefore belongs to one submission, and its
+admission is always submission-guarded.
+
+One store rule governs progression. Once an associated Issue submission's
+RequestBundle has completed, the revision must carry exactly that bundle's
+identity and manifest digest. `Admit`, every Attempt admission and replacement
+check this rule in their committing transaction, before any replay. So do
+`AdmitRequestBundle` replay, because it decides through `Admit`, and
+`AssociateIssueSubmission`, including its idempotent replay. A bound Contract's
+Attempt must also start from exactly the bundle's retained preparation. A
+caller-selected repository or revision is refused.
+
+State written before #111 can associate a completed bundle with an unbound
+Contract. That association stays readable through `Status`, `History` and
+submission reads. Every route that would decide it, confirm it or start or
+replace an Attempt from it refuses with `IssueSubmissionConflict`, and nothing is
+converted into bundle authority. Revisions with no bundled submission, including
+supplied-source Contracts, use the revision-based APIs unchanged.
+
 ## Persistence, recovery and observation
 
 `RecordContractRevision(contract)` atomically records the canonical Contract and

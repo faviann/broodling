@@ -46,7 +46,10 @@ latest retained one. Its durable sequence is the ordering authority;
 read-only, and the latter remains usable before a Contract exists.
 `AssociateIssueSubmission` binds one exact handle to one Contract revision once;
 Attempt IDs are derived from existing Attempt rows for that revision, not copied
-into a second execution ledger.
+into a second execution ledger. A submission with a RequestBundle accepts only a
+Contract bound to that exact completed bundle, which
+[`AdmitRequestBundle`](dotnet-contract-admission.md#bundle-bound-admission)
+records together with the association.
 `CancelIssueSubmissionAsync` records one immutable cancellation fact before
 entering the existing abandonment/stop path. Its nullable Attempt binding is the
 immutable stop/no-stop decision for this exact submission: null means that no

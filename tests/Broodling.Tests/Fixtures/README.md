@@ -1,6 +1,6 @@
 # Retained pre-transition .NET state
 
-These SQLite dumps are authentic state from earlier `broodling.dotnet`
+The `dotnet-v*.sql` dumps are authentic state from earlier `broodling.dotnet`
 applications. The HTTP integration requires fresh `broodling.application`
 state, so `StoreLifecycleTests` restores each dump and checks that ordinary
 open, explicit upgrade and initialization refuse it without changing any file.
@@ -43,6 +43,27 @@ produced the dump; restoring it reproduces the original schema and every row.
 - Original definition hash: `b4f859fcb7847afc686bb46a72af1c6b1f80fedfd6f6fc76909fe1274f371a95`.
 - Original manifest hash: `06e016bef175105c38b3329629e46cdc1aabca4c44ab94abbf143c53e9178f5e`.
 - SQL fixture SHA-256: `927458271c7171d3d84da1f37c08d4dcd08671610584b6a1ab4bc30b86c07f21`.
+
+# Current-format state from an earlier application
+
+`application-v1-unbound-association.sql` is a `broodling.application` version-1
+dump produced on 25 September 2026 by the actual application at `aaa444a`, the
+parent of #111, built in Release. #111 leaves the schema definition unchanged, so
+the current application opens this state directly. Its public API
+initialized a new store and, for `acme/widget#12` and `#13`, completed a
+RequestBundle through the checkpoint API. It then associated each submission
+with a pull-request Contract that has no RequestBundle binding: admitted
+through `AdmitSources` for issue 12, and recorded with `RecordContractRevision`
+but undecided for issue 13. `RequestAdmissionTests` restores it to check that
+both associations stay readable but acquire no admission or Attempt authority.
+Python's `sqlite3.Connection.iterdump` produced the dump.
+
+- Application assembly SHA-256: `ced6bc100eed4d14b459636b3733ef3f76bc63ea283b2ba61875581e541217c6`.
+- Definition hash: `0488df48ef9ba6a74962fcb61977d6d9b937217534b499b2d630c844c7c3dcda`.
+- Manifest hash: `6c25204951751c5f22730d5125ae749d19edaf237d9fe0647746ffa7c880e4af`.
+- SQL fixture SHA-256: `3aac2be573e36e88b9215c1932cbd906dd5d56dfbd62c4d1ae37b79b86484e67`.
+
+# Other fixtures
 
 The Python file here is a test fixture only. `corrupt-submit.py` succeeds at
 version probing and corrupts only the LocalTarget bridge's submit response.

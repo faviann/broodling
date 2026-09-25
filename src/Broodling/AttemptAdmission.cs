@@ -57,12 +57,18 @@ public sealed partial class BroodlingStore
         return AdmitAttempt(revisionId, GitCustody.Resolve(repository, revision), root: null);
     }
 
-    /// <summary>Admit an HTTP Attempt from one completed Issue submission's retained repository preparation.</summary>
+    /// <summary>
+    /// Admit an HTTP Attempt from one Issue submission's bundle-bound Contract, starting from the
+    /// bundle's retained repository preparation. The caller cannot replace its repository or commit.
+    /// </summary>
     public AttemptRecord AdmitHttpAttempt(string submissionId)
     {
         RequireUnpaused();
-        var (revisionId, repository) = PreparedStartingState(submissionId);
-        RequireHttpDelivery(GetContractRevision(revisionId).Contract);
+        var submission = GetIssueSubmission(submissionId);
+        if (submission.ContractRevisionId is not { } revisionId)
+            throw new AttemptAdmissionError("The Issue submission has no admitted Contract revision.");
+        var repository = GetRequestBundle(submissionId).Repository
+            ?? throw new AttemptAdmissionError("The Issue submission's RequestBundle has no retained repository preparation.");
         return AdmitAttempt(revisionId, repository.StartingState, root: null);
     }
 
@@ -88,43 +94,6 @@ public sealed partial class BroodlingStore
         throw new AttemptAdmissionError("A worktree Attempt serves only no-effect work; authorized pull-request work uses an HTTP Attempt.");
     }
 
-    /// <summary>
-    /// Admit from one completed Issue submission's retained repository
-    /// preparation. The caller cannot replace its repository or starting commit.
-    /// </summary>
-    public AttemptRecord AdmitAttempt(string submissionId, string workspaceRoot)
-    {
-        RequireUnpaused();
-        var (revisionId, repository) = PreparedStartingState(submissionId);
-        RequireLocalDelivery(GetContractRevision(revisionId).Contract);
-        var root = GitCustody.WorkspaceRoot(workspaceRoot, repository.Repository, repository.StartingState);
-        return AdmitAttempt(revisionId, repository.StartingState, root);
-    }
-
-    private (string RevisionId, RepositoryPreparation Repository) PreparedStartingState(string submissionId)
-    {
-        var submission = GetIssueSubmission(submissionId);
-        if (submission.ContractRevisionId is null)
-            throw new AttemptAdmissionError("The Issue submission has no admitted Contract revision.");
-        var bundle = GetRequestBundle(submissionId);
-        if (bundle.State != "complete")
-            throw new AttemptAdmissionError("The RequestBundle must be complete before Attempt admission.");
-        if (bundle.Repository is not { } repository)
-            throw new AttemptAdmissionError("The RequestBundle has no retained repository starting state.");
-        var contract = GetContractRevision(submission.ContractRevisionId);
-        try
-        {
-            var delivery = Closability.AuthorizeDelivery(contract.Contract);
-            if (delivery.Mode == "pull_request" && delivery.TargetBranch != repository.DefaultBranch)
-                throw new AttemptAdmissionError("The admitted pull-request target branch contradicts the retained repository default branch.");
-        }
-        catch (InvalidContractProposal)
-        {
-            throw new AttemptAdmissionError("The prepared repository requires one supported pull-request target or no effect.");
-        }
-        return (submission.ContractRevisionId, repository);
-    }
-
     /// <summary>A null root admits an HTTP Attempt; its separate identity domain never converges with a worktree Attempt.</summary>
     private AttemptRecord AdmitAttempt(string revisionId, StartingState state, string? root)
     {
@@ -141,6 +110,8 @@ public sealed partial class BroodlingStore
         using var transaction = connection.BeginTransaction(deferred: false);
         RequireOrdinaryAttemptAuthority(contract.WorkUnitId, transaction);
         RequireIssueSubmissionNotCancelled(revisionId, transaction);
+        if (RequireBundleAuthority(contract, transaction) is { } bundle && bundle.Repository?.StartingState != state)
+            throw new AttemptAdmissionError("A bundle-bound Contract starts only from its retained repository preparation.");
         var existing = ReadAttempts("work_unit_id = $p0", contract.WorkUnitId, transaction).SingleOrDefault(attempt => attempt.IsCurrent);
         if (existing is not null)
         {

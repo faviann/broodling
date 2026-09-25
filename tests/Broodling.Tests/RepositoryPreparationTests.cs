@@ -162,18 +162,15 @@ public sealed class RepositoryPreparationTests
     }
 
     [Test]
-    [Arguments("worktree")]
-    [Arguments("http")]
-    public async Task PreparedAttemptUsesRetainedStartingStateAndRefusesContradictoryTargetBranch(string kind)
+    public async Task BoundPrAuthorityKeepsRetainedTargetAndStartingCommitAfterUpstreamMoves()
     {
         using var fixture = new RepositoryPreparationFixture();
         using var store = fixture.State.Initialize();
+        fixture.SetIssue(12, "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n");
         var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
-        var bundle = store.BeginRequestBundleCapture(submission.SubmissionId,
-            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
-        var prepared = await store.PrepareRequestBundleRepositoryAsync(bundle.BundleId, fixture.RepositoryRoot,
-            new GitHubRepositoryCredentials("configured-token"), fixture.Source);
-        store.CompleteRequestBundleCapture(bundle.BundleId);
+        var bundle = await store.CaptureRequestBundleAsync(submission.SubmissionId, fixture.RepositoryRoot,
+            new GitHubRepositoryCredentials("configured-token"), new GitHubIssueSource(fixture.Gh), fixture.Source);
+        var prepared = bundle.Repository!;
         fixture.AdvanceMainAndAddDevelop();
         fixture.SetDefaultBranch("develop");
         var refreshSubmission = store.SubmitIssue("https://github.com/acme/widget/issues/13");
@@ -183,36 +180,19 @@ public sealed class RepositoryPreparationTests
             new GitHubRepositoryCredentials("configured-token"), fixture.Source);
         await Assert.That(RunGit(prepared.Repository, "rev-parse", "refs/broodling/upstream/main").Trim())
             .IsEqualTo(fixture.AdvancedCommit);
-        // Authorized PR work is an HTTP Attempt; the worktree path serves no-effect work.
-        RequiredEffect[] effects = kind == "http" ? [new("pr", "Open PR", "pull_request", "main")] : [];
-        var admitted = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()],
-            ContractIngressTests.Propose, effects, "caller");
-        store.AssociateIssueSubmission(submission.SubmissionId, admitted.Revision.ContractRevisionId);
-        var attempt = kind == "http" ? store.AdmitHttpAttempt(submission.SubmissionId)
-            : store.AdmitAttempt(submission.SubmissionId, Path.Combine(fixture.State.Root, "attempts"));
-        await Assert.That(attempt.ResourceKind).IsEqualTo(kind);
+
+        var admitted = store.AdmitRequestBundle(submission.SubmissionId, ContractIngressTests.Propose, "caller");
+        await Assert.That(admitted.Revision.Contract.RequiredEffects.Single().TargetBranch).IsEqualTo("main");
+        // The caller cannot choose another start, such as the moved upstream tip, for bundle-bound authority.
+        await Assert.That(() => store.AdmitHttpAttempt(admitted.Revision.ContractRevisionId, prepared.Repository,
+            "refs/broodling/upstream/main")).Throws<AttemptAdmissionError>();
+        var attempt = store.AdmitHttpAttempt(submission.SubmissionId);
+        await Assert.That(attempt.ResourceKind).IsEqualTo(AttemptRecord.Http);
         await Assert.That(RunGit(prepared.Repository, "rev-parse", "refs/broodling/starting/" + prepared.StartingCommit).Trim())
             .IsEqualTo(prepared.StartingCommit);
         await Assert.That(attempt.B1.Repository).IsEqualTo(prepared.Repository);
         await Assert.That(attempt.B1.CommitOid).IsEqualTo(prepared.StartingCommit);
         await Assert.That(attempt.B1.RequestedRevision).IsEqualTo(prepared.StartingRevision);
-
-        using var mismatch = new RepositoryPreparationFixture(defaultBranch: "develop");
-        using var mismatchStore = mismatch.State.Initialize();
-        var mismatchSubmission = mismatchStore.SubmitIssue("https://github.com/acme/widget/issues/12");
-        var mismatchBundle = mismatchStore.BeginRequestBundleCapture(mismatchSubmission.SubmissionId,
-            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
-        await mismatchStore.PrepareRequestBundleRepositoryAsync(mismatchBundle.BundleId, mismatch.RepositoryRoot,
-            new GitHubRepositoryCredentials("configured-token"), mismatch.Source);
-        mismatchStore.CompleteRequestBundleCapture(mismatchBundle.BundleId);
-        var mismatchAdmission = mismatchStore.AdmitSources(ContractIngressTests.Reference,
-            [ContractIngressTests.Primary()], ContractIngressTests.Propose,
-            [new("pr", "Open PR", "pull_request", "main")], "caller");
-        mismatchStore.AssociateIssueSubmission(mismatchSubmission.SubmissionId, mismatchAdmission.Revision.ContractRevisionId);
-        await Assert.That(() => kind == "http" ? mismatchStore.AdmitHttpAttempt(mismatchSubmission.SubmissionId)
-            : mismatchStore.AdmitAttempt(mismatchSubmission.SubmissionId, Path.Combine(mismatch.State.Root, "attempts")))
-            .Throws<AttemptAdmissionError>();
-        await Assert.That(mismatchStore.Status(mismatchAdmission.Revision.ContractRevisionId).Attempts.Count).IsEqualTo(0);
     }
 
     [Test]

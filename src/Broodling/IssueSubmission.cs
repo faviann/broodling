@@ -138,21 +138,28 @@ public sealed partial class BroodlingStore
         return Array.AsReadOnly(result);
     }
 
-    /// <summary>Bind one exact submission to one existing Contract revision, once.</summary>
+    /// <summary>
+    /// Bind one exact submission to one existing Contract revision, once. A submission
+    /// with a RequestBundle accepts only a Contract bound to that exact completed bundle,
+    /// which <see cref="AdmitRequestBundle"/> records together with this association.
+    /// </summary>
     public IssueSubmission AssociateIssueSubmission(string submissionId, string contractRevisionId)
     {
         using var transaction = connection.BeginTransaction(deferred: false);
+        var result = AssociateIssueSubmission(submissionId, contractRevisionId, transaction);
+        transaction.Commit();
+        return result;
+    }
+
+    private IssueSubmission AssociateIssueSubmission(string submissionId, string contractRevisionId,
+        SqliteTransaction transaction)
+    {
         var submission = ReadIssueSubmission(submissionId, transaction)
             ?? throw new UnknownRecord("Unknown Issue submission.");
         if (submission.State == "cancelled")
             throw new IssueSubmissionConflict("A cancelled Issue submission cannot acquire Contract authority.");
-        if (submission.ContractRevisionId is { } existing)
-        {
-            if (existing != contractRevisionId)
-                throw new IssueSubmissionConflict("The Issue submission is already bound to another Contract revision.");
-            transaction.Commit();
-            return submission;
-        }
+        if (submission.ContractRevisionId is { } existing && existing != contractRevisionId)
+            throw new IssueSubmissionConflict("The Issue submission is already bound to another Contract revision.");
 
         var revision = ReadRevision(contractRevisionId, transaction)
             ?? throw new UnknownRecord("Unknown Contract revision.");
@@ -161,13 +168,17 @@ public sealed partial class BroodlingStore
         // Capture eligibility requires an unbound submission, so binding before
         // completion would strand the bundle. The writer reservation orders this
         // check against completion.
-        if (ReadRequestBundle(submissionId, transaction) is { State: not "complete" })
+        var bundle = ReadRequestBundle(submissionId, transaction);
+        if (bundle is { State: not "complete" })
             throw new IssueSubmissionConflict("The Issue submission's RequestBundle must complete before Contract association.");
+        // Checked on replay too: an older unbound association is not confirmed as bundle authority.
+        if (revision.Contract.RequestBundle != Binding(bundle))
+            throw new IssueSubmissionConflict("The Contract revision is not bound to this Issue submission's RequestBundle.");
+        if (submission.ContractRevisionId is not null)
+            return submission;
         Execute("UPDATE issue_submissions SET contract_revision_id = $p0 WHERE submission_id = $p1", transaction,
             contractRevisionId, submissionId);
-        var result = ReadIssueSubmission(submissionId, transaction)!;
-        transaction.Commit();
-        return result;
+        return ReadIssueSubmission(submissionId, transaction)!;
     }
 
     /// <summary>

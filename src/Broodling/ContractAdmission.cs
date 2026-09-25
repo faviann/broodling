@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
@@ -6,13 +7,15 @@ namespace Broodling;
 public sealed class ContractProposalInput
 {
     internal ContractProposalInput(WorkUnit workUnit, IEnumerable<EntitledSource> sources,
-        IEnumerable<RequiredEffect> requiredEffects, string constructedBy)
+        IEnumerable<RequiredEffect> requiredEffects, string constructedBy, RequestBundle? requestBundle = null)
     {
         WorkUnit = workUnit;
         Sources = Array.AsReadOnly(sources.ToArray());
         SourceAttribution = Array.AsReadOnly(Sources.Select(source => new SourceAttribution(source.SourceId, source.ContentSha256)).ToArray());
         RequiredEffects = Array.AsReadOnly(requiredEffects.ToArray());
         ConstructedBy = constructedBy;
+        RequestBundle = requestBundle;
+        BundleBinding = requestBundle is null ? null : new(requestBundle.BundleId, requestBundle.ManifestSha256!);
     }
 
     public WorkUnit WorkUnit { get; }
@@ -20,6 +23,15 @@ public sealed class ContractProposalInput
     public IReadOnlyList<SourceAttribution> SourceAttribution { get; }
     public IReadOnlyList<RequiredEffect> RequiredEffects { get; }
     public string ConstructedBy { get; }
+
+    /// <summary>
+    /// The completed bundle for bundle-bound admission: its members other than the Executable
+    /// Request are supporting material, read through the store, never attributed sources.
+    /// </summary>
+    public RequestBundle? RequestBundle { get; }
+
+    /// <summary>The exact binding the proposal must carry; null outside bundle-bound admission.</summary>
+    public ContractRequestBundle? BundleBinding { get; }
 }
 
 public sealed class ContractRevision
@@ -129,27 +141,157 @@ public sealed partial class BroodlingStore
         var work = ResolveWorkUnit(reference);
         var captured = supplied.Select(source => EntitleSource(work.WorkUnitId, source)).ToArray();
         var inputs = new ContractProposalInput(work, captured, effects, constructedBy);
-        var proposal = propose(inputs) ?? throw new InvalidContractProposal("A typed Contract proposal is required.");
-        proposal.Validate();
-        if (proposal.WorkUnitId != work.WorkUnitId || proposal.ConstructedBy != constructedBy)
-            throw new InvalidContractProposal("The proposal changed its Work Unit or producer attribution.");
-        var expectedPins = inputs.SourceAttribution.ToHashSet();
-        if (proposal.SourceAttribution.Count != expectedPins.Count || !expectedPins.SetEquals(proposal.SourceAttribution))
-            throw new SourceAttributionError("The proposal must pin every input snapshot exactly once, without additions or substitutions.");
-        if (!proposal.RequiredEffects.SequenceEqual(effects))
-            throw new InvalidContractProposal("The proposal changed the caller's exact effect authority.");
-        var revision = RecordContractRevision(proposal);
+        var revision = RecordContractRevision(Proposal(inputs, propose));
         Admit(revision.ContractRevisionId);
         return Status(revision.ContractRevisionId);
     }
 
-    /// <summary>Persist an undecided immutable revision and its source bindings atomically.</summary>
+    /// <summary>
+    /// Admit one Issue submission's completed RequestBundle under the trusted URL-to-PR profile.
+    /// The Executable Request is the only attributed source: the primary issue and available
+    /// references are supporting material reached through the bound bundle, so their capture
+    /// adds no work. Broodling supplies the one pull-request effect to the retained PR target
+    /// branch. The revision and its submission association commit together and the decision
+    /// goes through <see cref="Admit"/>; a bound submission is never proposed again.
+    /// </summary>
+    public AdmissionStatus AdmitRequestBundle(string submissionId, Func<ContractProposalInput, Contract> propose,
+        string constructedBy = "model_extraction")
+    {
+        // Proposal refuses an unrecognized producer: the proposal must validate and repeat it.
+        if (propose is null)
+            throw new InvalidContractProposal("A proposer is required.");
+        var submission = GetIssueSubmission(submissionId);
+        if (submission.ContractRevisionId is { } bound)
+            return BoundAdmission(bound);
+        RequireUnpaused();
+        if (submission.State == "cancelled")
+            throw new IssueSubmissionConflict("A cancelled Issue submission cannot acquire Contract authority.");
+
+        var bundle = GetRequestBundle(submissionId);
+        if (bundle.State != "complete")
+            throw new RequestBundleConflict("Contract admission requires a completed RequestBundle.");
+        var (request, targetBranch) = ManifestAuthority(bundle, submission);
+        var work = GetWorkUnit(submission.WorkUnitId);
+        var effect = new RequiredEffect("pull_request",
+            $"Deliver one proposal as a pull request to branch '{targetBranch}' of {work.Owner}/{work.Repository}, including its commit and push.",
+            "pull_request", targetBranch);
+        var proposal = Proposal(new ContractProposalInput(work, [request], [effect], constructedBy, bundle), propose);
+        string revisionId;
+        using (var transaction = connection.BeginTransaction(deferred: false))
+        {
+            // A concurrent caller may have bound this submission while our proposer ran.
+            // Its authority stands; ours is discarded uncommitted.
+            if (ReadIssueSubmission(submissionId, transaction)!.ContractRevisionId is { } raced)
+                revisionId = raced;
+            else
+            {
+                revisionId = RecordContractRevision(proposal, transaction).ContractRevisionId;
+                AssociateIssueSubmission(submissionId, revisionId, transaction);
+                transaction.Commit();
+            }
+        }
+        return BoundAdmission(revisionId);
+    }
+
+    private AdmissionStatus BoundAdmission(string revisionId)
+    {
+        Admit(revisionId);
+        return Status(revisionId);
+    }
+
+    /// <summary>The binding a Contract admitted from this bundle carries; none until it completes.</summary>
+    private static ContractRequestBundle? Binding(RequestBundle? bundle) =>
+        bundle is { State: "complete" } ? new(bundle.BundleId, bundle.ManifestSha256!) : null;
+
+    /// <summary>
+    /// The one authority rule for progressing a revision: once an associated Issue submission's
+    /// RequestBundle completed, the revision must carry exactly that bundle's binding. An older
+    /// association to an unbound Contract stays readable but acquires no admission or Attempt
+    /// through any route. Returns the bound bundle, or null for an ordinary unbundled revision.
+    /// </summary>
+    private RequestBundle? RequireBundleAuthority(ContractRevision revision, SqliteTransaction transaction)
+    {
+        var submissions = new List<string>();
+        using (var command = Command("SELECT submission_id FROM issue_submissions WHERE contract_revision_id = $p0",
+            transaction, revision.ContractRevisionId))
+        using (var row = command.ExecuteReader())
+            while (row.Read()) submissions.Add(row.GetString(0));
+        RequestBundle? bound = null;
+        foreach (var bundle in submissions.Select(id => ReadRequestBundle(id, transaction)).OfType<RequestBundle>())
+        {
+            if (revision.Contract.RequestBundle != Binding(bundle))
+                throw new IssueSubmissionConflict("The Contract is not bound to its Issue submission's completed RequestBundle.");
+            bound = bundle;
+        }
+        return bound;
+    }
+
+    /// <summary>
+    /// Take the attributed Executable Request and the PR target from the digest-verified manifest,
+    /// and require the retained request source and repository preparation to be the ones it records.
+    /// </summary>
+    private (EntitledSource Request, string TargetBranch) ManifestAuthority(RequestBundle bundle, IssueSubmission submission)
+    {
+        var bytes = Encoding.UTF8.GetBytes(bundle.ManifestJson!);
+        if (Digests.Bytes(bytes) != bundle.ManifestSha256)
+            throw new RequestBundleConflict("The retained RequestBundle manifest does not match its digest.");
+        BundleManifestV1? manifest;
+        try { manifest = JsonSerializer.Deserialize<BundleManifestV1>(bytes, BundleManifestOptions); }
+        catch (JsonException) { throw new RequestBundleConflict("The retained RequestBundle manifest is malformed."); }
+        if (manifest is null || manifest.BundleId != bundle.BundleId || manifest.SubmissionId != submission.SubmissionId
+            || manifest.WorkUnitId != submission.WorkUnitId)
+            throw new RequestBundleConflict("The RequestBundle manifest names another bundle, submission or Work Unit.");
+        var request = manifest.References?.Where(reference => reference.ReferenceId == "request").ToArray() ?? [];
+        if (request.Length != 1 || request[0].SourceId is not { } sourceId)
+            throw new RequestBundleConflict("The RequestBundle manifest records no single captured Executable Request.");
+        if (manifest.Repository is not { } repository || bundle.Repository is not { } prepared
+            || prepared.Repository != repository.Repository || prepared.TargetBranch != repository.DefaultBranch
+            || prepared.StartingRevision != repository.StartingRevision || prepared.StartingCommit != repository.StartingCommit)
+            throw new RequestBundleConflict("The retained repository preparation differs from the RequestBundle manifest.");
+        var source = GetEntitledSource(sourceId);
+        if (source.Kind != "executable_request" || source.ContentSha256 != request[0].ContentSha256
+            || source.WorkUnitId != submission.WorkUnitId)
+            throw new RequestBundleConflict("The retained Executable Request differs from the RequestBundle manifest.");
+        return (source, repository.DefaultBranch);
+    }
+
+    /// <summary>Run the proposer and refuse any change to the authority it was given.</summary>
+    private static Contract Proposal(ContractProposalInput inputs, Func<ContractProposalInput, Contract> propose)
+    {
+        var proposal = propose(inputs) ?? throw new InvalidContractProposal("A typed Contract proposal is required.");
+        proposal.Validate();
+        if (proposal.WorkUnitId != inputs.WorkUnit.WorkUnitId || proposal.ConstructedBy != inputs.ConstructedBy)
+            throw new InvalidContractProposal("The proposal changed its Work Unit or producer attribution.");
+        var expectedPins = inputs.SourceAttribution.ToHashSet();
+        if (proposal.SourceAttribution.Count != expectedPins.Count || !expectedPins.SetEquals(proposal.SourceAttribution))
+            throw new SourceAttributionError("The proposal must pin every input snapshot exactly once, without additions or substitutions.");
+        if (!proposal.RequiredEffects.SequenceEqual(inputs.RequiredEffects))
+            throw new InvalidContractProposal("The proposal changed the caller's exact effect authority.");
+        if (proposal.RequestBundle != inputs.BundleBinding)
+            throw new InvalidContractProposal("The proposal changed its RequestBundle binding.");
+        return proposal;
+    }
+
+    /// <summary>
+    /// Persist an undecided immutable revision and its source bindings atomically. A
+    /// bundle-bound Contract is recorded only by <see cref="AdmitRequestBundle"/>, together
+    /// with its submission association, so its admission is always submission-guarded.
+    /// </summary>
     public ContractRevision RecordContractRevision(Contract contract)
+    {
+        if (contract?.RequestBundle is not null)
+            throw new InvalidContractProposal("A bundle-bound Contract is recorded only through its Issue submission.");
+        using var transaction = connection.BeginTransaction(deferred: false);
+        var result = RecordContractRevision(contract!, transaction);
+        transaction.Commit();
+        return result;
+    }
+
+    private ContractRevision RecordContractRevision(Contract contract, SqliteTransaction transaction)
     {
         if (contract is null)
             throw new InvalidContractProposal("A typed Contract is required.");
         contract.Validate();
-        using var transaction = connection.BeginTransaction(deferred: false);
         _ = ReadWorkUnit(contract.WorkUnitId, transaction) ?? throw new UnknownRecord("Unknown Work Unit.");
         foreach (var pin in contract.SourceAttribution)
         {
@@ -159,12 +301,8 @@ public sealed partial class BroodlingStore
             if (source.WorkUnitId != contract.WorkUnitId || source.ContentSha256 != pin.ContentSha256)
                 throw new SourceAttributionError("The Contract must pin the exact entitled source of its Work Unit.");
         }
-        var existing = ReadRevision(contract.ContractRevisionId, transaction);
-        if (existing is not null)
-        {
-            transaction.Commit();
+        if (ReadRevision(contract.ContractRevisionId, transaction) is { } existing)
             return existing;
-        }
         string? previousId = null;
         long number = 1;
         using (var previous = Command("SELECT contract_revision_id, revision_number FROM contract_revisions WHERE work_unit_id = $p0 ORDER BY revision_number DESC LIMIT 1",
@@ -183,9 +321,7 @@ public sealed partial class BroodlingStore
         foreach (var pin in contract.SourceAttribution)
             Execute("INSERT INTO contract_sources VALUES ($p0, $p1, $p2)", transaction,
                 contract.ContractRevisionId, pin.SourceId, pin.ContentSha256);
-        var result = ReadRevision(contract.ContractRevisionId, transaction)!;
-        transaction.Commit();
-        return result;
+        return ReadRevision(contract.ContractRevisionId, transaction)!;
     }
 
     public ContractRevision GetContractRevision(string revisionId) => ReadRevision(revisionId)
@@ -228,6 +364,7 @@ public sealed partial class BroodlingStore
         using var transaction = connection.BeginTransaction(deferred: false);
         var revision = ReadRevision(revisionId, transaction) ?? throw new UnknownRecord("Unknown Contract revision.");
         RequireIssueSubmissionNotCancelled(revisionId, transaction);
+        RequireBundleAuthority(revision, transaction);
         var existing = ReadDecision(revisionId, transaction);
         if (existing is not null)
         {
@@ -240,6 +377,9 @@ public sealed partial class BroodlingStore
         Execute("INSERT INTO admission_decisions VALUES ($p0, $p1, $p2, $p3, $p4, $p5)", transaction,
             "ad-" + Digests.Parts("broodling.dotnet.admission.v1", revisionId), revisionId,
             assessment.Outcome, JsonSerializer.Serialize(assessment.Findings), AdmissionPolicyVersion, Now());
+        // A bundle-bound submission reports its outcome with the decision; its capture is over.
+        Execute("UPDATE issue_submissions SET state = $p0 WHERE contract_revision_id = $p1 AND state = 'capturing'",
+            transaction, assessment.Outcome, revisionId);
         var result = ReadDecision(revisionId, transaction)!;
         transaction.Commit();
         return result;

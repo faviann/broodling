@@ -57,8 +57,16 @@ public sealed class HttpReadTests
             "repository file"u8.ToArray(), fixture.Git.Repository, "HEAD", "original.txt"));
         store.CaptureRequestBundleGitBlob(bundle.BundleId, "repo:original.txt");
         store.CompleteRequestBundleCapture(bundle.BundleId);
-        store.AssociateIssueSubmission(submission.SubmissionId, fixture.Attempt.ContractRevisionId);
-        var capturing = store.SubmitIssue("https://github.com/acme/widget/issues/13");
+        // A separate Work Unit's bundle-bound Contract and Attempt, admitted from its submission.
+        using var github = new RepositoryPreparationTests.RepositoryPreparationFixture();
+        github.SetIssue(13, "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n");
+        var bound = store.SubmitIssue("https://github.com/acme/widget/issues/13");
+        await store.CaptureRequestBundleAsync(bound.SubmissionId, github.RepositoryRoot,
+            new GitHubRepositoryCredentials("configured-token"), new GitHubIssueSource(github.Gh), github.Source);
+        var boundRevision = store.AdmitRequestBundle(bound.SubmissionId, ContractIngressTests.Propose, "caller")
+            .Revision.ContractRevisionId;
+        var boundAttempt = store.AdmitHttpAttempt(bound.SubmissionId);
+        var capturing = store.SubmitIssue("https://github.com/acme/widget/issues/14");
         var incomplete = store.BeginRequestBundleCapture(capturing.SubmissionId,
             new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
         store.RegisterRequestBundleReference(incomplete.BundleId, RequestBundleReferenceInput.Source("pending", "pending"u8.ToArray()));
@@ -70,6 +78,7 @@ public sealed class HttpReadTests
         await using var _ = app;
         using var __ = client;
         const string issue = "https%3A%2F%2Fgithub.com%2Facme%2Fwidget%2Fissues%2F12";
+        const string boundIssue = "https%3A%2F%2Fgithub.com%2Facme%2Fwidget%2Fissues%2F13";
         var reads = new (string Path, object Expected)[]
         {
             ($"/issues?url={issue}", new
@@ -78,6 +87,12 @@ public sealed class HttpReadTests
                 revisions = store.History(ContractIngressTests.Reference)
             }),
             ($"/submissions/{submission.SubmissionId}", store.GetIssueSubmission(submission.SubmissionId)),
+            ($"/submissions/{bound.SubmissionId}", store.GetIssueSubmission(bound.SubmissionId)),
+            ($"/issues?url={boundIssue}", new
+            {
+                submissions = store.IssueHistory("https://github.com/acme/widget/issues/13"),
+                revisions = store.History(WorkReference.Parse("acme/widget", 13))
+            }),
             ($"/submissions/{submission.SubmissionId}/bundle", store.GetRequestBundle(submission.SubmissionId)),
             ($"/bundles/{bundle.BundleId}/reference?id=issue%2F12", store.ReadRequestBundleReference(bundle.BundleId, "issue/12")),
             ($"/bundles/{bundle.BundleId}/reference?id=repo%3Aoriginal.txt",
@@ -96,6 +111,10 @@ public sealed class HttpReadTests
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
             await Assert.That(JsonNode.DeepEquals(await Body(response), JsonSerializer.SerializeToNode(expected, Json))).IsTrue();
         }
+        var boundRead = await Body(await client.GetAsync($"/submissions/{bound.SubmissionId}"));
+        await Assert.That(boundRead["contractRevisionId"]!.GetValue<string>()).IsEqualTo(boundRevision);
+        await Assert.That(boundRead["attemptIds"]!.AsArray().Select(id => id!.GetValue<string>()))
+            .IsEquivalentTo([boundAttempt.AttemptId]);
         var attempt = await Body(await client.GetAsync($"/attempts/{fixture.Attempt.AttemptId}"));
         await Assert.That(attempt["completion"]!["acceptedRevision"]!.GetValue<string>()).IsEqualTo(fixture.Accepted);
         var source = await Body(await client.GetAsync($"/bundles/{bundle.BundleId}/reference?id=issue%2F12"));

@@ -14,7 +14,7 @@ public sealed class ContractIngressTests
         mediaType: "application/octet-stream", entitlement: new("caller", "Explicitly reviewed decision"));
     internal static Contract Propose(ContractProposalInput input) => new(input.WorkUnit.WorkUnitId,
         input.SourceAttribution, [new("acceptance", "Preserve the complete request.")],
-        requiredEffects: input.RequiredEffects, constructedBy: input.ConstructedBy);
+        requiredEffects: input.RequiredEffects, constructedBy: input.ConstructedBy, requestBundle: input.BundleBinding);
 
     [Test]
     public async Task SuppliedAdmissionReopenAndOperatorInspectionRetainExactOldAndRejectedLineage()
