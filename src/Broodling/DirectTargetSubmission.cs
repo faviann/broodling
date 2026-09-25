@@ -30,7 +30,7 @@ internal static class DirectTargetSubmission
         };
         request["githubToken"] = credentials["GH_TOKEN"];
         // The final credential-bearing size is checked before any exchange.
-        using var message = new HttpRequestMessage(HttpMethod.Post, new Uri(origin, "/native-v2/run"))
+        using var message = new HttpRequestMessage(HttpMethod.Post, new Uri(origin, DirectTargetDiscovery.RunPath))
         { Content = DirectTargetExchange.JsonContent(JsonSerializer.SerializeToUtf8Bytes(request)) };
 
         using var budget = DirectTargetBudget.Start(DirectTargetLimits.Submit, clock, caller);
@@ -39,10 +39,8 @@ internal static class DirectTargetSubmission
         var (status, reply) = await DirectTargetExchange.SendJsonAsync(http, message, budget);
         if (status == HttpStatusCode.OK)
         {
-            if (reply.ValueKind != JsonValueKind.Object || reply.EnumerateObject().Count() != 1
-                || !reply.TryGetProperty("runId", out var runId) || runId.ValueKind != JsonValueKind.String)
-                throw new NativeTransportError("invalid_response");
-            if (runId.GetString() != intendedRunId) throw new NativeTransportError("foreign_run");
+            if (!DirectTargetExchange.Shape(reply, ["runId"], [])) throw new NativeTransportError("invalid_response");
+            if (DirectTargetExchange.Text(reply, "runId") != intendedRunId) throw new NativeTransportError("foreign_run");
             return;
         }
         var code = DirectTargetExchange.ProblemCode(reply) ?? throw new NativeTransportError("invalid_response");

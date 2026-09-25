@@ -35,8 +35,8 @@ public sealed partial class BroodlingStore
         }
         // An HTTP record routes on its retained format and ignores any bridge transport.
         if (submitted is { Format: NativeSubmission.Http, State: not "prepared" })
-            throw await StopRetainedHttpAsync(attemptId, cancellationToken);
-        if (submitted is { State: not "prepared" })
+            await StopRetainedHttpAsync(submitted, cancellationToken);
+        else if (submitted is { State: not "prepared" })
         {
             if (submitted.Run is not { } run)
                 throw new CessationUnconfirmed("Dispatched run identity is unresolved. Attempt abandoned and quarantined; dispatch will not be replayed to discover it.");
@@ -65,21 +65,17 @@ public sealed partial class BroodlingStore
     /// <summary>
     /// Request native stop of an abandoned HTTP record with dispatch intent, without credentials,
     /// source custody or replay. A confirmed run is forced directly; an intended run only after its
-    /// status matches every retained binding fact, which still establishes no correlation. The
-    /// returned refusal is the outcome: force never sent, a terminal result that proves no physical
-    /// cessation, or <see cref="NativeTransportError"/> when a sent force has an uncertain outcome.
+    /// status matches every retained binding fact, which still establishes no correlation. Every
+    /// outcome refuses: force never sent, a terminal result that proves no physical cessation, or
+    /// <see cref="NativeTransportError"/> when a sent force has an uncertain outcome.
     /// </summary>
-    internal async Task<BroodlingException> StopRetainedHttpAsync(string attemptId, CancellationToken cancellationToken)
+    private async Task StopRetainedHttpAsync(NativeSubmission submitted, CancellationToken cancellationToken)
     {
-        if (GetAttempt(attemptId).Abandonment is null) throw new AttemptConflict("HTTP stop requires committed abandonment.");
-        var submitted = FindSubmission(attemptId);
-        if (submitted is not { Format: NativeSubmission.Http, State: not "prepared" })
-            throw new AttemptConflict("Only a dispatched HTTP submission has a run to stop.");
         var (run, identity) = submitted.Run is { } confirmed
             ? (confirmed, NativeRunIdentity.Confirmed)
             : (submitted.Frozen.Run(submitted.IntendedRunId!), NativeRunIdentity.Intended);
         var stop = await DirectTargetRun.StopAsync(run, identity, DirectTargetClock, cancellationToken);
-        return stop.Force switch
+        throw stop.Force switch
         {
             DirectTargetForce.Terminal => new CessationUnconfirmed(
                 "Native stop observed a terminal result, which supplies no physical cessation proof. Attempt abandoned and quarantined.",

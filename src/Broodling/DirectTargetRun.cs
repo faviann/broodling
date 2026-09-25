@@ -4,10 +4,10 @@ namespace Broodling;
 internal enum DirectTargetForce { NotSent, Uncertain, Terminal }
 
 /// <summary>
-/// A stop's transport outcome. <see cref="Result"/> is present only for <see cref="DirectTargetForce.Terminal"/>;
-/// otherwise <see cref="Reason"/> is a fixed error kind. None proves physical cessation.
+/// A stop's transport outcome. <see cref="Reason"/> is a fixed error kind unless force reached
+/// <see cref="DirectTargetForce.Terminal"/>. None proves physical cessation.
 /// </summary>
-internal sealed record DirectTargetStop(DirectTargetForce Force, NativeResult? Result, string? Reason);
+internal sealed record DirectTargetStop(DirectTargetForce Force, string? Reason);
 
 /// <summary>
 /// Persistence-free DirectTarget run operations over one fresh session each. They decide only
@@ -45,9 +45,10 @@ internal static class DirectTargetRun
             if (identity == NativeRunIdentity.Intended) await session.StatusAsync(budget);
             force = DirectTargetForce.Uncertain; // Conservatively, from the attempt to send it.
             var forced = await session.ForceAsync(budget);
-            return new(DirectTargetForce.Terminal, forced.Result ?? await session.TerminalAsync(forced, budget, null), null);
+            if (forced.Result is null) await session.TerminalAsync(forced, budget, null);
+            return new(DirectTargetForce.Terminal, null);
         }
-        catch (NativeTransportError error) { return new(force, null, error.Kind); }
-        catch (UnsupportedRuntime error) { return new(force, null, error.Code); }
+        catch (NativeTransportError error) { return new(force, error.Kind); }
+        catch (UnsupportedRuntime error) { return new(force, error.Code); }
     }
 }

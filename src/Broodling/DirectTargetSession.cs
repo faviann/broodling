@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using static Broodling.DirectTargetExchange;
 
 namespace Broodling;
 
@@ -18,7 +19,6 @@ internal sealed record DirectTargetRunStatus(NativeProgress Progress, NativeResu
 /// </summary>
 internal sealed class DirectTargetSession : IAsyncDisposable
 {
-    private const string OecpPath = "/native-v2/oecp";
     private const long MaxSafeInteger = 9_007_199_254_740_991;
     private static readonly string[] PassedFailures = ["force_stopped", "runtime_lost", "runtime_failed"];
     private static readonly JsonElement Null = JsonDocument.Parse("null").RootElement.Clone();
@@ -118,12 +118,12 @@ internal sealed class DirectTargetSession : IAsyncDisposable
     /// <summary>Request a session for exactly this run; the endpoint must be the origin's own OECP route.</summary>
     private async Task<Uri> CreateAsync(HttpClient http, Uri origin, DirectTargetBudget budget)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(origin, "/native-v2/oecp-session"))
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(origin, DirectTargetDiscovery.SessionPath))
         { Content = DirectTargetExchange.JsonContent(JsonSerializer.SerializeToUtf8Bytes(new { runId = run.RunId })) };
         var (status, body) = await DirectTargetExchange.SendJsonAsync(http, request, budget);
         if (status != HttpStatusCode.OK)
             throw new NativeTransportError(DirectTargetExchange.ProblemCode(body) is null ? "invalid_response" : "TargetError");
-        var expected = (origin.Scheme == Uri.UriSchemeHttps ? "wss://" : "ws://") + origin.Authority + OecpPath;
+        var expected = (origin.Scheme == Uri.UriSchemeHttps ? "wss://" : "ws://") + origin.Authority + DirectTargetDiscovery.OecpPath;
         if (!Shape(body, ["endpoint"], ["bearerToken"]) || Text(body, "endpoint") != expected
             || body.TryGetProperty("bearerToken", out var bearer) && bearer.ValueKind != JsonValueKind.Null)
             throw Invalid();
@@ -233,14 +233,6 @@ internal sealed class DirectTargetSession : IAsyncDisposable
 
     private static bool ExecutionRef(string value) =>
         value.Length > 0 && Encoding.UTF8.GetByteCount(value) <= 128 && !value.Any(char.IsControl);
-
-    /// <summary>An object with every required property and nothing unknown.</summary>
-    private static bool Shape(JsonElement value, string[] required, string[] optional) =>
-        value.ValueKind == JsonValueKind.Object && required.All(name => value.TryGetProperty(name, out _))
-        && value.EnumerateObject().All(property => required.Contains(property.Name) || optional.Contains(property.Name));
-
-    private static string Text(JsonElement value, string name) =>
-        value.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String ? field.GetString()! : throw Invalid();
 
     private static NativeTransportError Invalid() => new("invalid_response");
 

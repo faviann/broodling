@@ -174,11 +174,8 @@ internal static class DirectTargetExchange
     /// The message and details are never read.
     /// </summary>
     internal static string? ProblemCode(JsonElement body) =>
-        body.ValueKind == JsonValueKind.Object
-        && body.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.String
-        && body.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String
-        && body.EnumerateObject().All(property => property.Name is "code" or "message" or "details")
-            ? code.GetString() : null;
+        Shape(body, ["code", "message"], ["details"]) && body.GetProperty("message").ValueKind == JsonValueKind.String
+        && body.GetProperty("code") is { ValueKind: JsonValueKind.String } code ? code.GetString() : null;
 
     /// <summary>
     /// Complete JSON within the depth limit and without duplicate properties at any level. Every string
@@ -198,19 +195,30 @@ internal static class DirectTargetExchange
         catch (Exception error) when (error is JsonException or InvalidOperationException)
         { throw new NativeTransportError("invalid_response"); }
     }
+
+    /// <summary>An object with every required property and nothing unknown.</summary>
+    internal static bool Shape(JsonElement value, string[] required, string[] optional) =>
+        value.ValueKind == JsonValueKind.Object && required.All(name => value.TryGetProperty(name, out _))
+        && value.EnumerateObject().All(property => required.Contains(property.Name) || optional.Contains(property.Name));
+
+    /// <summary>A string property's value; anything else is an invalid response.</summary>
+    internal static string Text(JsonElement value, string name) =>
+        value.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String
+            ? field.GetString()! : throw new NativeTransportError("invalid_response");
 }
 
 /// <summary>The selected stock discovery document; it confirms protocol shape, not native or image identity.</summary>
 internal static class DirectTargetDiscovery
 {
+    internal const string Kind = "zeroshot.native-v2-target/v2";
+    internal const string RunPath = "/native-v2/run";
+    internal const string SessionPath = "/native-v2/oecp-session";
+    internal const string OecpPath = "/native-v2/oecp";
+
     private static readonly Dictionary<string, string> Required = new(StringComparer.Ordinal)
     {
-        ["kind"] = "zeroshot.native-v2-target/v2",
-        ["authentication"] = "none",
-        ["audience"] = "controller",
-        ["runPath"] = "/native-v2/run",
-        ["sessionPath"] = "/native-v2/oecp-session",
-        ["oecpPath"] = "/native-v2/oecp"
+        ["kind"] = Kind, ["authentication"] = "none", ["audience"] = "controller",
+        ["runPath"] = RunPath, ["sessionPath"] = SessionPath, ["oecpPath"] = OecpPath
     };
     private static readonly string[] NullOnly = ["privateBootstrapPath", "oauth", "loginSession"];
 
@@ -223,11 +231,8 @@ internal static class DirectTargetDiscovery
     }
 
     private static bool Stock(JsonElement document) =>
-        document.ValueKind == JsonValueKind.Object
-        && Required.All(field => document.TryGetProperty(field.Key, out var value)
-            && value.ValueKind == JsonValueKind.String && value.GetString() == field.Value)
-        && document.EnumerateObject().All(property => Required.ContainsKey(property.Name)
-            || NullOnly.Contains(property.Name) && property.Value.ValueKind == JsonValueKind.Null
-            || property.Name == "extensions" && property.Value.ValueKind == JsonValueKind.Object
-                && !property.Value.EnumerateObject().Any());
+        DirectTargetExchange.Shape(document, [.. Required.Keys], [.. NullOnly, "extensions"])
+        && Required.All(field => document.GetProperty(field.Key) is { ValueKind: JsonValueKind.String } value && value.GetString() == field.Value)
+        && NullOnly.All(name => !document.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null)
+        && (!document.TryGetProperty("extensions", out var extensions) || DirectTargetExchange.Shape(extensions, [], []));
 }

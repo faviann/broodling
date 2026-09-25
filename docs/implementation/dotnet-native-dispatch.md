@@ -194,8 +194,9 @@ both complete outputs without installing or deploying them.
 The native boundary has three independent roles. `INativeSubmitter.SubmitAsync(requestJson,
 credentials)` serves dispatch. `INativeReader` provides `WaitAsync(run)` and
 `StatusAsync(run, bound)` for completion and progress. `INativeStopper.StopAsync(run)`
-serves stop and cancellation. Each application operation depends only on the role
-it uses; `INativeTransport` combines all three for dispatch and `Invocation`.
+serves stop and cancellation. Read and stop operations depend only on their role.
+Dispatch takes `INativeTransport`, which combines all three, because it also stops
+a run whose acknowledgement arrives after abandonment; `Invocation` uses it too.
 Read and stop receive a `NativeRunBinding`: the retained locator, correlated run
 ID, frozen title, runtime size and, for PR delivery, the frozen repository,
 authorized branch and B1 selectors. It carries no credentials, workspace or

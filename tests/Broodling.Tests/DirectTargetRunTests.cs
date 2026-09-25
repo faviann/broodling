@@ -103,7 +103,7 @@ public sealed class DirectTargetRunTests
         target.Projections.Enqueue(Finished("force_stopped")); // What a force would get.
         var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Intended, new FakeTimeProvider(), default);
 
-        await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.NotSent, null, reason));
+        await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.NotSent, reason));
         await Assert.That(target.Count("run/force")).IsEqualTo(0);
     }
 
@@ -119,8 +119,7 @@ public sealed class DirectTargetRunTests
         target.Projections.Enqueue(Finished("force_stopped"));
         var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), identity, new FakeTimeProvider(), default);
 
-        await Assert.That(stop.Force).IsEqualTo(DirectTargetForce.Terminal);
-        await Assert.That(stop.Result!.Failure).IsEqualTo("force_stopped");
+        await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.Terminal, null));
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
         await Assert.That(target.Count("run/status")).IsEqualTo(identity == NativeRunIdentity.Intended ? 1 : 0);
         await Assert.That(target.Messages.Last()["params"]!.ToJsonString()).IsEqualTo($$"""{"runId":"{{RunId}}"}""");
@@ -141,7 +140,7 @@ public sealed class DirectTargetRunTests
             clock.Advance(DirectTargetLimits.PollDelay);
         }
 
-        await Assert.That((await stop.WaitAsync(Patience)).Result!.Failure).IsEqualTo("force_stopped");
+        await Assert.That(await stop.WaitAsync(Patience)).IsEqualTo(new DirectTargetStop(DirectTargetForce.Terminal, null));
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
         await Assert.That(target.Count("run/status")).IsEqualTo(2);
     }
@@ -180,7 +179,7 @@ public sealed class DirectTargetRunTests
         {
             clock.Advance(TimeSpan.FromMilliseconds(1));
             await Assert.That(await stop.WaitAsync(Patience)).IsEqualTo(new DirectTargetStop(
-                end == "precheck-deadline" ? DirectTargetForce.NotSent : DirectTargetForce.Uncertain, null, "TimeoutError"));
+                end == "precheck-deadline" ? DirectTargetForce.NotSent : DirectTargetForce.Uncertain, "TimeoutError"));
         }
         await Assert.That(target.Count("run/force")).IsEqualTo(end == "precheck-deadline" ? 0 : 1);
         await Assert.That(target.Count("run/status")).IsEqualTo(1);

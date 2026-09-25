@@ -15,8 +15,6 @@ public sealed class ExecutionAssetTests
         await Assert.That(asset.Content().SequenceEqual(File.ReadAllBytes(Path.Combine(Source, "software-change-pr-codex-gateway.json")))).IsTrue();
         await Assert.That(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "execution-assets", "approval.json"))
             .SequenceEqual(File.ReadAllBytes(Path.Combine(Source, "approval.json")))).IsTrue();
-        await Assert.That(asset.Binding).IsEqualTo(new ExecutionAssetBinding("zeroshot 10.3.0",
-            "054ad3fd6c763b98d12f5b2e90830b97116561ad", "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06"));
     }
 
     [Test]

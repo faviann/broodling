@@ -7,8 +7,6 @@ namespace Broodling;
 
 public sealed partial class BroodlingStore
 {
-    internal const string HttpProtocol = "zeroshot.native-v2-target/v2";
-
     /// <summary>
     /// Freeze one complete, secret-free stock DirectTarget request for an HTTP Attempt, with no
     /// target contact or dispatch credentials. The prepared record is the preparation fact: it
@@ -56,7 +54,7 @@ public sealed partial class BroodlingStore
             INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state, intended_run_id,
                 asset_sha256, binding_json) VALUES ($p0, 'http.v1', $p1, $p2, 'prepared', $p3, $p4, $p5)
             """, transaction, attemptId, HttpSubmissionKey(attemptId), HttpRequest(attempt, transaction, intended, asset),
-            intended, asset.Sha256, HttpBinding(attempt, directOrigin, resultOrigin!, asset).ToJsonString());
+            intended, asset.Sha256, HttpBinding(attempt, directOrigin, resultOrigin!).ToJsonString());
         var result = ReadSubmission(attemptId, transaction)!;
         transaction.Commit();
         return result;
@@ -170,7 +168,7 @@ public sealed partial class BroodlingStore
         if (record.Format != NativeSubmission.Http || asset is null || record.AssetSha256 != asset.Sha256
             || record.IntendedRunId is null || record.SubmissionKey != HttpSubmissionKey(attempt.AttemptId)
             || DirectTargetExchange.CanonicalOrigin(origin) is null || !ValidResultOrigin(resultOrigin, work)
-            || !JsonNode.DeepEquals(binding, HttpBinding(attempt, origin, resultOrigin, asset))
+            || !JsonNode.DeepEquals(binding, HttpBinding(attempt, origin, resultOrigin))
             || HttpRequest(attempt, transaction, record.IntendedRunId, asset) != record.RequestJson)
             throw RetainedDiffers();
     }
@@ -190,8 +188,6 @@ public sealed partial class BroodlingStore
     private string HttpRequest(AttemptRecord attempt, SqliteTransaction transaction, string intendedRunId, ExecutionAsset asset)
     {
         var (task, work, authorization) = AdmittedTask(attempt, transaction);
-        if (authorization.Mode != "pull_request")
-            throw new SubmissionNotReady("An HTTP Attempt requires authorized pull-request delivery.");
         return new JsonObject
         {
             ["runId"] = intendedRunId,
@@ -211,13 +207,13 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>Broodling-only retention facts: never sent, never secrets.</summary>
-    private static JsonObject HttpBinding(AttemptRecord attempt, string origin, string resultOrigin, ExecutionAsset asset) => new()
+    private static JsonObject HttpBinding(AttemptRecord attempt, string origin, string resultOrigin) => new()
     {
-        ["protocol"] = HttpProtocol, ["origin"] = origin, ["repository"] = attempt.B1.Repository, ["resultOrigin"] = resultOrigin,
+        ["protocol"] = DirectTargetDiscovery.Kind, ["origin"] = origin, ["repository"] = attempt.B1.Repository, ["resultOrigin"] = resultOrigin,
         ["native"] = new JsonObject
         {
-            ["version"] = asset.Binding.NativeVersion, ["sourceRevision"] = asset.Binding.NativeSourceRevision,
-            ["linuxX64ExecutableSha256"] = asset.Binding.NativeExecutableSha256
+            ["version"] = NativeProfile.NativeVersion, ["sourceRevision"] = NativeProfile.NativeSourceRevision,
+            ["linuxX64ExecutableSha256"] = NativeProfile.NativeExecutableSha256
         }
     };
 
