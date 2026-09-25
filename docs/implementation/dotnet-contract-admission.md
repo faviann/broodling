@@ -9,7 +9,7 @@ and execution belong to their owning seams. See the
 
 ## Callable application path
 
-Use an explicitly initialized or upgraded .NET store, independently of HTTP:
+Use an explicitly initialized .NET store, independently of HTTP:
 
 ```csharp
 var application = new BroodlingApplication();
@@ -94,15 +94,8 @@ commands add no HTTP endpoints or deployment workflow.
 ## Schema and parity evidence
 
 The A2 slice introduced .NET schema version 2;
-[the current schema is 12](dotnet-identity-custody.md#state-lifecycle-and-persistence-decision),
-retaining H's schema-7 definitions, schema-8 Issue submission persistence,
-schema-9 installation pause, schema-10 RequestBundle custody and schema-11
-Issue submission cancellation facts.
-Ordinary open refuses historical versions.
-`UpgradeStore(path)` deliberately validates retained v1–v11 format/definition/
-manifests, adds missing storage in one transaction and preserves all earlier
-identity, submission, source and initialization facts. Repeating the explicit
-upgrade is idempotent. Python state and unknown schemas remain refused.
+[the fresh `broodling.application` schema](dotnet-identity-custody.md#state-lifecycle-and-persistence-decision)
+retains its definitions.
 
 On 22 September 2026, .NET SDK 10.0.401 ran
 `dotnet test --solution Broodling.sln --no-restore`: **60 passed, 0 failed,
@@ -111,8 +104,7 @@ reopen and exact operator inspection. `ContractPolicyTests` carries guidance
 and supported-profile refusal witnesses. `AdmissionPersistenceTests` uses real
 SQLite for write rollback, undecided recovery, immutable decisions, concurrent
 convergence, corruption refusal and observation during an active writer.
-`StoreLifecycleTests` upgrades [actual retained v1 state](../../tests/Broodling.Tests/Fixtures/README.md),
-checks every original fact row and admits/reopens afterward. Rollback tests inject
+Rollback tests inject
 SQLite failures inside the actual transactions; they do not claim process-kill
 coverage or reproduce the Python crash harness.
 

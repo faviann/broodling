@@ -12,10 +12,13 @@ from the future owner-approved operational switch.
 using var store = new BroodlingApplication().OpenStore(storePath);
 await store.StopAsync(attemptId, "Operator ended this Attempt", transport);
 var retirement = store.RetireAttempt(attemptId);
+// A no-effect worktree predecessor keeps its kind and the SDK bridge.
 var successor = store.AdmitRetry(attemptId, retryKey, workspaceRoot, profile);
 var prepared = store.PrepareRetry(attemptId, retryKey, workspaceRoot, profile);
 var submitted = await store.RetryAsync(attemptId, retryKey, workspaceRoot,
-    profile, transport, credentials);
+    profile, transport);
+// An HTTP predecessor's successor is prepared and dispatched as an HTTP Attempt.
+var httpSuccessor = store.AdmitRetry(httpAttemptId, retryKey);
 ```
 
 These are explicit operations, not an automatically executed sequence. Each
@@ -41,11 +44,15 @@ transport, `NativeTransportError`, or `OperationCanceledException`. These
 outcomes retain the cancellation/abandonment facts and neither means physical
 cessation nor grants replacement authority.
 
-The thin host command is `stop <store> <attempt-id> <reason> <python-executable>`.
-It returns the exact Attempt, submission, quarantine flag and safe handback even
-when stop fails. Cessation refusal returns exit 1; cancellation returns 130 and
-retains abandonment. The executable selects the pinned SDK bridge, not dispatch
-configuration or credentials. Safe undispatched stop needs no functioning SDK.
+The thin host command is `stop <store> <attempt-id> <reason> [python-executable]`.
+It returns the exact Attempt, a compact submission summary, the quarantine flag
+and safe handback even when stop fails. Cessation refusal returns exit 1;
+cancellation returns 130 and retains abandonment. The executable selects the
+pinned SDK bridge, not dispatch configuration or credentials, and only a
+LocalTarget record needs it: an HTTP record stops through its retained binding,
+and safe undispatched stop needs no functioning SDK. Without the executable, a
+dispatched LocalTarget record is refused before abandonment with
+`python_required`, because its native stop could not be requested.
 Submit still reacquires/proposes its explicit issue, then hands back abandonment;
 resume/status/history inspect retained facts without automatic replacement.
 `QuarantinedAttemptIds` identifies every dispatched Attempt, even if current.
@@ -61,13 +68,44 @@ Unknown dispatched identity is never discovered by replay. Success,
 `force_stopped`, `runtime_lost`, transport failure and cancellation grant no
 retirement/replacement authority. Native labels are not cessation receipts.
 
-Safe proof requires submission absent or merely prepared, and either:
+An HTTP (`http.v1`) record routes on its retained format, ignores any bridge
+transport and needs no enclosure, credentials or source custody. A prepared
+record makes no target contact and keeps the `no_dispatch_intent` path below.
+Dispatch intent uses one 30-second
+[DirectTarget stop](zeroshot-native-integration.md#directtarget-run-status-reader).
+A correlated record forces its confirmed run. A dispatched but unacknowledged
+record first reads its intended run ID. Force is sent only when the projection
+matches the retained ID, title, repository, branch, B1 and size. Neither the
+read nor the force reply establishes correlation. Outcomes map to the existing
+surface:
+
+| DirectTarget outcome | Result after committed abandonment |
+| --- | --- |
+| Terminal result from force or its polling | `CessationUnconfirmed` with `NativeStopRequested = true`; still no physical cessation proof |
+| No force sent (unknown, foreign, malformed or unavailable precheck; setup failure) | `CessationUnconfirmed` with `NativeStopRequested = false` and the fixed kind in its message |
+| Force possibly sent, outcome uncertain (timeout, transport loss, malformed reply) | `NativeTransportError` with the fixed kind, such as `TimeoutError` |
+| Caller cancellation | `OperationCanceledException` |
+
+Force is never reissued automatically. A later explicit Stop may address an
+intended run that was unknown earlier, for example after delayed acceptance.
+Every outcome leaves dispatch intent quarantined.
+`StopAsync(attemptId, reason, transport: null)` is also the late-acknowledgement
+stop path for abandoned HTTP work: abandonment is idempotent, and routing follows
+the retained record. The thin host `stop` command still selects the bridge;
+HTTP operator routing follows separately.
+
+Safe proof requires submission absent or merely prepared, and one of:
 
 - no enclosure and no provisioning acknowledgment (`never_materialized`);
-- an owned existing enclosure and provisioning acknowledgment (`never_dispatched`).
+- an owned existing enclosure and provisioning acknowledgment (`never_dispatched`);
+- an HTTP resource-kind Attempt (`no_dispatch_intent`), which owns no local
+  resource to inspect.
 
 A marker alone, an actual checkout without durable acknowledgment, or a missing
-acknowledged enclosure cannot establish safe cessation. Proof commits under the
+acknowledged enclosure cannot establish safe cessation. The HTTP proof rests on
+abandonment plus the absence of any committed dispatch intent, checked under the
+same writer; a missing directory, unknown run or failed request never supplies
+it. SQL ties each basis to its resource kind. Proof commits under the
 SQLite writer after abandonment excludes queued provisioners/new dispatch.
 An orphan provisioner's unacknowledged host state remains ambiguous and refused.
 
@@ -84,7 +122,9 @@ inherits that same lock description; parent disposal never unlocks it. Retiremen
 acknowledgment follows both administrative commands. Caller death after removal
 loses acknowledgment; replay recognizes missing owned path/branch and finishes.
 A surviving Git child blocks followers before settled inspection/acknowledgment.
-There is no execution supervisor or native cleanup mechanism.
+There is no execution supervisor or native cleanup mechanism. Retiring an HTTP
+Attempt only acknowledges its retained proof under the writer: no filesystem or
+Git mutation, and B1/accepted pins, source and history remain.
 
 ## Explicit replacement and schema
 
@@ -98,7 +138,12 @@ A deferred FK prevents lineage-only commits; triggers check safe predecessor,
 original bindings and allocation. Same key/parameters converge across callers
 and reopen. Changed predecessor/root/target or a second predecessor key refuses.
 An old key returns its historical successor after replacement without reviving
-authority. Provision/prepare/dispatch independently guard currentness. Direct
+authority. A successor keeps its predecessor's resource kind: an HTTP
+predecessor takes `AdmitRetry(predecessorId, retryKey)` and its successor also
+has no local directory. Its retry records no root or target; the successor's own
+`PrepareHttpSubmission` freezes its target binding and a new intended run ID,
+also while paused. A prepared-only HTTP record keeps the `no_dispatch_intent`
+basis; any later phase quarantines. Provision/prepare/dispatch independently guard currentness. Direct
 `PrepareSubmission` enforces the frozen retry target too. Dispatched retry
 recovery reuses F's correlation seam without reprovisioning candidate material.
 
@@ -106,15 +151,15 @@ H integrates with G in historical schema **7**, retaining the exact G schema-6
 DDL and all v1–v6 definition hashes. Issue-submission persistence extends the
 current schema to **8**, retaining those definitions; schema **9** adds
 the persisted installation pause gate, schema **10** adds RequestBundle capture,
-schema **11** adds immutable Issue submission cancellation facts, and current
-schema **12** adds service-owned repository preparation. Recognized older .NET stores require
-deliberate atomic upgrades and ordinary open refuses old schemas. Safe
+schema **11** adds immutable Issue submission cancellation facts, and schema
+**12** adds service-owned repository preparation. The fresh
+`broodling.application` schema retains these definitions
+([state lifecycle](dotnet-identity-custody.md)). Safe
 replacement allocation and preparation remain permitted while paused, but
 replacement dispatch still requires explicit release.
 Retirement/retry facts resist update, delete and `INSERT OR REPLACE`; SQL refuses
 dispatched cleanup authority and missing/changed retry submission targets.
-No Python database/import compatibility was added. Authentic G6 upgrade evidence
-retains completed and abandoned Attempts alongside all earlier facts. G's
+No Python database/import compatibility was added. G's
 completed-Work-Unit refusal remains in admission/retry/API/SQL, with completed-Attempt
 abandonment refusal, factual current-authority-loss guard and Attempt
 `INSERT OR REPLACE` protection. H replaces only
@@ -133,10 +178,7 @@ constructing the fixture; every guard is restored before testing safe retry.
 `RetirementProcessTests` drives real SQLite/Git with the test-only caller: SIGKILL
 before/after retirement removal, orphan exclusion, premature retry refusal and
 retry allocation/preparation transaction deaths. `InvocationTests` adds one
-composed stop/quarantine/abandonment handback. `StoreLifecycleTests` compares all
-old facts through authentic v1–v8 upgrades, including completion, currentness,
-request/run, provisioning, abandonment and source/Contract/B1 facts. G's authentic
-F schema-5 prepared fixture remains unchanged.
+composed stop/quarantine/abandonment handback.
 
 Before G integration, on 22 September 2026, `dotnet test --solution Broodling.sln` passed **238 tests,
 0 failed, 0 skipped**, using SDK 10.0.401, runtime 10.0.12 and TUnit 1.68.17.

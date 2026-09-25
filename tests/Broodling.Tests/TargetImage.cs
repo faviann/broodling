@@ -1,0 +1,70 @@
+using System.Diagnostics;
+using TUnit.Core;
+
+namespace Broodling.Tests;
+
+/// <summary>
+/// The actual DirectTarget image built from the pinned SDK's native binary, and its controlled
+/// provider/forge layer. Each is built once per test run and removed afterwards.
+/// </summary>
+internal static class TargetImage
+{
+    internal static readonly Lazy<Task<string>> Direct = new(BuildDirect);
+    internal static readonly Lazy<Task<string>> Controlled = new(BuildControlled);
+
+    private static async Task<string> BuildDirect()
+    {
+        var context = Path.Combine(Path.GetTempPath(), "broodling-104-image-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(context);
+        try
+        {
+            var binary = await Run(NativeFixture.Python, "-c", "import pathlib,zeroshot; print(pathlib.Path(zeroshot.__file__).parent / '_bin' / 'zeroshot')");
+            RequireSuccess(binary);
+            File.Copy(binary.Output.Trim(), Path.Combine(context, "zeroshot"));
+            foreach (var name in new[] { "DirectTarget.Dockerfile", "direct-target-entrypoint.sh" })
+                File.Copy(Path.Combine(NativeFixture.RepositoryRoot, "deployment", name), Path.Combine(context, name));
+            var tag = "broodling-startup-test:" + Guid.NewGuid().ToString("N");
+            RequireSuccess(await DockerCommand("build", "--tag", tag, "--file", Path.Combine(context, "DirectTarget.Dockerfile"), context));
+            return tag;
+        }
+        finally { Directory.Delete(context, true); }
+    }
+
+    private static async Task<string> BuildControlled()
+    {
+        var tag = "broodling-stock-target-test:" + Guid.NewGuid().ToString("N");
+        RequireSuccess(await DockerCommand("build", "--tag", tag, "--build-arg", "BASE=" + await Direct.Value,
+            Path.Combine(NativeFixture.RepositoryRoot, "tests", "fixtures", "stock-target")));
+        return tag;
+    }
+
+    [After(Assembly)]
+    public static async Task RemoveImages()
+    {
+        foreach (var image in new[] { Controlled, Direct })
+            if (image.IsValueCreated && image.Value.IsCompletedSuccessfully)
+                RequireSuccess(await DockerCommand("image", "rm", await image.Value));
+    }
+
+    internal sealed record Result(int Code, string Output, string Error);
+    internal static Task<Result> DockerCommand(params string[] arguments) => Run("docker", arguments);
+    internal static void RequireSuccess(Result result)
+    {
+        if (result.Code != 0) throw new InvalidOperationException($"Command exited {result.Code}: {result.Output}{result.Error}");
+    }
+    private static async Task<Result> Run(string executable, params string[] arguments)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        var start = new ProcessStartInfo(executable) { RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        using var process = Process.Start(start)!;
+        try
+        {
+            var output = process.StandardOutput.ReadToEndAsync(timeout.Token);
+            var error = process.StandardError.ReadToEndAsync(timeout.Token);
+            await process.WaitForExitAsync(timeout.Token);
+            return new(process.ExitCode, await output, await error);
+        }
+        finally { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+    }
+}

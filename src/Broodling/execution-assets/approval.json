@@ -1,0 +1,43 @@
+{
+  "kind": "broodling.execution-asset-approval/v1",
+  "asset": {
+    "file": "software-change-pr-codex-gateway.json",
+    "bytes": 77069,
+    "sha256": "10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8"
+  },
+  "native": {
+    "version": "zeroshot 10.3.0",
+    "sourceRevision": "054ad3fd6c763b98d12f5b2e90830b97116561ad",
+    "linuxX64ExecutableSha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06"
+  },
+  "policy": {
+    "workflow": "software-change",
+    "delivery": "pull_request",
+    "harness": "codex",
+    "provider": "gateway",
+    "model": "gpt-5.6-sol",
+    "effort": "medium",
+    "size": "small",
+    "sessionScope": "execution",
+    "connections": {
+      "gateway": ["GATEWAY_API_KEY", "GATEWAY_BASE_URL"],
+      "github": ["GH_TOKEN"]
+    },
+    "gatewayBaseUrl": "https://cliproxy.local.faviann.com/v1"
+  },
+  "generation": {
+    "sdk": "the-open-engine-zeroshot 10.3.0.post1",
+    "sdkWheelSha256": "f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9",
+    "recipe": "generate.sh",
+    "command": ["zeroshot", "profile", "set", "NAME", "--template", "software-change", "--delivery", "pull_request", "--uniform-runtime-config", "UNIFORM_RUNTIME_JSON"],
+    "uniformRuntime": {
+      "harness": "codex",
+      "provider": "gateway",
+      "model": "gpt-5.6-sol",
+      "effort": "medium",
+      "size": "small",
+      "sessionScope": "execution"
+    },
+    "format": "{graph, runtime} from `zeroshot profile show NAME`, Python json.dumps(indent=2, sort_keys=True) plus a final newline"
+  }
+}

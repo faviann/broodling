@@ -5,29 +5,15 @@ namespace Broodling;
 
 internal static class StoreSchema
 {
-    internal const string Format = "broodling.dotnet";
-    internal const int Version = 12;
+    // Fresh-state identity for the HTTP integration. Pre-transition `broodling.dotnet`
+    // schemas are refused unchanged, never upgraded.
+    internal const string Format = "broodling.application";
+    internal const int Version = 1;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
-    internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
+    internal const string Sql = IdentitySql + "\n" + AdmissionSql + "\n" + AttemptSql + "\n" + ProvisioningSql
+        + "\n" + DispatchSql + "\n" + CompletionSql + "\n" + RetirementSql + "\n" + IssueSubmissionSql
+        + "\n" + InstallationSql + "\n" + RequestBundleSql + "\n" + CancellationSql + "\n" + RepositoryPreparationSql;
 
-    internal static string VersionTwoDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionTwoSql));
-    internal const string VersionTwoSql = VersionOneSql + "\n" + AdmissionSql;
-    internal static string VersionThreeDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionThreeSql));
-    internal const string VersionThreeSql = VersionTwoSql + "\n" + AttemptSql;
-    internal static string VersionFourDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionFourSql));
-    internal const string VersionFourSql = VersionThreeSql + "\n" + ProvisioningSql;
-    internal static string VersionFiveDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionFiveSql));
-    internal const string VersionFiveSql = VersionFourSql + "\n" + DispatchSql;
-    internal static string VersionSixDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionSixSql));
-    internal const string VersionSixSql = VersionFiveSql + "\n" + CompletionSql;
-    internal static string VersionSevenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionSevenSql));
-    internal const string VersionSevenSql = VersionSixSql + "\n" + RetirementSql;
-    internal static string VersionEightDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionEightSql));
-    internal const string VersionEightSql = VersionSevenSql + "\n" + IssueSubmissionSql;
-    internal const string VersionNineSql = VersionEightSql + "\n" + InstallationSql;
-    internal static string VersionNineDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionNineSql));
-    internal const string VersionTenSql = VersionNineSql + "\n" + RequestBundleSql;
-    internal static string VersionTenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionTenSql));
     internal const string CancellationSql = """
         CREATE TABLE issue_submission_cancellations (
             submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
@@ -77,12 +63,6 @@ internal static class StoreSchema
         )) OR (OLD.state = 'cancelled' AND NEW.state <> 'cancelled')
         BEGIN SELECT RAISE(ABORT, 'Issue submission cancellation requires an immutable cancellation fact'); END;
         """;
-    internal const string VersionElevenSql = VersionTenSql + "\n" + CancellationSql;
-    internal static string VersionElevenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionElevenSql));
-    internal const string VersionTwelveSql = VersionElevenSql + "\n" + RepositoryPreparationSql;
-    internal static string VersionTwelveDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionTwelveSql));
-    internal const string Sql = VersionTwelveSql;
-
     internal const string IssueSubmissionSql = """
         CREATE TABLE issue_submissions (
             submission_id TEXT PRIMARY KEY,
@@ -241,18 +221,18 @@ internal static class StoreSchema
               AND a.work_unit_id = NEW.work_unit_id AND c.work_unit_id = a.work_unit_id
               AND a.contract_revision_id = NEW.contract_revision_id AND d.outcome = 'admitted'
               AND s.state = 'correlated' AND s.run_id = NEW.run_id
-              AND s.submission_key = 'broodling:dotnet:v1:' || a.attempt_id
-              AND json_extract(s.request_json, '$.submissionKey') = s.submission_key
               AND json_type(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects') = 'array'
               AND json_array_length(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects') = 1
               AND json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].kind') = 'pull_request'
-              AND json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
-                  = json_extract(s.request_json, '$.source.branch')
-              AND json_extract(s.request_json, '$.preset.name') = 'software-change'
-              AND json_extract(s.request_json, '$.preset.delivery') = 'pull_request'
               AND w.host = 'github.com'
-              AND json_extract(s.request_json, '$.source.repository') = w.owner || '/' || w.repository
-              AND json_extract(s.request_json, '$.source.revision') = a.b1_commit_oid
+              AND s.format = 'http.v1' AND s.run_id = s.intended_run_id
+              AND s.submission_key = 'broodling:http:v1:' || a.attempt_id
+              AND json_extract(s.request_json, '$.runId') = s.intended_run_id
+              AND json_extract(s.request_json, '$.submission.submissionKey') = s.submission_key
+              AND json_extract(s.request_json, '$.submission.source.branch')
+                  = json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
+              AND json_extract(s.request_json, '$.submission.source.repository') = w.owner || '/' || w.repository
+              AND json_extract(s.request_json, '$.submission.source.revision') = a.b1_commit_oid
               AND json_type(NEW.receipt_json) = 'object'
               AND (SELECT count(*) FROM json_each(NEW.receipt_json)) = 7
               AND (SELECT count(*) FROM json_each(NEW.receipt_json) WHERE type = 'text'
@@ -260,8 +240,9 @@ internal static class StoreSchema
               AND json_extract(NEW.receipt_json, '$.version') = 'v1'
               AND json_extract(NEW.receipt_json, '$.mode') = 'pr'
               AND json_extract(NEW.receipt_json, '$.outcome') = 'opened'
-              AND json_extract(NEW.receipt_json, '$.repository') = json_extract(s.request_json, '$.source.repository')
-              AND json_extract(NEW.receipt_json, '$.targetBranch') = json_extract(s.request_json, '$.source.branch')
+              AND json_extract(NEW.receipt_json, '$.repository') = w.owner || '/' || w.repository
+              AND json_extract(NEW.receipt_json, '$.targetBranch')
+                  = json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
               AND length(json_extract(NEW.receipt_json, '$.headRevision')) = 40
               AND json_extract(NEW.receipt_json, '$.headRevision') NOT GLOB '*[^0-9a-f]*'
               AND instr(json_extract(NEW.receipt_json, '$.headRevision'), char(0)) = 0
@@ -305,7 +286,7 @@ internal static class StoreSchema
     internal const string RetirementSql = """
         CREATE TABLE attempt_retirements (
             attempt_id TEXT PRIMARY KEY REFERENCES attempt_abandonments(attempt_id),
-            basis TEXT NOT NULL CHECK (basis IN ('never_materialized', 'never_dispatched')),
+            basis TEXT NOT NULL CHECK (basis IN ('never_materialized', 'never_dispatched', 'no_dispatch_intent')),
             ceased_at TEXT NOT NULL,
             retired_at TEXT
         ) STRICT;
@@ -315,6 +296,8 @@ internal static class StoreSchema
           OR EXISTS (SELECT 1 FROM native_submissions WHERE attempt_id = NEW.attempt_id AND state <> 'prepared')
           OR (NEW.basis = 'never_materialized' AND EXISTS (SELECT 1 FROM worktree_provisions WHERE attempt_id = NEW.attempt_id))
           OR (NEW.basis = 'never_dispatched' AND NOT EXISTS (SELECT 1 FROM worktree_provisions WHERE attempt_id = NEW.attempt_id))
+          OR NOT EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id
+            AND (resource_kind = 'http') = (NEW.basis = 'no_dispatch_intent'))
         BEGIN SELECT RAISE(ABORT, 'retirement requires abandoned never-dispatched history'); END;
         CREATE TRIGGER retirement_stable BEFORE UPDATE ON attempt_retirements
         WHEN OLD.attempt_id <> NEW.attempt_id OR OLD.basis <> NEW.basis OR OLD.ceased_at <> NEW.ceased_at
@@ -327,10 +310,11 @@ internal static class StoreSchema
             retry_key TEXT PRIMARY KEY CHECK (length(trim(retry_key)) > 0),
             predecessor_id TEXT NOT NULL UNIQUE REFERENCES attempt_retirements(attempt_id),
             attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(attempt_id) DEFERRABLE INITIALLY DEFERRED,
-            workspace_root TEXT NOT NULL,
-            target_json TEXT NOT NULL CHECK (json_valid(target_json) AND json_type(target_json) = 'object'),
+            workspace_root TEXT,
+            target_json TEXT CHECK (json_valid(target_json) AND json_type(target_json) = 'object'),
             requested_at TEXT NOT NULL,
-            CHECK (predecessor_id <> attempt_id)
+            CHECK (predecessor_id <> attempt_id),
+            CHECK ((workspace_root IS NULL) = (target_json IS NULL))
         ) STRICT;
         CREATE TRIGGER retry_requires_retirement BEFORE INSERT ON attempt_retries
         WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE retry_key = NEW.retry_key
@@ -360,13 +344,15 @@ internal static class StoreSchema
             WHERE r.attempt_id = NEW.attempt_id AND NEW.work_unit_id = p.work_unit_id
               AND NEW.contract_revision_id = p.contract_revision_id AND NEW.b1_repository = p.b1_repository
               AND NEW.b1_commit_oid = p.b1_commit_oid AND NEW.b1_material_sha256 = p.b1_material_sha256
-              AND NEW.b1_requested_revision = p.b1_requested_revision AND NEW.workspace_root = r.workspace_root
-              AND NEW.enclosure = r.workspace_root || '/' || NEW.attempt_id
-              AND NEW.worktree_path = NEW.enclosure || '/worktree' AND NEW.branch = 'broodling/' || NEW.attempt_id
+              AND NEW.b1_requested_revision = p.b1_requested_revision AND NEW.resource_kind = p.resource_kind
+              AND ((NEW.resource_kind = 'http' AND r.workspace_root IS NULL)
+                OR (NEW.resource_kind = 'worktree' AND NEW.workspace_root = r.workspace_root
+                  AND NEW.enclosure = r.workspace_root || '/' || NEW.attempt_id
+                  AND NEW.worktree_path = NEW.enclosure || '/worktree' AND NEW.branch = 'broodling/' || NEW.attempt_id))
         )
         BEGIN SELECT RAISE(ABORT, 'replacement must preserve original B1 and chosen allocation'); END;
         CREATE TRIGGER retry_submission_target BEFORE INSERT ON native_submissions
-        WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id
+        WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id AND target_json IS NOT NULL
             AND json(target_json) IS NOT json_extract(NEW.request_json, '$.target'))
         BEGIN SELECT RAISE(ABORT, 'replacement must preserve its chosen target'); END;
         """;
@@ -379,28 +365,78 @@ internal static class StoreSchema
         ) STRICT;
         """;
 
+    // One row per Attempt is the single source of dispatch-intent truth for every format:
+    // `state <> 'prepared'` means intent was committed. `bridge` rows belong to provisioned
+    // worktree Attempts; `http.v1` rows to HTTP Attempts, with a separate intended identity,
+    // confirmed `run_id` and monotonic replay block instead of an absorbing `blocked` state.
     internal const string DispatchSql = """
+        CREATE TABLE execution_assets (
+            asset_sha256 TEXT PRIMARY KEY CHECK (length(asset_sha256) = 64 AND asset_sha256 NOT GLOB '*[^0-9a-f]*'),
+            content BLOB NOT NULL
+        ) STRICT;
+        CREATE TRIGGER execution_assets_no_update BEFORE UPDATE ON execution_assets
+        BEGIN SELECT RAISE(ABORT, 'execution asset content is immutable'); END;
+        CREATE TRIGGER execution_assets_no_delete BEFORE DELETE ON execution_assets
+        BEGIN SELECT RAISE(ABORT, 'execution asset content is durable'); END;
+
         CREATE TABLE native_submissions (
-            attempt_id TEXT PRIMARY KEY REFERENCES worktree_provisions(attempt_id),
+            attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
+            format TEXT NOT NULL CHECK (format IN ('bridge', 'http.v1')),
             submission_key TEXT NOT NULL UNIQUE,
             request_json TEXT NOT NULL CHECK (json_valid(request_json)),
             state TEXT NOT NULL CHECK (state IN ('prepared', 'dispatched', 'correlated', 'blocked')),
             run_id TEXT UNIQUE,
-            CHECK ((state = 'correlated' AND run_id IS NOT NULL AND length(trim(run_id)) > 0)
-                OR (state <> 'correlated' AND run_id IS NULL))
+            intended_run_id TEXT UNIQUE CHECK (intended_run_id GLOB
+                '[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-7[0-9a-f][0-9a-f][0-9a-f]-[89ab][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'),
+            replay_blocked_reason TEXT CHECK (replay_blocked_reason = 'submission_conflict'),
+            asset_sha256 TEXT REFERENCES execution_assets(asset_sha256),
+            binding_json TEXT CHECK (json_valid(binding_json) AND json_type(binding_json) = 'object'),
+            CHECK ((format = 'bridge' AND intended_run_id IS NULL AND replay_blocked_reason IS NULL
+                    AND asset_sha256 IS NULL AND binding_json IS NULL
+                    AND ((state = 'correlated' AND run_id IS NOT NULL AND length(trim(run_id)) > 0)
+                        OR (state <> 'correlated' AND run_id IS NULL)))
+                OR (format = 'http.v1' AND state <> 'blocked' AND intended_run_id IS NOT NULL
+                    AND asset_sha256 IS NOT NULL AND binding_json IS NOT NULL
+                    AND (replay_blocked_reason IS NULL OR state <> 'prepared')
+                    AND ((state = 'correlated' AND run_id IS intended_run_id)
+                        OR (state <> 'correlated' AND run_id IS NULL))))
         ) STRICT;
         CREATE TRIGGER submission_requires_current BEFORE INSERT ON native_submissions
         WHEN NEW.state <> 'prepared' OR NOT EXISTS (
-            SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1)
-        BEGIN SELECT RAISE(ABORT, 'preparation requires current provisioned authority'); END;
+            SELECT 1 FROM attempts AS a
+            WHERE a.attempt_id = NEW.attempt_id AND a.is_current = 1
+              AND ((NEW.format = 'bridge' AND a.resource_kind = 'worktree'
+                    AND EXISTS (SELECT 1 FROM worktree_provisions WHERE attempt_id = NEW.attempt_id))
+                OR (NEW.format = 'http.v1' AND a.resource_kind = 'http'
+                    AND NEW.submission_key = 'broodling:http:v1:' || a.attempt_id
+                    AND (SELECT count(*) FROM json_each(NEW.request_json)) = 2
+                    AND json_extract(NEW.request_json, '$.runId') = NEW.intended_run_id
+                    AND json_extract(NEW.request_json, '$.submission.submissionKey') = NEW.submission_key
+                    AND json_extract(NEW.request_json, '$.submission.source.revision') = a.b1_commit_oid
+                    AND json_extract(NEW.binding_json, '$.repository') = a.b1_repository))
+        )
+        BEGIN SELECT RAISE(ABORT, 'preparation requires current authority for its resource kind'); END;
+        CREATE TRIGGER submission_intended_exclusive BEFORE INSERT ON native_submissions
+        WHEN EXISTS (SELECT 1 FROM native_submissions WHERE run_id = NEW.intended_run_id)
+        BEGIN SELECT RAISE(ABORT, 'intended run identity names another Attempt''s execution'); END;
         CREATE TRIGGER submission_binding_stable BEFORE UPDATE ON native_submissions
-        WHEN OLD.attempt_id <> NEW.attempt_id OR OLD.submission_key <> NEW.submission_key
-          OR OLD.request_json <> NEW.request_json
+        WHEN OLD.attempt_id <> NEW.attempt_id OR OLD.format <> NEW.format
+          OR OLD.submission_key <> NEW.submission_key OR OLD.request_json <> NEW.request_json
+          OR OLD.intended_run_id IS NOT NEW.intended_run_id OR OLD.asset_sha256 IS NOT NEW.asset_sha256
+          OR OLD.binding_json IS NOT NEW.binding_json
+          OR (OLD.replay_blocked_reason IS NOT NULL AND OLD.replay_blocked_reason IS NOT NEW.replay_blocked_reason)
           OR NOT ((OLD.state = 'prepared' AND NEW.state = 'dispatched')
-            OR (OLD.state = 'dispatched' AND NEW.state IN ('correlated', 'blocked')))
+            OR (OLD.state = 'dispatched' AND NEW.state = 'correlated')
+            OR (OLD.format = 'bridge' AND OLD.state = 'dispatched' AND NEW.state = 'blocked')
+            OR (OLD.format = 'http.v1' AND OLD.state = NEW.state AND OLD.run_id IS NEW.run_id
+                AND OLD.replay_blocked_reason IS NULL AND NEW.replay_blocked_reason IS NOT NULL))
         BEGIN SELECT RAISE(ABORT, 'frozen dispatch and correlation are irreversible'); END;
+        CREATE TRIGGER correlation_exclusive BEFORE UPDATE OF run_id ON native_submissions
+        WHEN NEW.run_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM native_submissions WHERE intended_run_id = NEW.run_id AND attempt_id <> NEW.attempt_id)
+        BEGIN SELECT RAISE(ABORT, 'confirmed run identity is another Attempt''s intended execution'); END;
         CREATE TRIGGER dispatch_requires_current BEFORE UPDATE ON native_submissions
-        WHEN NEW.state = 'dispatched' AND NOT EXISTS (
+        WHEN NEW.state = 'dispatched' AND OLD.state <> 'dispatched' AND NOT EXISTS (
             SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1)
         BEGIN SELECT RAISE(ABORT, 'dispatch requires current authority'); END;
         CREATE TRIGGER submissions_retained BEFORE DELETE ON native_submissions
@@ -413,7 +449,8 @@ internal static class StoreSchema
             provisioned_at TEXT NOT NULL
         ) STRICT;
         CREATE TRIGGER provision_requires_current BEFORE INSERT ON worktree_provisions
-        WHEN NOT EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1)
+        WHEN NOT EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1
+            AND resource_kind = 'worktree')
         BEGIN SELECT RAISE(ABORT, 'provisioning requires current Attempt authority'); END;
         CREATE TRIGGER provisions_no_update BEFORE UPDATE ON worktree_provisions
         BEGIN SELECT RAISE(ABORT, 'first provisioning acknowledgment is immutable'); END;
@@ -421,8 +458,7 @@ internal static class StoreSchema
         BEGIN SELECT RAISE(ABORT, 'provisioning history is immutable'); END;
         """;
 
-    // Separate format and version space from the Python executable reference.
-    internal const string VersionOneSql = """
+    internal const string IdentitySql = """
         CREATE TABLE store_metadata (
             singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
             format TEXT NOT NULL,
@@ -552,6 +588,7 @@ internal static class StoreSchema
         """;
 
     // Allocation is part of the Attempt row: neither can commit without the other.
+    // An `http` Attempt owns no local enclosure, worktree or branch; its kind is stored, never inferred.
     internal const string AttemptSql = """
         CREATE TABLE attempts (
             attempt_id TEXT PRIMARY KEY,
@@ -562,12 +599,17 @@ internal static class StoreSchema
             b1_commit_oid TEXT NOT NULL CHECK (length(b1_commit_oid) = 40 AND b1_commit_oid NOT GLOB '*[^0-9a-f]*'),
             b1_material_sha256 TEXT NOT NULL CHECK (length(b1_material_sha256) = 64),
             b1_requested_revision TEXT NOT NULL,
-            workspace_root TEXT NOT NULL,
-            enclosure TEXT NOT NULL UNIQUE,
-            worktree_path TEXT NOT NULL UNIQUE,
-            branch TEXT NOT NULL,
+            workspace_root TEXT,
+            enclosure TEXT UNIQUE,
+            worktree_path TEXT UNIQUE,
+            branch TEXT,
             admitted_at TEXT NOT NULL,
-            UNIQUE (b1_repository, branch)
+            resource_kind TEXT NOT NULL,
+            UNIQUE (b1_repository, branch),
+            CHECK ((resource_kind = 'worktree' AND workspace_root IS NOT NULL AND enclosure IS NOT NULL
+                    AND worktree_path IS NOT NULL AND branch IS NOT NULL)
+                OR (resource_kind = 'http' AND workspace_root IS NULL AND enclosure IS NULL
+                    AND worktree_path IS NULL AND branch IS NULL))
         ) STRICT;
         CREATE UNIQUE INDEX one_current_attempt ON attempts(work_unit_id) WHERE is_current = 1;
         CREATE INDEX attempts_by_revision ON attempts(contract_revision_id);
@@ -598,9 +640,10 @@ internal static class StoreSchema
           OR OLD.b1_repository <> NEW.b1_repository OR OLD.b1_commit_oid <> NEW.b1_commit_oid
           OR OLD.b1_material_sha256 <> NEW.b1_material_sha256
           OR OLD.b1_requested_revision <> NEW.b1_requested_revision
-          OR OLD.workspace_root <> NEW.workspace_root OR OLD.enclosure <> NEW.enclosure
-          OR OLD.worktree_path <> NEW.worktree_path OR OLD.branch <> NEW.branch
-          OR OLD.admitted_at <> NEW.admitted_at OR OLD.is_current < NEW.is_current
+          OR OLD.workspace_root IS NOT NEW.workspace_root OR OLD.enclosure IS NOT NEW.enclosure
+          OR OLD.worktree_path IS NOT NEW.worktree_path OR OLD.branch IS NOT NEW.branch
+          OR OLD.admitted_at <> NEW.admitted_at OR OLD.resource_kind <> NEW.resource_kind
+          OR OLD.is_current < NEW.is_current
         BEGIN SELECT RAISE(ABORT, 'Attempt bindings are immutable and authority cannot be restored'); END;
         CREATE TRIGGER attempts_no_delete BEFORE DELETE ON attempts
         BEGIN SELECT RAISE(ABORT, 'Attempt history is immutable'); END;

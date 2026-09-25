@@ -33,6 +33,11 @@ internal sealed class NativeFixture : IDisposable
     }
     internal AttemptRecord Provision(BroodlingStore store) => store.ProvisionAttempt(Git.Admit(store).AttemptId);
     internal static ZeroshotTransport Transport() => new(Python);
+    /// <summary>A profile for paths that must refuse or hand back before the bridge would use it.</summary>
+    internal static NativeProfile Unused(string state) => new(state, new CodexProfile(Path.Combine(state, "real-codex"),
+        Path.Combine(state, "home"), Path.Combine(state, "codex-home"), Path.Combine(state, "launcher", "codex")));
+    /// <summary>A binding for bridge reconnect witnesses; the bridge uses only its locator and run ID.</summary>
+    internal static NativeRunBinding Run(NativeLocator locator, string runId) => new(locator, runId, "Broodling Attempt", "small", null);
     /// <summary>A shared initiation lock for direct transport calls outside a store dispatch.</summary>
     internal AdministrativeGitProcess.EnclosureLock DirectInitiation() =>
         AdministrativeGitProcess.EnclosureLock.Acquire(Path.Combine(Root, "direct-initiation.lock"), shared: true);
@@ -52,17 +57,18 @@ internal sealed class NativeFixture : IDisposable
 
 internal sealed class ControlledTransport : INativeTransport
 {
-    internal Func<string, IReadOnlyDictionary<string, string>, Task<string>> Submit { get; set; } = (_, _) => Task.FromResult("native-run");
+    internal Func<string, Task<string>> Submit { get; set; } = _ => Task.FromResult("native-run");
     internal int Calls { get; private set; }
     internal Func<NativeLocator, string, CancellationToken, Task<NativeResult>> Wait { get; set; } = (_, _, _) => throw new InvalidOperationException("Unexpected wait");
     internal int WaitCalls { get; private set; }
     internal Func<NativeLocator, string, CancellationToken, Task<NativeResult>> Stop { get; set; } = (_, _, _) => throw new InvalidOperationException("Unexpected stop");
     internal int StopCalls { get; private set; }
-    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default)
-    { Calls++; return Submit(requestJson, credentials); }
-    public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default)
-    { WaitCalls++; return Wait(locator, runId, cancellationToken); }
-    public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default)
-    { StopCalls++; return Stop(locator, runId, cancellationToken); }
-    public Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Unexpected status");
+    public Task<string> SubmitAsync(string requestJson, CancellationToken cancellationToken = default)
+    { Calls++; return Submit(requestJson); }
+    internal List<NativeRunBinding> Bindings { get; } = [];
+    public Task<NativeResult> WaitAsync(NativeRunBinding run, CancellationToken cancellationToken = default)
+    { WaitCalls++; Bindings.Add(run); return Wait(run.Locator, run.RunId, cancellationToken); }
+    public Task<NativeResult> StopAsync(NativeRunBinding run, CancellationToken cancellationToken = default)
+    { StopCalls++; Bindings.Add(run); return Stop(run.Locator, run.RunId, cancellationToken); }
+    public Task<NativeProgress> StatusAsync(NativeRunBinding run, TimeSpan bound, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Unexpected status");
 }

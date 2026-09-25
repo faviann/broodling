@@ -115,6 +115,22 @@ internal static class GitCustody
     internal static void Retain(StartingState state, AdministrativeGitProcess.EnclosureLock? enclosureLock = null) =>
         Pin(state.Repository, state.CommitOid, "refs/broodling/starting/" + state.CommitOid, enclosureLock);
 
+    /// <summary>
+    /// The exact retained B1 pin and its snapshot objects, checked without creating or repairing anything.
+    /// Absent, symbolic or conflicting pins and missing objects refuse.
+    /// </summary>
+    internal static void RequireRetained(string repository, string oid)
+    {
+        try
+        {
+            if (RetentionOid(repository, "refs/broodling/starting/" + oid) == oid
+                && Run(repository, ["rev-list", "--objects", "--no-walk", "--missing=error", oid]).ExitCode == 0)
+                return;
+        }
+        catch (UnsupportedStartingState) { }
+        throw new SubmissionNotReady("Exact B1 custody is unavailable in the retained common Git directory.");
+    }
+
     /// <summary>Delivery happens in the native target, so the accepted commit is fetched by exact ID when absent locally.</summary>
     internal static async Task RetainAcceptedAsync(string repository, string originUrl, string oid, CancellationToken cancellationToken)
     {

@@ -38,6 +38,13 @@ try
         await dispatchStore.DispatchAsync(args[2], profile, new ZeroshotTransport(args[8], args[9]));
         return 99;
     }
+    if (args[0] == "http-dispatch")
+    {
+        // The parent's controlled target decides where this caller is killed.
+        using var httpStore = new BroodlingApplication().OpenStore(args[1]);
+        await httpStore.DispatchHttpAsync(args[2], new DispatchCredentials("witness-github-token", NativeProfile.GatewayBaseUrl, "witness-gateway-key"));
+        return 99;
+    }
     if (args[0] == "repository-preparation-crash")
     {
         using var preparationStore = new BroodlingApplication().OpenStore(args[1]);
@@ -176,14 +183,14 @@ internal sealed class CrashTransport(INativeTransport inner, string mode) : INat
         Console.Out.Flush();
         Thread.Sleep(Timeout.Infinite); // Parent SIGKILL, not managed unwinding, exercises each durable boundary.
     }
-    public async Task<string> SubmitAsync(string request, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default)
+    public async Task<string> SubmitAsync(string request, CancellationToken cancellationToken = default)
     {
         if (mode == "before-call") Gate("before-call");
-        var id = await inner.SubmitAsync(request, credentials, cancellationToken);
+        var id = await inner.SubmitAsync(request, cancellationToken);
         if (mode == "after-accept") Gate(id);
         return id;
     }
-    public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => inner.WaitAsync(locator, runId, cancellationToken);
-    public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => inner.StopAsync(locator, runId, cancellationToken);
-    public Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound, CancellationToken cancellationToken = default) => inner.StatusAsync(locator, runId, bound, cancellationToken);
+    public Task<NativeResult> WaitAsync(NativeRunBinding run, CancellationToken cancellationToken = default) => inner.WaitAsync(run, cancellationToken);
+    public Task<NativeResult> StopAsync(NativeRunBinding run, CancellationToken cancellationToken = default) => inner.StopAsync(run, cancellationToken);
+    public Task<NativeProgress> StatusAsync(NativeRunBinding run, TimeSpan bound, CancellationToken cancellationToken = default) => inner.StatusAsync(run, bound, cancellationToken);
 }

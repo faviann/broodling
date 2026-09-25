@@ -18,38 +18,49 @@ public sealed class DispatchCredentials(string? githubToken, string? gatewayBase
     public override string ToString() => nameof(DispatchCredentials);
 }
 
-public sealed record NativeLocator(string Kind, string Address, string SdkVersion = NativeProfile.SdkVersion)
+/// <summary>
+/// Where a retained run lives. A bridge locator is <c>local</c> native state pinned to the bridge SDK;
+/// an HTTP DirectTarget binding is <c>direct</c> with no SDK, since its origin and retained protocol
+/// binding name the target.
+/// </summary>
+public sealed record NativeLocator(string Kind, string Address, string? SdkVersion = NativeProfile.SdkVersion)
 {
+    /// <summary>The bridge reaches only canonical LocalTarget state; DirectTarget never uses it.</summary>
     internal void Validate()
     {
         NativeProfile.RequireBundledRuntime();
-        if (SdkVersion != NativeProfile.SdkVersion || string.IsNullOrWhiteSpace(Address)
-            || Kind is not ("local" or "direct"))
+        if (SdkVersion != NativeProfile.SdkVersion || Kind != "local")
             throw new UnsupportedRuntime("The frozen native locator is unsupported.");
-        if (Kind == "local" && (!Path.IsPathFullyQualified(Address) || PhysicalPaths.Resolve(Address) != Address))
+        if (!Path.IsPathFullyQualified(Address) || PhysicalPaths.Resolve(Address) != Address)
             throw new UnsupportedRuntime("Native state must remain canonical.");
     }
     internal JsonObject Json() => new() { ["kind"] = Kind, ["address"] = Address, ["sdkVersion"] = SdkVersion };
     internal static NativeLocator Read(JsonNode value) => new((string)value["kind"]!, (string)value["address"]!, (string)value["sdkVersion"]!);
 }
 
-/// <summary>Fixed execution policy. There is no caller-selected model/runtime or arbitrary environment map.</summary>
+/// <summary>
+/// The pinned native release and gateway constants shared by both targets, and the fixed LocalTarget
+/// bridge policy for no-effect work: runtime, target environment and the explicit Codex profile.
+/// Authorized PR work uses the HTTP DirectTarget and its approved execution asset;
+/// <see cref="DispatchCredentials"/> carries its current secrets. There is no caller-selected
+/// model/runtime or arbitrary environment map.
+/// </summary>
 public sealed class NativeProfile
 {
     public const string SdkVersion = "10.3.0.post1";
     public const string NativeVersion = "zeroshot 10.3.0";
+    public const string NativeSourceRevision = "054ad3fd6c763b98d12f5b2e90830b97116561ad";
+    public const string NativeExecutableSha256 = "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06";
     public const string GatewayBaseUrl = "https://cliproxy.local.faviann.com/v1";
     internal static readonly string[] OperatingVariables = ["HOME", "CODEX_HOME", "LANG", "LC_ALL", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "USERPROFILE", "XDG_CACHE_HOME", "XDG_CONFIG_HOME"];
     private readonly string stateDirectory;
     private readonly string toolPath;
-    private readonly string? directOrigin;
-    private readonly CodexProfile? codex;
+    private readonly CodexProfile codex;
 
-    public NativeProfile(string stateDirectory, CodexProfile? codex = null, string? directOrigin = null, string? toolPath = null)
+    public NativeProfile(string stateDirectory, CodexProfile codex, string? toolPath = null)
     {
         this.stateDirectory = PhysicalPaths.Resolve(stateDirectory);
         this.codex = codex;
-        this.directOrigin = directOrigin;
         this.toolPath = toolPath ?? Environment.GetEnvironmentVariable("PATH") ?? "";
     }
 
@@ -62,63 +73,41 @@ public sealed class NativeProfile
     internal JsonObject Target(string delivery)
     {
         RequireBundledRuntime();
+        if (delivery != "none")
+            throw new UnsupportedRuntime("The bridge serves only no-effect LocalTarget work; authorized PR work uses the HTTP DirectTarget.");
         if (PhysicalPaths.Resolve(stateDirectory) != stateDirectory)
             throw new UnsupportedRuntime("Native state must remain canonical.");
         var environment = OperatingVariables.ToDictionary(name => name, _ => "");
         environment["PATH"] = toolPath;
-        JsonObject? identity = null;
-        if (delivery == "none")
-        {
-            if (codex is null) throw new UnsupportedRuntime("Local execution requires an explicit Codex profile.");
-            identity = codex.Identity();
-            foreach (var pair in codex.Environment(toolPath)) environment[pair.Key] = pair.Value;
-        }
-        else if (delivery != "pull_request" || string.IsNullOrWhiteSpace(directOrigin))
-            throw new UnsupportedRuntime("PR execution requires an explicit direct target.");
+        foreach (var pair in codex.Environment(toolPath)) environment[pair.Key] = pair.Value;
         return new()
         {
-            ["locator"] = new NativeLocator(delivery == "none" ? "local" : "direct", delivery == "none" ? stateDirectory : directOrigin!).Json(),
+            ["locator"] = new NativeLocator("local", stateDirectory).Json(),
             ["stateDirectory"] = stateDirectory,
             ["environment"] = new JsonObject(environment.Select(pair => KeyValuePair.Create<string, JsonNode?>(pair.Key, JsonValue.Create(pair.Value)))),
-            ["codexProfile"] = identity
+            ["codexProfile"] = codex.Identity()
         };
     }
 
-    internal static JsonObject Runtime(string delivery)
+    internal static JsonObject Runtime() => new()
     {
-        var runtime = new JsonObject
-        {
-            ["harness"] = "codex", ["provider"] = delivery == "none" ? "openai" : "gateway",
-            ["model"] = "gpt-5.6-sol", ["effort"] = "medium", ["size"] = "small", ["session_scope"] = "execution"
-        };
-        if (delivery == "none") runtime["connections"] = new JsonObject { ["profile"] = new JsonArray("BROODLING_REAL_CODEX", "BROODLING_PROFILE_HOME", "BROODLING_ISOLATED_CODEX_HOME") };
-        return runtime;
-    }
+        ["harness"] = "codex", ["provider"] = "openai", ["model"] = "gpt-5.6-sol", ["effort"] = "medium", ["size"] = "small",
+        ["session_scope"] = "execution",
+        ["connections"] = new JsonObject { ["profile"] = new JsonArray("BROODLING_REAL_CODEX", "BROODLING_PROFILE_HOME", "BROODLING_ISOLATED_CODEX_HOME") }
+    };
 
-    internal IReadOnlyDictionary<string, string> ValidateDispatch(JsonObject request, AttemptRecord attempt, DispatchCredentials? credentials)
+    internal void ValidateDispatch(NativeSubmission record, AttemptRecord attempt)
     {
-        var delivery = (string)request["preset"]!["delivery"]!;
-        if (!JsonNode.DeepEquals(request["target"], Target(delivery))
-            || !JsonNode.DeepEquals(request["runtime"], Runtime(delivery))
+        var request = JsonNode.Parse(record.RequestJson)!;
+        if (!JsonNode.DeepEquals(request["target"], Target(record.Frozen.Delivery))
+            || !JsonNode.DeepEquals(request["runtime"], Runtime())
             || (string?)request["preset"]!["name"] != "software-change")
             throw new SubmissionConflict("Execution policy differs from the frozen invocation.");
         foreach (var protectedPath in new[] { attempt.Allocation.WorktreePath, attempt.B1.Repository })
             if (PhysicalPaths.Contains(protectedPath, stateDirectory) || PhysicalPaths.Contains(stateDirectory, protectedPath))
                 throw new UnsupportedRuntime("Native state must be separate from candidate and shared Git.");
-        if (delivery == "none")
-        {
-            // Preserve the executable baseline's initial-home validation on ambiguous replay too.
-            codex!.Validate(attempt.Allocation.WorktreePath, toolPath);
-            return new Dictionary<string, string>();
-        }
-        var source = request["source"]!;
-        var branch = (string)source["branch"]!;
-        if (GitCustody.Run(attempt.Allocation.WorktreePath, ["check-ref-format", "--branch", branch]).ExitCode != 0
-            || branch.StartsWith("-", StringComparison.Ordinal))
-            throw new UnsupportedRuntime("The authorized target branch is invalid.");
-        if (GitHubOriginRepository((string)request["originUrl"]!) != (string)source["repository"]!)
-            throw new UnsupportedRuntime("The source origin must match the authorized GitHub repository.");
-        return credentials?.Environment() ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.");
+        // Preserve the executable baseline's initial-home validation on ambiguous replay too.
+        codex.Validate(attempt.Allocation.WorktreePath, toolPath);
     }
 
     // Git remotes are not work-reference input: a bare owner/name is a local path,

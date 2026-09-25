@@ -10,9 +10,9 @@ public static class InvocationCommands
     {
         if (!(args.Length == 10 && args[0] == "submit" || args.Length is >= 3 and <= 6 && args[0] == "resume"
             || args.Length is 3 or 4 && args[0] == "wait"
-            || args.Length == 5 && args[0] == "stop"))
+            || args.Length is 4 or 5 && args[0] == "stop"))
         {
-            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [python-executable] | stop <store> <attempt-id> <reason> <python-executable>");
+            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [python-executable] | stop <store> <attempt-id> <reason> [python-executable]");
             return 2;
         }
         try
@@ -21,20 +21,28 @@ public static class InvocationCommands
             if (args[0] == "wait")
             {
                 var completion = store.FindCompletion(args[2]);
-                if (completion is null)
-                {
-                    if (transport is null && args.Length < 4)
-                        throw new SubmissionNotReady("Waiting on an unretained result requires the pinned SDK Python executable.");
-                    completion = await store.WaitAsync(args[2], transport ?? new ZeroshotTransport(args[3]), cancellationToken);
-                }
+                // Only a LocalTarget bridge record needs the pinned SDK Python; the store routes on the retained record.
+                completion ??= await store.WaitAsync(args[2], transport ?? (args.Length == 4 ? new ZeroshotTransport(args[3]) : null),
+                    cancellationToken);
                 output.WriteLine(JsonSerializer.Serialize(completion, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return 0;
             }
             if (args[0] == "stop")
             {
+                // Without a bridge transport a LocalTarget run could be abandoned but never asked to stop.
+                if (transport is null && args.Length == 4
+                    && store.FindSubmission(args[2]) is { Format: NativeSubmission.Bridge, State: not "prepared" })
+                {
+                    error.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        error = "python_required",
+                        message = "Stopping a dispatched LocalTarget run requires the pinned SDK Python executable argument. The Attempt was not abandoned."
+                    }));
+                    return 1;
+                }
                 string? refusal = null;
                 var exitCode = 0;
-                try { await store.StopAsync(args[2], args[3], transport ?? new ZeroshotTransport(args[4]), cancellationToken); }
+                try { await store.StopAsync(args[2], args[3], transport ?? (args.Length == 5 ? new ZeroshotTransport(args[4]) : null), cancellationToken); }
                 catch (Exception exception)
                 {
                     refusal = exception is BroodlingException known ? known.Code : exception is OperationCanceledException ? "caller_detached" : "stop_failed";
@@ -44,9 +52,11 @@ public static class InvocationCommands
                 var submission = store.FindSubmission(args[2]);
                 output.WriteLine(JsonSerializer.Serialize(new
                 {
-                    attempt, submission, quarantined = submission is { State: not "prepared" }, error = refusal,
+                    attempt,
+                    submission = Summary(submission),
+                    quarantined = submission is { State: not "prepared" }, error = refusal,
                     message = attempt.Abandonment is null ? "Stop refused; inspect retained authority."
-                        : attempt.Retirement is null ? "Attempt abandoned. Cessation unconfirmed; retain the checkout and use operator containment. No automatic retry."
+                        : attempt.Retirement is null ? "Attempt abandoned. Cessation unconfirmed; retain its resources and use operator containment. No automatic retry."
                         : "Attempt abandoned with retained safe cessation proof. Retirement and replacement remain explicit operations."
                 }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return exitCode;
@@ -64,10 +74,7 @@ public static class InvocationCommands
                 if (args.Length < 4) throw new SubmissionNotReady("Dispatch configuration is required for uncorrelated resume.");
             }
             var configPath = args[0] == "submit" ? args[2] : args[3];
-            var config = InvocationConfiguration.Read(configPath);
-            CodexProfile? codex = config.RealCodex is null ? null : new(config.RealCodex, config.ProfileHome!, config.CodexHome!, config.Launcher!);
-            var profile = new NativeProfile(config.StateDirectory, codex, config.DirectOrigin);
-            var invocation = new Invocation(store, config.WorkspaceRoot, profile, transport ?? new ZeroshotTransport(config.PythonExecutable));
+            var invocation = new Invocation(store, InvocationConfiguration.Read(configPath).ToTarget(transport));
             var credentials = new DispatchCredentials(Environment.GetEnvironmentVariable("GH_TOKEN"),
                 Environment.GetEnvironmentVariable("GATEWAY_BASE_URL"), Environment.GetEnvironmentVariable("GATEWAY_API_KEY"));
             if (args[0] == "submit")
@@ -99,6 +106,22 @@ public static class InvocationCommands
         }
     }
 
-    private static void Write(AdmissionStatus status, TextWriter output) =>
-        output.WriteLine(JsonSerializer.Serialize(status, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+    /// <summary>
+    /// Handback output: retained status with each submission reduced to its status facts. The frozen
+    /// request (with an HTTP Attempt's whole asset) stays in the store; status/history show it in full.
+    /// </summary>
+    private static void Write(AdmissionStatus status, TextWriter output)
+    {
+        var handback = JsonSerializer.SerializeToNode(status, Json)!.AsObject();
+        handback["submissions"] = JsonSerializer.SerializeToNode(status.Submissions.Select(Summary), Json);
+        output.WriteLine(handback.ToJsonString());
+    }
+
+    private static object? Summary(NativeSubmission? submission) => submission is null ? null : new
+    {
+        submission.AttemptId, submission.Format, submission.State, submission.IntendedRunId, submission.RunId,
+        submission.ReplayBlockedReason
+    };
+
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 }

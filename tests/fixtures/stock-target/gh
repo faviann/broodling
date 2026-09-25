@@ -1,0 +1,67 @@
+#!/usr/bin/python3
+"""Controlled forge API: only the gh api calls native pull-request delivery makes."""
+import fcntl, json, os, subprocess, sys
+
+REPOSITORY = "acme/widget"
+PREFIX = f"repos/{REPOSITORY}/"
+STATE = "/forge/pulls.json"
+
+
+def revision(branch):
+    found = subprocess.run(["/usr/bin/git", "--git-dir=/forge/widget.git", "rev-parse", "--verify", "--quiet",
+                            f"refs/heads/{branch}^{{commit}}"], capture_output=True, text=True)
+    return found.stdout.strip() if found.returncode == 0 else None
+
+
+def pull(entry):
+    side = lambda branch: {"ref": branch, "sha": revision(branch), "repo": {"full_name": REPOSITORY}}
+    return {"number": entry["number"], "title": entry["title"], "body": entry["body"], "state": "open",
+            "merged": False, "merge_commit_sha": None, "base": side(entry["base"]), "head": side(entry["head"])}
+
+
+def reply(value):
+    print(json.dumps(value))
+    raise SystemExit(0)
+
+
+arguments = sys.argv[1:]
+if arguments[:1] != ["api"] or len(arguments) < 2:
+    raise SystemExit("unsupported gh command")
+path, method, fields = arguments[1], "GET", {}
+options = iter(arguments[2:])
+for option in options:
+    if option == "--method":
+        method = next(options)
+    elif option in ("-f", "-F"):
+        name, value = next(options).split("=", 1)
+        fields[name] = value
+with open("/forge/pulls.lock", "a") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    pulls = json.load(open(STATE)) if os.path.exists(STATE) else []
+    if path == PREFIX + "pulls" and method == "GET":
+        head = fields["head"].split(":", 1)[1]
+        reply([pull(entry) for entry in pulls if entry["head"] == head and entry["base"] == fields["base"]])
+    if path == PREFIX + "pulls" and method == "POST":
+        entry = {"number": len(pulls) + 1, **{name: fields[name] for name in ("title", "body", "head", "base")}}
+        with open(STATE + ".new", "w") as saved:
+            json.dump(pulls + [entry], saved)
+        os.replace(STATE + ".new", STATE)
+        reply(pull(entry))
+    if path.startswith(PREFIX + "git/ref/heads/"):
+        branch = path.removeprefix(PREFIX + "git/ref/heads/")
+        if revision(branch) is None:
+            sys.stderr.write("gh: Not Found (HTTP 404)\n")
+            raise SystemExit(1)
+        reply({"ref": f"refs/heads/{branch}", "object": {"type": "commit", "sha": revision(branch)}})
+    if path == "graphql":
+        entry = next(entry for entry in pulls if entry["number"] == int(fields["number"]))
+        reply([{"data": {"repository": {
+            "nameWithOwner": REPOSITORY, "mergeCommitAllowed": True, "squashMergeAllowed": True, "rebaseMergeAllowed": True,
+            "pullRequest": {
+                "id": f"PR_{entry['number']}", "number": entry["number"], "state": "OPEN", "merged": False,
+                "mergeCommit": None, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "isDraft": False,
+                "isInMergeQueue": False, "isMergeQueueEnabled": False, "baseRefName": entry["base"],
+                "headRefName": entry["head"], "headRefOid": revision(entry["head"]),
+                "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]}}}}}])
+sys.stderr.write(f"unexpected gh api call: {method} {path}\n")
+raise SystemExit(1)

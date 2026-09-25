@@ -1,0 +1,35 @@
+#!/usr/bin/python3
+"""Controlled provider for the hosted target: each node's reply follows its response schema."""
+import json
+import sys
+import uuid
+from pathlib import Path
+
+arguments = sys.argv[1:]
+if arguments == ["--version"]:
+    print("codex-cli 0.153.4")
+    raise SystemExit(0)
+sys.stdin.read()
+schema = json.loads(Path(arguments[arguments.index("--output-schema") + 1]).read_text())["properties"]["response"]
+
+
+def value(field):
+    if field["type"] == "null":
+        return None
+    if field["type"] == "string":
+        return field["enum"][0] if "enum" in field else "Controlled fixture text"
+    return {name: value(item) for name, item in field["properties"].items()}
+
+
+if schema["type"] == "null":
+    # The worker changes the checkout so delivery has a candidate commit.
+    Path("README.md").write_text("candidate from the controlled provider\n")
+# Hosted Codex resumes a session by thread ID when it asks for a corrected reply.
+thread = arguments[-2] if arguments[:2] == ["exec", "resume"] else str(uuid.uuid4())
+for event in (
+    {"type": "thread.started", "thread_id": thread},
+    {"type": "turn.started"},
+    {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps({"response": value(schema)})}},
+    {"type": "turn.completed", "usage": {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}},
+):
+    print(json.dumps(event), flush=True)

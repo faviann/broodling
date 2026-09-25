@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Time.Testing;
 using TUnit.Assertions;
 using TUnit.Core;
 
@@ -144,9 +145,26 @@ public sealed class TargetReadinessTests
     }
 
     [Test]
+    public async Task StockOptionalDiscoveryFieldsMayBeNullOrEmpty()
+    {
+        using var fixture = new ReadinessFixture();
+        foreach (var name in new[] { "privateBootstrapPath", "oauth", "loginSession" }) fixture.Discovery[name] = null;
+        fixture.Discovery["extensions"] = new JsonObject();
+        await Assert.That((await fixture.Check()).Ready).IsTrue();
+    }
+
+    [Test]
     [Arguments("kind")]
     [Arguments("authentication")]
+    [Arguments("audience")]
+    [Arguments("runPath")]
+    [Arguments("sessionPath")]
     [Arguments("oecpPath")]
+    [Arguments("privateBootstrapPath")]
+    [Arguments("oauth")]
+    [Arguments("unknown")]
+    [Arguments("extensions")]
+    [Arguments("duplicate")]
     [Arguments("malformed")]
     [Arguments("http-failure")]
     [Arguments("redirect")]
@@ -156,6 +174,8 @@ public sealed class TargetReadinessTests
         using var fixture = new ReadinessFixture();
         switch (change)
         {
+            case "extensions": fixture.Discovery["extensions"] = new JsonObject { ["profile"] = ReadinessFixture.Secret }; break;
+            case "duplicate": fixture.DiscoveryText = fixture.Discovery.ToJsonString()[..^1] + ",\"kind\":\"zeroshot.native-v2-target/v2\"}"; break;
             case "malformed": fixture.DiscoveryText = ReadinessFixture.Secret; break;
             case "http-failure": fixture.DiscoveryStatus = HttpStatusCode.InternalServerError; break;
             case "redirect": fixture.DiscoveryStatus = HttpStatusCode.Redirect; break;
@@ -164,6 +184,23 @@ public sealed class TargetReadinessTests
         }
         await Refuses(fixture.Check, "discovery");
         await Assert.That(fixture.DiscoveryCalls).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task StalledDiscoveryTimesOutAsNotReadyButCallerCancellationRemainsCancellation()
+    {
+        using var fixture = new ReadinessFixture { DiscoveryStalls = true };
+        var check = fixture.Check();
+        await fixture.DiscoveryStarted.Task;
+        fixture.Clock.Advance(TimeSpan.FromSeconds(10));
+        await Refuses(() => check, "unavailable or invalid");
+
+        using var stalled = new ReadinessFixture { DiscoveryStalls = true };
+        using var cancellation = new CancellationTokenSource();
+        var cancelled = stalled.Readiness.CheckAsync(stalled.Inventory, stalled.Inventory.DirectOrigin, cancellation.Token);
+        await stalled.DiscoveryStarted.Task;
+        cancellation.Cancel();
+        await Assert.That(async () => await cancelled).Throws<OperationCanceledException>();
     }
 
     [Test]
@@ -184,6 +221,8 @@ public sealed class TargetReadinessTests
     [Arguments("different-origin")]
     [Arguments("missing-origin")]
     [Arguments("unknown-config")]
+    [Arguments("local-field")]
+    [Arguments("local-config")]
     [Arguments("credential-config")]
     [Arguments("credential-inventory")]
     [Arguments("missing-inventory")]
@@ -197,6 +236,13 @@ public sealed class TargetReadinessTests
             case "different-origin": config["directOrigin"] = "http://127.0.0.1:18771"; break;
             case "missing-origin": config.AsObject().Remove("directOrigin"); break;
             case "unknown-config": config["extra"] = ReadinessFixture.Secret; break;
+            case "local-field": config["pythonExecutable"] = "/unavailable-python"; break;
+            case "local-config":
+                config = JsonNode.Parse("""
+                    {"target":"local","pythonExecutable":"/p","stateDirectory":"/s","workspaceRoot":"/w",
+                     "realCodex":"/c","profileHome":"/h","codexHome":"/ch","launcher":"/l/codex"}
+                    """)!;
+                break;
             case "credential-config": config["gatewayApiKey"] = ReadinessFixture.Secret; break;
             case "credential-inventory":
                 var inventory = JsonNode.Parse(File.ReadAllText(fixture.Arguments[1]))!;
@@ -276,7 +322,8 @@ public sealed class TargetReadinessTests
         internal TargetReadiness Readiness { get; }
         internal JsonObject Container { get; }
         internal JsonObject Discovery { get; } = JsonNode.Parse("""
-            {"kind":"zeroshot.native-v2-target/v2","authentication":"none","oecpPath":"/native-v2/oecp"}
+            {"kind":"zeroshot.native-v2-target/v2","authentication":"none","runPath":"/native-v2/run",
+             "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller"}
             """)!.AsObject();
         internal List<string[]> Calls { get; } = [];
         internal int DiscoveryCalls { get; private set; }
@@ -285,6 +332,9 @@ public sealed class TargetReadinessTests
         internal string? DiscoveryText { get; set; }
         internal HttpStatusCode DiscoveryStatus { get; set; } = HttpStatusCode.OK;
         internal bool DiscoveryThrows { get; set; }
+        internal bool DiscoveryStalls { get; set; }
+        internal TaskCompletionSource DiscoveryStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal FakeTimeProvider Clock { get; } = new();
         internal string[] Arguments => ["check-target", Path.Combine(Root, "target.json"), Path.Combine(Root, "config.json")];
         private readonly HttpClient client;
 
@@ -303,11 +353,10 @@ public sealed class TargetReadinessTests
             foreach (var (source, destination) in new[] { (Inventory.StateMount, "/state"), (Inventory.HomeMount, "/home/node") })
                 Container["Mounts"]!.AsArray().Add(new JsonObject { ["Type"] = "bind", ["RW"] = true, ["Source"] = source, ["Destination"] = destination });
             client = new HttpClient(this, disposeHandler: false);
-            Readiness = new TargetReadiness(Command, client);
+            Readiness = new TargetReadiness(Command, client, Clock);
             File.WriteAllText(Arguments[1], JsonSerializer.Serialize(Inventory, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             File.WriteAllText(Arguments[2], """
-                {"pythonExecutable":"/unavailable-python","stateDirectory":"/unavailable-state","workspaceRoot":"/unavailable-workspaces",
-                 "directOrigin":"http://127.0.0.1:18770"}
+                {"target":"direct","directOrigin":"http://127.0.0.1:18770"}
                 """);
         }
 
@@ -336,16 +385,18 @@ public sealed class TargetReadinessTests
             return Task.FromResult(RuntimeFailure == label ? Secret : output);
         }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            if (request.Method != HttpMethod.Get || request.RequestUri!.OriginalString != Inventory.DirectOrigin + "/.well-known/zeroshot-native-v2"
+            if (request.Method != HttpMethod.Get || request.RequestUri!.AbsoluteUri != Inventory.DirectOrigin + "/.well-known/zeroshot-native-v2"
                 || request.Headers.Authorization is not null || Calls.Count != 9)
                 throw new InvalidOperationException("Unexpected discovery request");
             DiscoveryCalls++;
+            DiscoveryStarted.TrySetResult();
+            if (DiscoveryStalls) await Task.Delay(Timeout.Infinite, cancellationToken);
             if (DiscoveryThrows) throw new HttpRequestException(Secret);
             var response = new HttpResponseMessage(DiscoveryStatus) { Content = new StringContent(DiscoveryText ?? Discovery.ToJsonString()) };
             if (DiscoveryStatus == HttpStatusCode.Redirect) response.Headers.Location = new Uri("https://unexpected.invalid");
-            return Task.FromResult(response);
+            return response;
         }
 
         protected override void Dispose(bool disposing)

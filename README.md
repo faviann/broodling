@@ -16,7 +16,8 @@ deploy or release.
 ## Develop and validate
 
 Use Linux x86-64, a .NET 10 SDK (tested with 10.0.401), Git,
-a C compiler with libc headers, and Python 3.13+ for the pinned SDK bridge.
+a C compiler with libc headers, and Python 3.13+ for the pinned SDK bridge
+(no-effect LocalTarget work and its tests).
 The application uses SQLite through `Microsoft.Data.Sqlite`. Native Git
 administration requires a non-PID-1 host with waitable children and no competing
 reaper; see [materialization](docs/implementation/dotnet-worktree-materialization.md).
@@ -41,7 +42,7 @@ Application behavior is callable without HTTP. Follow the seam you need:
 
 | Operation | Reference |
 | --- | --- |
-| Explicit store initialization/upgrade, Work Unit identity and source custody | [State API](docs/implementation/dotnet-identity-custody.md) |
+| Explicit fresh store initialization, Work Unit identity and source custody | [State API](docs/implementation/dotnet-identity-custody.md) |
 | Supplied-source or explicit GitHub issue admission, typed caller proposer | [Ingress](docs/implementation/work-reference-ingress.md) |
 | Original B1 and owned worktree | [Allocation](docs/implementation/dotnet-attempt-allocation.md), [materialization](docs/implementation/dotnet-worktree-materialization.md) |
 | Submit, inspect, resume, wait and stop | [Invocation](docs/implementation/invocation.md) |
@@ -57,16 +58,18 @@ maintenance and retention automation remain separately scoped work.
 
 ## Native boundary and limitations
 
-The only production Python source file is the [one-call SDK bridge](src/Broodling/bridge/zeroshot_bridge.py):
-it translates version/submit/wait/stop calls to the pinned official SDK and
-returns public results. C# owns authority, policy, recovery, persistence and
+The only production Python source file is the [one-call SDK bridge](src/Broodling/bridge/zeroshot_bridge.py)
+for no-effect LocalTarget work: it translates version/submit/wait/stop calls to
+the pinned official SDK and returns public results. C# owns authority, policy, recovery, persistence and
 receipt validation. The [bridge dependency file](src/Broodling/bridge/requirements.txt)
 retains the exact official wheel URL and SHA-256: SDK **10.3.0.post1**, bundled
 Zeroshot **10.3.0**. Codex remains **0.153.4**.
 
 Exactly one authorized GitHub `pull_request` effect naming a target branch
-selects DirectTarget PR delivery: one uniform Codex / `gateway` / `gpt-5.6-sol` /
-medium-effort runtime through exactly `https://cliproxy.local.faviann.com/v1`.
+selects HTTP DirectTarget PR delivery, with no Python helper: the stock
+`zeroshot target serve` receives the release-bundled approved asset (one uniform
+Codex / `gateway` / `gpt-5.6-sol` / medium-effort runtime) through exactly
+`https://cliproxy.local.faviann.com/v1`.
 Current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` are required for
 dispatch/replay; their values are not frozen in the invocation. Durable
 correlation permits credential-independent reconnection. Other, mixed,

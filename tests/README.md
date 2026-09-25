@@ -30,9 +30,11 @@ Missing SDK/native dependencies fail rather than skip.
 The image startup tests also require rootful Docker access. They build the actual
 `deployment/DirectTarget.Dockerfile` using the pinned SDK binary, so an uncached
 build needs access to the pinned image/package sources. Each run owns and removes
-its test image, containers and disposable volumes; no port is published and test
-containers use `--network none`. No existing target is accessed. No real credentials,
-networked provider or opt-in live campaign is required.
+its test images, containers and disposable volumes. Startup tests publish no port and
+use `--network none`. The [stock target](fixtures/README.md#controlled-stock-directtarget)
+serves on a bridge network because Docker cannot publish a port otherwise; it publishes
+only on host loopback and its fixtures make no outbound call. No existing target is
+accessed. No real credentials, networked provider or opt-in live campaign is required.
 
 Durable Git/SQLite fixtures use unique owned children of
 `~/.cache/broodling-tests`; set `BROODLING_TEST_WORKSPACE_ROOT` to another durable
@@ -44,18 +46,25 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Boundary | Tests and detailed reference |
 | --- | --- |
 | Identity, exact source bytes, immutable admission, coherent observation | `IdentityTests`, `SourceCustodyTests`, `ContractIngressTests`, `ContractPolicyTests`, `AdmissionPersistenceTests`: [admission](../docs/implementation/dotnet-contract-admission.md) |
-| Explicit initialization and atomic upgrades | `StoreLifecycleTests`, authentic [.NET v1–v9 fixtures](Broodling.Tests/Fixtures/README.md): [state](../docs/implementation/dotnet-identity-custody.md) |
-| Persisted installation pause, transition ordering and dispatch drain | `InstallationPauseTests`, `StoreLifecycleTests`: [installation pause](../docs/implementation/dotnet-installation-pause.md) |
+| Explicit fresh initialization, reopen and unchanged refusal of pre-transition state | `StoreLifecycleTests`, authentic [pre-transition .NET fixtures](Broodling.Tests/Fixtures/README.md): [state](../docs/implementation/dotnet-identity-custody.md) |
+| Persisted installation pause, transition ordering and dispatch drain | `InstallationPauseTests`: [installation pause](../docs/implementation/dotnet-installation-pause.md) |
 | Interrupted first capture, growing reference checkpoints, immutable RequestBundle completion and scoped source/Git reads | `RequestBundleTests`: [state](../docs/implementation/dotnet-identity-custody.md) |
-| Original B1 custody, allocation, owned materialization and surviving Git children | `AttemptAdmissionTests`, `GitCustodyTests`, `WorktreeProvisioningTests`, `ProvisioningProcessTests`: [materialization](../docs/implementation/dotnet-worktree-materialization.md) |
+| Original B1 custody, worktree and no-directory HTTP allocation, owned materialization and surviving Git children | `AttemptAdmissionTests`, `GitCustodyTests`, `WorktreeProvisioningTests`, `ProvisioningProcessTests`: [materialization](../docs/implementation/dotnet-worktree-materialization.md) |
 | Controlled GitHub issue and service-owned repository acquisition | `GitHubAdmissionTests`, `RepositoryPreparationTests`, [retained issue fixtures](fixtures/ingress/README.md): [ingress](../docs/implementation/dotnet-github-ingress.md) |
-| Frozen dispatch, caller death, launcher policy, released SDK/native transport | `NativeDispatchTests`, `DispatchProcessTests`, `NativePolicyTests`, `NativeTransportTests`: [dispatch](../docs/implementation/dotnet-native-dispatch.md) |
+| LocalTarget bridge: frozen dispatch, caller death, launcher policy, released SDK/native transport and refusal of a direct locator | `NativeDispatchTests`, `DispatchProcessTests`, `NativePolicyTests`, `NativeTransportTests`: [dispatch](../docs/implementation/dotnet-native-dispatch.md) |
+| Offline HTTP preparation, retained asset/request reopen, corrupt-content refusal and HTTP submission SQL guards | `HttpSubmissionTests`: [HTTP preparation](../docs/implementation/zeroshot-native-integration.md#http-submission-preparation) |
+| HTTP send gates, intent before discovery, exact acknowledgement, retained conflict, concurrent replies, late acknowledgement stop, killed HTTP callers and a buffered request accepted after caller death | `HttpDispatchTests`, `DispatchProcessTests`: loopback stock-target stand-in, [HTTP dispatch](../docs/implementation/zeroshot-native-integration.md#http-dispatch-and-acknowledgement) |
+| Approved execution asset: build-output inclusion, loader refusals, pinned-tool regeneration and native admission | `ExecutionAssetTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset) |
 | Bounded native progress observation, unavailable/timeout mapping and unchanged retained facts | `NativeObservationTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#dispatch-recovery-and-completion) |
-| Receipt validation, atomic exact-Attempt completion, late results | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
-| Stop/quarantine, safe undispatched retirement, original-B1 replacement | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
-| Composed application/operator recovery and handback | `InvocationTests`: [invocation](../docs/implementation/invocation.md) |
+| Receipt validation, atomic exact-Attempt completion, late results (correlated HTTP Attempts over the loopback stand-in) | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
+| Stop/quarantine, safe undispatched retirement (including HTTP Attempts), original-B1 replacement | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
+| Composed application/operator recovery and handback; explicit Local/Direct target configuration, retained-kind routing and mismatch refusal; PR operations without a Python helper | `InvocationTests`: [invocation](../docs/implementation/invocation.md) |
 | Native explicit initialization, refusal before serving, restart and mixed UID preservation | `NativeTargetStartupTests`: actual target image with disposable state, [startup](../deployment/README.md#explicit-native-initialization-and-guarded-startup) |
 | Selected-target configuration, dependency and discovery decisions | `TargetReadinessTests`: [readiness](../docs/implementation/dotnet-target-readiness.md) |
+| Shared DirectTarget HTTP/WebSocket bounds, budgets and stock discovery I/O | `DirectTargetExchangeTests`: [transport limits](../docs/implementation/zeroshot-native-integration.md#directtarget-http-transport-limits) |
+| DirectTarget session setup, JSON-RPC envelope and run status projection validation | `DirectTargetSessionTests`: loopback stock-target stand-in, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
+| DirectTarget wait polling cadence, per-read deadlines and cancellation; stop precheck, single force and shared deadline | `DirectTargetRunTests`: the same loopback stand-in with a controlled clock, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
+| Unmodified native HTTP/OECP boundary with the approved asset, through the application: controlled PR delivery from exact B1 without a client checkout, receipt consumption, restart and offline replay, unavailable-B1 failure and same-run replay | `StockDirectTargetTests`: [witness](#controlled-stock-directtarget-witness) |
 
 `Broodling.ProcessWitness` is a test-only caller for real process-death and
 Git-lock boundaries. Ordinary build/test/publish copies the C administrative
@@ -63,11 +72,44 @@ shim. The separate C# Codex launcher builds self-contained for Linux x64 using
 the pinned .NET 10.0.12 runtime.
 
 The retained [controlled Codex provider](fixtures/README.md) replaces only the
-provider; the released SDK and bundled native engine run. The Python files in
-[Fixtures](Broodling.Tests/Fixtures/README.md) control SDK responses, malformed
-transport or profile inspection. None implements another Broodling application
-or authority store. Stub PR receipts are not real DirectTarget delivery.
-Readiness tests control Docker/HTTP boundaries and contact no real target.
+provider; the released SDK and bundled native engine run. The files in
+[Fixtures](Broodling.Tests/Fixtures/README.md) control a bridge submit response or
+provider inspection. None implements another Broodling application or authority
+store. Readiness, exchange, session, run, completion and invocation tests control
+Docker/HTTP boundaries or use loopback peers and contact no real target.
+
+## Controlled stock DirectTarget witness
+
+`StockDirectTargetTests` runs the selected unmodified native: `zeroshot 10.3.0`
+(source `054ad3fd6c763b98d12f5b2e90830b97116561ad`, Linux x86-64 executable
+SHA-256 `afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06`) from
+the pinned SDK 10.3.0.post1 wheel, as `zeroshot target serve` inside the actual
+DirectTarget image, with the approved asset
+`sha256:10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8`. Only
+the [controlled provider and forge](fixtures/README.md#controlled-stock-directtarget)
+are replaced. Each test uses fresh volumes, fake credentials and a new target.
+The application alone submits, observes and consumes:
+
+- With the forge branch moved past B1, Invocation with a Direct target admits,
+  prepares and correlates the HTTP Attempt without Python or a client checkout.
+  The delivered commit descends from exact B1. Wait validates the receipt,
+  fetches and pins the accepted commit from the forge and disposes atomically.
+  The consumed receipt equals the target's terminal output after a target
+  restart, and the retained completion replays with the target gone.
+- An exact B1 missing from the forge leaves the first send unresolved. The stock
+  target records the failed checkout but replies `503 target.unavailable`. An
+  exact replay with rotated credentials correlates the same single run, whose
+  failure abandons the Attempt with no delivery branch.
+
+On the development host, the first Resume through acknowledgement took about
+0.4 s with the checkout from the local forge, and about 2.5–2.9 s to the 503 for
+an unavailable B1, including the target's checkout retries. These figures
+describe a local forge only. The target acknowledges after its checkout, so a
+slow real fetch can exceed the 60-second submit budget and leave the send
+unresolved until exact replay.
+
+The provider, forge and PR receipt are controlled. The run is not a real GitHub
+PR, semantic-quality result, image publication or production topology check.
 
 ## Evidence limits and history
 

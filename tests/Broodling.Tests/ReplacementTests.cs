@@ -43,6 +43,7 @@ public sealed class ReplacementTests
         await store.StopAsync(original.AttemptId, "later reason", new ControlledTransport());
         await Assert.That(() => Retry()).Throws<AttemptAdmissionError>();
         store.RetireAttempt(original.AttemptId);
+        await Assert.That(() => store.AdmitRetry(original.AttemptId, "http")).Throws<AttemptAdmissionError>();
         var originalStatus = store.Status(original.ContractRevisionId);
         fixture.Git.Commit("today's HEAD must not become B1\n");
         var successor = Retry();
@@ -113,10 +114,10 @@ public sealed class ReplacementTests
         await Assert.That(async () => await store.DispatchAsync(successor.AttemptId, changed, new ControlledTransport())).Throws<AttemptConflict>();
         await Assert.That(store.FindSubmission(successor.AttemptId)).IsNull();
         var prepared = store.PrepareRetry(original.AttemptId, "same", fixture.Git.Workspaces, fixture.Profile);
-        var transport = new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() };
+        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
         await Assert.That(async () => await store.RetryAsync(original.AttemptId, "same", fixture.Git.Workspaces, fixture.Profile, transport)).Throws<NativeTransportError>();
         File.WriteAllText(Path.Combine(successor.Allocation.WorktreePath, "candidate-progress"), "retain even after lost acknowledgment");
-        transport.Submit = (_, _) => Task.FromResult("retry-run");
+        transport.Submit = _ => Task.FromResult("retry-run");
         var correlated = await store.RetryAsync(original.AttemptId, "same", fixture.Git.Workspaces, fixture.Profile, transport);
         await Assert.That(correlated.RunId).IsEqualTo("retry-run");
         await Assert.That(correlated.RequestJson).IsEqualTo(prepared.RequestJson);
@@ -180,7 +181,7 @@ public sealed class ReplacementTests
             command.CommandText = $"""
                 INSERT INTO attempts SELECT 'forged', work_unit_id, contract_revision_id, 1,
                 b1_repository, '{new string('f', 40)}', b1_material_sha256, b1_requested_revision,
-                '/durable', '/durable/forged', '/durable/forged/worktree', 'broodling/forged', 'now' FROM attempts
+                '/durable', '/durable/forged', '/durable/forged/worktree', 'broodling/forged', 'now', resource_kind FROM attempts
                 """;
             await Assert.That(() => command.ExecuteNonQuery()).Throws<SqliteException>();
             // A lineage-only commit cannot leave an orphan reservation.
@@ -190,7 +191,7 @@ public sealed class ReplacementTests
         foreach (var sql in new[] { "DELETE FROM attempt_retries", "UPDATE attempt_retries SET target_json = '{}'", "INSERT OR REPLACE INTO attempt_retries SELECT * FROM attempt_retries" })
             await Assert.That(() => fixture.Git.State.Execute(sql)).Throws<SqliteException>();
         store.ProvisionAttempt(successor.AttemptId);
-        await Assert.That(() => fixture.Git.State.Execute($"INSERT INTO native_submissions VALUES ('{successor.AttemptId}', 'key', '{{}}', 'prepared', NULL)")).Throws<SqliteException>();
+        await Assert.That(() => fixture.Git.State.Execute($"INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state) VALUES ('{successor.AttemptId}', 'bridge', 'key', '{{}}', 'prepared')")).Throws<SqliteException>();
     }
 
     [Test]
@@ -210,6 +211,55 @@ public sealed class ReplacementTests
 
     internal static SqliteConnection Connection(BroodlingStore store) => (SqliteConnection)typeof(BroodlingStore)
         .GetField("connection", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(store)!;
+
+    [Test]
+    public async Task HttpReplacementKeepsOriginalB1AndResourceKindWithoutLocalResources()
+    {
+        using var fixture = new AttemptFixture();
+        string local;
+        AttemptRecord original, successor;
+        using (var store = fixture.State.Open())
+        {
+            original = fixture.AdmitHttp(store, revision: "main");
+            AttemptRecord Retry() => store.AdmitRetry(original.AttemptId, "replace");
+            await Assert.That(() => Retry()).Throws<AttemptAdmissionError>();
+            await store.StopAsync(original.AttemptId, "abandoned", transport: null);
+            await Assert.That(() => Retry()).Throws<AttemptAdmissionError>();
+            store.RetireAttempt(original.AttemptId);
+            await Assert.That(() => store.AdmitRetry(original.AttemptId, "worktree", fixture.Workspaces,
+                NativeFixture.Unused(Path.Combine(fixture.State.Root, "native")))).Throws<AttemptAdmissionError>();
+            using (var connection = fixture.State.Connect())
+            using (var transaction = connection.BeginTransaction())
+            using (var command = connection.CreateCommand())
+            {
+                command.Transaction = transaction;
+                command.CommandText = $"""
+                    INSERT INTO attempt_retries VALUES ('forged', '{original.AttemptId}', 'forged', NULL, NULL, 'now');
+                    INSERT INTO attempts SELECT 'forged', work_unit_id, contract_revision_id, 1, b1_repository, b1_commit_oid,
+                        b1_material_sha256, b1_requested_revision, '/durable', '/durable/forged', '/durable/forged/worktree',
+                        'broodling/forged', 'now', 'worktree' FROM attempts WHERE attempt_id = '{original.AttemptId}'
+                    """;
+                await Assert.That(() => command.ExecuteNonQuery()).Throws<SqliteException>();
+            }
+            fixture.Commit("today's HEAD must not become B1\n");
+            local = fixture.LocalResources();
+            store.PauseInstallation(); // Explicit safe replacement allocation remains permitted while paused.
+            successor = Retry();
+            await Assert.That(successor.AttemptId == original.AttemptId).IsFalse();
+            await Assert.That(successor.ResourceKind).IsEqualTo(AttemptRecord.Http);
+            await Assert.That(successor.WorktreeAllocation).IsNull();
+            await Assert.That(successor.B1).IsEqualTo(original.B1);
+            await Assert.That(successor.ContractRevisionId).IsEqualTo(original.ContractRevisionId);
+            await Assert.That(successor.IsCurrent).IsTrue();
+            await Assert.That(successor.Retry).IsEqualTo(new AttemptRetry("replace", original.AttemptId, successor.AttemptId, null, null, successor.AdmittedAt));
+            await Assert.That(() => store.AdmitRetry(original.AttemptId, "second")).Throws<AttemptConflict>();
+        }
+        using var reopened = fixture.State.Open();
+        await Assert.That(reopened.AdmitRetry(original.AttemptId, "replace")).IsEqualTo(successor);
+        await Assert.That(reopened.Status(original.ContractRevisionId).Attempts.Count).IsEqualTo(2);
+        await Assert.That(fixture.Git("rev-parse", original.B1.RetentionRef).Trim()).IsEqualTo(original.B1.CommitOid);
+        await Assert.That(fixture.LocalResources()).IsEqualTo(local);
+    }
 
     internal static async Task SafeRetire(BroodlingStore store, AttemptRecord attempt)
     {

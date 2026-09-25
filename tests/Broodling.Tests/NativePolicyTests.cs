@@ -19,43 +19,6 @@ public sealed class NativePolicyTests
     }
 
     [Test]
-    public async Task NativeGatewayExpansionConsumesCSharpRuntimeWithSeparateAgentAndDeliveryConnections()
-    {
-        using var fixture = new StoreFixture();
-        var start = new ProcessStartInfo(NativeFixture.Python)
-        {
-            WorkingDirectory = fixture.Root, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true
-        };
-        start.Environment.Clear();
-        start.Environment["PATH"] = "/usr/bin:/bin";
-        start.ArgumentList.Add("-I");
-        start.ArgumentList.Add(NativeFixture.Fixture("gateway-profile.py"));
-        using var process = Process.Start(start)!;
-        process.StandardInput.Write(NativeProfile.Runtime("pull_request").ToJsonString());
-        process.StandardInput.Close();
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(40));
-        if (process.ExitCode != 0) throw new Exception(await error);
-        var text = await output;
-        var value = JsonNode.Parse(text)!;
-        await Assert.That((string)value["runtime"]!["sessionScope"]!).IsEqualTo("execution");
-        var bindings = value["profile"]!["nodes"]!.AsObject().Select(pair => pair.Value!).ToArray();
-        var agents = bindings.Where(binding => (string?)binding["kind"] == "agent").ToArray();
-        await Assert.That(agents.Length > 0).IsTrue();
-        foreach (var agent in agents)
-        {
-            await Assert.That((string)agent["model"]!).IsEqualTo("gpt-5.6-sol");
-            await Assert.That((string)agent["effort"]!).IsEqualTo("medium");
-            await Assert.That(JsonNode.DeepEquals(agent["connections"], JsonNode.Parse("{\"gateway\":[\"GATEWAY_API_KEY\",\"GATEWAY_BASE_URL\"]}"))).IsTrue();
-        }
-        var delivery = bindings.Single(binding => (string?)binding["kind"] == "git_delivery");
-        await Assert.That(JsonNode.DeepEquals(delivery["connections"], JsonNode.Parse("{\"github\":[\"GH_TOKEN\"]}"))).IsTrue();
-        foreach (var canary in new[] { "GITHUB_CANARY", "GATEWAY_CANARY", NativeProfile.GatewayBaseUrl })
-            await Assert.That(text.Contains(canary)).IsFalse();
-    }
-
-    [Test]
     public async Task FrozenLauncherIdentityIncludesTheManagedPolicyNotJustItsApphost()
     {
         using var fixture = new NativeFixture();
@@ -114,7 +77,7 @@ public sealed class NativePolicyTests
         File.SetUnixFileMode(fallback, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         var profile = new NativeProfile(fixture.NativeState,
             new(fixture.Codex.RealCodex, fixture.Home, fixture.CodexHome, launcher), toolPath: ambient + ":/usr/bin:/bin");
-        var transport = new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() };
+        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
         if (replay)
             await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, profile, transport)).Throws<NativeTransportError>();
         File.SetUnixFileMode(launcher, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherExecute);
@@ -219,51 +182,23 @@ public sealed class NativePolicyTests
     }
 
     [Test]
-    public async Task GatewayCredentialRotationIsEphemeralAndChangedTargetOrPersistedInjectionRefuses()
+    public async Task PersistedCredentialInjectionOrRuntimeChangeRefusesLocalDispatch()
     {
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
-        var admitted = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose,
-            [new("pr", "Open PR", "pull_request", "main")]);
-        var attempt = store.ProvisionAttempt(store.AdmitAttempt(admitted.Revision.ContractRevisionId, fixture.Git.Repository, fixture.Git.Workspaces).AttemptId);
-        var profile = new NativeProfile(fixture.NativeState, directOrigin: "http://target.invalid", toolPath: "/usr/bin:/bin");
-        var prepared = store.PrepareSubmission(attempt.AttemptId, profile);
-        var transport = new ControlledTransport();
-        foreach (var credentials in new DispatchCredentials?[] { null, new("", NativeProfile.GatewayBaseUrl, "key"),
-            new("token", NativeProfile.GatewayBaseUrl, " "), new("token", NativeProfile.GatewayBaseUrl + "/", "key"),
-            new(new string('s', 4097), NativeProfile.GatewayBaseUrl, "key") })
-            await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, profile, transport, credentials)).Throws<UnsupportedRuntime>();
-        await Assert.That(transport.Calls).IsEqualTo(0);
-        var observed = new List<string>();
-        transport.Submit = (request, credentials) =>
-        {
-            if (request != prepared.RequestJson) throw new Exception("Request changed during credential rotation");
-            observed.Add(credentials["GATEWAY_API_KEY"]);
-            throw new NativeTransportError();
-        };
-        foreach (var key in new[] { "KEY_ONE_CANARY", "KEY_TWO_CANARY" })
-            await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, profile, transport,
-                new("GH_CANARY", NativeProfile.GatewayBaseUrl, key))).Throws<NativeTransportError>();
-        await Assert.That(observed.SequenceEqual(["KEY_ONE_CANARY", "KEY_TWO_CANARY"])).IsTrue();
-        await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId,
-            new NativeProfile(fixture.NativeState, directOrigin: "http://changed.invalid"), transport,
-            new("GH_CANARY", NativeProfile.GatewayBaseUrl, "KEY_TWO_CANARY"))).Throws<SubmissionConflict>();
+        var attempt = fixture.Provision(store);
+        var prepared = store.PrepareSubmission(attempt.AttemptId, fixture.Profile);
         var requestNode = JsonNode.Parse(prepared.RequestJson)!;
         foreach (var forbidden in new[] { "GH_TOKEN", "GATEWAY_API_KEY", "OPENAI_API_KEY", "CODEX_API_KEY", "OPENROUTER_API_KEY", "AWS_BEARER_TOKEN_BEDROCK", "GITHUB_TOKEN" })
         {
             requestNode["target"]!["environment"]![forbidden] = "";
-            await Assert.That(() => profile.ValidateDispatch(requestNode.AsObject(), attempt,
-                new("GH_CANARY", NativeProfile.GatewayBaseUrl, "KEY_TWO_CANARY"))).Throws<SubmissionConflict>();
+            await Assert.That(() => fixture.Profile.ValidateDispatch(prepared with { RequestJson = requestNode.ToJsonString() }, attempt))
+                .Throws<SubmissionConflict>();
             requestNode["target"]!["environment"]!.AsObject().Remove(forbidden);
         }
         requestNode["runtime"]!["model"] = "caller-choice";
-        await Assert.That(() => profile.ValidateDispatch(requestNode.AsObject(), attempt, null)).Throws<SubmissionConflict>();
-        var durable = JsonSerializer.Serialize(store.Status(attempt.ContractRevisionId));
-        foreach (var canary in new[] { "KEY_ONE_CANARY", "KEY_TWO_CANARY", "GH_CANARY", NativeProfile.GatewayBaseUrl })
-        {
-            await Assert.That(durable.Contains(canary)).IsFalse();
-            await Assert.That(System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(fixture.Git.State.Path)).Contains(canary)).IsFalse();
-        }
+        await Assert.That(() => fixture.Profile.ValidateDispatch(prepared with { RequestJson = requestNode.ToJsonString() }, attempt))
+            .Throws<SubmissionConflict>();
     }
 
     [Test]
@@ -281,16 +216,15 @@ public sealed class NativePolicyTests
         {
             using var fixture = new NativeFixture();
             foreach (var pair in values) Environment.SetEnvironmentVariable(pair.Key, pair.Value);
-            var target = new NativeProfile(fixture.NativeState, directOrigin: "http://target.invalid", toolPath: "/usr/bin:/bin").Target("pull_request");
-            var environment = target["environment"]!.AsObject();
-            foreach (var name in NativeProfile.OperatingVariables) await Assert.That((string)environment[name]!).IsEqualTo("");
+            var environment = fixture.Profile.Target("none")["environment"]!.AsObject();
+            await Assert.That(environment.ToJsonString().Contains("ambient")).IsFalse();
             foreach (var name in values.Keys.Except(NativeProfile.OperatingVariables)) await Assert.That(environment.ContainsKey(name)).IsFalse();
             // A real bridge version/unknown-run call ignores PYTHONPATH and ambient secrets.
             var error = await Assert.ThrowsAsync<NativeTransportError>(async () => await NativeFixture.Transport().WaitAsync(
-                new("local", fixture.NativeState), "01a00000-0000-7000-8000-000000000000"));
+                NativeFixture.Run(new("local", fixture.NativeState), "01a00000-0000-7000-8000-000000000000")));
             await Assert.That(error!.Kind).IsEqualTo("RunNotFoundError");
             Environment.SetEnvironmentVariable("ZEROSHOT_PYTHON_NATIVE_BINARY", "/unapproved-native");
-            await Assert.That(async () => await NativeFixture.Transport().WaitAsync(new("local", fixture.NativeState), "run")).Throws<UnsupportedRuntime>();
+            await Assert.That(async () => await NativeFixture.Transport().WaitAsync(NativeFixture.Run(new("local", fixture.NativeState), "run"))).Throws<UnsupportedRuntime>();
         }
         finally { foreach (var pair in before) Environment.SetEnvironmentVariable(pair.Key, pair.Value); }
     }

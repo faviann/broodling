@@ -162,7 +162,9 @@ public sealed class RepositoryPreparationTests
     }
 
     [Test]
-    public async Task PreparedAttemptUsesRetainedStartingStateAndRefusesContradictoryTargetBranch()
+    [Arguments("worktree")]
+    [Arguments("http")]
+    public async Task PreparedAttemptUsesRetainedStartingStateAndRefusesContradictoryTargetBranch(string kind)
     {
         using var fixture = new RepositoryPreparationFixture();
         using var store = fixture.State.Initialize();
@@ -181,10 +183,16 @@ public sealed class RepositoryPreparationTests
             new GitHubRepositoryCredentials("configured-token"), fixture.Source);
         await Assert.That(RunGit(prepared.Repository, "rev-parse", "refs/broodling/upstream/main").Trim())
             .IsEqualTo(fixture.AdvancedCommit);
+        // Authorized PR work is an HTTP Attempt; the worktree path serves no-effect work.
+        RequiredEffect[] effects = kind == "http" ? [new("pr", "Open PR", "pull_request", "main")] : [];
         var admitted = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()],
-            ContractIngressTests.Propose, [new("pr", "Open PR", "pull_request", "main")], "caller");
+            ContractIngressTests.Propose, effects, "caller");
         store.AssociateIssueSubmission(submission.SubmissionId, admitted.Revision.ContractRevisionId);
-        var attempt = store.AdmitAttempt(submission.SubmissionId, Path.Combine(fixture.State.Root, "attempts"));
+        var attempt = kind == "http" ? store.AdmitHttpAttempt(submission.SubmissionId)
+            : store.AdmitAttempt(submission.SubmissionId, Path.Combine(fixture.State.Root, "attempts"));
+        await Assert.That(attempt.ResourceKind).IsEqualTo(kind);
+        await Assert.That(RunGit(prepared.Repository, "rev-parse", "refs/broodling/starting/" + prepared.StartingCommit).Trim())
+            .IsEqualTo(prepared.StartingCommit);
         await Assert.That(attempt.B1.Repository).IsEqualTo(prepared.Repository);
         await Assert.That(attempt.B1.CommitOid).IsEqualTo(prepared.StartingCommit);
         await Assert.That(attempt.B1.RequestedRevision).IsEqualTo(prepared.StartingRevision);
@@ -201,8 +209,9 @@ public sealed class RepositoryPreparationTests
             [ContractIngressTests.Primary()], ContractIngressTests.Propose,
             [new("pr", "Open PR", "pull_request", "main")], "caller");
         mismatchStore.AssociateIssueSubmission(mismatchSubmission.SubmissionId, mismatchAdmission.Revision.ContractRevisionId);
-        await Assert.That(() => mismatchStore.AdmitAttempt(mismatchSubmission.SubmissionId,
-            Path.Combine(mismatch.State.Root, "attempts"))).Throws<AttemptAdmissionError>();
+        await Assert.That(() => kind == "http" ? mismatchStore.AdmitHttpAttempt(mismatchSubmission.SubmissionId)
+            : mismatchStore.AdmitAttempt(mismatchSubmission.SubmissionId, Path.Combine(mismatch.State.Root, "attempts")))
+            .Throws<AttemptAdmissionError>();
         await Assert.That(mismatchStore.Status(mismatchAdmission.Revision.ContractRevisionId).Attempts.Count).IsEqualTo(0);
     }
 

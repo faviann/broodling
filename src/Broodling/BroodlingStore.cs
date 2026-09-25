@@ -75,6 +75,7 @@ public sealed partial class BroodlingStore : IDisposable
         var store = new BroodlingStore(target);
         try
         {
+            RequireSupportedIdentity(target);
             store.connection.Open();
             store.RequireCurrentSchema();
             store.Configure();
@@ -83,7 +84,7 @@ public sealed partial class BroodlingStore : IDisposable
         catch (SqliteException)
         {
             store.Dispose();
-            throw new StoreStateException("incompatible_store", "The file is not a readable, compatible .NET Broodling store.");
+            throw new StoreStateException("incompatible_store", UnsupportedStore);
         }
         catch
         {
@@ -92,89 +93,58 @@ public sealed partial class BroodlingStore : IDisposable
         }
     }
 
-    /// <summary>Upgrade recognized .NET state explicitly; never import Python state.</summary>
-    internal static BroodlingStore Upgrade(string path)
+    /// <summary>
+    /// Refuse unsupported state before the read-write open, which can replay a hot
+    /// journal or checkpoint a WAL into the main file. The immutable SQLite URI reads
+    /// the main file without locks, journal or WAL. It reads only the identity row:
+    /// initialization commits it before enabling WAL and nothing rewrites it, so
+    /// concurrent writes and checkpoints of a current store cannot make it spuriously
+    /// refuse. Everything else is checked on the read-write connection.
+    /// </summary>
+    private static void RequireSupportedIdentity(string target)
     {
-        var target = StorePath(path);
-        if (!File.Exists(target))
-            throw new StoreStateException("store_missing", "The store does not exist; initialize new state explicitly.");
-        var store = new BroodlingStore(target);
-        try
+        using var probe = new SqliteConnection(new SqliteConnectionStringBuilder
         {
-            store.connection.Open();
-            using (var transaction = store.connection.BeginTransaction(deferred: false))
-            {
-                store.RequireCurrentSchema(transaction, allowUpgrade: true);
-                if (store.Information.SchemaVersion == 1)
-                    store.Execute(StoreSchema.AdmissionSql, transaction);
-                if (store.Information.SchemaVersion < 3)
-                    store.Execute(StoreSchema.AttemptSql, transaction);
-                if (store.Information.SchemaVersion < 4)
-                    store.Execute(StoreSchema.ProvisioningSql, transaction);
-                if (store.Information.SchemaVersion < 5)
-                    store.Execute(StoreSchema.DispatchSql, transaction);
-                if (store.Information.SchemaVersion < 6)
-                    store.Execute(StoreSchema.CompletionSql, transaction);
-                if (store.Information.SchemaVersion < 7)
-                    store.Execute(StoreSchema.RetirementSql, transaction);
-                if (store.Information.SchemaVersion < 8)
-                    store.Execute(StoreSchema.IssueSubmissionSql, transaction);
-                if (store.Information.SchemaVersion < 9)
-                {
-                    store.Execute(StoreSchema.InstallationSql, transaction);
-                    store.Execute("INSERT INTO installation_control VALUES (1, 0, $p0)", transaction, Now());
-                }
-                if (store.Information.SchemaVersion < 10)
-                    store.Execute(StoreSchema.RequestBundleSql, transaction);
-                if (store.Information.SchemaVersion < 11)
-                    store.Execute(StoreSchema.CancellationSql, transaction);
-                if (store.Information.SchemaVersion < 12)
-                    store.Execute(StoreSchema.RepositoryPreparationSql, transaction);
-                if (store.Information.SchemaVersion < StoreSchema.Version)
-                {
-                    store.Execute("UPDATE store_metadata SET version = $p0, definition_hash = $p1, manifest_hash = $p2 WHERE singleton = 1",
-                        transaction, StoreSchema.Version, StoreSchema.DefinitionHash,
-                        StoreSchema.ManifestHash(store.connection, transaction));
-                }
-                transaction.Commit();
-            }
-            store.RequireCurrentSchema();
-            store.Configure();
-            return store;
-        }
-        catch (SqliteException)
-        {
-            store.Dispose();
-            throw new StoreStateException("incompatible_store", "The file is not a readable, compatible .NET Broodling store.");
-        }
-        catch
-        {
-            store.Dispose();
-            throw;
-        }
-    }
-
-    public void Dispose() => connection.Dispose();
-
-    private void RequireCurrentSchema(SqliteTransaction? transaction = null, bool allowUpgrade = false)
-    {
-        using var command = Command("SELECT format, version, definition_hash, manifest_hash, initialized_at FROM store_metadata WHERE singleton = 1", transaction);
+            DataSource = "file:" + target.Replace("%", "%25").Replace("?", "%3f").Replace("#", "%23") + "?immutable=1",
+            Mode = SqliteOpenMode.ReadOnly,
+            Pooling = false
+        }.ToString());
+        probe.Open();
+        using var command = probe.CreateCommand();
+        command.CommandText = "SELECT format, version, definition_hash FROM store_metadata WHERE singleton = 1";
         using var reader = command.ExecuteReader();
         if (!reader.Read()
             || reader.GetValue(0) is not string format || format != StoreSchema.Format
-            || reader.GetValue(1) is not long version || (version != StoreSchema.Version && !(allowUpgrade && version is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11))
-            || reader.GetValue(2) is not string definition
-                || definition != (version switch { 1 => StoreSchema.VersionOneDefinitionHash, 2 => StoreSchema.VersionTwoDefinitionHash, 3 => StoreSchema.VersionThreeDefinitionHash, 4 => StoreSchema.VersionFourDefinitionHash, 5 => StoreSchema.VersionFiveDefinitionHash, 6 => StoreSchema.VersionSixDefinitionHash, 7 => StoreSchema.VersionSevenDefinitionHash, 8 => StoreSchema.VersionEightDefinitionHash, 9 => StoreSchema.VersionNineDefinitionHash, 10 => StoreSchema.VersionTenDefinitionHash, 11 => StoreSchema.VersionElevenDefinitionHash, _ => StoreSchema.DefinitionHash })
-            || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection, transaction)
+            || reader.GetValue(1) is not long version || version != StoreSchema.Version
+            || reader.GetValue(2) is not string definition || definition != StoreSchema.DefinitionHash)
+            throw new StoreStateException("incompatible_store", UnsupportedStore);
+    }
+
+    /// <summary>
+    /// Explicit upgrade request. This store format has no earlier version, so only
+    /// current state opens; pre-transition and foreign state is refused unchanged.
+    /// </summary>
+    internal static BroodlingStore Upgrade(string path) => Open(path);
+
+    public void Dispose() => connection.Dispose();
+
+    private const string UnsupportedStore = "The file is not a supported Broodling store; pre-transition and foreign state is never upgraded. Initialize new state at a new path.";
+
+    private void RequireCurrentSchema()
+    {
+        using var command = Command("SELECT format, version, definition_hash, manifest_hash, initialized_at FROM store_metadata WHERE singleton = 1");
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()
+            || reader.GetValue(0) is not string format || format != StoreSchema.Format
+            || reader.GetValue(1) is not long version || version != StoreSchema.Version
+            || reader.GetValue(2) is not string definition || definition != StoreSchema.DefinitionHash
+            || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection)
             || reader.GetValue(4) is not string initializedAt || string.IsNullOrEmpty(initializedAt))
-            throw new StoreStateException("incompatible_store", "The store format or schema is incompatible; explicit supported upgrades are required.");
+            throw new StoreStateException("incompatible_store", UnsupportedStore);
         Information = new(format, (int)version, initializedAt);
-        if (Information.SchemaVersion == StoreSchema.Version)
-        {
-            using var control = Command("SELECT 1 FROM installation_control WHERE singleton = 1", transaction);
-            if (control.ExecuteScalar() is null)
-                throw new StoreStateException("incompatible_store", "The installation control state is missing.");
-        }
+        using var control = Command("SELECT 1 FROM installation_control WHERE singleton = 1");
+        if (control.ExecuteScalar() is null)
+            throw new StoreStateException("incompatible_store", "The installation control state is missing.");
     }
 
     private void Configure()

@@ -34,7 +34,7 @@ public sealed class NativeDispatchTests
             store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary("newer source"u8.ToArray())], ContractIngressTests.Propose, []);
         }
         using var reopened = fixture.Git.State.Open();
-        var transport = new ControlledTransport { Submit = (request, _) =>
+        var transport = new ControlledTransport { Submit = request =>
         {
             if (request != prepared.RequestJson) throw new Exception("Replay changed request bytes");
             return Task.FromResult("run-original");
@@ -59,7 +59,7 @@ public sealed class NativeDispatchTests
             throw new Exception("The unresolved dispatch intent has no native run to stop") };
         var cancellationCessation = (CessationUnconfirmed?)null;
         var cancellationCommitted = false;
-        var transport = new ControlledTransport { Submit = async (_, _) =>
+        var transport = new ControlledTransport { Submit = async _ =>
         {
             using var independent = fixture.Git.State.Open();
             await Assert.That(independent.FindSubmission(attempt.AttemptId)!.State).IsEqualTo("dispatched");
@@ -113,7 +113,7 @@ public sealed class NativeDispatchTests
         var attempt = fixture.Provision(store);
         var transport = new ControlledTransport
         {
-            Submit = (_, _) => Task.FromResult("known-run"),
+            Submit = _ => Task.FromResult("known-run"),
             Stop = (_, _, _) => throw new InvalidOperationException("Stop must not be reached")
         };
         await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
@@ -133,7 +133,7 @@ public sealed class NativeDispatchTests
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
         var attempt = fixture.Provision(store);
-        var transport = new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() };
+        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<NativeTransportError>();
         store.AbandonAttempt(attempt.AttemptId, "lost acknowledgment");
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<StaleAttempt>();
@@ -151,10 +151,10 @@ public sealed class NativeDispatchTests
         var attempt = fixture.Provision(first);
         var gate = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var captured = "";
-        var slow = new ControlledTransport { Submit = (request, _) => { captured = request; return gate.Task; } };
+        var slow = new ControlledTransport { Submit = request => { captured = request; return gate.Task; } };
         var pending = first.DispatchAsync(attempt.AttemptId, fixture.Profile, slow);
         using var second = fixture.Git.State.Open();
-        var fast = new ControlledTransport { Submit = (request, _) =>
+        var fast = new ControlledTransport { Submit = request =>
         {
             if (request != captured) throw new Exception("Concurrent request differs");
             return Task.FromResult("one-native-run");
@@ -176,7 +176,7 @@ public sealed class NativeDispatchTests
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
         var attempt = fixture.Provision(store);
-        var transport = new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() };
+        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<NativeTransportError>();
         if (mutation is "head" or "dirty") File.WriteAllText(Path.Combine(attempt.Allocation.WorktreePath, "original.txt"), "candidate progress\n");
         if (mutation == "head")
@@ -184,7 +184,7 @@ public sealed class NativeDispatchTests
             AttemptFixture.RunGit(attempt.Allocation.WorktreePath, "add", ".");
             AttemptFixture.RunGit(attempt.Allocation.WorktreePath, "commit", "-m", "native owned progress");
         }
-        transport.Submit = (_, _) => throw new SubmissionConflict("Indistinguishable native error", conflictId);
+        transport.Submit = _ => throw new SubmissionConflict("Indistinguishable native error", conflictId);
         if (recover) await Assert.That((await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).RunId).IsEqualTo(conflictId);
         else
         {
@@ -231,7 +231,7 @@ public sealed class NativeDispatchTests
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
         var attempt = fixture.Provision(store);
-        var transport = new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() };
+        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<NativeTransportError>();
         switch (mutation)
         {
@@ -240,7 +240,7 @@ public sealed class NativeDispatchTests
             case "branch": AttemptFixture.RunGit(attempt.Allocation.WorktreePath, "checkout", "--detach"); break;
             case "missing": Directory.Delete(attempt.Allocation.WorktreePath, true); break;
         }
-        var invocation = new Invocation(store, fixture.Git.Workspaces, fixture.Profile, transport);
+        var invocation = new Invocation(store, new InvocationTarget.Local(fixture.Git.Workspaces, fixture.Profile, transport));
         await Assert.That(async () => await invocation.ResumeAsync(attempt.ContractRevisionId)).Throws<BroodlingException>();
         await Assert.That(transport.Calls).IsEqualTo(1);
         await Assert.That(() => store.ProvisionAttempt(attempt.AttemptId)).Throws<SubmissionNotReady>();

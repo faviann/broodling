@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Time.Testing;
+using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -58,8 +60,45 @@ public sealed class RetirementTests
         }
         await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "stop ambiguous setup", new ControlledTransport())).Throws<CessationUnconfirmed>();
         await Assert.That(store.GetAttempt(attempt.AttemptId).IsCurrent).IsFalse();
+        // A vanished local directory never reinterprets the record as a no-directory HTTP Attempt.
+        await Assert.That(store.GetAttempt(attempt.AttemptId).ResourceKind).IsEqualTo(AttemptRecord.Worktree);
+        await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retirements VALUES ('{attempt.AttemptId}', 'no_dispatch_intent', 'now', NULL)"))
+            .Throws<SqliteException>();
         await Assert.That(store.FindRetirement(attempt.AttemptId)).IsNull();
         await Assert.That(() => store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
+    }
+
+    [Test]
+    public async Task HttpUndispatchedStopAndRetirementNeedNoLocalResourceAndKeepCustody()
+    {
+        using var fixture = new AttemptFixture();
+        var local = fixture.LocalResources();
+        AttemptRecord attempt;
+        AttemptRetirement proof;
+        using (var store = fixture.State.Open())
+        {
+            attempt = fixture.AdmitHttp(store);
+            await Assert.That(() => store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
+            store.AbandonAttempt(attempt.AttemptId, "first reason");
+            // A worktree basis cannot describe an Attempt that never owned local material.
+            await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retirements VALUES ('{attempt.AttemptId}', 'never_materialized', 'now', NULL)"))
+                .Throws<SqliteException>();
+            proof = await store.StopAsync(attempt.AttemptId, "later reason", transport: null);
+            await Assert.That(proof.Basis).IsEqualTo("no_dispatch_intent");
+            await Assert.That(proof.RetiredAt).IsNull();
+        }
+        using var reopened = fixture.State.Open();
+        await Assert.That(await reopened.StopAsync(attempt.AttemptId, "second reason", transport: null)).IsEqualTo(proof);
+        var retired = reopened.RetireAttempt(attempt.AttemptId);
+        await Assert.That(retired.RetiredAt).IsNotNull();
+        await Assert.That(reopened.RetireAttempt(attempt.AttemptId)).IsEqualTo(retired);
+        var retained = reopened.GetAttempt(attempt.AttemptId);
+        await Assert.That(retained.Retirement).IsEqualTo(retired);
+        await Assert.That(retained.Abandonment!.Reason).IsEqualTo("first reason");
+        await Assert.That(retained.B1).IsEqualTo(attempt.B1);
+        await Assert.That(retained.ResourceKind).IsEqualTo(AttemptRecord.Http);
+        await Assert.That(fixture.Git("rev-parse", attempt.B1.RetentionRef).Trim()).IsEqualTo(attempt.B1.CommitOid);
+        await Assert.That(fixture.LocalResources()).IsEqualTo(local);
     }
 
     [Test]
@@ -79,13 +118,15 @@ public sealed class RetirementTests
         Directory.Delete(fixture.Home);
         Directory.Move(fixture.Git.Repository, fixture.Git.Repository + "-offline");
         var stops = 0;
-        var transport = new StopTransport(async (locator, id) =>
+        var transport = new StopTransport(async run =>
         {
+            var id = run.RunId;
             using var observer = fixture.Git.State.Open();
             await Assert.That(observer.GetAttempt(attempt.AttemptId).Abandonment!.Reason).IsEqualTo("operator stop");
             await Assert.That(observer.CurrentAttempt(attempt.WorkUnitId)).IsNull();
-            await Assert.That(locator).IsEqualTo(submission.Locator);
-            await Assert.That(id).IsEqualTo(submission.RunId);
+            // The exact retained binding, including frozen title/size, not adapter configuration.
+            await Assert.That(run).IsEqualTo(new NativeRunBinding(submission.Locator, submission.RunId!,
+                "Broodling Attempt " + attempt.AttemptId, "small", null));
             stops++;
             if (outcome == "unavailable") throw new NativeTransportError();
             if (outcome == "cancelled") throw new OperationCanceledException();
@@ -111,7 +152,7 @@ public sealed class RetirementTests
         using var fixture = new NativeFixture();
         using var store = fixture.Git.State.Open();
         var attempt = fixture.Provision(store);
-        var transport = new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() };
+        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<NativeTransportError>();
         await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "unresolved", transport)).Throws<CessationUnconfirmed>();
         await Assert.That(transport.Calls).IsEqualTo(1);
@@ -231,12 +272,137 @@ public sealed class RetirementTests
     [DllImport("libc")] private static extern int open(string path, int flags);
     [DllImport("libc")] private static extern int flock(int fd, int flags);
     [DllImport("libc")] private static extern int close(int fd);
+
+    [Test]
+    [Arguments("matching")]
+    [Arguments("foreign")]
+    [Arguments("unknown")]
+    public async Task DispatchedHttpStopForcesTheIntendedRunOnlyAfterAMatchingStatus(string precheck)
+    {
+        await using var target = new StockTarget();
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, "dispatched");
+        var run = submission.Frozen.Run(submission.IntendedRunId!);
+        if (precheck == "unknown") target.Reply = NotFound;
+        else target.Projections.Enqueue(DirectTargetSessionTests.Running(precheck == "foreign" ? run with { Title = "Another run" } : run));
+        target.Projections.Enqueue(HttpForceStopped(run));
+        fixture.Store.PauseInstallation(); // Stop remains available while paused.
+
+        var refusal = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator stop", null));
+        await Assert.That(refusal.NativeStopRequested).IsEqualTo(precheck == "matching");
+        await Assert.That(target.Count("run/force")).IsEqualTo(precheck == "matching" ? 1 : 0);
+        if (precheck == "matching")
+            await Assert.That((string)target.Messages.Last()["params"]!["runId"]!).IsEqualTo(submission.IntendedRunId);
+        await HttpQuarantined(fixture, "dispatched", "operator stop");
+    }
+
+    [Test]
+    public async Task CorrelatedHttpStopForcesTheConfirmedRunWithoutPrecheck()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, "correlated");
+        target.Projections.Enqueue(HttpForceStopped(submission.Run!));
+
+        var refusal = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator stop", null));
+        await Assert.That(refusal.NativeStopRequested).IsTrue();
+        await Assert.That(target.Count("run/status")).IsEqualTo(0);
+        await Assert.That(target.Count("run/force")).IsEqualTo(1);
+        await HttpQuarantined(fixture, "correlated", "operator stop");
+    }
+
+    [Test]
+    public async Task UnansweredHttpForceIsAnUncertainTimeoutAfterCommittedAbandonment()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new HttpFixture();
+        fixture.PrepareAt(target.Origin, "correlated");
+        target.Projections.Enqueue(null);
+        var clock = new FakeTimeProvider();
+        fixture.Store.DirectTargetClock = clock;
+
+        var stop = fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator stop", null);
+        await target.Stalled.Task.WaitAsync(DirectTargetSessionTests.Patience);
+        await Assert.That(fixture.Store.GetAttempt(fixture.Attempt.AttemptId).Abandonment).IsNotNull();
+        clock.Advance(DirectTargetLimits.Stop);
+        await DirectTargetSessionTests.Fails(() => stop, "TimeoutError");
+        await Assert.That(target.Count("run/force")).IsEqualTo(1);
+        await HttpQuarantined(fixture, "correlated", "operator stop");
+    }
+
+    [Test]
+    public async Task RepeatedHttpStopCanForceARunThatWasUnknownAtFirst()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, "dispatched");
+        var run = submission.Frozen.Run(submission.IntendedRunId!);
+        target.Reply = NotFound;
+        var first = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "first stop", null));
+        await Assert.That(first.NativeStopRequested).IsFalse();
+
+        // The delayed request is accepted later; the same intended ID is now addressable.
+        target.Reply = (_, _) => null;
+        target.Projections.Enqueue(DirectTargetSessionTests.Running(run));
+        target.Projections.Enqueue(HttpForceStopped(run));
+        var second = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "second stop", null));
+        await Assert.That(second.NativeStopRequested).IsTrue();
+        await Assert.That(target.Count("run/force")).IsEqualTo(1);
+        await HttpQuarantined(fixture, "dispatched", "first stop");
+    }
+
+    [Test]
+    public async Task IssueCancellationAbandonsTheHttpAttemptBeforeContactingTheTarget()
+    {
+        await using var target = new StockTarget { StallAt = "discovery" };
+        using var fixture = new HttpFixture();
+        fixture.PrepareAt(target.Origin, "dispatched");
+        var submission = fixture.Store.SubmitIssue("https://github.com/acme/widget/issues/12");
+        fixture.Store.AssociateIssueSubmission(submission.SubmissionId, fixture.Attempt.ContractRevisionId);
+        var clock = new FakeTimeProvider();
+        fixture.Store.DirectTargetClock = clock;
+
+        var cancel = fixture.Store.CancelIssueSubmissionAsync(submission.SubmissionId, "requester withdrew", null);
+        await target.Stalled.Task.WaitAsync(DirectTargetSessionTests.Patience);
+        await Assert.That(fixture.Store.GetAttempt(fixture.Attempt.AttemptId).Abandonment!.Reason).IsEqualTo("requester withdrew");
+        clock.Advance(DirectTargetLimits.Stop);
+        var refusal = await Refusal<CessationUnconfirmed>(() => cancel);
+        await Assert.That(refusal.NativeStopRequested).IsFalse();
+        var cancelled = fixture.Store.GetIssueSubmission(submission.SubmissionId);
+        await Assert.That(cancelled.State).IsEqualTo("cancelled");
+        await Assert.That(cancelled.Cancellation!.AttemptId).IsEqualTo(fixture.Attempt.AttemptId);
+        await HttpQuarantined(fixture, "dispatched", "requester withdrew");
+    }
+
+    private static string? NotFound(JsonObject request, string id) => (string)request["method"]! != "run/status" ? null
+        : new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["error"] = new JsonObject
+            { ["code"] = -32000, ["message"] = "run was not found", ["data"] = new JsonObject { ["code"] = "NOT_FOUND" } } }.ToJsonString();
+
+    private static JsonObject HttpForceStopped(NativeRunBinding run) => DirectTargetSessionTests.Projection(new JsonObject
+    {
+        ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "failed", ["reason"] = "force_stopped" }
+    }, run);
+
+    private static async Task<T> Refusal<T>(Func<Task> action) where T : Exception
+    {
+        try { await action(); }
+        catch (T error) { return error; }
+        throw new InvalidOperationException("Expected " + typeof(T).Name);
+    }
+
+    /// <summary>Abandonment stays committed, stop output never correlates, and dispatch intent keeps the Attempt quarantined.</summary>
+    private static async Task HttpQuarantined(HttpFixture fixture, string state, string reason)
+    {
+        var attempt = fixture.Store.GetAttempt(fixture.Attempt.AttemptId);
+        await Assert.That(attempt.Abandonment!.Reason).IsEqualTo(reason);
+        await Assert.That(fixture.Store.FindSubmission(attempt.AttemptId)!.State).IsEqualTo(state);
+        await Assert.That(fixture.Store.FindRetirement(attempt.AttemptId)).IsNull();
+        await Assert.That(() => fixture.Store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
+    }
 }
 
-internal sealed class StopTransport(Func<NativeLocator, string, Task<NativeResult>> stop) : INativeTransport
+/// <summary>Stop needs only the stopper: it can never redispatch, wait or read status.</summary>
+internal sealed class StopTransport(Func<NativeRunBinding, Task<NativeResult>> stop) : INativeStopper
 {
-    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default) => throw new Exception("Stop must never redispatch");
-    public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => throw new Exception("Unexpected wait");
-    public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => stop(locator, runId);
-    public Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound, CancellationToken cancellationToken = default) => throw new Exception("Unexpected status");
+    public Task<NativeResult> StopAsync(NativeRunBinding run, CancellationToken cancellationToken = default) => stop(run);
 }

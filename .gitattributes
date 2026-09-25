@@ -1,0 +1,2 @@
+# Execution-asset identity is SHA-256 of the exact committed bytes.
+src/Broodling/execution-assets/*.json -text

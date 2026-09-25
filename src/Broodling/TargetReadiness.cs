@@ -17,18 +17,22 @@ public sealed class TargetNotReady(string message) : Exception(message);
 /// <summary>Inspect the selected container and discovery endpoint without submitting work or changing its lifecycle.</summary>
 public sealed class TargetReadiness
 {
-    private const string NativeSha256 = "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06";
+    private const string NativeSha256 = NativeProfile.NativeExecutableSha256;
     private const string GhSha256 = "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff";
     private static readonly string[] CredentialNames = ["GH_TOKEN", "GITHUB_TOKEN", "GATEWAY_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY"];
+    private static readonly TimeSpan DiscoveryBudget = TimeSpan.FromSeconds(10);
     private readonly Func<IReadOnlyList<string>, CancellationToken, Task<string>> command;
     private readonly HttpClient? http;
+    private readonly TimeProvider clock;
 
     public TargetReadiness() : this((arguments, token) => RunCommandAsync("docker", arguments, token), null) { }
 
-    internal TargetReadiness(Func<IReadOnlyList<string>, CancellationToken, Task<string>> command, HttpClient? http)
+    internal TargetReadiness(Func<IReadOnlyList<string>, CancellationToken, Task<string>> command, HttpClient? http,
+        TimeProvider? clock = null)
     {
         this.command = command;
         this.http = http;
+        this.clock = clock ?? TimeProvider.System;
     }
 
     public async Task<TargetReadinessFacts> CheckAsync(TargetReadinessInventory inventory, string selectedDirectOrigin,
@@ -110,19 +114,13 @@ public sealed class TargetReadiness
             await Execute("python3", "-c", "import os; os.setgroups([10002]); os.setgid(10002); "
                 + "os.setuid(10002); assert os.getuid() == 10002 and os.getgid() == 10002");
 
-            using var ownedHttp = http is null ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false }) : null;
-            using var discoveryTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            discoveryTimeout.CancelAfter(TimeSpan.FromSeconds(10));
-            using var response = await (http ?? ownedHttp!).GetAsync(inventory.DirectOrigin + "/.well-known/zeroshot-native-v2", discoveryTimeout.Token);
-            Require(response.IsSuccessStatusCode, "Target discovery is unavailable or invalid.");
-            using var discovery = JsonDocument.Parse(await response.Content.ReadAsStringAsync(discoveryTimeout.Token));
-            var document = discovery.RootElement;
-            Require(document.GetProperty("kind").GetString() == "zeroshot.native-v2-target/v2"
-                && document.GetProperty("authentication").GetString() == "none"
-                && document.GetProperty("oecpPath").GetString() == "/native-v2/oecp", "Target discovery differs from supported DirectTarget.");
+            using var ownedHttp = http is null ? DirectTargetExchange.CreateClient() : null;
+            using var discovery = DirectTargetBudget.Start(DiscoveryBudget, clock, cancellationToken);
+            await DirectTargetDiscovery.RequireAsync(http ?? ownedHttp!, endpoint!, discovery);
             return new(inventory.ContainerName, containerId!, inventory.ImageId, inventory.DirectOrigin, versions);
         }
         catch (TargetNotReady) { throw; }
+        catch (UnsupportedRuntime) { throw new TargetNotReady("Target discovery differs from supported DirectTarget."); }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         { throw new OperationCanceledException("Target inspection cancelled.", cancellationToken); }
         catch (Exception)

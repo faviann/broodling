@@ -40,7 +40,7 @@ multi-project orchestrator.
 | Broodling owns | Zeroshot owns |
 | --- | --- |
 | Entitled source snapshots, immutable Contract admission, criteria and exact effect authorization | Implementing and validating the frozen task through the standard `software-change` workflow |
-| One current Attempt, original B1 and exclusive ownership of its dedicated local worktree | Native graph expansion/routing, acceptance/code review, repair and provider sessions |
+| One current Attempt, original B1 and, for LocalTarget worktree Attempts, exclusive ownership of the dedicated local worktree | Native graph expansion/routing, acceptance/code review, repair and provider sessions |
 | Frozen invocation, durable dispatch intent, Attempt/run correlation and current-authority checks | Submission-key idempotency, execution state, reconnectable terminal result and native stop |
 | Receipt validation against authorized delivery and atomic result/disposition retention | Authorized checkout, commit, push and PR creation/update, including delivery repair and receipt production |
 | Explicit local execution policy and refusal of unsafe cleanup/retry | Provider execution; operator/host procedure owns process/container containment and physical-cessation proof |
@@ -59,28 +59,34 @@ material requests are refused. Repository guidance may be execution context but
 cannot amend stored authority.
 
 Source: [admission/delivery policy](../../src/Broodling/Closability.cs),
-[dispatch](../../src/Broodling/NativeDispatch.cs),
-[SDK transport](../../src/Broodling/NativeTransport.cs),
+[target selection](../../src/Broodling/Invocation.cs),
+[HTTP submission](../../src/Broodling/HttpSubmission.cs),
+[LocalTarget dispatch](../../src/Broodling/NativeDispatch.cs),
+[SDK bridge transport](../../src/Broodling/NativeTransport.cs),
 [completion](../../src/Broodling/AttemptCompletion.cs), and
 [stop/retirement](../../src/Broodling/AttemptRetirement.cs).
 
 ## Supported profile and outcomes
 
 The supported source/release profile is single-host Linux x86-64, .NET 10 /
-ASP.NET Core, SQLite through Microsoft.Data.Sqlite, Git, Python 3.13+ solely
-for the Zeroshot 10.3.0 / SDK 10.3.0.post1 bridge, and Codex 0.153.4. The
-authorized-PR path uses an operator-managed DirectTarget, Zeroshot's standard
-`software-change` workflow, one uniform Codex / `gateway` / `gpt-5.6-sol` /
-medium-effort runtime, and exactly
-`https://cliproxy.local.faviann.com/v1`. Callable `TargetReadiness.CheckAsync`
+ASP.NET Core, SQLite through Microsoft.Data.Sqlite, Git, Zeroshot 10.3.0 and
+Codex 0.153.4. The authorized-PR path talks HTTP/OECP to the stock
+`zeroshot target serve` of an operator-managed DirectTarget. It submits the
+release-bundled approved execution asset (Zeroshot's standard `software-change`
+workflow with one uniform Codex / `gateway` / `gpt-5.6-sol` / medium-effort
+runtime) and uses exactly `https://cliproxy.local.faviann.com/v1`. It needs no
+Python, SDK client state, workspace root or launcher. Python 3.13+ with SDK
+10.3.0.post1 serves only the no-effect LocalTarget bridge. The operator
+configuration names one target kind; an existing Attempt continues only through
+its retained kind, with no fallback between them. Callable `TargetReadiness.CheckAsync`
 and the thin `check-target` command check the selected actual target's image,
 configuration and pinned dependencies, including GitHub CLI. See
 [readiness](../implementation/dotnet-target-readiness.md).
 
 | Frozen effect authority | Supported behavior |
 | --- | --- |
-| Empty required-effect set | LocalTarget execution is permitted, but native success returns no stable accepted result; Broodling therefore refuses successful disposition. |
-| Exactly one `pull_request` effect with a target branch for a GitHub Work Unit | DirectTarget native PR delivery. A matching successful `v1/pr/opened` receipt supplies the stable non-B1 `headRevision`; after that exact commit is fetched and pinned locally, the disposition for that exact Attempt commits atomically with the receipt. |
+| Empty required-effect set | LocalTarget worktree execution through the SDK bridge is permitted, but native success returns no stable accepted result; Broodling therefore refuses successful disposition. |
+| Exactly one `pull_request` effect with a target branch for a GitHub Work Unit | HTTP DirectTarget native PR delivery from exact B1, with no client execution checkout. A matching successful `v1/pr/opened` receipt supplies the stable non-B1 `headRevision`; after that exact commit is fetched and pinned locally, the disposition for that exact Attempt commits atomically with the receipt. |
 | Other, mixed, multiple or underspecified effects | Refusal. Merge, standalone push, issue mutation, deployment and generic effect execution are unsupported. |
 
 PR delivery includes native commit, push and open-or-update. It promises neither
@@ -88,8 +94,8 @@ passing CI nor merge. Initial or acknowledgement-replay dispatch requires curren
 `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY`; their values are not frozen
 or persisted by Broodling. Once run correlation is durable, status, wait, stop and
 terminal replay use retained identity without dispatch credentials. Lost
-acknowledgement may replay only the identical frozen invocation while authority
-remains current.
+acknowledgement may replay only the identical frozen request while authority
+remains current; only the exact acknowledgement establishes correlation.
 
 The no-effect LocalTarget profile is restricted to the documented trusted-host
 policy and remains unable to produce successful stable disposition. Node-local
@@ -128,7 +134,13 @@ those retained facts rather than caller checkout or later repository state.
 Repository-file capture continues through the retained commit. Linked-reference
 selection and traversal remain outside this slice. #119 adds bounded, unretained
 native phase/active-node observation for correlated Attempts, reported separately
-from retained facts and as unavailable on transport loss. Remaining #100 intent
+from retained facts and as unavailable on transport loss. #163 replaces the
+DirectTarget client bridge with the HTTP/OECP integration over fresh state: the
+approved execution asset, offline preparation, exact durable acknowledgement,
+retained-binding progress, wait and stop, and (#180) routing of callable and
+operator PR invocation through it, with the bridge DirectTarget path removed. A
+controlled witness runs the unmodified stock native boundary; production
+topology (#155) and image publication (#121) remain open. Remaining #100 intent
 includes public HTTP intake, a bundled proposer, automatic progression/completion,
 Compose, maintenance and backup/restore; those remain unimplemented. The ASP.NET
 host is not authority to add them.
@@ -137,7 +149,11 @@ host is not authority to add them.
 
 Every dispatched Attempt remains ineligible for automatic deletion or
 replacement, including after native success or stop. Terminal labels are not
-physical-cessation receipts. Broodling records abandonment and requests native
+physical-cessation receipts. An HTTP DirectTarget Attempt owns no local
+directory; its safe retirement rests on abandonment with no committed dispatch
+intent and deletes nothing. Its prepared submission retains the complete request,
+approved asset bytes and an intended run identity; that is neither dispatch intent
+nor native acceptance. Broodling records abandonment and requests native
 stop, while operators retain host/container containment responsibility. A safely
 retired never-dispatched Attempt can still be explicitly replaced from original
 B1. There is no override that converts incomplete historical proof into cleanup
@@ -148,6 +164,8 @@ runtime state and DirectTarget state/home are durable operating state. Preserve
 their identities and absolute paths as described by the operations guide. .NET
 uses deliberate separate fresh state; the owner must choose drain or explicit
 abandon-and-retain for existing Python work before any operational switch.
-There is no import, in-flight takeover or implicit deletion authority. The
+There is no import, in-flight takeover or implicit deletion authority.
+The HTTP DirectTarget integration likewise requires an explicitly initialized
+fresh store; see the [state lifecycle](../implementation/dotnet-identity-custody.md). The
 separate #77 smoke environment was disposable and has been removed; its committed
 validation record remains.

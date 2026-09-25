@@ -63,7 +63,7 @@ public sealed class InstallationPauseTests
         var continueSubmit = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var transport = new ControlledTransport
         {
-            Submit = async (_, _) =>
+            Submit = async _ =>
             {
                 started.SetResult();
                 return await continueSubmit.Task;
@@ -151,10 +151,10 @@ public sealed class InstallationPauseTests
         var paused = fixture.Store.PauseInstallation();
         await Assert.That(paused.IsPaused).IsTrue();
 
-        var invocation = new Invocation(fixture.Store, fixture.Git.Workspaces, fixture.Profile, fixture.Transport);
+        var invocation = new Invocation(fixture.Store, new InvocationTarget.Direct(fixture.Origin));
         var resumed = await invocation.ResumeAsync(fixture.Attempt.ContractRevisionId);
         await Assert.That(resumed.Submissions.Single().RunId).IsEqualTo(submitted.RunId);
-        await Assert.That(fixture.Transport.Calls).IsEqualTo(1);
+        await Assert.That(fixture.Target.Connections).IsEqualTo(0);
 
         var completion = await fixture.Wait();
         await Assert.That(completion.Outcome).IsEqualTo("SUCCEEDED");
@@ -203,7 +203,7 @@ public sealed class InstallationPauseTests
         {
             attempt = fixture.Provision(store);
             await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile,
-                new ControlledTransport { Submit = (_, _) => throw new NativeTransportError() }))
+                new ControlledTransport { Submit = _ => throw new NativeTransportError() }))
                 .Throws<NativeTransportError>();
         }
 

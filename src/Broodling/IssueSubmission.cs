@@ -179,7 +179,7 @@ public sealed partial class BroodlingStore
     /// Attempt available to the survivor.
     /// </summary>
     public async Task<IssueSubmission> CancelIssueSubmissionAsync(string submissionId, string reason,
-        INativeTransport? transport = null, CancellationToken cancellationToken = default)
+        INativeStopper? transport = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(reason))
             throw new IssueSubmissionConflict("Submission cancellation requires a nonempty reason.");

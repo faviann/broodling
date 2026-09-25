@@ -4,6 +4,9 @@ Start every architecture, feature or bug task with
 [`docs/governing/current.md`](docs/governing/current.md). Production code and the
 current tests decide implemented behavior when prose disagrees.
 
+[`CONTEXT.md`](CONTEXT.md) defines Broodling's domain language. Use its terms in
+issues, decisions, code and docs; change a term only when a decision settles it.
+
 Read the implementation document for the seam being changed:
 
 - native execution and lifecycle: `docs/implementation/zeroshot-native-integration.md`
