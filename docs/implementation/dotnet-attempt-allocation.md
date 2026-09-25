@@ -39,8 +39,9 @@ already fixed the retained PR target. It uses the retained service-owned bare
 repository as the Git common directory and records the retained exact starting
 commit and requested branch ref as B1. A later repository default, caller input
 or moving branch cannot retarget this prepared environment, and the
-revision-based `AdmitHttpAttempt` refuses a bundle-bound Contract. Missing
-retained state is a visible admission refusal. The explicit local overload
+revision-based `AdmitHttpAttempt` refuses a bundle-bound Contract. A submission
+without a bound Contract is refused with `AttemptAdmissionError`, or
+`UnknownRecord` when it has no RequestBundle. The explicit local overload
 validates its original caller checkout path before the shared admission core.
 
 The supported checkout profile is checked before status can invoke conversion

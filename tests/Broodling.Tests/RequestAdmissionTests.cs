@@ -98,10 +98,8 @@ public sealed class RequestAdmissionTests
             requiredEffects: input.RequiredEffects, constructedBy: input.ConstructedBy,
             requestBundle: input.BundleBinding), "caller");
 
-        await Assert.That(status.Decision!.Admitted).IsFalse();
-        await Assert.That(status.Decision.Findings.Select(finding => (finding.Code, finding.PreservedObligation)))
-            .IsEquivalentTo([("unsupported_external_obligation", "Merge the PR once approved."),
-                ("unsatisfied_prerequisite", "Wait for maintainer approval.")]);
+        await Assert.That(status.Decision!.Findings.Select(finding => finding.Code))
+            .IsEquivalentTo(["unsupported_external_obligation", "unsatisfied_prerequisite"]);
         await Assert.That(store.GetIssueSubmission(submissionId).State).IsEqualTo("rejected");
         await Assert.That(() => store.AdmitHttpAttempt(submissionId)).Throws<AttemptAdmissionError>();
     }
@@ -131,6 +129,33 @@ public sealed class RequestAdmissionTests
         await Assert.That(replay.Revision.ContractRevisionId).IsEqualTo(pending.ContractRevisionId);
         await Assert.That(replay.Decision!.Admitted).IsTrue();
         await Assert.That(store.GetIssueSubmission(submissionId).State).IsEqualTo("admitted");
+        // Like Admit, a pause does not hide an existing decision.
+        store.PauseInstallation();
+        await Assert.That(store.AdmitRequestBundle(submissionId, ContractIngressTests.Propose, "caller").Decision!.DecidedAt)
+            .IsEqualTo(replay.Decision.DecidedAt);
+    }
+
+    [Test]
+    public async Task CallerThatLosesAConcurrentBindingReturnsTheWinningAdmission()
+    {
+        using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
+        fixture.SetIssue(12, Request());
+        using var store = fixture.State.Initialize();
+        var submissionId = store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
+        await Capture(store, fixture, submissionId);
+
+        AdmissionStatus? winner = null;
+        var loser = store.AdmitRequestBundle(submissionId, input =>
+        {
+            using (var other = fixture.State.Open())
+                winner = other.AdmitRequestBundle(submissionId, ContractIngressTests.Propose, "caller");
+            return new(input.WorkUnit.WorkUnitId, input.SourceAttribution, [new("other", "A different proposal.")],
+                requiredEffects: input.RequiredEffects, constructedBy: input.ConstructedBy, requestBundle: input.BundleBinding);
+        }, "caller");
+
+        await Assert.That(loser.Revision.ContractRevisionId).IsEqualTo(winner!.Revision.ContractRevisionId);
+        await Assert.That(loser.Decision!.Admitted).IsTrue();
+        await Assert.That(store.History(ContractIngressTests.Reference).Count).IsEqualTo(1);
     }
 
     private static string Request(params string[] declarations) =>

@@ -157,48 +157,75 @@ public sealed partial class BroodlingStore
     public AdmissionStatus AdmitRequestBundle(string submissionId, Func<ContractProposalInput, Contract> propose,
         string constructedBy = "model_extraction")
     {
-        RequireUnpaused();
-        if (constructedBy is not ("caller" or "broodling_policy" or "model_extraction"))
-            throw new InvalidContractProposal("Unrecognized proposal producer.");
+        // Proposal refuses an unrecognized producer: the proposal must validate and repeat it.
         if (propose is null)
             throw new InvalidContractProposal("A proposer is required.");
         var submission = GetIssueSubmission(submissionId);
         if (submission.ContractRevisionId is { } bound)
-        {
-            Admit(bound);
-            return Status(bound);
-        }
+            return BoundAdmission(bound);
+        RequireUnpaused();
         if (submission.State == "cancelled")
             throw new IssueSubmissionConflict("A cancelled Issue submission cannot acquire Contract authority.");
 
         var bundle = GetRequestBundle(submissionId);
         if (bundle.State != "complete")
             throw new RequestBundleConflict("Contract admission requires a completed RequestBundle.");
-        if (Digests.Bytes(Encoding.UTF8.GetBytes(bundle.ManifestJson!)) != bundle.ManifestSha256)
-            throw new RequestBundleConflict("The retained RequestBundle manifest does not match its digest.");
-        var repository = bundle.Repository
-            ?? throw new RequestBundleConflict("The RequestBundle has no retained repository selection.");
-        var member = bundle.References.SingleOrDefault(reference => reference.ReferenceId == "request" && reference.SourceId is not null)
-            ?? throw new RequestBundleConflict("The RequestBundle has no captured Executable Request.");
-        var request = GetEntitledSource(member.SourceId!);
-        if (request.Kind != "executable_request" || request.ContentSha256 != member.ContentSha256
-            || request.WorkUnitId != submission.WorkUnitId)
-            throw new RequestBundleConflict("The RequestBundle's Executable Request differs from its retained source.");
-
+        var (request, targetBranch) = ManifestAuthority(bundle, submission);
         var work = GetWorkUnit(submission.WorkUnitId);
         var effect = new RequiredEffect("pull_request",
-            $"Deliver one proposal as a pull request to branch '{repository.TargetBranch}' of {work.Owner}/{work.Repository}, including its commit and push.",
-            "pull_request", repository.TargetBranch);
+            $"Deliver one proposal as a pull request to branch '{targetBranch}' of {work.Owner}/{work.Repository}, including its commit and push.",
+            "pull_request", targetBranch);
         var proposal = Proposal(new ContractProposalInput(work, [request], [effect], constructedBy, bundle), propose);
         string revisionId;
         using (var transaction = connection.BeginTransaction(deferred: false))
         {
-            revisionId = RecordContractRevision(proposal, transaction).ContractRevisionId;
-            AssociateIssueSubmission(submissionId, revisionId, transaction);
-            transaction.Commit();
+            // A concurrent caller may have bound this submission while our proposer ran.
+            // Its authority stands; ours is discarded uncommitted.
+            if (ReadIssueSubmission(submissionId, transaction)!.ContractRevisionId is { } raced)
+                revisionId = raced;
+            else
+            {
+                revisionId = RecordContractRevision(proposal, transaction).ContractRevisionId;
+                AssociateIssueSubmission(submissionId, revisionId, transaction);
+                transaction.Commit();
+            }
         }
+        return BoundAdmission(revisionId);
+    }
+
+    private AdmissionStatus BoundAdmission(string revisionId)
+    {
         Admit(revisionId);
         return Status(revisionId);
+    }
+
+    /// <summary>
+    /// Take the attributed Executable Request and the PR target from the digest-verified manifest,
+    /// and require the retained request source and repository preparation to be the ones it records.
+    /// </summary>
+    private (EntitledSource Request, string TargetBranch) ManifestAuthority(RequestBundle bundle, IssueSubmission submission)
+    {
+        var bytes = Encoding.UTF8.GetBytes(bundle.ManifestJson!);
+        if (Digests.Bytes(bytes) != bundle.ManifestSha256)
+            throw new RequestBundleConflict("The retained RequestBundle manifest does not match its digest.");
+        BundleManifestV1? manifest;
+        try { manifest = JsonSerializer.Deserialize<BundleManifestV1>(bytes, BundleManifestOptions); }
+        catch (JsonException) { throw new RequestBundleConflict("The retained RequestBundle manifest is malformed."); }
+        if (manifest is null || manifest.BundleId != bundle.BundleId || manifest.SubmissionId != submission.SubmissionId
+            || manifest.WorkUnitId != submission.WorkUnitId)
+            throw new RequestBundleConflict("The RequestBundle manifest names another bundle, submission or Work Unit.");
+        var request = manifest.References?.Where(reference => reference.ReferenceId == "request").ToArray() ?? [];
+        if (request.Length != 1 || request[0].SourceId is not { } sourceId)
+            throw new RequestBundleConflict("The RequestBundle manifest records no single captured Executable Request.");
+        if (manifest.Repository is not { } repository || bundle.Repository is not { } prepared
+            || prepared.Repository != repository.Repository || prepared.TargetBranch != repository.DefaultBranch
+            || prepared.StartingRevision != repository.StartingRevision || prepared.StartingCommit != repository.StartingCommit)
+            throw new RequestBundleConflict("The retained repository preparation differs from the RequestBundle manifest.");
+        var source = GetEntitledSource(sourceId);
+        if (source.Kind != "executable_request" || source.ContentSha256 != request[0].ContentSha256
+            || source.WorkUnitId != submission.WorkUnitId)
+            throw new RequestBundleConflict("The retained Executable Request differs from the RequestBundle manifest.");
+        return (source, repository.DefaultBranch);
     }
 
     /// <summary>Run the proposer and refuse any change to the authority it was given.</summary>

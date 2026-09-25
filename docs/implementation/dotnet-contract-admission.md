@@ -60,15 +60,19 @@ submission's completed [RequestBundle](dotnet-github-ingress.md#executable-reque
 under the trusted URL-to-PR profile. It uses the same proposal checks and `Admit`
 as supplied sources; there is no second Contract pipeline.
 
-- It checks the bundle against retained material first: the bundle is complete,
-  its manifest matches the retained digest, and its `request` member is the
-  submission Work Unit's captured `executable_request` source.
+- It takes its authority from the digest-verified manifest. The bundle must be
+  complete, and its manifest must match the retained digest and name this
+  bundle, submission and Work Unit. The attributed Executable Request is the
+  manifest's `request` member, whose retained source must be this Work Unit's
+  `executable_request` at the recorded digest. The PR target branch is the
+  manifest's repository selection, which the retained preparation row must
+  equal.
 - The proposer receives that Executable Request as its only source, plus
   `RequestBundle` for the manifest and members. The primary issue and available
   references are supporting material read through the bundle. A proposal that
   attributes them refuses, so their capture cannot add requested work.
-- Broodling supplies one `pull_request` effect to the preparation's retained
-  PR target branch. The proposal must preserve it and carry `BundleBinding`
+- Broodling supplies one `pull_request` effect to that retained PR target
+  branch. The proposal must preserve it and carry `BundleBinding`
   unchanged. A changed branch, binding, pin, Work Unit or producer refuses and
   records nothing.
 - Unsupported obligations, prerequisites and other refusals remain rejection
@@ -78,8 +82,12 @@ The revision is recorded and associated with the submission in one transaction.
 `Admit` then decides it, applying the submission cancellation and installation
 pause checks. The decision also moves the submission from `capturing` to
 `admitted` or `rejected`. An interruption before the decision leaves the bound,
-undecided revision. A later call decides it without calling the proposer again.
-A cancelled submission is refused before the proposer runs.
+undecided revision. A later call decides it without calling the proposer again,
+and it returns an existing decision even while paused, as `Admit` does. A new
+proposal refuses under pause, and a cancelled submission is refused before the
+proposer runs. When concurrent callers propose for one submission, the first
+association wins. The other caller discards its uncommitted proposal and returns
+the winning revision's status.
 
 A bound Contract's canonical JSON carries `requestBundle` with `bundleId` and
 `manifestSha256`, so its revision identity covers the exact bundle. The field is
