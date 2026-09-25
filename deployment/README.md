@@ -302,8 +302,10 @@ records its canonical spelling; configure that exact spelling. Zeroshot 10.3.0
 accepts only HTTPS origins or literal loopback HTTP (`http://127.0.0.1:PORT`),
 and `target serve` itself provides no TLS. It refuses a plain-HTTP Compose
 service-name origin such as `http://broodling-target:18770` before creating
-state. The #100 service-name topology is therefore unresolved and is not decided
-here.
+state. The homelab installation's replacement topology and HTTPS origin are
+decided in [ADR 0001](../docs/adr/0001-directtarget-https-origin-and-compose-topology.md);
+the loopback commands in this section describe current behavior until that
+origin is implemented.
 
 Ordinary startup uses the same arguments **without `initialize`**, the same
 mounts and the recorded origin. Before executing `zeroshot target serve`, the
