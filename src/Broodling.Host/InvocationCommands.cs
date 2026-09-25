@@ -29,6 +29,17 @@ public static class InvocationCommands
             }
             if (args[0] == "stop")
             {
+                // Without a bridge transport a LocalTarget run could be abandoned but never asked to stop.
+                if (transport is null && args.Length == 4
+                    && store.FindSubmission(args[2]) is { Format: NativeSubmission.Bridge, State: not "prepared" })
+                {
+                    error.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        error = "python_required",
+                        message = "Stopping a dispatched LocalTarget run requires the pinned SDK Python executable argument. The Attempt was not abandoned."
+                    }));
+                    return 1;
+                }
                 string? refusal = null;
                 var exitCode = 0;
                 try { await store.StopAsync(args[2], args[3], transport ?? (args.Length == 5 ? new ZeroshotTransport(args[4]) : null), cancellationToken); }

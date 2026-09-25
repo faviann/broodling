@@ -313,10 +313,10 @@ public sealed class AttemptAdmissionTests
             await Assert.That(attempt.B1).IsEqualTo(new OriginalB1(PhysicalPaths.Resolve(fixture.GitDirectory), fixture.Head,
                 Digests.AdmittedMaterial(store.GetContractRevision(revision).Contract.SourceAttribution), "main"));
             await Assert.That(store.AdmitHttpAttempt(revision, fixture.Repository, fixture.Head)).IsEqualTo(attempt);
-            // A worktree request for the same B1 is a different resource, never the retained HTTP Attempt.
-            await Assert.That(() => store.AdmitAttempt(revision, fixture.Repository, fixture.Workspaces)).Throws<AttemptConflict>();
+            // Authorized PR work is never a worktree Attempt, so it never becomes the retained HTTP Attempt's sibling.
+            await Assert.That(() => store.AdmitAttempt(revision, fixture.Repository, fixture.Workspaces)).Throws<AttemptAdmissionError>();
             await Assert.That(() => store.ProvisionAttempt(attempt.AttemptId)).Throws<WorktreeProvisioningError>();
-            await Assert.That(() => store.PrepareSubmission(attempt.AttemptId, new NativeProfile(Path.Combine(fixture.State.Root, "native"))))
+            await Assert.That(() => store.PrepareSubmission(attempt.AttemptId, NativeFixture.Unused(Path.Combine(fixture.State.Root, "native"))))
                 .Throws<SubmissionNotReady>();
         }
         await Assert.That(fixture.LocalResources()).IsEqualTo(local);

@@ -14,7 +14,7 @@ internal abstract record InvocationConfiguration
     internal sealed record Direct(string Target, string DirectOrigin) : InvocationConfiguration;
 
     internal sealed record Local(string Target, string PythonExecutable, string StateDirectory, string WorkspaceRoot,
-        string? RealCodex = null, string? ProfileHome = null, string? CodexHome = null, string? Launcher = null) : InvocationConfiguration;
+        string RealCodex, string ProfileHome, string CodexHome, string Launcher) : InvocationConfiguration;
 
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
@@ -46,11 +46,7 @@ internal abstract record InvocationConfiguration
             case Direct direct when !Uri.TryCreate(direct.DirectOrigin, UriKind.Absolute, out var endpoint)
                 || endpoint.Port is < 1 or > 65535 || direct.DirectOrigin != $"http://127.0.0.1:{endpoint.Port}":
                 throw new UnsupportedRuntime("The operator DirectTarget must use a canonical loopback HTTP origin with an explicit port.");
-            case Direct:
-                return config;
-            // A Codex profile is all four paths or none.
-            case Local local when new[] { local.RealCodex, local.ProfileHome, local.CodexHome, local.Launcher }
-                .Select(path => path is null).Distinct().Count() == 1:
+            case Direct or Local:
                 return config;
             default:
                 throw new InvalidContractProposal("Invalid invocation configuration.");
@@ -62,7 +58,7 @@ internal abstract record InvocationConfiguration
     {
         Direct direct => new InvocationTarget.Direct(direct.DirectOrigin),
         Local local => new InvocationTarget.Local(local.WorkspaceRoot, new NativeProfile(local.StateDirectory,
-                local.RealCodex is null ? null : new(local.RealCodex, local.ProfileHome!, local.CodexHome!, local.Launcher!)),
+                new(local.RealCodex, local.ProfileHome, local.CodexHome, local.Launcher)),
             transport ?? new ZeroshotTransport(local.PythonExecutable)),
         _ => throw new UnsupportedRuntime("The invocation target is unsupported.")
     };

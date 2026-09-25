@@ -237,7 +237,12 @@ public sealed class TargetReadinessTests
             case "missing-origin": config.AsObject().Remove("directOrigin"); break;
             case "unknown-config": config["extra"] = ReadinessFixture.Secret; break;
             case "local-field": config["pythonExecutable"] = "/unavailable-python"; break;
-            case "local-config": config = JsonNode.Parse("""{"target":"local","pythonExecutable":"/p","stateDirectory":"/s","workspaceRoot":"/w"}""")!; break;
+            case "local-config":
+                config = JsonNode.Parse("""
+                    {"target":"local","pythonExecutable":"/p","stateDirectory":"/s","workspaceRoot":"/w",
+                     "realCodex":"/c","profileHome":"/h","codexHome":"/ch","launcher":"/l/codex"}
+                    """)!;
+                break;
             case "credential-config": config["gatewayApiKey"] = ReadinessFixture.Secret; break;
             case "credential-inventory":
                 var inventory = JsonNode.Parse(File.ReadAllText(fixture.Arguments[1]))!;

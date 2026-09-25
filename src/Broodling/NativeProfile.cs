@@ -39,8 +39,11 @@ public sealed record NativeLocator(string Kind, string Address, string? SdkVersi
 }
 
 /// <summary>
-/// Fixed LocalTarget bridge policy for no-effect work. Authorized PR work uses the HTTP DirectTarget
-/// and its approved execution asset instead. There is no caller-selected model/runtime or arbitrary environment map.
+/// The pinned native release and gateway constants shared by both targets, and the fixed LocalTarget
+/// bridge policy for no-effect work: runtime, target environment and the explicit Codex profile.
+/// Authorized PR work uses the HTTP DirectTarget and its approved execution asset;
+/// <see cref="DispatchCredentials"/> carries its current secrets. There is no caller-selected
+/// model/runtime or arbitrary environment map.
 /// </summary>
 public sealed class NativeProfile
 {
@@ -52,9 +55,9 @@ public sealed class NativeProfile
     internal static readonly string[] OperatingVariables = ["HOME", "CODEX_HOME", "LANG", "LC_ALL", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "USERPROFILE", "XDG_CACHE_HOME", "XDG_CONFIG_HOME"];
     private readonly string stateDirectory;
     private readonly string toolPath;
-    private readonly CodexProfile? codex;
+    private readonly CodexProfile codex;
 
-    public NativeProfile(string stateDirectory, CodexProfile? codex = null, string? toolPath = null)
+    public NativeProfile(string stateDirectory, CodexProfile codex, string? toolPath = null)
     {
         this.stateDirectory = PhysicalPaths.Resolve(stateDirectory);
         this.codex = codex;
@@ -74,7 +77,6 @@ public sealed class NativeProfile
             throw new UnsupportedRuntime("The bridge serves only no-effect LocalTarget work; authorized PR work uses the HTTP DirectTarget.");
         if (PhysicalPaths.Resolve(stateDirectory) != stateDirectory)
             throw new UnsupportedRuntime("Native state must remain canonical.");
-        if (codex is null) throw new UnsupportedRuntime("Local execution requires an explicit Codex profile.");
         var environment = OperatingVariables.ToDictionary(name => name, _ => "");
         environment["PATH"] = toolPath;
         foreach (var pair in codex.Environment(toolPath)) environment[pair.Key] = pair.Value;
@@ -105,7 +107,7 @@ public sealed class NativeProfile
             if (PhysicalPaths.Contains(protectedPath, stateDirectory) || PhysicalPaths.Contains(stateDirectory, protectedPath))
                 throw new UnsupportedRuntime("Native state must be separate from candidate and shared Git.");
         // Preserve the executable baseline's initial-home validation on ambiguous replay too.
-        codex!.Validate(attempt.Allocation.WorktreePath, toolPath);
+        codex.Validate(attempt.Allocation.WorktreePath, toolPath);
     }
 
     // Git remotes are not work-reference input: a bare owner/name is a local path,

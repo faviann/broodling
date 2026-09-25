@@ -33,6 +33,9 @@ internal sealed class NativeFixture : IDisposable
     }
     internal AttemptRecord Provision(BroodlingStore store) => store.ProvisionAttempt(Git.Admit(store).AttemptId);
     internal static ZeroshotTransport Transport() => new(Python);
+    /// <summary>A profile for paths that must refuse or hand back before the bridge would use it.</summary>
+    internal static NativeProfile Unused(string state) => new(state, new CodexProfile(Path.Combine(state, "real-codex"),
+        Path.Combine(state, "home"), Path.Combine(state, "codex-home"), Path.Combine(state, "launcher", "codex")));
     /// <summary>A binding for bridge reconnect witnesses; the bridge uses only its locator and run ID.</summary>
     internal static NativeRunBinding Run(NativeLocator locator, string runId) => new(locator, runId, "Broodling Attempt", "small", null);
     /// <summary>A shared initiation lock for direct transport calls outside a store dispatch.</summary>

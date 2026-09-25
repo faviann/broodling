@@ -38,6 +38,7 @@ public sealed partial class BroodlingStore
     {
         RequireUnpaused();
         var contract = GetContractRevision(revisionId);
+        RequireLocalDelivery(contract.Contract);
         if (!IsAdmitted(revisionId))
             throw new AttemptAdmissionError("An Attempt requires a committed admitted Contract decision.");
         var state = GitCustody.Resolve(repository, revision);
@@ -95,6 +96,7 @@ public sealed partial class BroodlingStore
     {
         RequireUnpaused();
         var (revisionId, repository) = PreparedStartingState(submissionId);
+        RequireLocalDelivery(GetContractRevision(revisionId).Contract);
         var root = GitCustody.WorkspaceRoot(workspaceRoot, repository.Repository, repository.StartingState);
         return AdmitAttempt(revisionId, repository.StartingState, root);
     }
@@ -149,7 +151,6 @@ public sealed partial class BroodlingStore
         }
         if (ReadDecision(revisionId, transaction)?.Admitted != true)
             throw new AttemptAdmissionError("An Attempt requires a committed admitted Contract decision.");
-        if (root is not null) RequireLocalDelivery(contract.Contract);
         RequireUnpaused(transaction);
         var now = Now();
         var allocation = root is null ? null : new WorkspaceAllocation(root, System.IO.Path.Combine(root, id),

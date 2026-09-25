@@ -227,7 +227,7 @@ public sealed class ReplacementTests
             await Assert.That(() => Retry()).Throws<AttemptAdmissionError>();
             store.RetireAttempt(original.AttemptId);
             await Assert.That(() => store.AdmitRetry(original.AttemptId, "worktree", fixture.Workspaces,
-                new NativeProfile(Path.Combine(fixture.State.Root, "native")))).Throws<AttemptAdmissionError>();
+                NativeFixture.Unused(Path.Combine(fixture.State.Root, "native")))).Throws<AttemptAdmissionError>();
             using (var connection = fixture.State.Connect())
             using (var transaction = connection.BeginTransaction())
             using (var command = connection.CreateCommand())

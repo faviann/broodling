@@ -191,7 +191,8 @@ public sealed class InvocationTests
         await Assert.That(handback.Attempts.Count).IsEqualTo(0);
         var changed = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose,
             [new("pr", "Open PR", "pull_request", "main")]);
-        await Assert.That(async () => await invocation.ResumeAsync(changed.Revision.ContractRevisionId, fixture.Git.Repository)).Throws<AttemptConflict>();
+        await Assert.That(async () => await new Invocation(store, new InvocationTarget.Direct("http://127.0.0.1:9"))
+            .ResumeAsync(changed.Revision.ContractRevisionId, fixture.Git.Repository)).Throws<AttemptConflict>();
         await Assert.That(transport.Calls).IsEqualTo(1);
     }
 
@@ -239,6 +240,7 @@ public sealed class InvocationTests
     [Arguments("direct-with-python")]
     [Arguments("local-with-origin")]
     [Arguments("partial-codex")]
+    [Arguments("no-codex")]
     [Arguments("http://user:CONFIG_SECRET@127.0.0.1:8123")]
     [Arguments("http://127.0.0.1:8123?token=CONFIG_SECRET")]
     [Arguments("http://remote.example:8123")]
@@ -263,6 +265,7 @@ public sealed class InvocationTests
             "direct-with-python" => With(direct, "pythonExecutable", NativeFixture.Python),
             "local-with-origin" => With(local, "directOrigin", "http://127.0.0.1:8123"),
             "partial-codex" => Without(local, "launcher"),
+            "no-codex" => Without(Without(Without(Without(local, "realCodex"), "profileHome"), "codexHome"), "launcher"),
             _ => With(direct, "directOrigin", invalid)
         };
         var path = Path.Combine(fixture.Root, "invalid-config.json");
@@ -365,6 +368,25 @@ public sealed class InvocationTests
     }
 
     [Test]
+    public async Task OperatorStopOfADispatchedLocalRunWithoutPythonRefusesBeforeAbandoning()
+    {
+        using var fixture = new NativeFixture();
+        using var store = fixture.Git.State.Open();
+        var attempt = fixture.Provision(store);
+        await store.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport());
+        var output = new StringWriter();
+        var error = new StringWriter();
+        await Assert.That(await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop"],
+            fixture.Git.State.Application, output, error)).IsEqualTo(1);
+        using var refusal = JsonDocument.Parse(error.ToString());
+        await Assert.That(refusal.RootElement.GetProperty("error").GetString()).IsEqualTo("python_required");
+        await Assert.That(output.ToString()).IsEqualTo("");
+        // Nothing was abandoned, so a later stop with the Python argument can still request native stop.
+        await Assert.That(store.GetAttempt(attempt.AttemptId).Abandonment).IsNull();
+        store.RequireCurrentAttempt(attempt.AttemptId);
+    }
+
+    [Test]
     public async Task RetainedResourceKindDecidesTargetAndAMismatchRefusesBeforeContact()
     {
         await using var target = new StockTarget();
@@ -391,7 +413,7 @@ public sealed class InvocationTests
         using var http = new HttpFixture();
         var transport = new ControlledTransport();
         await Assert.That(async () => await new Invocation(http.Store, new InvocationTarget.Local(http.Git.Workspaces,
-            new NativeProfile(Path.Combine(http.Git.State.Root, "native")), transport)).ResumeAsync(http.Attempt.ContractRevisionId))
+            NativeFixture.Unused(Path.Combine(http.Git.State.Root, "native")), transport)).ResumeAsync(http.Attempt.ContractRevisionId))
             .Throws<UnsupportedRuntime>();
         await Assert.That(http.Store.FindSubmission(http.Attempt.AttemptId)).IsNull();
         // A prepared HTTP Attempt keeps its retained origin; a differently configured one is refused.

@@ -216,7 +216,7 @@ public sealed class HttpSubmissionTests
         using var fixture = new HttpFixture();
         var store = fixture.Store;
         var attempt = fixture.Attempt;
-        var profile = new NativeProfile(Path.Combine(fixture.Git.State.Root, "native"));
+        var profile = NativeFixture.Unused(Path.Combine(fixture.Git.State.Root, "native"));
         // The bridge never prepares or dispatches an HTTP Attempt, and HTTP preparation never serves a worktree one.
         await Assert.That(() => store.PrepareSubmission(attempt.AttemptId, profile)).Throws<SubmissionNotReady>();
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, profile, new ControlledTransport()))

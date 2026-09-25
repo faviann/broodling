@@ -146,7 +146,7 @@ public sealed class NativeTransportTests
         await Assert.That(repeated.RunId).IsEqualTo(result.RunId);
         await Assert.That(repeated.Output.GetRawText()).IsEqualTo(result.Output.GetRawText());
         await Assert.That((await transport.StopAsync(correlated.Run!)).RunId).IsEqualTo(acceptedId);
-        await Assert.That((await store.DispatchAsync(attempt.AttemptId, new NativeProfile("/missing"), transport)).RunId).IsEqualTo(acceptedId);
+        await Assert.That((await store.DispatchAsync(attempt.AttemptId, NativeFixture.Unused("/missing"), transport)).RunId).IsEqualTo(acceptedId);
         var unknown = await Assert.ThrowsAsync<NativeTransportError>(async () => await transport.WaitAsync(correlated.Frozen.Run("01a00000-0000-7000-8000-000000000000")));
         await Assert.That(unknown!.Kind).IsEqualTo("RunNotFoundError");
     }
