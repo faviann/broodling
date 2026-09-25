@@ -169,8 +169,17 @@ stopped-target maintenance the host procedure passes its current check to
 See [state lifecycle](../docs/implementation/dotnet-identity-custody.md).
 
 The host routes commands before HTTP startup. Running it without a command starts
-ASP.NET composition/telemetry; it exposes no #100 HTTP intake or automatic
-progression. No daemon is needed to supervise native runs.
+the read-only HTTP server over existing state named by `Broodling:Store`
+(for example `--Broodling:Store=/NEW/state.sqlite3` or `Broodling__Store`); bind
+it with the standard `--urls`/`ASPNETCORE_URLS`. Startup only opens the store and
+refuses missing or incompatible state with a safe error code before listening.
+Each request uses its own session; nothing contacts GitHub, a provider or the
+target. `GET /health` opens the store and answers 503 when it is unavailable.
+Retained reads are `/issues?url=<issue-url>`, `/submissions/{id}`,
+`/submissions/{id}/bundle`, `/bundles/{id}/reference?id=<reference-id>`,
+`/revisions/{id}` and `/attempts/{id}`, mapping the application reads in
+[invocation](../docs/implementation/invocation.md). The server has no submission
+intake or automatic progression. No daemon is needed to supervise native runs.
 
 ### Invocation configuration
 
