@@ -19,7 +19,17 @@ public sealed record IssueSubmission(string SubmissionId, string WorkUnitId, lon
 {
     /// <summary>The immutable first cancellation stop/no-stop binding, when this submission was cancelled.</summary>
     public IssueSubmissionCancellation? Cancellation { get; init; }
+
+    /// <summary>The retained refusal of this submission's Contract proposal; it then has no Contract.</summary>
+    public ContractProposalRefusal? ProposalRefusal { get; init; }
 }
+
+/// <summary>One retained reason a bundle-bound Contract proposal was refused before any revision.</summary>
+public sealed record ContractProposalFinding(string Code, string Detail);
+
+/// <summary>Immutable refusal of one Issue submission's proposal; the submission is rejected.</summary>
+public sealed record ContractProposalRefusal(string SubmissionId, IReadOnlyList<ContractProposalFinding> Findings,
+    string RefusedAt);
 
 public sealed partial class BroodlingStore
 {
@@ -296,8 +306,20 @@ public sealed partial class BroodlingStore
         return new(id, workUnitId, sequence, issueUrl, state, receivedAt,
             contractRevisionId, Array.AsReadOnly(attempts))
         {
-            Cancellation = ReadIssueSubmissionCancellation(id, transaction)
+            Cancellation = ReadIssueSubmissionCancellation(id, transaction),
+            ProposalRefusal = ReadContractProposalRefusal(id, transaction)
         };
+    }
+
+    private ContractProposalRefusal? ReadContractProposalRefusal(string submissionId, SqliteTransaction? transaction)
+    {
+        using var command = Command("SELECT submission_id, findings_json, refused_at FROM contract_proposal_refusals WHERE submission_id = $p0",
+            transaction, submissionId);
+        using var row = command.ExecuteReader();
+        return row.Read()
+            ? new(row.GetString(0), Array.AsReadOnly(
+                System.Text.Json.JsonSerializer.Deserialize<ContractProposalFinding[]>(row.GetString(1))!), row.GetString(2))
+            : null;
     }
 
     private IssueSubmissionCancellation? ReadIssueSubmissionCancellation(string submissionId,

@@ -309,6 +309,14 @@ public sealed partial class BroodlingStore
     /// The bound bundle's references, identities and digests without bodies, from its digest-verified
     /// retained manifest. Capture writes JSON selectors; any other selector keeps its manifest base64.
     /// </summary>
+    internal JsonObject CompactManifest(ContractRequestBundle binding)
+    {
+        using var transaction = connection.BeginTransaction(deferred: true);
+        var result = CompactManifest(binding, transaction);
+        transaction.Commit();
+        return result;
+    }
+
     private JsonObject CompactManifest(ContractRequestBundle binding, SqliteTransaction transaction)
     {
         var bundle = ReadRequestBundleById(binding.BundleId, transaction);

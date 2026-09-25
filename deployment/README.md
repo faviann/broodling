@@ -44,9 +44,9 @@ needs a fresh store; see [state and operator commands](#state-and-operator-comma
 The owner decision is a future operational gate, not a prerequisite for finishing
 source retirement. This guide and #140 authorize no deployment, state switch,
 silent replacement, deletion, target creation or new live-provider campaign.
-Remaining #100 product intent is unchanged; public URL-only HTTP intake, bundled
-proposer, reference capture, automatic execution/completion, Compose,
-maintenance and retention work remain separate. Callable pre-Contract Issue
+Remaining #100 product intent is unchanged; public URL-only HTTP intake,
+automatic execution/completion, Compose, maintenance and retention work remain
+separate. Callable pre-Contract Issue
 submission identity is documented in the state API.
 
 ## Build a release artifact
@@ -433,6 +433,38 @@ A dispatched Attempt returns cessation refusal/quarantine even after terminal
 stop. Unknown correlation is never redispatched to discover a run. Explicit
 never-dispatched retirement/retry remain [callable operations](../docs/implementation/dotnet-retirement-replacement.md),
 not an automatic CLI recovery sequence.
+
+### Bundled Contract proposer
+
+The callable `AdmitRequestBundleAsync` prepares a completed RequestBundle's
+Contract with the one built-in proposer
+([reference](../docs/implementation/dotnet-contract-admission.md#bundled-proposer)).
+No host command runs it yet; #116 and #120 compose it into the service. Its
+profile is fixed, not configurable:
+
+| Setting | Value |
+| --- | --- |
+| Gateway | OpenAI-compatible Chat Completions at exactly `https://cliproxy.local.faviann.com/v1` |
+| Model | `gpt-5.6-sol` |
+| Credentials | Current `GATEWAY_API_KEY` and exactly `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`, read from the process environment for each proposal |
+| Trust | The host's system TLS trust for the gateway |
+
+The gateway's support for `/chat/completions` with tools, `tool_choice` and the
+`json_object` response format for `gpt-5.6-sol` is an assumption. It has not
+been confirmed against the real gateway; the historical #77 record probed only
+`/models` ([validation record](validation.md)).
+
+Supply the key through the same secret source as dispatch credentials. It is
+sent only as the gateway's bearer token. It is never written to the
+RequestBundle, Contract revision, refusal findings, submission rows or error
+messages. A missing key, another base URL or a gateway refusal is a
+non-retryable `ContractProposerError`. Transport loss, timeout, HTTP
+408/429/5xx, a reply cut off at the output limit or ended by any other finish
+reason than `stop` (absent counts as `stop`; `tool_calls` only with tool
+calls), non-text content, tool calls on the final call and any
+other unusable gateway response are retryable. Neither retains anything, so a later call proposes
+again from the same frozen request. A bound or refused submission never calls
+the gateway.
 
 ## Retention and limitations
 

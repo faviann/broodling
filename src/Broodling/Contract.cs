@@ -117,6 +117,28 @@ public sealed class Contract
         }
     }
 
+    /// <summary>
+    /// Read a model's typed proposal with the canonical field names and no unrecognized fields.
+    /// Unlike stored material it need not be canonical; the caller still validates its authority.
+    /// </summary>
+    internal static Contract FromProposal(System.Text.Json.Nodes.JsonObject proposal)
+    {
+        try
+        {
+            return proposal.Deserialize<Contract>(JsonOptions)
+                ?? throw new InvalidContractProposal("The proposal must be a Contract object.");
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidContractProposal(
+                $"The proposal does not match the Contract shape at '{exception.Path ?? "$"}'.");
+        }
+    }
+
+    /// <summary>A Contract value in its canonical JSON shape, for supplying fixed authority fields.</summary>
+    internal static System.Text.Json.Nodes.JsonNode? ToProposalNode<T>(T value) =>
+        JsonSerializer.SerializeToNode(value, JsonOptions);
+
     public void Validate()
     {
         ContractData.Text(WorkUnitId, "Work Unit", required: true);

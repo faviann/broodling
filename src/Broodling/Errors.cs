@@ -58,6 +58,23 @@ public sealed class InvalidContractProposal(string message)
 public sealed class SourceAttributionError(string message)
     : BroodlingException("source_attribution_error", message);
 
+/// <summary>
+/// The bundled proposer could not obtain a model reply. Nothing is retained; a later call may propose
+/// again against the same frozen inputs. Retryable marks a temporary gateway or transport failure.
+/// </summary>
+public sealed class ContractProposerError(string message, bool retryable)
+    : BroodlingException("contract_proposer_error", message)
+{
+    public bool Retryable { get; } = retryable;
+}
+
+/// <summary>The submission's proposal was refused; its retained findings are on the Issue submission.</summary>
+public sealed class ContractProposalRefused(ContractProposalRefusal refusal)
+    : BroodlingException("contract_proposal_refused", "The Contract proposal was refused; its findings are retained with the Issue submission.")
+{
+    public ContractProposalRefusal Refusal { get; } = refusal;
+}
+
 public sealed class ContractImmutabilityError(string message)
     : BroodlingException("contract_immutability_error", message);
 

@@ -73,8 +73,15 @@ as supplied sources; there is no second Contract pipeline.
   attributes them refuses, so their capture cannot add requested work.
 - Broodling supplies one `pull_request` effect to that retained PR target
   branch. The proposal must preserve it and carry `BundleBinding`
-  unchanged. A changed branch, binding, pin, Work Unit or producer refuses and
-  records nothing.
+  unchanged.
+- A proposal that is not a valid Contract, or that changes the branch, binding,
+  pin, Work Unit or producer, records no revision. Its finding (the refusal's
+  safe code and detail) is retained in `contract_proposal_refusals`, the
+  submission moves to `rejected` and the call throws `ContractProposalRefused`.
+  `IssueSubmission.ProposalRefusal` exposes it, including through the
+  read-only HTTP submission reads. The refusal is final: later calls report it
+  without proposing again, and the submission can never bind a Contract. Like a
+  capture refusal, it grants nothing, so one reached during a pause is retained.
 - Unsupported obligations, prerequisites and other refusals remain rejection
   findings, exactly as for supplied sources.
 
@@ -85,9 +92,66 @@ pause checks. The decision also moves the submission from `capturing` to
 undecided revision. A later call decides it without calling the proposer again,
 and it returns an existing decision even while paused, as `Admit` does. A new
 proposal refuses under pause, and a cancelled submission is refused before the
-proposer runs. When concurrent callers propose for one submission, the first
+proposer runs. The pause is checked before the proposer runs, not again when the
+proposal commits: a proposal that finishes during a pause is still bound, and
+only its decision waits for release. When concurrent callers propose for one submission, the first
 association wins. The other caller discards its uncommitted proposal and returns
-the winning revision's status.
+the winning revision's status. The first committed refusal or association
+likewise stands over a later refusal or association. No transaction is open while the proposer
+runs.
+
+### Bundled proposer
+
+`AdmitRequestBundleAsync(submissionId, credentials, cancellationToken)` runs the
+same admission with the one built-in proposer
+([#112](https://github.com/faviann/broodling/issues/112)). It is not
+caller-selectable and has producer `model_extraction`. It calls the supported
+model `gpt-5.6-sol` through the OpenAI-compatible Chat Completions API
+(`POST /chat/completions`, JSON-object response format) at exactly
+`https://cliproxy.local.faviann.com/v1`. The
+[operations guide](../../deployment/README.md#bundled-contract-proposer)
+describes its configuration.
+
+- The initial context is the Executable Request text, the fixed authority
+  (Work Unit, request pin, PR effect, producer and bundle binding) and the same
+  compact manifest native agents receive (#114), projected from the
+  digest-verified retained manifest: each member's reference identity, capture
+  kind, selector, digest and any Git commit and path, without its content. Fixed instructions describe the output
+  shape. They tell the model to preserve every requirement, expressing other
+  requested actions as obligations and unmet conditions as prerequisites, and
+  never to change the authority.
+- The model reads members on demand with one `read_reference` tool. Each read
+  goes through `ReadRequestBundleReference` for this bundle, so it returns only
+  frozen captured bytes: a non-member is an error reply, and nothing is fetched
+  upstream or read from a working tree. A read returns at most 64 KiB, with an
+  offset to continue; one proposal reads at most 512 KiB and makes at most 8
+  model calls. The last call forbids tools (`tool_choice: none`), so the model
+  must answer.
+- The final reply is parsed into a `Contract` with its canonical field names;
+  unrecognized fields and repeated properties are refused. An omitted authority field takes its fixed
+  value. A supplied one is kept, so any change refuses rather than being
+  corrected. A reply that is not such a JSON object is a malformed proposal. Both
+  are retained refusals, as above.
+- Operational failures retain nothing and throw `ContractProposerError`:
+  missing or invalid credentials and other gateway refusals (`Retryable` false),
+  and transport failure, a 3-minute call timeout, HTTP 408/429/5xx, a reply cut
+  off at the output limit (`finish_reason: length`), any other finish reason
+  than `stop` (absent counts as `stop`; `tool_calls` only with tool calls),
+  non-text content, tool calls on the final call, or another unusable gateway
+  response or tool call (`Retryable` true). A text-free `stop` reply remains a
+  retained refusal. The submission stays
+  `capturing`, and a later call proposes again from the same frozen inputs. A
+  bound or refused submission is never proposed again. Neither the key nor the
+  gateway's response text appears in an error or a retained record.
+
+A frozen-state integrity or custody failure during a proposal, such as a failed
+compact-manifest check or an on-demand read that fails for a reason other than an
+unknown member, throws a conflict that needs attention. It is neither a retained
+refusal nor a `ContractProposerError`, and it retains nothing.
+
+The proposer runs only after capture completes and cannot add bundle members.
+Controlled tests do not establish model interpretation quality; the supervised
+review limitation applies to every admitted Contract.
 
 A bound Contract's canonical JSON carries `requestBundle` with `bundleId` and
 `manifestSha256`, so its revision identity covers the exact bundle. The field is

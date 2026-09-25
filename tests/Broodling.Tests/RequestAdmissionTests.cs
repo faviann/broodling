@@ -77,7 +77,7 @@ public sealed class RequestAdmissionTests
                 ? input.BundleBinding! with { ManifestSha256 = new string('0', 64) }
                 : input.BundleBinding);
 
-        await Assert.That(() => store.AdmitRequestBundle(submissionId, Propose, "caller")).Throws<BroodlingException>();
+        await Assert.That(() => store.AdmitRequestBundle(submissionId, Propose, "caller")).Throws<ContractProposalRefused>();
         await Assert.That(store.GetIssueSubmission(submissionId).ContractRevisionId).IsNull();
         await Assert.That(store.History(ContractIngressTests.Reference)).IsEmpty();
     }
@@ -187,11 +187,11 @@ public sealed class RequestAdmissionTests
             .IsEqualTo(undecided.ContractRevisionId);
     }
 
-    private static string Request(params string[] declarations) =>
+    internal static string Request(params string[] declarations) =>
         "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n"
         + (declarations.Length == 0 ? "" : "\n### Available references\n" + string.Join("\n", declarations) + "\n");
 
-    private static async Task<RequestBundle> Capture(BroodlingStore store,
+    internal static async Task<RequestBundle> Capture(BroodlingStore store,
         RepositoryPreparationTests.RepositoryPreparationFixture fixture, string submissionId)
     {
         var bundle = await store.CaptureRequestBundleAsync(submissionId, fixture.RepositoryRoot, Credentials,

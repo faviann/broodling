@@ -213,7 +213,7 @@ CREATE TABLE store_metadata (
     manifest_hash TEXT NOT NULL,
     initialized_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'8c5cd46fc733cada63fc2d3a1a8bee180d0d802fa9e803d50824c7fa195903b3','1c70f7d77923da3d13b54c3fa8ea72c78d03f522612fad14e5080b2fbbb79a9c','2026-09-25T18:54:16.6525981+00:00');
+INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'dd6895ba373a28777d12008f80e4ef1f8858e8bb8cde57f13adea2a8d8fbd853','fa5ce4fd0fe07dfdb2e992f0a39debb89d3b70fca5804d39c51192e3800c00b0','2026-09-25T18:54:16.6525981+00:00');
 CREATE TABLE work_submissions (
     submission_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -631,4 +631,24 @@ CREATE TRIGGER completion_refusal_no_update BEFORE UPDATE ON completion_refusals
 BEGIN SELECT RAISE(ABORT, 'completion refusal is immutable'); END;
 CREATE TRIGGER completion_refusal_no_delete BEFORE DELETE ON completion_refusals
 BEGIN SELECT RAISE(ABORT, 'completion refusal is durable'); END;
+CREATE TABLE contract_proposal_refusals (
+    submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
+    findings_json TEXT NOT NULL CHECK (json_valid(findings_json) AND json_array_length(findings_json) > 0),
+    refused_at TEXT NOT NULL
+) STRICT;
+CREATE TRIGGER contract_proposal_refusal_bound BEFORE INSERT ON contract_proposal_refusals
+WHEN NOT EXISTS (
+    SELECT 1 FROM issue_submissions AS s JOIN request_bundles AS b USING (submission_id)
+    WHERE s.submission_id = NEW.submission_id AND s.state = 'capturing'
+      AND s.contract_revision_id IS NULL AND b.state = 'complete'
+)
+BEGIN SELECT RAISE(ABORT, 'Contract proposal refusal requires an unbound submission with a completed RequestBundle'); END;
+CREATE TRIGGER contract_proposal_refusal_no_update BEFORE UPDATE ON contract_proposal_refusals
+BEGIN SELECT RAISE(ABORT, 'Contract proposal refusal is immutable'); END;
+CREATE TRIGGER contract_proposal_refusal_no_delete BEFORE DELETE ON contract_proposal_refusals
+BEGIN SELECT RAISE(ABORT, 'Contract proposal refusal is durable'); END;
+CREATE TRIGGER contract_proposal_refusal_final BEFORE UPDATE OF contract_revision_id ON issue_submissions
+WHEN NEW.contract_revision_id IS NOT NULL
+  AND EXISTS (SELECT 1 FROM contract_proposal_refusals WHERE submission_id = NEW.submission_id)
+BEGIN SELECT RAISE(ABORT, 'A refused Contract proposal is final for its Issue submission'); END;
 COMMIT;

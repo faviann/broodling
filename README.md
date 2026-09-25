@@ -52,9 +52,10 @@ Application behavior is callable without HTTP. Follow the seam you need:
 | Inspect an existing selected DirectTarget | [Target readiness](docs/implementation/dotnet-target-readiness.md) |
 
 The ASP.NET host serves retained work and frozen references over read-only HTTP
-from existing state. It has no #100 submission intake, bundled proposer,
-pre-Contract capture lifecycle, automatic progression or automatic completion
-capture. Scheduling, backlog selection, Compose deployment,
+from existing state. The bundled Contract proposer is callable only
+([configuration](deployment/README.md#bundled-contract-proposer)). The host has no
+#100 submission intake, pre-Contract capture lifecycle, automatic progression or
+automatic completion capture. Scheduling, backlog selection, Compose deployment,
 maintenance and retention automation remain separately scoped work.
 
 ## Native boundary and limitations

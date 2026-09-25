@@ -152,8 +152,12 @@ belongs to #120. #114 gives a new bundle-bound native task the RequestBundle's
 compact manifest instead of reference bodies; native agents read references on
 demand through a read-only helper in the DirectTarget image that calls the
 existing reader as the `broodling` service. Earlier prepared records keep their
-exact bytes. Remaining #100 intent includes public HTTP submission intake, a
-bundled proposer, automatic progression, that host attachment, Compose,
+exact bytes. #112 adds the callable bundled proposer: the supported model
+behind the pinned gateway prepares that bundle-bound Contract from the Executable
+Request, a compact manifest and on-demand frozen-reference reads. Malformed or
+authority-changing proposals retain findings and reject the submission; gateway
+failures retain nothing and may be retried. Remaining #100 intent includes public
+HTTP submission intake, automatic progression, that host attachment, Compose,
 maintenance and backup/restore; those remain unimplemented. The ASP.NET host is
 not authority to add them.
 
