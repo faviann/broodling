@@ -126,6 +126,27 @@ public sealed class RequestCaptureTests
     }
 
     [Test]
+    public async Task BundleFrozenUnderAnotherPlanIsNotAdoptedByV1Capture()
+    {
+        using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
+        fixture.SetIssue(12, Request("- a: repo:docs/a.md"));
+        using var store = fixture.State.Initialize();
+        var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
+        // The v1 inputs and policy, but limits the v1 capture would never choose.
+        store.BeginRequestBundleCapture(submission.SubmissionId, new RequestBundlePlan(
+            """{"issue":"https://github.com/acme/widget/issues/12"}"""u8.ToArray(),
+            """{"convention":"broodling-request:v1","traversal":"declared-then-breadth-first-github-issue-comment-links"}"""u8.ToArray(),
+            """{"maxReferences":1000,"maxItemBytes":1073741824,"maxTotalBytes":1073741824}"""u8.ToArray()));
+
+        await Assert.That(async () => await Capture(store, fixture, submission.SubmissionId))
+            .Throws<RequestBundleConflict>();
+        var retained = store.GetRequestBundle(submission.SubmissionId);
+        await Assert.That(retained.State).IsEqualTo("capturing");
+        await Assert.That(retained.References.Count).IsEqualTo(0);
+        await Assert.That(fixture.ReadGhPaths().Length).IsEqualTo(0);
+    }
+
+    [Test]
     [Arguments("missing", "request_section_missing")]
     [Arguments("multiple", "request_section_multiple")]
     [Arguments("not-beneath-heading", "request_section_ambiguous")]

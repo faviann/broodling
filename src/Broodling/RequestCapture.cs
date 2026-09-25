@@ -48,21 +48,15 @@ public sealed partial class BroodlingStore
         var work = GetWorkUnit(GetIssueSubmission(submissionId).WorkUnitId);
         var primary = WorkReference.Parse(work.Host + "/" + work.Owner + "/" + work.Repository,
             work.IssueNumber, work.RepositoryIdentity, work.IssueIdentity);
-        var existing = ReadRequestBundle(submissionId, null);
-        if (existing is { State: "complete" or "refused" })
-            return existing;
-
-        // Resume under the retained bounds; Begin refuses any other frozen plan.
+        // Begin replays an existing bundle in any state only under this exact
+        // plan, so a bundle frozen with other inputs, policy or limits conflicts.
         var bounds = limits ?? RequestBundleLimits.Default;
-        if (existing is not null)
-        {
-            try { bounds = JsonSerializer.Deserialize<RequestBundleLimits>(existing.AcquisitionLimits, CaptureJson)!; }
-            catch (JsonException) { throw new RequestBundleConflict("The RequestBundle was not begun by v1 request capture."); }
-        }
         var bundle = BeginRequestBundleCapture(submissionId, new RequestBundlePlan(
             Json(new { issue = primary.IssueLocator }),
             Json(new { convention = ExecutableRequest.Convention, traversal = "declared-then-breadth-first-github-issue-comment-links" }),
             Json(bounds)));
+        if (bundle.State is "complete" or "refused")
+            return bundle;
 
         var total = 0L;
         void Measure(string referenceId, long size)
