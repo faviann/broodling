@@ -33,6 +33,9 @@ public sealed partial class BroodlingStore
             else if (File.Exists(allocation.Allocation.Enclosure) || allocation.Provision is not null || submitted is { State: not "prepared" })
                 throw new CessationUnconfirmed("The dispatched or acknowledged enclosure is missing or ambiguous; Attempt abandoned, containment remains with the operator.");
         }
+        // An HTTP record routes on its retained format and ignores any bridge transport.
+        if (submitted is { Format: NativeSubmission.Http, State: not "prepared" })
+            throw await StopRetainedHttpAsync(attemptId, cancellationToken);
         if (submitted is { State: not "prepared" })
         {
             if (submitted.Run is not { } run)
@@ -57,6 +60,34 @@ public sealed partial class BroodlingStore
         var result = ReadRetirement(attemptId, transaction)!;
         transaction.Commit();
         return result;
+    }
+
+    /// <summary>
+    /// Request native stop of an abandoned HTTP record with dispatch intent, without credentials,
+    /// source custody or replay. A confirmed run is forced directly; an intended run only after its
+    /// status matches every retained binding fact, which still establishes no correlation. The
+    /// returned refusal is the outcome: force never sent, a terminal result that proves no physical
+    /// cessation, or <see cref="NativeTransportError"/> when a sent force has an uncertain outcome.
+    /// </summary>
+    internal async Task<BroodlingException> StopRetainedHttpAsync(string attemptId, CancellationToken cancellationToken)
+    {
+        if (GetAttempt(attemptId).Abandonment is null) throw new AttemptConflict("HTTP stop requires committed abandonment.");
+        var submitted = FindSubmission(attemptId);
+        if (submitted is not { Format: NativeSubmission.Http, State: not "prepared" })
+            throw new AttemptConflict("Only a dispatched HTTP submission has a run to stop.");
+        var (run, identity) = submitted.Run is { } confirmed
+            ? (confirmed, NativeRunIdentity.Confirmed)
+            : (submitted.Frozen.Run(submitted.IntendedRunId!), NativeRunIdentity.Intended);
+        var stop = await DirectTargetRun.StopAsync(run, identity, DirectTargetClock, cancellationToken);
+        return stop.Force switch
+        {
+            DirectTargetForce.Terminal => new CessationUnconfirmed(
+                "Native stop observed a terminal result, which supplies no physical cessation proof. Attempt abandoned and quarantined.",
+                nativeStopRequested: true),
+            DirectTargetForce.NotSent => new CessationUnconfirmed(
+                $"Native stop was not sent ({stop.Reason}). Attempt abandoned and quarantined; a later explicit stop may address the run."),
+            _ => new NativeTransportError(stop.Reason!)
+        };
     }
 
     private string WorktreeRetirementBasis(AttemptRecord attempt)

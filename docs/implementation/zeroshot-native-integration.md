@@ -244,8 +244,8 @@ completion. Store errors grant no partial disposition.
 fixed client bounds of the selected
 [HTTP/OECP contract](https://github.com/faviann/broodling/issues/167#issuecomment-5823939438).
 Target readiness discovery, HTTP submission, the run status reader below and
-public HTTP observation use it; public wait and stop do not use it yet. The
-bounds are internal constants, not operator settings:
+public HTTP observation, wait and stop use it. The bounds are internal
+constants, not operator settings:
 
 | Resource | Limit |
 | --- | --- |
