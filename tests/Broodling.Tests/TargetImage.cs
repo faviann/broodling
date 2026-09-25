@@ -5,12 +5,15 @@ namespace Broodling.Tests;
 
 /// <summary>
 /// The actual DirectTarget image built from the pinned SDK's native binary, and its controlled
-/// provider/forge layer. Each is built once per test run and removed afterwards.
+/// provider/forge layer. Each is built once per test run and removed afterwards. The pinned
+/// zeroshot-tls image is pulled only when absent, and then removed afterwards too.
 /// </summary>
 internal static class TargetImage
 {
     internal static readonly Lazy<Task<string>> Direct = new(BuildDirect);
     internal static readonly Lazy<Task<string>> Controlled = new(BuildControlled);
+    internal static readonly Lazy<Task<string>> Tls = new(PullTls);
+    private static string? pulledTls;
 
     private static async Task<string> BuildDirect()
     {
@@ -38,12 +41,26 @@ internal static class TargetImage
         return tag;
     }
 
+    private static async Task<string> PullTls()
+    {
+        if ((await DockerCommand("image", "inspect", TargetReadiness.TlsImage)).Code != 0)
+        {
+            RequireSuccess(await DockerCommand("pull", "--quiet", TargetReadiness.TlsImage));
+            var pulled = await DockerCommand("image", "inspect", "--format", "{{.Id}}", TargetReadiness.TlsImage);
+            RequireSuccess(pulled);
+            pulledTls = pulled.Output.Trim();
+        }
+        return TargetReadiness.TlsImage;
+    }
+
     [After(Assembly)]
     public static async Task RemoveImages()
     {
         foreach (var image in new[] { Controlled, Direct })
             if (image.IsValueCreated && image.Value.IsCompletedSuccessfully)
                 RequireSuccess(await DockerCommand("image", "rm", await image.Value));
+        // Best effort: a concurrent run may still use the pinned image it found present, and then keeps it.
+        if (pulledTls is not null) await DockerCommand("image", "rm", pulledTls);
     }
 
     internal sealed record Result(int Code, string Output, string Error);

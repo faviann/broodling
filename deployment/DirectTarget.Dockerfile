@@ -1,7 +1,7 @@
 # The supported profile pins the selected runtime and delivery dependencies.
 FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git ca-certificates python3 procps \
+    git ca-certificates openssl python3 procps \
     && rm -rf /var/lib/apt/lists/* \
     && npm install --global @openai/codex@0.153.4
 # Native Zeroshot invokes /usr/bin/gh and needs api --paginate --slurp.

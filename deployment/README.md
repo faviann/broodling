@@ -129,6 +129,9 @@ receives these inputs; this repository builds and publishes neither image:
   [bridge/requirements.txt](../src/Broodling/bridge/requirements.txt), and the
   target dependencies in the [DirectTarget Dockerfile](DirectTarget.Dockerfile)
   (Codex 0.153.4, gh 2.101.0).
+- `zeroshot-tls`: the pinned Caddy reference, the package-defined user
+  `10443:10443` and [`zeroshot-tls.Caddyfile`](zeroshot-tls.Caddyfile), as
+  described under [readiness](#existing-target-readiness).
 - The Broodling image needs no Python or SDK for authorized PR work; Python
   remains only for a no-effect LocalTarget profile.
 - Frozen-reference access (#114): the DirectTarget image installs
@@ -201,7 +204,7 @@ invocation over the HTTP DirectTarget:
 {
   "target": "direct",
   "directOrigin": "https://zeroshot.dev.faviann.com",
-  "directRootCertificate": "/NEW/zeroshot-tls/root.crt"
+  "directRootCertificate": "/NEW/zeroshot-tls/root/root.crt"
 }
 ```
 
@@ -211,14 +214,15 @@ origin follows the native rule: canonical HTTPS, or literal-loopback HTTP such a
 port omitted and never port 0. Anything else refuses.
 
 The optional `directRootCertificate` is the absolute path of a PEM root
-certificate, such as Caddy's `tls internal` root. When it is set, HTTPS and WSS
+certificate: for the homelab stack, the `root.crt` that
+[`initialize-tls`](#explicit-initialization-and-guarded-startup) created in the
+public root directory. When it is set, HTTPS and WSS
 connections to the DirectTarget trust exactly that root, not system trust. When
 it is unset, system trust applies. No option disables certificate validation.
 Each new TLS connection rereads the file, so a regenerated root is used without
 restarting Broodling. A missing or unreadable file fails only
 that operation, as a transport failure; a dispatch fails before recording any
-dispatch intent. `check-target` uses this same file, but until #186 it still
-accepts only a loopback HTTP origin, `http://127.0.0.1:<port>`.
+dispatch intent. `check-target` trusts this same file for its discovery.
 
 The no-effect LocalTarget alternative uses the SDK bridge:
 
@@ -246,32 +250,46 @@ and a mismatch refuses before any contact.
 
 ## Existing-target readiness
 
-`TargetReadiness.CheckAsync` and the thin command preserve actual-target
-configuration/dependency checks without an installer:
+`TargetReadiness.CheckAsync` and the thin command check an existing
+[ADR 0001](../docs/adr/0001-directtarget-https-origin-and-compose-topology.md)
+stack's configuration and dependencies without an installer. Run it on the
+Docker host as the account with Docker access:
 
 ```bash
 dotnet /RELEASE/host/Broodling.Host.dll check-target /NEW/target-inventory.json /NEW/config.json
 ```
 
-An operator records the **existing selected target's** exact image and canonical
-mount paths in `target-inventory.json`:
+An operator records the **existing stack's** containers, the exact `zeroshot`
+image, the Compose project network and canonical host mount paths in
+`target-inventory.json`:
 
 ```json
 {
-  "containerName": "broodling-target",
+  "containerName": "broodling-zeroshot-1",
   "imageId": "sha256:EXACT_EXISTING_IMAGE_ID",
-  "directOrigin": "http://127.0.0.1:18770",
+  "directOrigin": "https://zeroshot.dev.faviann.com",
   "stateMount": "/NEW/target-state",
-  "homeMount": "/NEW/target-home"
+  "homeMount": "/NEW/target-home",
+  "network": "broodling_default",
+  "tlsContainerName": "broodling-zeroshot-tls-1",
+  "rootKeyMount": "/NEW/zeroshot-tls/key",
+  "rootCertificateMount": "/NEW/zeroshot-tls/root",
+  "broodlingContainerName": "broodling-broodling-1"
 }
 ```
 
-The [readiness reference](../docs/implementation/dotnet-target-readiness.md) lists
-every check: selected image/container, running/root/isolation/restart settings,
-exact mounts and loopback port, credential exclusion, native/Codex/Node/gh
-pins and binary hashes, `gh api graphql --paginate --slurp`, hosted UID/GID
-transition and native discovery. Both files must select the same origin. It
-creates no target/state and dispatches zero provider tasks.
+The [readiness reference](../docs/implementation/dotnet-target-readiness.md)
+lists every check: the `zeroshot` image, running/root/isolation/restart settings,
+exact mounts, no published port, fixed launch arguments and the `zeroshot` alias
+on the project network; `zeroshot-tls`'s pinned image, non-root user,
+`NET_BIND_SERVICE`-only capabilities, 443 publication, origin alias and separate
+root mounts; a read-only public root mount and no key mount in `broodling`;
+credential exclusion, native/Codex/Node/gh pins and binary hashes,
+`gh api graphql --paginate --slurp`, the hosted UID/GID transition, and native
+discovery through `zeroshot-tls` using the configuration's root. Both files must
+select the same origin, and the configuration's `directRootCertificate` must be
+`root.crt` in the recorded `rootCertificateMount`. It creates no target/state and
+dispatches zero provider tasks.
 
 The retained [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
 target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
@@ -281,54 +299,101 @@ official wheel's `zeroshot/_bin/zeroshot` as `zeroshot`, plus
 operator-owned and separately authorized; the .NET release process does not
 build or deploy this image.
 
-The supported target is rootful Docker on the same trusted host, root inside the
-container with ordinary capabilities, two durable mounts at `/state` and
-`/home/node`, and unauthenticated native access published only on loopback.
-Local users and containers able to reach its bridge are trusted. Public exposure,
-rootless/altered UID mapping, Docker-socket or extra credential/source mounts are
-outside this profile. Preserve native UID ownership; never recursively chown
-used target storage.
+The supported topology is ADR 0001's single Compose project on rootful Docker on
+one trusted host:
 
-### Explicit native initialization and guarded startup
+- `zeroshot` runs this image as container root with Docker's default
+  capabilities. It has three bind mounts: state at `/state`, home at
+  `/home/node` and the public root directory read-only at `/tls-root`. Native
+  listens on the project network at the fixed inner port **18770**, which is
+  never published.
+- `zeroshot-tls` runs
+  `caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b`
+  as the package-defined user **`10443:10443`**, with `cap_drop: [ALL]` and
+  `cap_add: [NET_BIND_SERVICE]`. It mounts the root key directory read-only at
+  `/tls-root-key`, the public root directory read-only at `/tls-root`,
+  [`zeroshot-tls.Caddyfile`](zeroshot-tls.Caddyfile) read-only at
+  `/etc/caddy/Caddyfile`, and a named volume at `/data`. It listens on 443,
+  publishes that port on the LXC and carries `zeroshot.dev.faviann.com` as its
+  alias on the project network.
+- `broodling` mounts only the public root directory, read-only, and never the key
+  directory or Caddy's data.
+
+Native access is unauthenticated: callers that Traefik admits and anything that
+reaches the published port are trusted (ADR 0001). Rootless or altered UID
+mapping, and Docker-socket or extra credential/source mounts, are outside this
+profile. Preserve native UID ownership; never recursively chown used target
+storage.
+
+### Explicit initialization and guarded startup
 
 The target image entrypoint is `/usr/local/bin/broodling-target`. It keeps the
-native paths `/state`, `/home/node` and `CODEX_HOME=/home/node/.codex` fixed.
-`ZEROSHOT_CONFIG_DIR` and `XDG_CONFIG_HOME` overrides are refused. Build the image
-from a directory containing the three build inputs described above:
+native paths `/state`, `/home/node` and `CODEX_HOME=/home/node/.codex` and the
+listener `0.0.0.0:18770` fixed. `ZEROSHOT_CONFIG_DIR` and `XDG_CONFIG_HOME`
+overrides are refused. Build the image from a directory containing the three
+build inputs described above:
 
 ```bash
 docker build -f DirectTarget.Dockerfile -t broodling-target:REVIEWED_REVISION .
 ```
 
-For an authorized **new installation only**, first provision two empty durable
-host directories with explicit root ownership and private permissions. With no
-existing target using them, run the image once without publishing a port:
+For an authorized **new installation only**, first provision four empty durable
+host directories: target state and home, with explicit root ownership and
+private permissions, and the root key and public root directories. Then, in
+this order:
 
-```bash
-docker run --rm --network none \
-  --mount type=bind,src=/NEW/target-state,dst=/state \
-  --mount type=bind,src=/NEW/target-home,dst=/home/node \
-  broodling-target:REVIEWED_REVISION initialize \
-  --listen 0.0.0.0:18770 --public-origin http://127.0.0.1:18770 --storage /state
-```
+1. **Create the TLS root once**, before `zeroshot-tls` first starts. The target
+   image's one-off root helper runs as container root:
 
-Initialization refuses nonempty roots, including partially initialized state.
-It briefly starts native on container loopback at the origin's port, records
-`broodling` through native `target add` in the home registry, uses public
-`zeroshot list` to create the native ledger without submitting work, and stops
-that process. Success leaves no server running. Initialization failure leaves
-partial durable state for inspection; it never deletes it or silently retries
-over it.
+   ```bash
+   docker run --rm --network none \
+     --mount type=bind,src=/NEW/zeroshot-tls/key,dst=/tls-root-key \
+     --mount type=bind,src=/NEW/zeroshot-tls/root,dst=/tls-root \
+     broodling-target:REVIEWED_REVISION initialize-tls
+   ```
+
+   It writes an OpenSSL P-256 key, `root.key`, mode `0400` in the key directory,
+   which becomes mode `0700`; `10443:10443` owns both. It writes a self-signed
+   CA certificate valid for ten years, `root.crt`, mode `0644` and root-owned,
+   as the only file in the public directory (`0755`). It refuses unless both
+   locations exist, are empty and are distinct, so it never overwrites or
+   regenerates a root. A failure leaves any partial file for inspection.
+2. **Start `zeroshot-tls`** (`docker compose up -d zeroshot-tls`). Caddy signs
+   only with the provided root (`pki { ca local { root { cert, key } } }`) and
+   issues and renews its own intermediate and leaf, stored under `/data`. With a
+   missing or mismatched root file it exits with status 2 (a bare panic) and
+   generates nothing. The image's `/data/caddy` is world-writable with the
+   sticky bit, which the non-root user needs, so use a named volume that Docker
+   fills from the image rather than an empty bind mount.
+3. **Initialize native state** through the origin:
+
+   ```bash
+   docker compose run --rm --no-deps --use-aliases zeroshot initialize \
+     --listen 0.0.0.0:18770 --public-origin https://zeroshot.dev.faviann.com --storage /state
+   ```
+
+   `--use-aliases` gives the one-off container the `zeroshot` alias, so
+   `zeroshot-tls` can forward to it. Initialization refuses nonempty state or
+   home, including partially initialized state, and requires
+   `/tls-root/root.crt`. It briefly serves native on the project network,
+   records `broodling` through native `target add` in the home registry, uses
+   public `zeroshot list` to create the native ledger without submitting work,
+   and stops that process. Native's client reaches the origin through the alias
+   and `zeroshot-tls`, and `SSL_CERT_FILE=/tls-root/root.crt` makes it trust
+   only the public root. Success leaves no native server running. Failure
+   leaves partial durable state for inspection; it never deletes it or silently
+   retries over it. If it cannot reach the origin, check that `zeroshot-tls` is
+   running with this root and that the one-off container has the `zeroshot`
+   alias. To retry, deliberately clear the partial state and home first:
+   initialization refuses nonempty state.
+4. **Start the target** (`docker compose up -d zeroshot`) with the same
+   arguments without `initialize`.
 
 Pinned native, not the entrypoint, decides which public origins are valid and
-records its canonical spelling; configure that exact spelling. Zeroshot 10.3.0
-accepts only HTTPS origins or literal loopback HTTP (`http://127.0.0.1:PORT`),
-and `target serve` itself provides no TLS. It refuses a plain-HTTP Compose
-service-name origin such as `http://broodling-target:18770` before creating
-state. The homelab installation's replacement topology and HTTPS origin are
-decided in [ADR 0001](../docs/adr/0001-directtarget-https-origin-and-compose-topology.md);
-the loopback commands in this section describe current behavior until that
-origin is implemented.
+records its canonical spelling; configure exactly
+`https://zeroshot.dev.faviann.com`. `target serve` provides no TLS;
+`zeroshot-tls` terminates it, and the Caddyfile names that host. Changing the
+origin later requires a stopped-target transition of native state.
 
 Ordinary startup uses the same arguments **without `initialize`**, the same
 mounts and the recorded origin. Before executing `zeroshot target serve`, the
@@ -341,9 +406,21 @@ refused before serving. Native owns the table shapes, rows and registry
 format/version.
 Missing, foreign or redirected state refuses without creating replacement files.
 Restore missing state; do not initialize an empty replacement at an existing
-origin. Existing targets without this binding require a separately reviewed
-stopped-target transition; this command does not adopt them. Readiness now
-rejects the former unguarded native entrypoint.
+origin. Existing targets without this binding, including targets bound to a
+loopback origin, require a separately reviewed stopped-target transition; this
+command does not adopt them. Readiness rejects the former unguarded native
+entrypoint.
+
+For operator diagnosis, run native's client inside the target with the public
+root:
+
+```bash
+docker compose exec zeroshot env SSL_CERT_FILE=/tls-root/root.crt zeroshot list --target broodling
+```
+
+Set `SSL_CERT_FILE` per command, not in the service environment, so nothing
+else in the container trusts only the private root. Without it, native uses
+system trust and reports only `Zeroshot observation transport disconnected`.
 
 Neither mode recursively changes ownership. Native itself prepares traversable
 state/run roots; existing run-specific UIDs, GIDs and permissions remain native's
@@ -353,6 +430,30 @@ and the origin binding, not snapshot freshness or cross-version compatibility: a
 matching old snapshot or another valid state/home pair with the same origin
 cannot be distinguished. There is no new installation identity, private run-row
 inspection, history pruning, upgrade, backup/restore or maintenance protocol here.
+
+### TLS root rotation
+
+Rotation is a deliberate step, not something Caddy or Broodling does:
+
+1. Stop `zeroshot-tls` (`docker compose stop zeroshot-tls`).
+2. Move `root.key` and `root.crt` out of their directories together. Keep any
+   copy of the old key out of the public directory.
+3. Remove Caddy's stored intermediate and leaf, as its own user:
+
+   ```bash
+   docker compose run --rm --no-deps --entrypoint rm zeroshot-tls \
+     -rf /data/caddy/pki/authorities/local /data/caddy/certificates/local
+   ```
+
+4. Create the new pair with `initialize-tls`, exactly as at first
+   initialization, and start `zeroshot-tls` again.
+5. Update Traefik's copy of the root certificate, then run `check-target`.
+
+Broodling rereads the root for each new connection, and native's client reads it
+for each command, so neither needs a restart. If step 3 is skipped, or Caddy's
+data is restored without its matching root, Caddy keeps serving an intermediate
+signed by the old root. Clients trusting the new root then refuse the
+connection, and `check-target` reports discovery as unavailable.
 
 Readiness is a point-in-time dependency/configuration check. Before an authorized
 dispatch, the operator must separately establish actual-target gateway
