@@ -1,0 +1,35 @@
+# A disposable instance of ADR 0001's single Compose project over the images this revision builds,
+# used only by demonstrate.sh. It is not the production installation (homelab-iac#353 owns that):
+# zeroshot-tls publishes on host loopback, and all state lives in one disposable directory.
+services:
+  broodling:
+    image: ${BROODLING_IMAGE:?}
+    volumes:
+      - { type: bind, source: "${DEMO_ROOT:?}/broodling", target: /var/lib/broodling }
+      - { type: bind, source: "${DEMO_ROOT:?}/tls-root", target: /tls-root, read_only: true }
+
+  zeroshot:
+    image: ${TARGET_IMAGE:?}
+    command: [--listen, 0.0.0.0:18770, --public-origin, https://zeroshot.dev.faviann.com, --storage, /state]
+    volumes:
+      - { type: bind, source: "${DEMO_ROOT:?}/target-state", target: /state }
+      - { type: bind, source: "${DEMO_ROOT:?}/target-home", target: /home/node }
+      - { type: bind, source: "${DEMO_ROOT:?}/tls-root", target: /tls-root, read_only: true }
+
+  zeroshot-tls:
+    image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    user: "10443:10443"
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    ports: ["127.0.0.1::443"]
+    networks:
+      default:
+        aliases: [zeroshot.dev.faviann.com]
+    volumes:
+      - { type: bind, source: "${DEMO_ROOT:?}/tls-root-key", target: /tls-root-key, read_only: true }
+      - { type: bind, source: "${DEMO_ROOT:?}/tls-root", target: /tls-root, read_only: true }
+      - { type: bind, source: ../../deployment/zeroshot-tls.Caddyfile, target: /etc/caddy/Caddyfile, read_only: true }
+      - { type: volume, source: tls-data, target: /data }
+
+volumes:
+  tls-data:

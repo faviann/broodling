@@ -85,7 +85,9 @@ build-time recipe. It takes the pinned native executable, runs
 --uniform-runtime-config` and `profile show` with an isolated HOME/config, then
 checks the exact approved bytes. It then re-admits the graph/runtime through
 `profile set --graph --runtime-config` and requires an exact round trip. It runs
-no target or provider. It is not a runtime helper.
+no target or provider. It is not a runtime helper. The Broodling
+[image build](../../deployment/README.md#broodling-image) runs it with the
+pinned native and fails unless the published asset equals its output.
 
 ## HTTP submission preparation
 

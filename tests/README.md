@@ -28,8 +28,8 @@ dotnet build Broodling.sln --configuration Release
 across worktrees; its default is the repository's `.venv/bin/python`.
 Missing SDK/native dependencies fail rather than skip.
 The image startup tests also require rootful Docker access. They build the actual
-`deployment/DirectTarget.Dockerfile` using the pinned SDK binary, so an uncached
-build needs access to the pinned image/package sources. They also use the pinned
+`deployment/DirectTarget.Dockerfile`, which fetches the pinned SDK wheel for its
+native binary, so an uncached build needs access to the pinned image/package sources. They also use the pinned
 `zeroshot-tls` Caddy image; when it is absent, the run pulls it by digest and removes
 it afterwards unless another concurrent run still uses it. Each run owns and removes
 its uniquely tagged test images, its containers, networks and disposable volumes,
@@ -138,6 +138,47 @@ unresolved until exact replay.
 
 The provider, forge and PR receipt are controlled. The run is not a real GitHub
 PR, semantic-quality result, image publication or production topology check.
+
+## Image demonstration
+
+[`images/demonstrate.sh`](images/demonstrate.sh) checks the two built images
+together, outside the TUnit suite. The [images workflow](../.github/workflows/images.yml)
+runs it before every publication; run it locally after building the images as
+in [images](../deployment/README.md#images):
+
+```bash
+tests/images/demonstrate.sh BROODLING_IMAGE TARGET_IMAGE [FACTS_JSON]
+```
+
+It needs rootful Docker with Compose, curl, jq and a .NET 10 ASP.NET runtime on
+the host. It brings up a disposable instance of ADR 0001's single Compose
+project ([compose.yaml](images/compose.yaml): `broodling`, `zeroshot` and the
+pinned Caddy `zeroshot-tls` with the package Caddyfile, publishing only on host
+loopback) over bind mounts under a unique `image-demo-broodling-121-*` child of
+the test workspace root. It then follows the documented order: `initialize-tls`,
+`zeroshot-tls`, native `initialize` through the origin, `zeroshot`, and
+`initialize-store` as the Broodling image user before `broodling` starts. It
+checks two kinds of fact separately:
+
+- Network application checks, on the project network only: the image health
+  check reports `broodling` healthy; `zeroshot` reads `http://broodling:8080/health`;
+  the installed `broodling-reference` helper reaches the reader by service name
+  and gets its `404 unknown_record` for the empty store; `broodling` discovers
+  the target through `https://zeroshot.dev.faviann.com`, trusting only the
+  mounted public root.
+- Host-only checks, made by the host's Docker client: no service mounts a Docker
+  socket; `broodling` runs as `1654:1654` under an init and mounts only its
+  state directory read/write and the public root read-only; the state directory
+  and the store it created are owned by that user; and the image's own
+  `check-target`, copied out of the Broodling image and run on the host, reports
+  the stack ready with its pinned dependency versions.
+
+No credentials, provider, GitHub or existing target are used, and no Codex shell
+command runs, so it proves neither a real agent's network reach nor PR
+delivery. It removes its containers, network, volume and directory, and the
+pinned Caddy image if it pulled it. The optional `FACTS_JSON` receives the
+store format/schema version, the Caddy reference and the readiness facts for
+the release record.
 
 ## Evidence limits and history
 

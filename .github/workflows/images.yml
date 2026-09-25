@@ -1,0 +1,111 @@
+# Builds the Broodling and DirectTarget images, demonstrates them together in a disposable ADR 0001
+# stack, then publishes exactly those images to GHCR with a release record. Every push publishes
+# immutable sha-<commit> candidates; a v* tag publishes that version. Fork pull requests only
+# build and demonstrate; same-repository pull requests are covered by the push run of their head.
+name: Images
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-24.04
+    # Runs for one publication tag never overlap, so only one can pass the existence check.
+    concurrency:
+      group: images-${{ github.ref_type == 'tag' && github.ref_name || format('sha-{0}', github.event.pull_request.head.sha || github.sha) }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The host runs the image's own check-target, as an operator with Docker access would.
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build images
+        run: |
+          docker build --file deployment/Broodling.Dockerfile --build-arg "REVISION=$REVISION" --tag broodling:candidate .
+          docker build --file deployment/DirectTarget.Dockerfile --build-arg "REVISION=$REVISION" --tag broodling-target:candidate deployment
+
+      - name: Demonstrate the images in ADR 0001's topology
+        run: tests/images/demonstrate.sh broodling:candidate broodling-target:candidate "$RUNNER_TEMP/facts.json"
+
+      - name: Publish to GHCR
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          if [[ $GITHUB_REF_TYPE == tag ]]; then tag=$GITHUB_REF_NAME version=$GITHUB_REF_NAME; else tag=sha-$REVISION version=; fi
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          # Published tags are never moved: select images by the recorded digest.
+          for image in broodling broodling-target; do
+            # Only the registry's own not-found means absent; anything else is not a basis to push.
+            if found="$(docker buildx imagetools inspect "$registry/$image:$tag" 2>&1)"; then
+              echo "::error::$registry/$image:$tag is already published; it is never replaced." && exit 1
+            elif [[ $found != *"$registry/$image:$tag: not found"* ]]; then
+              echo "::error::Cannot establish that $registry/$image:$tag is unpublished: $found" && exit 1
+            fi
+          done
+          declare -A published
+          for image in broodling broodling-target; do
+            docker tag "$image:candidate" "$registry/$image:$tag"
+            docker push --quiet "$registry/$image:$tag"
+            # The digest this push produced, not whatever the tag names by now.
+            published[$image]="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image:candidate" \
+              | grep --max-count 1 "^$registry/$image@sha256:")"
+          done
+          jq -n --arg revision "$REVISION" --arg version "$version" --arg tag "$tag" \
+            --arg broodling "${published[broodling]}" --arg target "${published[broodling-target]}" \
+            --slurpfile facts "$RUNNER_TEMP/facts.json" \
+            --slurpfile approval src/Broodling/execution-assets/approval.json \
+            --rawfile caddyfile deployment/zeroshot-tls.Caddyfile \
+            --arg caddyfileSha256 "$(sha256sum deployment/zeroshot-tls.Caddyfile | cut -d ' ' -f 1)" \
+            '$facts[0] as $facts | $approval[0] as $approval | {
+              kind: "broodling.image-release/v1",
+              sourceRevision: $revision,
+              version: (if $version == "" then null else $version end),
+              tag: $tag,
+              images: {broodling: $broodling, zeroshot: $target, "zeroshot-tls": $facts.zeroshotTlsImage},
+              application: {storeFormat: $facts.storeFormat, storeSchemaVersion: $facts.storeSchemaVersion},
+              executionAsset: {sha256: $approval.asset.sha256, native: $approval.native},
+              zeroshotTls: {user: "10443:10443", caddyfile: {path: "deployment/zeroshot-tls.Caddyfile", sha256: $caddyfileSha256, content: $caddyfile}},
+              demonstration: $facts.readiness
+            }' > release-record.json
+          cat release-record.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'push'
+        with:
+          name: release-record
+          path: release-record.json
+          if-no-files-found: error
+
+  release:
+    needs: images
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-record
+      - name: Attach the release record to the version's GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release-record.json --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$GITHUB_REF_NAME" --notes 'Image digests, pins and the supported application schema are in release-record.json.'
