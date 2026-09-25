@@ -17,7 +17,19 @@ if (args.FirstOrDefault() is "submit" or "resume" or "wait" or "stop")
 if (args.Length > 0 && !args[0].StartsWith("--", StringComparison.Ordinal))
     return StoreCommands.Run(args, new Broodling.BroodlingApplication(), Console.Out, Console.Error);
 
-var app = BroodlingHost.Build(args);
+WebApplication app;
+try { app = BroodlingHost.Build(args); }
+catch (Exception exception) when (exception is Broodling.BroodlingException or IOException or UnauthorizedAccessException
+    or Microsoft.Data.Sqlite.SqliteException)
+{
+    // Never echo raw exception text or paths.
+    Console.Error.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+    {
+        error = exception is Broodling.BroodlingException known ? known.Code : "store_operation_failed",
+        message = "Server startup refused. Configure Broodling:Store as existing initialized state; nothing was created or replaced."
+    }));
+    return 1;
+}
 
 app.Run();
 return 0;
