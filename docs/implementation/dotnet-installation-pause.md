@@ -18,7 +18,11 @@ dotnet /RELEASE/host/Broodling.Host.dll release-installation /EXISTING/DOTNET/st
 ```
 
 The commands emit JSON with `isPaused`, `changedAt`, `unresolvedDispatches`
-and `inFlightInitiationDrained`. The last two are independent facts:
+and `inFlightInitiationDrained`. `changedAt` is refreshed by every pause call,
+even while already paused, and by a release that unpauses; it starts the
+maintenance epoch that
+[verified maintenance retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement)
+binds its host check to. The last two are independent facts:
 
 - `unresolvedDispatches` counts `native_submissions` in `dispatched` state:
   committed dispatch intent without retained correlation. It is durable

@@ -490,6 +490,24 @@ public sealed class RetirementTests
     }
 
     [Test]
+    public async Task RepeatedPauseRefusesAnInterruptedInvocationsCheck()
+    {
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(new Uri(HttpFixture.Target), "dispatched");
+        var id = fixture.Attempt.AttemptId;
+        fixture.Store.AbandonAttempt(id, "operator stop");
+        fixture.Store.PauseInstallation();
+        var interrupted = Check(submission.Locator.Address);
+        // The next invocation starts by pausing again; the installation was never released.
+        fixture.Store.PauseInstallation();
+
+        await Assert.That(() => fixture.Store.RetireStoppedTargetAttempt(id, interrupted)).Throws<MaintenanceUnverified>();
+        await Assert.That(fixture.Store.FindRetirement(id)).IsNull();
+        var fresh = Check(submission.Locator.Address);
+        await Assert.That(fixture.Store.RetireStoppedTargetAttempt(id, fresh).StoppedTarget).IsEqualTo(fresh);
+    }
+
+    [Test]
     public async Task RetireAttemptCommandRefusesAnIncompleteCheckThenPrintsTheRecordedRetirement()
     {
         using var fixture = new HttpFixture();

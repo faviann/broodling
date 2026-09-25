@@ -161,11 +161,10 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>
-    /// Retire a dispatched HTTP Attempt during verified maintenance. The host procedure stops the target
-    /// and owns supplying a fresh check for every maintenance invocation; this records it with the
-    /// retirement and deletes nothing. It binds the check to the current pause epoch only. It requires the
-    /// pause, a complete check made no earlier than that pause and no later than now, naming this Attempt's
-    /// target, no local dispatch still initiating, a non-current (abandoned or completed) Attempt with dispatch
+    /// Retire a dispatched HTTP Attempt during verified maintenance. Each host maintenance invocation
+    /// pauses, stops and verifies the target, then supplies its check; this records it with the retirement
+    /// and deletes nothing. It requires the pause, a complete check made no earlier than the latest pause
+    /// call and no later than now, naming this Attempt's target, no local dispatch still initiating, a non-current (abandoned or completed) Attempt with dispatch
     /// intent, and its retained B1 and accepted pins. Drainage is required, never authority by itself.
     /// A submission without correlation stays <c>dispatched</c>. Replacement remains a separate operation.
     /// An existing retirement is returned unchanged, whatever its basis.
@@ -180,8 +179,8 @@ public sealed partial class BroodlingStore
         var control = ReadInstallationControl(transaction);
         if (!control.IsPaused)
             throw new MaintenanceUnverified("Maintenance retirement requires the installation pause.");
-        // Host and application share a clock. A future check would otherwise outlive a later release and re-pause.
-        // A paused-throughout interruption keeps this epoch; freshness per invocation is the host's (#356).
+        // Every pause call starts a new epoch, so an earlier invocation's check is refused. Host and
+        // application share a clock; a future check would otherwise outlive later pauses.
         if (check.VerifiedAt < DateTimeOffset.Parse(control.ChangedAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
             || check.VerifiedAt > DateTimeOffset.UtcNow)
             throw new MaintenanceUnverified("The stopped-target check was not made during the current pause; verify the target again.");
