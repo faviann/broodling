@@ -44,11 +44,15 @@ transport, `NativeTransportError`, or `OperationCanceledException`. These
 outcomes retain the cancellation/abandonment facts and neither means physical
 cessation nor grants replacement authority.
 
-The thin host command is `stop <store> <attempt-id> <reason> <python-executable>`.
-It returns the exact Attempt, submission, quarantine flag and safe handback even
-when stop fails. Cessation refusal returns exit 1; cancellation returns 130 and
-retains abandonment. The executable selects the pinned SDK bridge, not dispatch
-configuration or credentials. Safe undispatched stop needs no functioning SDK.
+The thin host command is `stop <store> <attempt-id> <reason> [python-executable]`.
+It returns the exact Attempt, a compact submission summary, the quarantine flag
+and safe handback even when stop fails. Cessation refusal returns exit 1;
+cancellation returns 130 and retains abandonment. The executable selects the
+pinned SDK bridge, not dispatch configuration or credentials, and only a
+LocalTarget record needs it: an HTTP record stops through its retained binding,
+and safe undispatched stop needs no functioning SDK. Without the executable, a
+dispatched LocalTarget record is refused before abandonment with
+`python_required`, because its native stop could not be requested.
 Submit still reacquires/proposes its explicit issue, then hands back abandonment;
 resume/status/history inspect retained facts without automatic replacement.
 `QuarantinedAttemptIds` identifies every dispatched Attempt, even if current.

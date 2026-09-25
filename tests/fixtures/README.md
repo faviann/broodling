@@ -34,8 +34,9 @@ target's fixed dependency paths:
   candidate bytes to `README.md`, verifiers accept, and a corrected reply
   resumes the requested thread.
 - `git` maps `https://github.com/acme/widget.git` to a mounted host bare
-  repository. Native clears the Git environment and global configuration, so
-  this shim is the only way to add the mapping.
+  repository and marks only that repository as a safe directory, because the
+  target's isolated identities do not own it. Native clears the Git environment
+  and global configuration, so this shim is the only way to add either setting.
 - `gh` implements only the `gh api` calls native pull-request delivery makes:
   pull-request list/create, branch references and the policy query. It reports
   an open PR with no required checks.

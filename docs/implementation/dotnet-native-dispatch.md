@@ -243,7 +243,7 @@ stop <store> <attempt-id> <reason> [python-executable]
 operator-reviewed file exactly. The configuration names exactly one target kind:
 `{"target": "direct", "directOrigin": ...}` for authorized PR work, or
 `{"target": "local", "pythonExecutable", "stateDirectory", "workspaceRoot"}` plus
-all or none of `realCodex`, `profileHome`, `codexHome` and `launcher` for
+all four of `realCodex`, `profileHome`, `codexHome` and `launcher` for
 no-effect work. It contains no secrets. A missing or unknown kind, a field of the
 other kind, an unknown field or a credential field is refused. The operator's
 DirectTarget origin must be exactly `http://127.0.0.1:<port>` with an explicit

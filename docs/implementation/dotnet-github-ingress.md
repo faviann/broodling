@@ -83,10 +83,13 @@ branch, requested branch ref and exact starting commit. `RegisterRequestBundleRe
 constructs the existing Git-blob capture input from that exact commit, so later
 refreshes, branch/default changes and worktree changes cannot retarget a
 completed bundle. Replaying an already prepared bundle returns its durable
-selection without re-acquisition. `AdmitAttempt(submissionId, workspaceRoot)`
-consumes this state and visibly refuses missing preparation, unsupported
+selection without re-acquisition. `AdmitHttpAttempt(submissionId)` (authorized
+PR work) and `AdmitAttempt(submissionId, workspaceRoot)` (no-effect worktree
+work) consume this state and visibly refuse missing preparation, unsupported
 retained Git state or a pull-request Contract target that contradicts the
-retained default branch. Explicit local `AdmitAttempt` remains unchanged.
+retained default branch. The worktree overload refuses every PR Contract, since
+PR work is always an HTTP Attempt. Explicit local `AdmitAttempt` remains
+unchanged.
 
 ## Trusted reviewed-source proposal
 

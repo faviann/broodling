@@ -198,7 +198,7 @@ The no-effect LocalTarget alternative uses the SDK bridge:
 ```
 
 A missing or unknown kind, a field of the other kind, an unknown field or a
-credential field refuses; the Codex-profile paths are all present or all absent.
+credential field refuses. All four Codex-profile paths are required.
 See [dispatch policy](../docs/implementation/dotnet-native-dispatch.md#fixed-policy-and-transport).
 Local HOME starts empty and CODEX_HOME auth-only. The trusted-host prerequisite
 excludes operator-managed effect-capable MCP/extensions. This profile still

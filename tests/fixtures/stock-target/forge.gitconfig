@@ -1,4 +1,4 @@
 [safe]
-	directory = *
+	directory = /forge/widget.git
 [url "/forge/widget.git"]
 	insteadOf = https://github.com/acme/widget.git
