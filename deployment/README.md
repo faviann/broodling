@@ -38,9 +38,8 @@ consistent backup. Do not run two implementations against that authority.
 .NET starts with a deliberately chosen **separate fresh store and paths**; there
 is no Python database import, reinterpretation or in-flight takeover. Ordinary
 open refuses missing/foreign/old schemas. Restore a missing existing store;
-do not initialize an empty replacement. The DirectTarget HTTP integration also
-requires fresh state: ordinary open and `upgrade-store` refuse pre-transition
-**.NET** stores unchanged; there is no .NET upgrade or import path.
+do not initialize an empty replacement. The HTTP DirectTarget integration also
+needs a fresh store; see [state and operator commands](#state-and-operator-commands).
 
 The owner decision is a future operational gate, not a prerequisite for finishing
 source retirement. This guide and #140 authorize no deployment, state switch,
@@ -56,7 +55,8 @@ Build from a reviewed full source revision on a compatible Linux x86-64 host.
 Use a .NET 10 SDK (tested with 10.0.401), Git, `cc` and libc development
 headers. The native shim uses the build host's libc; this is not a portable
 glibc/musl or arbitrary-host binary qualification. Runtime host requirements
-include .NET 10 / ASP.NET Core 10, Python 3.13+ for the bridge, Git, and ordinary
+include .NET 10 / ASP.NET Core 10, Git, Python 3.13+ only for the no-effect
+LocalTarget bridge, and ordinary
 non-PID-1 child ownership as described by
 [materialization](../docs/implementation/dotnet-worktree-materialization.md).
 Run Broodling as an unprivileged dedicated account with access to the local
@@ -90,7 +90,8 @@ requires a registered .NET installation or the appropriate `DOTNET_ROOT` when
 the runtime lives in a nonstandard location. Publish neither
 creates application state nor installs a target.
 
-Only the bridge needs a Python environment. For development, or a separately
+Only the no-effect LocalTarget bridge needs a Python environment; authorized PR
+work over the HTTP DirectTarget does not. For development, or a separately
 approved installation, create a dedicated environment and install its dependency
 using the published file:
 
@@ -105,16 +106,41 @@ different SDK/native versions. There is no Python Broodling package, installer
 or importable proposer. Protect and retain the selected release and dependency
 environment for replay; do not relocate a launcher already frozen in an invocation.
 
-Image builds (#121) receive the execution asset, its
-[approval manifest](../src/Broodling/execution-assets/approval.json) and the
-[generation recipe](../src/Broodling/execution-assets/generate.sh). Before
-packaging, run `src/Broodling/execution-assets/generate.sh
-/PATH/TO/pinned/zeroshot` with the SDK-bundled 10.3.0 executable. It requires
-executable SHA-256 `afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06`,
-regenerates the asset offline, verifies SHA-256
-`10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8` and checks
-native admission. It needs `python3` but no credentials, target or provider. See
-[execution asset](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset).
+### Image packaging handoff (#121)
+
+[Build and publish the Broodling and native-target images](https://github.com/faviann/broodling/issues/121)
+receives these inputs; this repository builds and publishes neither image:
+
+- The execution asset, its
+  [approval manifest](../src/Broodling/execution-assets/approval.json) and the
+  [generation recipe](../src/Broodling/execution-assets/generate.sh). Before
+  packaging, run `src/Broodling/execution-assets/generate.sh
+  /PATH/TO/pinned/zeroshot` with the SDK-bundled 10.3.0 executable. It requires
+  executable SHA-256 `afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06`,
+  regenerates the asset offline, verifies SHA-256
+  `10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8` and checks
+  native admission. It needs `python3` but no credentials, target or provider. See
+  [execution asset](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset).
+- The native pins: `zeroshot 10.3.0`, source
+  `054ad3fd6c763b98d12f5b2e90830b97116561ad`, from the SDK 10.3.0.post1 wheel in
+  [bridge/requirements.txt](../src/Broodling/bridge/requirements.txt), and the
+  target dependencies in the [DirectTarget Dockerfile](DirectTarget.Dockerfile)
+  (Codex 0.153.4, gh 2.101.0).
+- The Broodling image needs no Python or SDK for authorized PR work; Python
+  remains only for a no-effect LocalTarget profile.
+- Evidence: the [controlled stock DirectTarget witness](../tests/README.md#controlled-stock-directtarget-witness)
+  runs that unmodified native as `zeroshot target serve` in the actual
+  DirectTarget image with the approved asset. Its test-only layer replaces the
+  Codex provider and the `git`/`gh` forge, so its PR receipt is controlled. It
+  covers exact B1 after branch movement, no client checkout, failure rather than
+  fallback for an unavailable B1, same-run replay, restart retention and offline
+  completion replay. It is not image publication, production topology (#155), a
+  real GitHub PR or provider quality evidence.
+- Submit timing: the target acknowledges a run only after its own checkout. In
+  the witness, with a local forge, acknowledgement took about 0.4 s and the
+  unavailable-B1 refusal about 2.5–2.9 s. A slow real fetch can exceed
+  Broodling's fixed 60-second submit budget; the send then stays unresolved
+  until an exact replay, which converges on the same run.
 
 ## State and operator commands
 
@@ -140,25 +166,45 @@ The host routes commands before HTTP startup. Running it without a command start
 ASP.NET composition/telemetry; it exposes no #100 HTTP intake or automatic
 progression. No daemon is needed to supervise native runs.
 
-For authorized PR invocation, a secret-free `config.json` selects:
+### Invocation configuration
+
+A secret-free `config.json` names exactly one target kind. For authorized PR
+invocation over the HTTP DirectTarget:
 
 ```json
 {
-  "pythonExecutable": "/NEW/bridge-venv/bin/python",
-  "stateDirectory": "/NEW/runtime",
-  "workspaceRoot": "/NEW/attempts",
+  "target": "direct",
   "directOrigin": "http://127.0.0.1:18770"
 }
 ```
 
-Unknown fields, including credentials, refuse. The operator origin must be exactly
-`http://127.0.0.1:<port>`, with an explicit valid port and no extra components.
-The local no-effect alternative configures `realCodex`, `profileHome`,
-`codexHome` and `launcher` (the published `/RELEASE/codex/codex`); see
-[dispatch policy](../docs/implementation/dotnet-native-dispatch.md#fixed-policy-and-transport).
+It needs no Python executable, SDK client state, workspace root or launcher. The
+operator origin must be exactly `http://127.0.0.1:<port>`, with an explicit valid
+port and no extra components. `check-target` uses this same file.
+
+The no-effect LocalTarget alternative uses the SDK bridge:
+
+```json
+{
+  "target": "local",
+  "pythonExecutable": "/NEW/bridge-venv/bin/python",
+  "stateDirectory": "/NEW/runtime",
+  "workspaceRoot": "/NEW/attempts",
+  "realCodex": "/NEW/codex-cli/codex",
+  "profileHome": "/NEW/profile-home",
+  "codexHome": "/NEW/codex-home",
+  "launcher": "/RELEASE/codex/codex"
+}
+```
+
+A missing or unknown kind, a field of the other kind, an unknown field or a
+credential field refuses; the Codex-profile paths are all present or all absent.
+See [dispatch policy](../docs/implementation/dotnet-native-dispatch.md#fixed-policy-and-transport).
 Local HOME starts empty and CODEX_HOME auth-only. The trusted-host prerequisite
 excludes operator-managed effect-capable MCP/extensions. This profile still
-cannot produce a stable successful local disposition.
+cannot produce a stable successful local disposition. A new Attempt takes the
+configured kind; an existing Attempt continues only through its retained kind,
+and a mismatch refuses before any contact.
 
 ## Existing-target readiness
 
@@ -290,8 +336,12 @@ gh api --hostname github.com --method GET \
 self-contained request whose prerequisites and effects the operator has reviewed;
 richer inputs use the [typed .NET proposer](../docs/implementation/dotnet-github-ingress.md).
 Comments and links require separate explicit entitlement. The source repository
-must be clean/committed, match the GitHub origin, support the checkout policy,
-and contain the selected full B1 commit, fetchable by the target.
+must have an `origin` naming the admitted GitHub repository and contain the
+selected full B1 commit, which Broodling pins in its common Git directory; no
+execution checkout is created from it. B1 must also be fetchable by the target,
+which fails the run rather than substituting the branch tip. A no-effect
+LocalTarget worktree additionally needs a clean committed source that supports
+the checkout policy.
 
 Initial PR dispatch and acknowledgement replay require current `GH_TOKEN`,
 `GATEWAY_API_KEY` and exactly
@@ -308,7 +358,7 @@ Broodling.Host status <store> <contract-revision-id>
 Broodling.Host history <store> <repository> <issue>
 Broodling.Host resume <store> <contract-revision-id> [config.json [checkout [revision]]]
 Broodling.Host wait <store> <attempt-id> [python-executable]
-Broodling.Host stop <store> <attempt-id> <reason> <python-executable>
+Broodling.Host stop <store> <attempt-id> <reason> [python-executable]
 ```
 
 Here `Broodling.Host` abbreviates `dotnet /RELEASE/host/Broodling.Host.dll`.
@@ -319,15 +369,17 @@ base64; inspect the exact retained material. Errors can follow committed facts:
 use history/status to find handles before choosing recovery.
 
 Resume the same revision after interruption; repeating submit reacquires bytes.
-Uncorrelated replay needs the same frozen configuration and current credentials.
-Correlated resume and retained status/history need neither. Wait requires the
-pinned SDK Python executable until completion is retained; afterward it works
-offline without that argument. Until then the host user also needs Git fetch
-access to the frozen origin URL, because wait fetches and pins the exact
-accepted commit before recording success. Native failure abandons; transport loss or a
+Uncorrelated replay needs the same target configuration and current credentials.
+Correlated resume and retained status/history need neither. `wait` and `stop`
+need the pinned SDK Python executable only for a LocalTarget record; HTTP records
+use their retained binding. Retained completion works offline. Until completion
+is retained, the host user also needs Git fetch access to the frozen origin URL,
+because wait fetches and pins the exact accepted commit before recording success. Native failure abandons; transport loss or a
 cancelled wait only detaches. Restore access to the same target and wait again.
 
 Stop records abandonment first, then requests native stop when the run is known.
+Its output reports the Attempt, quarantine and a compact submission summary
+(format, phase, intended and confirmed run IDs, replay block).
 A dispatched Attempt returns cessation refusal/quarantine even after terminal
 stop. Unknown correlation is never redispatched to discover a run. Explicit
 never-dispatched retirement/retry remain [callable operations](../docs/implementation/dotnet-retirement-replacement.md),

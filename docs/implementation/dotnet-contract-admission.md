@@ -95,9 +95,7 @@ commands add no HTTP endpoints or deployment workflow.
 
 The A2 slice introduced .NET schema version 2;
 [the fresh `broodling.application` schema](dotnet-identity-custody.md#state-lifecycle-and-persistence-decision)
-retains its definitions. Ordinary open and `UpgradeStore(path)` refuse
-pre-transition .NET schemas, Python state and unknown schemas without changing
-them.
+retains its definitions.
 
 On 22 September 2026, .NET SDK 10.0.401 ran
 `dotnet test --solution Broodling.sln --no-restore`: **60 passed, 0 failed,
@@ -106,8 +104,7 @@ reopen and exact operator inspection. `ContractPolicyTests` carries guidance
 and supported-profile refusal witnesses. `AdmissionPersistenceTests` uses real
 SQLite for write rollback, undecided recovery, immutable decisions, concurrent
 convergence, corruption refusal and observation during an active writer.
-`StoreLifecycleTests` refuses [actual retained pre-transition state](../../tests/Broodling.Tests/Fixtures/README.md)
-without changing it. Rollback tests inject
+Rollback tests inject
 SQLite failures inside the actual transactions; they do not claim process-kill
 coverage or reproduce the Python crash harness.
 

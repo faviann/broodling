@@ -128,9 +128,7 @@ not inherit another revision's Attempt.
 
 B introduced .NET schema 3; the fresh `broodling.application` schema retains H's
 definitions, Issue submission persistence, installation pause, RequestBundle
-custody, cancellation facts and repository preparation. Ordinary open and
-`UpgradeStore` refuse pre-transition .NET and Python state without changing it;
-there is no upgrade, schema compatibility or import. See the
+custody, cancellation facts and repository preparation. See the
 [state lifecycle](dotnet-identity-custody.md).
 
 ## Evidence and next slices

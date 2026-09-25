@@ -25,8 +25,8 @@ and `inFlightInitiationDrained`. The last two are independent facts:
   uncertainty about whether a native run exists. Pause and status never rewrite
   it; only exact correlation settles a submission. An HTTP submission's retained
   conflict does not settle it, and neither do abandonment, stop, a terminal or
-  unknown-run observation, or local drainage. A bridge conflict (`blocked`) is
-  not counted.
+  unknown-run observation, or local drainage. A LocalTarget bridge conflict
+  (`blocked`) is not counted.
 - `inFlightInitiationDrained` is true when no local process holds the
   installation initiation lock at the moment of the reading. It is a local fact
   only; it does not prove that no external submission can still create a run.
@@ -122,5 +122,6 @@ and requires release. Correlated reads, startup observation and result capture
 do not check the pause.
 
 Initialization creates `installation_control` with the default unpaused row.
-Pre-transition stores are refused unchanged rather than upgraded, so an
-existing persisted pause is neither released nor carried over.
+A pre-transition store is not opened (see the
+[state lifecycle](dotnet-identity-custody.md)), so an existing persisted pause is
+neither released nor carried over.

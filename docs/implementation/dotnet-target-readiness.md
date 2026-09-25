@@ -36,12 +36,11 @@ are fixed to `/state` and `/home/node`. This records paths directly rather than
 reproducing the retired Python installer's manifest or directory API. The operator
 records the exact selected existing target. Readiness creates no directories or files.
 The separate `config.json` is the existing
-[invocation configuration](dotnet-native-dispatch.md#thin-operator-commands):
-`pythonExecutable`, `stateDirectory`, `workspaceRoot`, and `directOrigin` for the
-PR profile. Readiness neither invokes that Python executable nor opens those
-state/workspace paths. Unknown fields, including secrets, are refused in both
-files. Configuration parsing and canonical loopback validation are extracted
-without changing submit/resume policy.
+[invocation configuration](dotnet-native-dispatch.md#thin-operator-commands) for
+PR work: `{"target": "direct", "directOrigin": ...}`. A LocalTarget
+configuration, a field of the other kind, an unknown field or a secret is refused
+in both files. Readiness shares the invocation's strict parser and canonical
+loopback validation.
 
 The origin must be exactly `http://127.0.0.1:<port>` with an explicit port from
 1 through 65535, matching current operator invocation policy. No user info,
@@ -117,7 +116,7 @@ mount, port, credential, version/hash/help, UID and stock-discovery schema check
 plus a controlled-clock discovery stall that expires as refusal and cancels as
 cancellation. Invalid
 configuration and origin witnesses require zero target access. The small composed
-command case uses unavailable Python/state/workspace paths and creates no store.
+command case uses a Direct configuration and creates no store.
 The Program usage witness checks routing without Docker or HTTP access.
 
 `DirectTargetExchangeTests` own the shared bounds over real loopback sockets:

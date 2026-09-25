@@ -29,9 +29,8 @@ F now [composes this seam](dotnet-native-dispatch.md) before dispatch and guards
 releases the stable enclosure lock and SQLite writer after durable intent.
 
 C introduced .NET schema 4; [H lifecycle](dotnet-retirement-replacement.md)
-definitions are retained in the fresh `broodling.application` schema. Ordinary
-open and explicit upgrade refuse pre-transition .NET and Python state without
-changing it; there is no migration or import.
+definitions are retained in the fresh `broodling.application` schema; see the
+[state lifecycle](dotnet-identity-custody.md).
 
 ## Ownership and convergence
 

@@ -12,11 +12,13 @@ from the future owner-approved operational switch.
 using var store = new BroodlingApplication().OpenStore(storePath);
 await store.StopAsync(attemptId, "Operator ended this Attempt", transport);
 var retirement = store.RetireAttempt(attemptId);
+// A no-effect worktree predecessor keeps its kind and the SDK bridge.
 var successor = store.AdmitRetry(attemptId, retryKey, workspaceRoot, profile);
-var httpSuccessor = store.AdmitRetry(httpAttemptId, retryKey); // HTTP resource kind
 var prepared = store.PrepareRetry(attemptId, retryKey, workspaceRoot, profile);
 var submitted = await store.RetryAsync(attemptId, retryKey, workspaceRoot,
-    profile, transport, credentials);
+    profile, transport);
+// An HTTP predecessor's successor is prepared and dispatched as an HTTP Attempt.
+var httpSuccessor = store.AdmitRetry(httpAttemptId, retryKey);
 ```
 
 These are explicit operations, not an automatically executed sequence. Each
@@ -147,8 +149,8 @@ current schema to **8**, retaining those definitions; schema **9** adds
 the persisted installation pause gate, schema **10** adds RequestBundle capture,
 schema **11** adds immutable Issue submission cancellation facts, and schema
 **12** adds service-owned repository preparation. The fresh
-`broodling.application` schema retains these definitions; ordinary open and
-explicit upgrade refuse pre-transition stores without changing them. Safe
+`broodling.application` schema retains these definitions
+([state lifecycle](dotnet-identity-custody.md)). Safe
 replacement allocation and preparation remain permitted while paused, but
 replacement dispatch still requires explicit release.
 Retirement/retry facts resist update, delete and `INSERT OR REPLACE`; SQL refuses
@@ -172,8 +174,7 @@ constructing the fixture; every guard is restored before testing safe retry.
 `RetirementProcessTests` drives real SQLite/Git with the test-only caller: SIGKILL
 before/after retirement removal, orphan exclusion, premature retry refusal and
 retry allocation/preparation transaction deaths. `InvocationTests` adds one
-composed stop/quarantine/abandonment handback. `StoreLifecycleTests` refuses
-authentic pre-transition stores without changing them.
+composed stop/quarantine/abandonment handback.
 
 Before G integration, on 22 September 2026, `dotnet test --solution Broodling.sln` passed **238 tests,
 0 failed, 0 skipped**, using SDK 10.0.401, runtime 10.0.12 and TUnit 1.68.17.

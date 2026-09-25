@@ -2,7 +2,8 @@
 
 The [current architecture](../governing/current.md) governs product responsibility.
 C# owns the application; the [dispatch seam](dotnet-native-dispatch.md) is the
-detailed reference for frozen invocation, policy, SDK transport and correlation.
+detailed reference for the LocalTarget bridge's frozen invocation, policy, SDK
+transport and correlation, and this document for the HTTP DirectTarget.
 [Completion](dotnet-receipt-completion.md) and
 [stop/retirement/replacement](dotnet-retirement-replacement.md) own lifecycle
 decisions. The [release guide](../../deployment/README.md) describes packaging,
@@ -24,8 +25,8 @@ requests still refuse; repository guidance cannot amend stored authority.
 
 | Frozen effects | Native selection and Broodling outcome |
 | --- | --- |
-| Empty | LocalTarget, `delivery=none`. Native success has null output and no stable accepted result; successful disposition refuses. |
-| Exactly one GitHub `pull_request` naming a target branch | DirectTarget, `delivery=pull_request`, with frozen repository, authorized branch and original B1 selectors. A matching `v1/pr/opened` receipt supplies a stable non-B1 `headRevision`. |
+| Empty | LocalTarget worktree Attempt through the SDK bridge, `delivery=none`. Native success has null output and no stable accepted result; successful disposition refuses. |
+| Exactly one GitHub `pull_request` naming a target branch | HTTP DirectTarget Attempt with the approved `delivery=pull_request` asset and frozen repository, authorized branch and original B1 selectors. A matching `v1/pr/opened` receipt supplies a stable non-B1 `headRevision`. The bridge never carries PR work. |
 | Other, mixed, multiple or underspecified | Refusal; no implicit fallback or wider effect. |
 
 PR delivery includes native commit, push and open-or-update. It promises neither
@@ -40,18 +41,21 @@ remain selected. The Linux x86-64 wheel bundles the native engine; its exact URL
 and SHA-256 live in [bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt).
 
 The sole production Python source file is
-[zeroshot_bridge.py](../../src/Broodling/bridge/zeroshot_bridge.py). It translates
-one version/submit/wait/stop/status request into the official SDK, returns public fields
-or typed error classification and exits. It owns no Broodling policy, database,
-lifecycle or recovery. C# validates versions and owns authority, credentials,
-same-key reconciliation and receipt validation. Controlled Python SDK/provider
+[zeroshot_bridge.py](../../src/Broodling/bridge/zeroshot_bridge.py). It serves
+only no-effect LocalTarget work: it translates one version/submit/wait/stop/status
+request for a `local` locator into the official SDK, returns public fields or
+typed error classification and exits. It owns no Broodling policy, database,
+lifecycle or recovery, and it carries no dispatch credentials. C# validates
+versions and owns authority, same-key reconciliation and receipt validation, and
+refuses a `direct` locator before starting Python. Controlled Python SDK/provider
 fixtures remain test-only.
 
 The fixed PR runtime is uniform Codex / `gateway` / `gpt-5.6-sol` / medium /
 small / execution-scoped sessions through exactly
-`https://cliproxy.local.faviann.com/v1`. Codex stays **0.153.4**. The no-effect
-LocalTarget uses Codex/OpenAI. Per-node runtime, model/harness selection,
-node-local OAuth PR delivery and fleet placement remain unsupported.
+`https://cliproxy.local.faviann.com/v1`, carried by the approved asset below.
+Codex stays **0.153.4**. The no-effect LocalTarget uses Codex/OpenAI. Per-node
+runtime, model/harness selection, node-local OAuth PR delivery and fleet
+placement remain unsupported.
 
 ## Approved DirectTarget execution asset
 
@@ -124,7 +128,8 @@ refuses. Nothing is regenerated or rebound.
 
 The record's retained binding is a `NativeRunBinding` with a `direct` locator
 whose `SdkVersion` is null, since no bridge SDK is involved. The bridge
-`PrepareSubmission`/`DispatchAsync` refuse HTTP Attempts.
+`PrepareSubmission`/`DispatchAsync` refuse HTTP Attempts, and a worktree Attempt
+refuses an authorized-PR Contract at admission, so PR work cannot reach the bridge.
 
 ## HTTP dispatch and acknowledgement
 
@@ -191,27 +196,48 @@ completed the Attempt returns the retained record without abandoning or
 stopping it. Abandoned or replay-blocked work is never sent again to
 discover its run.
 
+## Composed invocation and target selection
+
+`Invocation` takes one explicit `InvocationTarget`. `Local(workspaceRoot, profile,
+transport)` admits a worktree Attempt and dispatches it through the bridge.
+`Direct(origin)` admits an HTTP Attempt, prepares or reopens its submission at
+that origin and dispatches it with the caller's current `DispatchCredentials`.
+It needs no Python executable, SDK client state, workspace root or launcher.
+An existing Attempt continues only through the kind its retained resources name:
+a Direct target on a worktree Attempt, a Local target on an HTTP Attempt, or a
+Direct origin that differs from the retained binding refuses before any
+allocation, preparation or target contact. A correlated, completed or ended
+Attempt is handed back from retained state without configuration, credentials or
+target contact. `WaitAsync` routes on the retained record and passes the bridge
+transport only to a LocalTarget record.
+
+The operator configuration names `"target": "direct"` with only a canonical
+loopback `directOrigin`, or `"target": "local"` with only the bridge, state,
+workspace and optional Codex-profile paths. Mixed, unknown or secret fields
+refuse. Operator `wait` and `stop` need the pinned SDK Python only for a
+LocalTarget record. See the [release guide](../../deployment/README.md#invocation-configuration).
+
 ## Dispatch, recovery and completion
 
-Preparation retains the immutable request and submission key. A short transaction
-commits dispatch intent before the external SDK call; no SQLite writer spans it.
-Concurrent callers submit the identical request and converge through native
-submission-key idempotency. An acknowledgement arriving after abandonment is
-retained as factual correlation without restoring authority.
+For the LocalTarget bridge, preparation retains the immutable request and
+submission key. A short transaction commits dispatch intent before the external
+SDK call; no SQLite writer spans it. Concurrent callers submit the identical
+request and converge through native submission-key idempotency. An
+acknowledgement arriving after abandonment is retained as factual correlation
+without restoring authority.
 
-Acknowledgement-loss replay uses only current authority and the exact frozen
-invocation. Native conflict alone cannot establish safe recovery; the narrow
-owned-source/HEAD-drift case is checked in C#. Abandoned unknown-run work is never
-replayed to discover execution.
+Bridge acknowledgement-loss replay uses only current authority and the exact
+frozen invocation. Native conflict alone cannot establish safe recovery; the
+narrow owned-source/HEAD-drift case is checked in C#. Abandoned unknown-run work
+is never replayed to discover execution. HTTP dispatch and replay follow the
+[section above](#http-dispatch-and-acknowledgement).
 
-PR dispatch/replay requires current `GH_TOKEN`, `GATEWAY_API_KEY` and the exact
-gateway URL. Values travel separately from the persisted request. After durable
-correlation, wait/stop receive the retained run binding (locator, run ID, frozen
-title, size and PR source) through separate read and stop roles; the bridge uses
-only the frozen locator and run identity with an empty explicit SDK environment.
-They need no old workspace or dispatch credentials.
-Cancelling/killing a bridge waiter detaches that caller rather than stopping native
-execution. Completed receipt replay needs no target.
+After durable correlation, wait/stop receive the retained run binding (locator,
+run ID, frozen title, size and, for HTTP, PR source) through separate read and
+stop roles. The bridge uses only the frozen local locator and run identity with
+an empty explicit SDK environment. Neither kind needs an old workspace or
+dispatch credentials. Cancelling/killing a waiter detaches that caller rather
+than stopping native execution. Completed receipt replay needs no target.
 
 `BroodlingStore.ObserveAsync` reads a correlated Attempt's current native phase and
 active nodes through the same retained locator and run ID. It returns null
@@ -373,12 +399,36 @@ responsibility. There is no override turning incomplete proof into cleanup
 authority. An exactly owned, proven never-dispatched Attempt can be explicitly
 retired and replaced from original B1 under the lifecycle seam.
 
+## Resource model for maintenance consumers
+
+[Retire dispatched DirectTarget Attempts under verified maintenance](https://github.com/faviann/broodling/issues/122)
+consumes these retained facts; it must not invent a client worktree to reclaim:
+
+- The Attempt's `resource_kind` (`http` owns no local directory, branch or
+  worktree; `worktree` keeps its owned enclosure) and its admission, abandonment,
+  retirement and completion records.
+- Shared custody: the common Git directory, the direct
+  `refs/broodling/starting/<B1>` pin and any `refs/broodling/accepted/<oid>` pin,
+  none of which an Attempt cleanup deletes.
+- The HTTP submission: format `http.v1`, phase (`prepared`, `dispatched`,
+  `correlated`), intended and confirmed run IDs, `replay_blocked_reason`, the
+  retained asset identity and the binding (target origin, protocol, native
+  release pins, frozen result-fetch origin).
+- Dispatch uncertainty: any phase after `prepared` is dispatch intent and keeps
+  the Attempt quarantined. Correlation resolves acceptance uncertainty only.
+
+Native checkout paths and runtime state belong to the target. Host
+stopped-target and storage verification remain with #122.
+
 ## Evidence and history
 
 The [TUnit suite](../../tests/README.md) covers Broodling authority, Git/SQLite
-durability and controlled released-SDK/native behavior. Stub PR receipts are
-distinct from live DirectTarget delivery. Neither establishes provider quality,
-hostile sandbox resistance or physical cessation. [P5 remains scoped FAIL](../../evaluation/p5/README.md),
+durability and controlled released-SDK/native behavior. The
+[stock DirectTarget witness](../../tests/README.md#controlled-stock-directtarget-witness)
+runs the unmodified native 10.3.0 HTTP/OECP target and the approved asset with a
+controlled Codex provider and forge. Its PR receipt is controlled, not a real
+GitHub PR. None of these establishes provider quality, hostile sandbox resistance
+or physical cessation. [P5 remains scoped FAIL](../../evaluation/p5/README.md),
 requiring human review of each exact accepted revision.
 
 .NET state uses its own format; Python schema history and application APIs are

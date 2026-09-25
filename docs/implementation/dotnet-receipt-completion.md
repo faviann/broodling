@@ -13,8 +13,8 @@ Current source/release support is .NET; the
 ```csharp
 using var store = new BroodlingApplication().OpenStore(databasePath);
 var retained = store.FindCompletion(exactAttemptId);
-var completed = await store.WaitAsync(exactAttemptId,
-    new ZeroshotTransport(pinnedPythonExecutable), cancellationToken);
+// An HTTP record needs no bridge transport; a LocalTarget record passes its ZeroshotTransport.
+var completed = await store.WaitAsync(exactAttemptId, null, cancellationToken);
 ```
 
 `FindCompletion` reads only the supplied Attempt ID, including historical
@@ -23,12 +23,14 @@ current or latest Attempt. `WaitAsync` first returns that exact retained record
 without reserving SQLite's writer or contacting native execution. Otherwise it
 requires a current, nonabandoned Attempt, an admitted immutable Contract, and an
 already-correlated run with the matching reconstructed frozen invocation. This
-uses F's frozen source bytes, original B1, execution settings and delivery
-selectors; it never revalidates the old workspace or today's dispatch profile.
-Only the pinned transport, locator and run identity are needed for the wait.
+uses the frozen source bytes, original B1, execution settings and delivery
+selectors; it never revalidates an old workspace or today's dispatch profile.
 
-An HTTP (`http.v1`) record routes on its retained format and ignores any bridge
-transport, so the caller may pass null. A prepared or dispatched but
+Since #180 every PR receipt comes from an HTTP (`http.v1`) record: the bridge
+serves only no-effect LocalTarget work, whose success refuses below, and the SQL
+completion guard accepts only HTTP records. A LocalTarget record waits through
+its pinned bridge transport, locator and run identity. An HTTP record routes on
+its retained format and ignores any bridge transport, so the caller may pass null. A prepared or dispatched but
 unacknowledged record refuses with `SubmissionNotReady` before target contact,
 even when progress already shows a finished run. Only authorized Resume can
 establish correlation. A correlated record waits through
@@ -105,8 +107,8 @@ The thin host command does not start HTTP:
 wait <store> <attempt-id> [python-executable]
 ```
 
-Supply the pinned SDK Python executable for an unretained result. Retained
-completion needs no executable, dispatch configuration, credentials, origin
+Supply the pinned SDK Python executable only for an unretained LocalTarget
+result. Retained completion needs no executable, dispatch configuration, credentials, origin
 access or working native target. Existing `resume`, `status` and `history`
 commands include completion facts; Ctrl+C from wait returns caller-detached
 handback.
@@ -137,18 +139,14 @@ depending on connection-specific recursive-delete triggers. Original schema
 definitions remain frozen. Replacement hardening for provisioning/submission
 rows is not included: the same mutations were permitted by the Python baseline.
 
-Ordinary open and explicit upgrade refuse pre-transition .NET schemas without
-changing them; see the [state lifecycle](dotnet-identity-custody.md). Python
-state/import compatibility is excluded.
-
 ## Evidence and limits
 
 `AttemptCompletionTests` owns receipt field/type/authority refusals, PR-ID edge
-strings, vanished-workspace reconnect, foreign run, uncorrelated/stale authority,
+strings, target-free retained replay, foreign run, uncorrelated/stale authority,
 transport/cancel versus failure, late success, rollback after insertion,
 independent finalizers, frozen invocation rechecks and no-effect refusal. It
-also owns #115's accepted-object retention: survival of origin, workspace and
-branch removal plus `gc --prune=now`, an unpublished commit that completes once
+also owns #115's accepted-object retention: survival of origin removal plus
+`gc --prune=now`, an unpublished commit that completes once
 pushed, cancellation during a stalled fetch, a conflicting pin, and the pin
 surviving a rolled-back write.
 `CompletionPersistenceTests` owns direct-SQL receipt/binding refusals,
@@ -156,14 +154,18 @@ immutability, justified currentness loss and completed-work admission guards.
 Its two-result historical fixture bypasses only new-admission prohibition while
 seeding the second Attempt; it demonstrates nonunique Work Unit cardinality and
 exact reads, not a supported way to create a new Attempt after completion.
-`StoreLifecycleTests` owns unchanged refusal of authentic pre-transition stores. One composed
+One composed
 `InvocationTests` path covers wait, repeated submit, reopen and offline operator
 handback, without duplicating boundary failure matrices.
 
-PR receipts here come from controlled native-result boundaries, not real
-DirectTarget PR delivery. Receipts that reach `WaitAsync` name a real commit
-made in a separate clone and pushed to a local bare stand-in origin, which the
-source repository reaches through `url.<bare>.insteadOf`; no GitHub fetch occurs. F's released-SDK transport evidence remains distinct.
+These witnesses run on correlated HTTP Attempts whose retained binding reads a
+loopback stock-target stand-in; the test chooses each native result. Receipts
+that reach `WaitAsync` name a real commit made in a separate clone and pushed to
+a local bare stand-in origin, which the source repository reaches through
+`url.<bare>.insteadOf`; no GitHub fetch occurs. The
+[stock DirectTarget witness](../../tests/README.md#controlled-stock-directtarget-witness)
+consumes a controlled receipt from the unmodified native target through the same
+path. None is real GitHub PR delivery.
 No live provider, gateway, GitHub mutation, deployment or evaluation is involved.
 Python production code and tests are unchanged. [H implements stop/retirement/
 replacement](dotnet-retirement-replacement.md). Every dispatched Attempt remains quarantined after native terminal
