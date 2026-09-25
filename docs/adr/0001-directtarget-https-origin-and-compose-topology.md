@@ -25,12 +25,15 @@ stack's internal communication thus depends on nothing outside it, while the
 operator can use the Zeroshot CLI, HTTP requests or a browser from the LAN
 without tunnels or trust setup.
 
-Every container runs as its production user. Broodling is non-root.
-`zeroshot-tls` runs Caddy as a non-root user that owns the key directory and
-binds 443 inside its container via `NET_BIND_SERVICE` (Docker's unprivileged-port
-sysctl also permits it); a high inner port would break in-project clients, which
-reach Caddy directly through the alias on the origin's port. Only `zeroshot` runs
-as container root, as native's process-identity allocation requires.
+The three long-running services run as their production users. Broodling is
+non-root. `zeroshot-tls` runs Caddy as a non-root user that owns the key
+directory and binds 443 inside its container via `NET_BIND_SERVICE` (Docker's
+unprivileged-port sysctl also permits it); a high inner port would break
+in-project clients, which reach Caddy directly through the alias on the origin's
+port. The `zeroshot` service runs as container root, as native's
+process-identity allocation requires. Explicit first initialization may use a
+one-off root helper container to create the root and set persistent-volume
+ownership and modes.
 
 ## Consequences
 
