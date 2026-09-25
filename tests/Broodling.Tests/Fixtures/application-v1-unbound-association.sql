@@ -213,7 +213,7 @@ CREATE TABLE store_metadata (
     manifest_hash TEXT NOT NULL,
     initialized_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'0488df48ef9ba6a74962fcb61977d6d9b937217534b499b2d630c844c7c3dcda','6c25204951751c5f22730d5125ae749d19edaf237d9fe0647746ffa7c880e4af','2026-09-25T18:54:16.6525981+00:00');
+INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'8c5cd46fc733cada63fc2d3a1a8bee180d0d802fa9e803d50824c7fa195903b3','1c70f7d77923da3d13b54c3fa8ea72c78d03f522612fad14e5080b2fbbb79a9c','2026-09-25T18:54:16.6525981+00:00');
 CREATE TABLE work_submissions (
     submission_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -616,4 +616,19 @@ WHEN OLD.bundle_id <> NEW.bundle_id OR OLD.repository <> NEW.repository
 BEGIN SELECT RAISE(ABORT, 'Repository preparation is immutable'); END;
 CREATE TRIGGER request_bundle_repository_no_delete BEFORE DELETE ON request_bundle_repositories
 BEGIN SELECT RAISE(ABORT, 'Repository preparation history is immutable'); END;
+CREATE TABLE completion_refusals (
+    attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
+    reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+    refused_at TEXT NOT NULL
+) STRICT;
+CREATE TRIGGER completion_refusal_bound BEFORE INSERT ON completion_refusals
+WHEN NOT EXISTS (
+    SELECT 1 FROM attempts JOIN native_submissions USING (attempt_id)
+    WHERE attempt_id = NEW.attempt_id AND is_current = 1 AND format = 'http.v1' AND state = 'correlated'
+)
+BEGIN SELECT RAISE(ABORT, 'completion refusal requires a current correlated HTTP Attempt'); END;
+CREATE TRIGGER completion_refusal_no_update BEFORE UPDATE ON completion_refusals
+BEGIN SELECT RAISE(ABORT, 'completion refusal is immutable'); END;
+CREATE TRIGGER completion_refusal_no_delete BEFORE DELETE ON completion_refusals
+BEGIN SELECT RAISE(ABORT, 'completion refusal is durable'); END;
 COMMIT;
