@@ -1,0 +1,4 @@
+#!/bin/sh
+# Controlled forge. Native clears the environment and disables global Git configuration;
+# this shim alone maps the admitted GitHub repository to the mounted bare repository.
+GIT_CONFIG_GLOBAL=/etc/broodling-forge.gitconfig exec /usr/lib/git-core/git "$@"

@@ -30,9 +30,11 @@ Missing SDK/native dependencies fail rather than skip.
 The image startup tests also require rootful Docker access. They build the actual
 `deployment/DirectTarget.Dockerfile` using the pinned SDK binary, so an uncached
 build needs access to the pinned image/package sources. Each run owns and removes
-its test image, containers and disposable volumes; no port is published and test
-containers use `--network none`. No existing target is accessed. No real credentials,
-networked provider or opt-in live campaign is required.
+its test images, containers and disposable volumes. Startup tests publish no port and
+use `--network none`. The [stock target](fixtures/README.md#controlled-stock-directtarget)
+serves on a bridge network because Docker cannot publish a port otherwise; it publishes
+only on host loopback and its fixtures make no outbound call. No existing target is
+accessed. No real credentials, networked provider or opt-in live campaign is required.
 
 Durable Git/SQLite fixtures use unique owned children of
 `~/.cache/broodling-tests`; set `BROODLING_TEST_WORKSPACE_ROOT` to another durable
@@ -62,6 +64,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Shared DirectTarget HTTP/WebSocket bounds, budgets and stock discovery I/O | `DirectTargetExchangeTests`: [transport limits](../docs/implementation/zeroshot-native-integration.md#directtarget-http-transport-limits) |
 | DirectTarget session setup, JSON-RPC envelope and run status projection validation | `DirectTargetSessionTests`: loopback stock-target stand-in, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
 | DirectTarget wait polling cadence, per-read deadlines and cancellation; stop precheck, single force and shared deadline | `DirectTargetRunTests`: the same loopback stand-in with a controlled clock, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
+| Unmodified native HTTP/OECP boundary with the approved asset: controlled PR delivery from exact B1, restart retention, same-key convergence | `StockDirectTargetTests`: actual target image with [controlled provider and forge](fixtures/README.md#controlled-stock-directtarget) |
 
 `Broodling.ProcessWitness` is a test-only caller for real process-death and
 Git-lock boundaries. Ordinary build/test/publish copies the C administrative
