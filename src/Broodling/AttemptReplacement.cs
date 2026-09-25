@@ -63,9 +63,11 @@ public sealed partial class BroodlingStore
         RequireBundleAuthority(contract, transaction);
         if (predecessor.Abandonment is null || ReadRetirement(predecessorId, transaction) is not { RetiredAt: not null } retirement)
             throw new AttemptAdmissionError("Replacement requires abandonment and completed retirement.");
-        // Verified stopped-target maintenance is the only retirement of dispatched (DirectTarget) work;
-        // every other predecessor must still prove it never dispatched.
-        if (retirement.Basis != "stopped_target") RequireRetirementSafety(predecessor, transaction);
+        // Verified stopped-target maintenance is the only retirement of dispatched (DirectTarget) work, and
+        // its successor is admitted only within a maintenance pause. Every other predecessor must still
+        // prove it never dispatched.
+        if (retirement.Basis == "stopped_target") RequireMaintenancePause(transaction);
+        else RequireRetirementSafety(predecessor, transaction);
         if (ReadRetry("predecessor_id", predecessorId, transaction) is not null)
             throw new AttemptConflict("This predecessor already has an explicit successor.");
         if (ReadAttempts("work_unit_id = $p0 AND is_current = 1", predecessor.WorkUnitId, transaction).Count != 0)
@@ -95,6 +97,20 @@ public sealed partial class BroodlingStore
         var result = ReadAttempt(id, transaction);
         transaction.Commit();
         return result;
+    }
+
+    /// <summary>
+    /// Admit and prepare one explicit HTTP successor, never dispatching it. It targets the predecessor's
+    /// retained DirectTarget origin, which verified maintenance checked. Repeating it returns the
+    /// successor's existing submission unchanged.
+    /// </summary>
+    public NativeSubmission PrepareRetry(string predecessorId, string retryKey)
+    {
+        var attempt = AdmitRetry(predecessorId, retryKey);
+        if (FindSubmission(attempt.AttemptId) is { } existing) return existing;
+        var origin = FindSubmission(predecessorId)?.Locator.Address
+            ?? throw new SubmissionNotReady("The predecessor has no retained DirectTarget origin.");
+        return PrepareHttpSubmission(attempt.AttemptId, origin);
     }
 
     public NativeSubmission PrepareRetry(string predecessorId, string retryKey, string workspaceRoot, NativeProfile profile)

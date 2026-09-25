@@ -58,6 +58,13 @@ public sealed partial class BroodlingStore
             RequireUnpaused(transaction);
     }
 
+    /// <summary>Replacing work retired under verified maintenance happens only within a maintenance pause.</summary>
+    private void RequireMaintenancePause(SqliteTransaction transaction)
+    {
+        if (!ReadInstallationControl(transaction).IsPaused)
+            throw new MaintenanceUnverified("Replacement after verified maintenance retirement requires the installation pause.");
+    }
+
     private InstallationStatus ReadInstallationStatus(SqliteTransaction transaction)
     {
         var control = ReadInstallationControl(transaction);
