@@ -20,7 +20,8 @@ public static class HostTargetCommands
                 ?? throw new TargetNotReady("Target inventory is invalid.");
             if (InvocationConfiguration.Read(args[2]) is not InvocationConfiguration.Direct configuration)
                 throw new UnsupportedRuntime("Target readiness requires a DirectTarget invocation configuration.");
-            var facts = await (readiness ?? new TargetReadiness()).CheckAsync(inventory, configuration.DirectOrigin, cancellationToken);
+            var facts = await (readiness ?? new TargetReadiness()).CheckAsync(inventory, configuration.DirectOrigin,
+                configuration.DirectRootCertificate, cancellationToken);
             output.WriteLine(JsonSerializer.Serialize(facts, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             return 0;
         }

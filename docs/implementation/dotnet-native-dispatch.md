@@ -261,6 +261,26 @@ requires no configuration file. Status/history keep the existing command shape.
 Safe failures point to retained history/status; Ctrl+C returns detached handback.
 The callable proposer API remains available for richer source/Contract inputs.
 
+### DirectTarget origin, initialization and readiness
+
+The homelab DirectTarget origin is `https://zeroshot.dev.faviann.com`
+([ADR 0001](../adr/0001-directtarget-https-origin-and-compose-topology.md)).
+The `zeroshot-tls` Caddy container serves it on port 443, signing with the
+stack's own root, and forwards to native at the fixed inner port 18770 on the
+Compose project network. Native itself is never published. The Direct
+configuration names that origin and, as `directRootCertificate`, the public
+`root.crt`, which Broodling rereads for each TLS connection. Explicit first
+initialization creates the root once with the target image's `initialize-tls`
+helper: the key is readable only by `zeroshot-tls`'s user, and the certificate
+is the only file in a public directory. It then records the origin in native
+state through `zeroshot-tls`. Rotation replaces the key and certificate together
+and removes Caddy's stored intermediate and leaf. `check-target` verifies the
+stack and discovers through `zeroshot-tls` with the configured root, which
+catches an intermediate left from before a rotation. See
+[initialization](../../deployment/README.md#explicit-initialization-and-guarded-startup),
+[rotation](../../deployment/README.md#tls-root-rotation) and
+[readiness](dotnet-target-readiness.md).
+
 ## Validation and next ownership
 
 `NativeDispatchTests` owns real SQLite/Git authority, immutable task, writer

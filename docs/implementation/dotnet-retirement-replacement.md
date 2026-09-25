@@ -143,7 +143,7 @@ runs the image command once per Attempt with a check it made during this pause:
 
 ```bash
 dotnet /RELEASE/host/Broodling.Host.dll retire-attempt /EXISTING/DOTNET/state.sqlite3 ATTEMPT_ID \
-  '{"directOrigin":"http://127.0.0.1:18770","containerName":"broodling-target","stateMount":"/NEW/target-state","homeMount":"/NEW/target-home","verifiedAt":"2026-09-25T12:00:00Z"}'
+  '{"directOrigin":"https://zeroshot.dev.faviann.com","containerName":"broodling-zeroshot-1","stateMount":"/NEW/target-state","homeMount":"/NEW/target-home","verifiedAt":"2026-09-25T12:00:00Z"}'
 ```
 
 `RetireStoppedTargetAttempt(attemptId, StoppedTargetCheck)` records every member

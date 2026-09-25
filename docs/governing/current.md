@@ -143,8 +143,11 @@ DirectTarget client bridge with the HTTP/OECP integration over fresh state: the
 approved execution asset, offline preparation, exact durable acknowledgement,
 retained-binding progress, wait and stop, and (#180) routing of callable and
 operator PR invocation through it, with the bridge DirectTarget path removed. A
-controlled witness runs the unmodified stock native boundary; production
-topology (#155) and image publication (#121) remain open. #113 serves retained
+controlled witness runs the unmodified stock native boundary. #186 packages
+[ADR 0001](../adr/0001-directtarget-https-origin-and-compose-topology.md)'s
+target side: a once-created TLS root, `zeroshot-tls`'s Caddyfile, native
+initialization through the HTTPS origin and readiness of that stack. The Compose
+installation (homelab-iac) and image publication (#121) remain open. #113 serves retained
 work and frozen references over read-only HTTP from the ASP.NET host, opening
 existing state only. #118 adds a callable completion observer that retains
 correlated HTTP results with no caller waiting; attaching it to the host process

@@ -29,9 +29,14 @@ across worktrees; its default is the repository's `.venv/bin/python`.
 Missing SDK/native dependencies fail rather than skip.
 The image startup tests also require rootful Docker access. They build the actual
 `deployment/DirectTarget.Dockerfile` using the pinned SDK binary, so an uncached
-build needs access to the pinned image/package sources. Each run owns and removes
-its test images, containers and disposable volumes. Startup tests publish no port and
-use `--network none`. The [stock target](fixtures/README.md#controlled-stock-directtarget)
+build needs access to the pinned image/package sources. They also use the pinned
+`zeroshot-tls` Caddy image; when it is absent, the run pulls it by digest and removes
+it afterwards. Each run owns and removes its test images, containers, networks,
+disposable volumes and host directories, all named with unique `broodling-186-`,
+`broodling-180-` or `broodling-104-` prefixes. The ADR stack tests (`TargetStack`)
+give each case its own Docker network with the origin's alias; only `zeroshot-tls`
+publishes, on a host-loopback port Docker chooses. Refusal cases use `--network none`.
+The [stock target](fixtures/README.md#controlled-stock-directtarget)
 serves on a bridge network because Docker cannot publish a port otherwise; it publishes
 only on host loopback. Its fixtures' only outbound call is the reference read from
 the test's reader, bound to the host's bridge gateway. No existing target is
@@ -64,8 +69,8 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Stop/quarantine, safe undispatched retirement (including HTTP Attempts), verified stopped-target maintenance retirement, original-B1 replacement | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
 | Read-only HTTP server: existing-state startup refusal and session release, retained reads mapped to application operations without external services or writes, reads while another session holds the writer | `HttpReadTests` |
 | Composed application/operator recovery and handback; explicit Local/Direct target configuration, retained-kind routing and mismatch refusal; PR operations without a Python helper, over loopback HTTP and over HTTPS with a configured root | `InvocationTests`: [invocation](../docs/implementation/invocation.md) |
-| Native explicit initialization, refusal before serving, restart and mixed UID preservation | `NativeTargetStartupTests`: actual target image with disposable state, [startup](../deployment/README.md#explicit-native-initialization-and-guarded-startup) |
-| Selected-target configuration, dependency and discovery decisions | `TargetReadinessTests`: [readiness](../docs/implementation/dotnet-target-readiness.md) |
+| TLS root created once with a private key and public certificate; `zeroshot-tls` refusing to start without its provided root; native initialization through the HTTPS origin, the fixed unpublished inner port, refusal before serving, restart and mixed UID preservation | `NativeTargetStartupTests`: actual target and pinned Caddy images with disposable state, [initialization](../deployment/README.md#explicit-initialization-and-guarded-startup) |
+| Selected ADR stack configuration, dependency and discovery decisions; a stale Caddy intermediate after incomplete root rotation | `TargetReadinessTests`: controlled inspection and discovery, plus one actual-image stack, [readiness](../docs/implementation/dotnet-target-readiness.md) |
 | Shared DirectTarget HTTP/WebSocket bounds, budgets and stock discovery I/O | `DirectTargetExchangeTests`: [transport limits](../docs/implementation/zeroshot-native-integration.md#directtarget-http-transport-limits) |
 | HTTPS/WSS DirectTarget trust in exactly the configured private root, refusal of another root, system trust or a mismatched host name, root re-read per TLS connection within one operation, a missing root failing only its operation with no dispatch intent, and HTTPS completion wait | `DirectTargetTrustTests`: the loopback stand-in serving TLS from an in-process private authority, [transport limits](../docs/implementation/zeroshot-native-integration.md#directtarget-http-transport-limits) |
 | DirectTarget session setup, JSON-RPC envelope and run status projection validation | `DirectTargetSessionTests`: loopback stock-target stand-in, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
@@ -82,7 +87,8 @@ provider; the released SDK and bundled native engine run. The files in
 [Fixtures](Broodling.Tests/Fixtures/README.md) control a bridge submit response or
 provider inspection. None implements another Broodling application or authority
 store. Readiness, exchange, session, run, completion and invocation tests control
-Docker/HTTP boundaries or use loopback peers and contact no real target.
+Docker/HTTP boundaries or use loopback peers and contact no real target; the one
+readiness case on actual images inspects only its own disposable stack.
 
 ## Controlled stock DirectTarget witness
 
@@ -94,7 +100,12 @@ DirectTarget image, with the approved asset
 `sha256:10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8`. Only
 the [controlled provider and forge](fixtures/README.md#controlled-stock-directtarget)
 are replaced. Each test uses fresh volumes, fake credentials and a new target.
-The application alone submits, observes and consumes:
+The host-side application needs an origin it reaches without `zeroshot-tls`, so
+the witness binds native to a literal-loopback origin. It records that binding
+with native's own `target add` and `list`, because the entrypoint initializes only
+through `zeroshot-tls`. It then serves through the unchanged entrypoint at the
+fixed inner port, published on host loopback. The application alone submits,
+observes and consumes:
 
 - With the forge branch moved past B1, Invocation with a Direct target admits,
   prepares and correlates the HTTP Attempt without Python or a client checkout.
