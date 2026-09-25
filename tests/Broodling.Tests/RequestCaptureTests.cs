@@ -227,7 +227,7 @@ public sealed class RequestCaptureTests
         RepositoryPreparationTests.RepositoryPreparationFixture fixture, string submissionId,
         RequestBundleLimits? limits = null) =>
         store.CaptureRequestBundleAsync(submissionId, fixture.RepositoryRoot, Credentials,
-            new GitHubIssueSource(fixture.Gh), fixture.Source, limits);
+            new GitHubIssueSource(fixture.Gh), fixture.Source, limits, CancellationToken.None);
 
     private static string ApiReads(RepositoryPreparationTests.RepositoryPreparationFixture fixture) =>
         string.Join(" ", fixture.ReadGhPaths().Where(path => path != "/repos/acme/widget"));

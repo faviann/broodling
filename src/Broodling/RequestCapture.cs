@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace Broodling;
 
 /// <summary>Finite first-profile acquisition bounds, retained with the bundle manifest.</summary>
-public sealed record RequestBundleLimits(int MaxReferences, long MaxItemBytes, long MaxTotalBytes)
+internal sealed record RequestBundleLimits(int MaxReferences, long MaxItemBytes, long MaxTotalBytes)
 {
     public static RequestBundleLimits Default { get; } = new(50, 1024 * 1024, 8 * 1024 * 1024);
 }
@@ -28,12 +28,20 @@ public sealed partial class BroodlingStore
     /// repository and bounded reference closure. Deterministic refusals are
     /// retained on the refused bundle; operational failures throw and a later
     /// call resumes from committed captures without refetching them. A sealed
-    /// bundle is returned without acquisition.
+    /// bundle is returned without acquisition. A new capture always uses the
+    /// first-profile bounds.
     /// </summary>
-    public async Task<RequestBundle> CaptureRequestBundleAsync(string submissionId, string repositoryRoot,
+    public Task<RequestBundle> CaptureRequestBundleAsync(string submissionId, string repositoryRoot,
         GitHubRepositoryCredentials credentials, GitHubIssueSource? issueSource = null,
-        GitHubRepositorySource? repositorySource = null, RequestBundleLimits? limits = null,
-        CancellationToken cancellationToken = default)
+        GitHubRepositorySource? repositorySource = null, CancellationToken cancellationToken = default) =>
+        CaptureRequestBundleAsync(submissionId, repositoryRoot, credentials, issueSource, repositorySource,
+            null, cancellationToken);
+
+    /// <summary>Tests begin a capture with small bounds; production callers cannot choose them.</summary>
+    internal async Task<RequestBundle> CaptureRequestBundleAsync(string submissionId, string repositoryRoot,
+        GitHubRepositoryCredentials credentials, GitHubIssueSource? issueSource,
+        GitHubRepositorySource? repositorySource, RequestBundleLimits? limits,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(credentials);
         var issues = issueSource ?? new GitHubIssueSource();

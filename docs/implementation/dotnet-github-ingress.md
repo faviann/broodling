@@ -176,7 +176,8 @@ reference that linked to it.
 
 The retained plan records the convention, the traversal and the limits:
 50 available references, 1 MiB per captured member, and 8 MiB in total,
-including `primary` and `request`. A resumed capture uses the retained limits.
+including `primary` and `request`. Callers cannot choose other bounds. A
+resumed capture uses the limits retained in its plan.
 A repository file's size is read from Git first; a file over the per-member
 limit or the remaining total is refused without being read or captured.
 The following retain a refusal instead of an incomplete bundle:
