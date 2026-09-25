@@ -57,7 +57,6 @@ public sealed class HttpReadTests
             "repository file"u8.ToArray(), fixture.Git.Repository, "HEAD", "original.txt"));
         store.CaptureRequestBundleGitBlob(bundle.BundleId, "repo:original.txt");
         store.CompleteRequestBundleCapture(bundle.BundleId);
-        store.AssociateIssueSubmission(submission.SubmissionId, fixture.Attempt.ContractRevisionId);
         var capturing = store.SubmitIssue("https://github.com/acme/widget/issues/13");
         var incomplete = store.BeginRequestBundleCapture(capturing.SubmissionId,
             new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));

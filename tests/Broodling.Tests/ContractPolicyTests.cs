@@ -43,6 +43,22 @@ public sealed class ContractPolicyTests
     }
 
     [Test]
+    public async Task UnboundContractRepresentationKeepsItsExactRetainedBytesAndIdentity()
+    {
+        // Canonical bytes of a Contract recorded without a RequestBundle binding. Re-serializing
+        // them must not add a field, or every retained revision would fail its canonical check.
+        var legacy = """
+            {"workUnitId":"wu-legacy","sourceAttribution":[{"sourceId":"src-1","contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"criteria":[{"criterionId":"acceptance","statement":"Preserve the complete request.","evidencePopulation":null,"validationSeam":"","validationAction":"","falsifyingObservation":"","evidenceEffectDependencies":[],"mechanicalEvidence":null}],"obligations":[],"prerequisites":[],"requiredEffects":[{"effectId":"pr","statement":"Open PR","kind":"pull_request","targetBranch":"main"}],"hostAssumptions":[],"constructedBy":"caller","notes":"","finalAssuranceMaterials":null}
+            """u8.ToArray();
+
+        var contract = Contract.FromCanonicalBytes(legacy);
+
+        await Assert.That(contract.CanonicalBytes().SequenceEqual(legacy)).IsTrue();
+        await Assert.That(contract.ContractRevisionId)
+            .IsEqualTo("cr-" + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(legacy)));
+    }
+
+    [Test]
     public async Task RejectionsPreserveEveryUnsupportedObligationDependencyPrerequisiteAndAssumption()
     {
         using var fixture = new StoreFixture();

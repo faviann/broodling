@@ -14,12 +14,9 @@ var attempt = store.AdmitAttempt(revisionId,
     workspaceRoot: "/srv/broodling-dotnet/attempts",
     revision: "HEAD");
 
-// A completed prepared submission supplies the retained repository and B1.
-var preparedAttempt = store.AdmitAttempt(submissionId,
-    workspaceRoot: "/srv/broodling-dotnet/attempts");
-
 // HTTP DirectTarget Attempts retain B1 but own no local directory.
 var http = store.AdmitHttpAttempt(revisionId, repository: "/srv/broodling-dotnet/repositories/widget");
+// A bundle-bound submission supplies the retained repository and B1.
 var preparedHttp = store.AdmitHttpAttempt(submissionId);
 
 var current = store.RequireCurrentAttempt(attempt.AttemptId);
@@ -36,14 +33,15 @@ sorted source ID/digest pairs. Existing Contract/source identities and canonical
 bytes are unchanged. Entitled bytes remain in their existing immutable store.
 
 The prepared-submission overload consumes the completed RequestBundle's immutable
-repository preparation. It computes the workspace root with the supplied caller
-workspace path while using the retained service-owned bare repository as the Git
-common directory, then records the retained exact starting commit and requested
-branch ref as B1. Before allocation it accepts only the retained default PR
-target; a later repository default, caller effect input or moving branch cannot
-silently retarget this prepared environment. Unsupported or missing retained
-state is a visible admission refusal. The explicit local overload validates its
-original caller checkout path before the shared admission core.
+repository preparation. It requires the submission's Contract to be bound to that
+bundle, whose [admission](dotnet-contract-admission.md#bundle-bound-admission)
+already fixed the retained PR target. It uses the retained service-owned bare
+repository as the Git common directory and records the retained exact starting
+commit and requested branch ref as B1. A later repository default, caller input
+or moving branch cannot retarget this prepared environment, and the
+revision-based `AdmitHttpAttempt` refuses a bundle-bound Contract. Missing
+retained state is a visible admission refusal. The explicit local overload
+validates its original caller checkout path before the shared admission core.
 
 The supported checkout profile is checked before status can invoke conversion
 drivers. Configured external filters, unsupported byte conversions, sparse

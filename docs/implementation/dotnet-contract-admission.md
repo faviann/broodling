@@ -53,6 +53,43 @@ findings. Delivery admission supports no effect or one GitHub `pull_request`
 effect naming a nonempty target branch. This grants no implicit merge, deployment
 or wider effect authority and does not resolve the no-effect stable-result gap.
 
+## Bundle-bound admission
+
+`AdmitRequestBundle(submissionId, propose, constructedBy)` admits one Issue
+submission's completed [RequestBundle](dotnet-github-ingress.md#executable-request-capture)
+under the trusted URL-to-PR profile. It uses the same proposal checks and `Admit`
+as supplied sources; there is no second Contract pipeline.
+
+- It checks the bundle against retained material first: the bundle is complete,
+  its manifest matches the retained digest, and its `request` member is the
+  submission Work Unit's captured `executable_request` source.
+- The proposer receives that Executable Request as its only source, plus
+  `RequestBundle` for the manifest and members. The primary issue and available
+  references are supporting material read through the bundle. A proposal that
+  attributes them refuses, so their capture cannot add requested work.
+- Broodling supplies one `pull_request` effect to the preparation's retained
+  PR target branch. The proposal must preserve it and carry `BundleBinding`
+  unchanged. A changed branch, binding, pin, Work Unit or producer refuses and
+  records nothing.
+- Unsupported obligations, prerequisites and other refusals remain rejection
+  findings, exactly as for supplied sources.
+
+The revision is recorded and associated with the submission in one transaction.
+`Admit` then decides it, applying the submission cancellation and installation
+pause checks. The decision also moves the submission from `capturing` to
+`admitted` or `rejected`. An interruption before the decision leaves the bound,
+undecided revision. A later call decides it without calling the proposer again.
+A cancelled submission is refused before the proposer runs.
+
+A bound Contract's canonical JSON carries `requestBundle` with `bundleId` and
+`manifestSha256`, so its revision identity covers the exact bundle. The field is
+omitted when absent: Contracts recorded without a bundle keep their exact bytes
+and identities. Public `RecordContractRevision` refuses a bound Contract, and
+`AssociateIssueSubmission` gives a bundled submission only a Contract bound to
+its own bundle. Each bound revision therefore belongs to one submission, and its
+admission is always submission-guarded. An Attempt for it starts only from the
+retained preparation through `AdmitHttpAttempt(submissionId)`.
+
 ## Persistence, recovery and observation
 
 `RecordContractRevision(contract)` atomically records the canonical Contract and

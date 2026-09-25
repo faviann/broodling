@@ -83,13 +83,11 @@ branch, requested branch ref and exact starting commit. `RegisterRequestBundleRe
 constructs the existing Git-blob capture input from that exact commit, so later
 refreshes, branch/default changes and worktree changes cannot retarget a
 completed bundle. Replaying an already prepared bundle returns its durable
-selection without re-acquisition. `AdmitHttpAttempt(submissionId)` (authorized
-PR work) and `AdmitAttempt(submissionId, workspaceRoot)` (no-effect worktree
-work) consume this state and visibly refuse missing preparation, unsupported
-retained Git state or a pull-request Contract target that contradicts the
-retained default branch. The worktree overload refuses every PR Contract, since
-PR work is always an HTTP Attempt. Explicit local `AdmitAttempt` remains
-unchanged.
+selection without re-acquisition. [Bundle-bound admission](dotnet-contract-admission.md#bundle-bound-admission)
+grants the pull-request effect to the retained target branch, and
+`AdmitHttpAttempt(submissionId)` consumes this state for that bound Contract. It
+visibly refuses an unbound Contract, missing preparation or unsupported retained
+Git state. Explicit local `AdmitAttempt` remains unchanged.
 
 ## Trusted reviewed-source proposal
 
@@ -221,7 +219,9 @@ acquisition policy, including 404 in a readable repository and 410.
 admission, with no network or provider calls. Preparation tests cover canonical
 metadata/identity refusal, pre-credential origin validation, explicit bare
 refspec refresh, process-only Basic Git auth, durable replay, a concurrent
-identity-pin race and prepared Attempt target/starting-commit checks.
+identity-pin race and a bound Attempt that keeps its retained target and
+starting commit after upstream moves. `RequestAdmissionTests` owns bundle-bound
+admission; see [admission](dotnet-contract-admission.md#bundle-bound-admission).
 It checks exact captured bytes and one explicit request, identity and response
 refusals, safe transport errors/cancellation, explicit supplementary grants,
 reviewed-source byte pins, immutable replay after reopen, changed-source lineage

@@ -140,7 +140,7 @@ public sealed class RequestBundleTests
     }
 
     [Test]
-    public async Task ContractAssociationWaitsForIncompleteBundleWhichRemainsResumable()
+    public async Task ContractAssociationWaitsForIncompleteBundleAndThenRequiresItsBinding()
     {
         using var fixture = new AttemptFixture();
         using var store = fixture.State.Open();
@@ -163,10 +163,11 @@ public sealed class RequestBundleTests
         var completed = store.CompleteRequestBundleCapture(bundle.BundleId);
         await Assert.That(completed.State).IsEqualTo("complete");
 
-        var associated = store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId);
-        await Assert.That(associated.ContractRevisionId).IsEqualTo(fixture.RevisionId);
-        await Assert.That(store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId).ContractRevisionId)
-            .IsEqualTo(fixture.RevisionId);
+        // Completion does not open the old route: a Contract admitted without this bundle's
+        // binding cannot become the bundled submission's authority.
+        await Assert.That(() => store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId))
+            .Throws<IssueSubmissionConflict>();
+        await Assert.That(store.GetIssueSubmission(submission.SubmissionId).ContractRevisionId).IsNull();
     }
 
     [Test]

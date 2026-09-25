@@ -133,7 +133,10 @@ exact starting commit are separate facts, and prepared Attempt admission uses
 those retained facts rather than caller checkout or later repository state.
 Repository-file capture continues through the retained commit. #108 captures the
 marked v1 Executable Request and its declared, bounded GitHub reference closure,
-or retains deterministic refusal findings before any Contract. #119 adds bounded, unretained
+or retains deterministic refusal findings before any Contract. #111 admits a
+completed bundle as a Contract bound to its identity and manifest digest,
+attributing only the Executable Request and granting one PR to the retained
+target branch. #119 adds bounded, unretained
 native phase/active-node observation for correlated Attempts, reported separately
 from retained facts and as unavailable on transport loss. #163 replaces the
 DirectTarget client bridge with the HTTP/OECP integration over fresh state: the

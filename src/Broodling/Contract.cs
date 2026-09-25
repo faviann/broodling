@@ -10,6 +10,9 @@ public sealed record RequiredEffect(string EffectId, string Statement, string Ki
 public sealed record Prerequisite(string PrerequisiteId, string Statement, bool SatisfiedWithinProfile);
 public sealed record FinalAssuranceMaterial(string Path, bool FinalCandidate = true, bool ComparisonBase = false);
 
+/// <summary>The completed RequestBundle whose exact manifest a Contract was admitted from.</summary>
+public sealed record ContractRequestBundle(string BundleId, string ManifestSha256);
+
 public sealed class EvidencePopulation(string kind, IReadOnlyList<string>? members = null, string surface = "")
 {
     public string Kind { get; } = kind;
@@ -52,7 +55,7 @@ public sealed class Contract
         IReadOnlyList<Obligation>? obligations = null, IReadOnlyList<Prerequisite>? prerequisites = null,
         IReadOnlyList<RequiredEffect>? requiredEffects = null, IReadOnlyList<string>? hostAssumptions = null,
         string constructedBy = "broodling_policy", string notes = "",
-        IReadOnlyList<FinalAssuranceMaterial>? finalAssuranceMaterials = null)
+        IReadOnlyList<FinalAssuranceMaterial>? finalAssuranceMaterials = null, ContractRequestBundle? requestBundle = null)
     {
         WorkUnitId = workUnitId;
         // Attribution is a set of exact pins, not precedence. Keep duplicates so
@@ -68,6 +71,7 @@ public sealed class Contract
         ConstructedBy = constructedBy;
         Notes = notes;
         FinalAssuranceMaterials = finalAssuranceMaterials is null ? null : ContractData.Copy(finalAssuranceMaterials, nameof(finalAssuranceMaterials));
+        RequestBundle = requestBundle;
     }
 
     public string WorkUnitId { get; }
@@ -80,6 +84,9 @@ public sealed class Contract
     public string ConstructedBy { get; }
     public string Notes { get; }
     public IReadOnlyList<FinalAssuranceMaterial>? FinalAssuranceMaterials { get; }
+    // Omitted when absent, so Contracts recorded without a bundle keep their exact canonical bytes.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContractRequestBundle? RequestBundle { get; }
 
     [JsonIgnore]
     public string ContractSha256 => Digests.Bytes(CanonicalBytes());
@@ -162,6 +169,11 @@ public sealed class Contract
             ContractData.Text(assumption, "host assumption");
         foreach (var material in FinalAssuranceMaterials ?? [])
             ContractData.Text(material.Path, "selected material path");
+        if (RequestBundle is { } bundle)
+        {
+            ContractData.Text(bundle.BundleId, "RequestBundle identity", required: true);
+            ContractData.Text(bundle.ManifestSha256, "RequestBundle manifest digest", required: true);
+        }
     }
 
     private static void ValidateStatements(IEnumerable<(string Identity, string Statement)> items, string kind)
