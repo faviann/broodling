@@ -38,6 +38,13 @@ try
         await dispatchStore.DispatchAsync(args[2], profile, new ZeroshotTransport(args[8], args[9]));
         return 99;
     }
+    if (args[0] == "http-dispatch")
+    {
+        // The parent's controlled target decides where this caller is killed.
+        using var httpStore = new BroodlingApplication().OpenStore(args[1]);
+        await httpStore.DispatchHttpAsync(args[2], new DispatchCredentials("witness-github-token", NativeProfile.GatewayBaseUrl, "witness-gateway-key"));
+        return 99;
+    }
     if (args[0] == "repository-preparation-crash")
     {
         using var preparationStore = new BroodlingApplication().OpenStore(args[1]);

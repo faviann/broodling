@@ -77,7 +77,9 @@ counting read. SQL constraints/triggers protect the request/key and permit only
 `prepared → dispatched → correlated|blocked` for bridge rows. An `http.v1` row
 permits only `prepared → dispatched → correlated`, with `run_id` equal to its
 immutable `intended_run_id`. Its `replay_blocked_reason = submission_conflict`
-may be recorded once while dispatched or correlated and never cleared. A
+may be recorded once while dispatched or correlated and never cleared; it blocks
+further sends without settling dispatch (see
+[HTTP dispatch](zeroshot-native-integration.md#http-dispatch-and-acknowledgement)). A
 cross-row guard refuses an intended ID that another Attempt's confirmed `run_id`
 names, and the reverse. The completion trigger accepts either format's exact
 source binding. Preparation and dispatch require

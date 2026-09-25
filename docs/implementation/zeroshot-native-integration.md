@@ -125,6 +125,64 @@ The record's retained binding is a `NativeRunBinding` with a `direct` locator
 whose `SdkVersion` is null, since no bridge SDK is involved. The bridge
 `PrepareSubmission`/`DispatchAsync` refuse HTTP Attempts.
 
+## HTTP dispatch and acknowledgement
+
+`DispatchHttpAsync(attemptId, credentials)` sends an already prepared HTTP
+submission for the first time, or replays it exactly after a lost
+acknowledgement. It never prepares implicitly. A correlated record is returned
+at once, with no authority, pause, credential, custody or target requirement.
+
+Otherwise the caller must hold current Attempt authority, the record must carry
+no retained replay block and the installation must be unpaused. The current
+`GH_TOKEN`, `GATEWAY_API_KEY` and exact gateway URL must be valid, and the
+common Git directory must hold the direct `refs/broodling/starting/<B1>` pin with
+B1's snapshot objects. These checks never create or repair the pin. An absent,
+symbolic or conflicting pin refuses. The credential and Git checks run with no
+lock or writer held. The operation then takes the installation initiation lock.
+One immediate transaction rechecks authority, the replay block, the pause and
+the retained record against its retained asset and admitted authority. For a
+first send it commits `prepared → dispatched`. The writer is released before
+discovery, and the lock is released when this caller's send ends. The recorded
+result-fetch origin is used as retained; remote configuration is not read again.
+
+The adapter validates discovery, then posts the frozen request plus
+`connections.gateway` (`GATEWAY_BASE_URL`, `GATEWAY_API_KEY`),
+`connections.github` (`GH_TOKEN`) and the outer `githubToken` to
+`/native-v2/run`. The request has a known `Content-Length` and no transfer
+encoding. The final credential-bearing body must fit the 4 MiB limit before any
+exchange starts. The whole operation shares the 60-second submit budget.
+Credentials never enter SQLite, the frozen request or a diagnostic, and rotating
+them changes neither identity nor the request bytes.
+
+Only HTTP 200 whose body is exactly `{runId}`, equal to the intended canonical
+UUIDv7, is an acknowledgement. A different or re-cased ID is `foreign_run`, and
+any other 200 body is `invalid_response`. A valid stock problem `{code, message,
+details?}` with HTTP 409 and `request.conflict` is a submission conflict; it
+carries no run ID and nothing is adopted from it. Other valid problems are
+`TargetError`; malformed ones are `invalid_response`. Timeouts, cancellation,
+caller death and every refusal preserve the existing facts, so the intent stays
+unresolved and exact replay remains available while the Attempt is current.
+The stock target answers only after its checkout, and it can create a run yet
+reply `503 target.unavailable` (for example when exact B1 is missing from the
+forge). A slow checkout can exhaust the submit budget. In each case the intent
+stays unresolved, and an exact replay returns the same ID. For the same key, the
+stock target answers a different proposed ID with the original ID. That reply is
+`foreign_run`, never adopted.
+
+Settling a reply uses a second short transaction. It rechecks only the stored
+Attempt, request and identity binding, not custody, credentials, installed files
+or current authority. An acknowledgement commits `dispatched → correlated` with
+`run_id = intended_run_id`, even after pause, abandonment or custody loss. A
+conflict records `replay_blocked_reason = submission_conflict` once, in either
+phase. It blocks every later send but does not settle dispatch, so an
+acknowledgement for a request already in flight still correlates. Both orderings
+converge on the same correlation and conflict fact. A caller whose conflict
+arrives after correlation gets the correlated record back. A correlation that
+arrives after abandonment raises `StaleAttempt` without restoring authority. A
+duplicate acknowledgement after another caller completed the Attempt returns the
+retained record. Abandoned or replay-blocked work is never sent again to
+discover its run.
+
 ## Dispatch, recovery and completion
 
 Preparation retains the immutable request and submission key. A short transaction
@@ -171,9 +229,9 @@ completion. Store errors grant no partial disposition.
 [`DirectTargetExchange.cs`](../../src/Broodling/DirectTargetExchange.cs) holds the
 fixed client bounds of the selected
 [HTTP/OECP contract](https://github.com/faviann/broodling/issues/167#issuecomment-5823939438).
-Target readiness discovery and the run status reader below use it; submit,
-public observation, wait and stop do not use it yet. The bounds are internal constants, not operator
-settings:
+Target readiness discovery, HTTP submission and the run status reader below use
+it; public observation, wait and stop do not use it yet. The bounds are internal
+constants, not operator settings:
 
 | Resource | Limit |
 | --- | --- |

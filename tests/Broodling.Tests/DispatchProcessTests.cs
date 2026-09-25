@@ -124,6 +124,60 @@ public sealed class DispatchProcessTests
     }
 
     [Test]
+    [Arguments("discovery")]
+    [Arguments("mid-body")]
+    [Arguments("accepted")]
+    public async Task KilledHttpCallerRetainsIntentAndReplayConvergesOnTheIntendedRun(string stage)
+    {
+        await using var target = new RunTarget { StallMidBody = stage == "mid-body" };
+        using var fixture = new HttpFixture();
+        var prepared = fixture.Prepare(target: target.Origin);
+        fixture.Store.Dispose();
+        var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (stage == "discovery") target.Discovery = async () => { reached.TrySetResult(); await hold.Task; };
+        if (stage == "mid-body") _ = target.Stalled.Task.ContinueWith(_ => reached.TrySetResult());
+        // The target accepts the complete request, then the acknowledgement is never delivered.
+        if (stage == "accepted") target.Submit = async body => { target.Accept(body); reached.TrySetResult(); await hold.Task; return (500, ""); };
+
+        var start = new ProcessStartInfo("dotnet") { RedirectStandardError = true };
+        foreach (var argument in new[] { Path.Combine(AppContext.BaseDirectory, "Broodling.ProcessWitness.dll"),
+            "http-dispatch", fixture.Git.State.Path, prepared.AttemptId })
+            start.ArgumentList.Add(argument);
+        using var caller = Process.Start(start)!;
+        var error = caller.StandardError.ReadToEndAsync();
+        try
+        {
+            if (await Task.WhenAny(reached.Task, caller.WaitForExitAsync(), Task.Delay(TimeSpan.FromSeconds(40))) != reached.Task)
+                throw new Exception($"HTTP caller did not reach {stage}; exited={caller.HasExited}, diagnostic={(caller.HasExited ? await error : "")}");
+        }
+        finally
+        {
+            if (!caller.HasExited) caller.Kill(entireProcessTree: false);
+            await caller.WaitForExitAsync();
+        }
+        await Assert.That(caller.ExitCode).IsNotEqualTo(0);
+
+        using var reopened = fixture.Git.State.Open();
+        var retained = reopened.FindSubmission(prepared.AttemptId)!;
+        await Assert.That(retained.State).IsEqualTo("dispatched");
+        await Assert.That(retained.RunId).IsNull();
+        var status = await InstallationPauseTests.SettledStatus(reopened);
+        await Assert.That(status.UnresolvedDispatches).IsEqualTo(1);
+        await Assert.That(status.InFlightInitiationDrained).IsTrue();
+        await Assert.That(target.Runs.Count).IsEqualTo(stage == "accepted" ? 1 : 0);
+
+        target.StallMidBody = false;
+        target.Discovery = () => Task.CompletedTask;
+        target.Submit = body => Task.FromResult(target.Accept(body));
+        var correlated = await reopened.DispatchHttpAsync(prepared.AttemptId, HttpDispatchTests.Credentials());
+        await Assert.That(correlated.RunId).IsEqualTo(prepared.IntendedRunId);
+        await Assert.That(correlated.RequestJson).IsEqualTo(prepared.RequestJson);
+        await Assert.That(target.Runs.Values.Single()).IsEqualTo(prepared.IntendedRunId);
+        hold.TrySetResult();
+    }
+
+    [Test]
     [Arguments("during-prepare", null)]
     [Arguments("prepared", "prepared")]
     [Arguments("before-call", "dispatched")]

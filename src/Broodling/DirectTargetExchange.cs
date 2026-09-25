@@ -169,6 +169,17 @@ internal static class DirectTargetExchange
         });
     }
 
+    /// <summary>
+    /// The stock HTTP problem <c>{code, message, details?}</c>: its code when the shape is valid, otherwise null.
+    /// The message and details are never read.
+    /// </summary>
+    internal static string? ProblemCode(JsonElement body) =>
+        body.ValueKind == JsonValueKind.Object
+        && body.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.String
+        && body.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String
+        && body.EnumerateObject().All(property => property.Name is "code" or "message" or "details")
+            ? code.GetString() : null;
+
     /// <summary>Complete UTF-8 JSON within the depth limit and without duplicate properties at any level.</summary>
     internal static JsonElement ParseJson(ReadOnlyMemory<byte> bytes)
     {

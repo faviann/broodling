@@ -62,6 +62,86 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>
+    /// First send or exact acknowledgement-loss replay of a prepared HTTP submission. A correlated
+    /// record is handed back with no other prerequisite. Otherwise the send needs current authority,
+    /// no retained replay block, no pause, current credentials and exact retained B1 custody; dispatch
+    /// intent commits before discovery and the writer is released before any network I/O. Only the
+    /// exact acknowledgement correlates; every other outcome leaves the intent unresolved.
+    /// </summary>
+    public Task<NativeSubmission> DispatchHttpAsync(string attemptId, DispatchCredentials? credentials,
+        CancellationToken cancellationToken = default) =>
+        DispatchHttpAsync(attemptId, credentials, TimeProvider.System, cancellationToken);
+
+    internal async Task<NativeSubmission> DispatchHttpAsync(string attemptId, DispatchCredentials? credentials, TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        var record = FindSubmission(attemptId);
+        if (record is { Format: NativeSubmission.Http, State: "correlated" }) return record;
+        var attempt = RequireCurrentAttempt(attemptId);
+        if (record is not { Format: NativeSubmission.Http })
+            throw new SubmissionNotReady("HTTP dispatch requires a prepared HTTP submission.");
+        if (record.ReplayBlockedReason is not null) throw ReplayBlocked();
+        RequireUnpaused();
+        // Credential and Git checks may be slow; they never hold the SQLite writer.
+        var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).Environment();
+        GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
+
+        var conflict = false;
+        // Held from before the intent commits until this caller can no longer send. It is local only:
+        // bytes a target already buffered can still be accepted after it is released.
+        using (HoldInitiation())
+        {
+            using (var transaction = connection.BeginTransaction(deferred: false))
+            {
+                attempt = RequireCurrentAttempt(attemptId, transaction);
+                record = ReadSubmission(attemptId, transaction)!;
+                if (record.State == "correlated") { transaction.Commit(); return record; }
+                if (record.ReplayBlockedReason is not null) throw ReplayBlocked();
+                // A replay can create the run too, so it passes the same gate as a first send.
+                RequireUnpaused(transaction);
+                RequireRetainedHttpSubmission(attempt, record, transaction);
+                if (record.State == "prepared")
+                    Execute("UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = $p0", transaction, attemptId);
+                transaction.Commit();
+            }
+            try
+            {
+                await DirectTargetSubmission.SubmitAsync(DirectTargetExchange.CanonicalOrigin(record.Locator.Address)!,
+                    record.RequestJson, record.IntendedRunId!, ephemeral, clock, cancellationToken);
+            }
+            catch (SubmissionConflict) { conflict = true; }
+        }
+
+        bool stale;
+        using (var transaction = connection.BeginTransaction(deferred: false))
+        {
+            // Retaining a fact rechecks only the stored binding: no custody, credentials, installed
+            // files or current authority. A late acknowledgement is still acceptance evidence.
+            attempt = ReadAttempt(attemptId, transaction);
+            record = ReadSubmission(attemptId, transaction)!;
+            RequireRetainedHttpSubmission(attempt, record, transaction);
+            if (conflict)
+                Execute("UPDATE native_submissions SET replay_blocked_reason = 'submission_conflict' WHERE attempt_id = $p0 AND replay_blocked_reason IS NULL",
+                    transaction, attemptId);
+            else if (record.State == "dispatched")
+                Execute("UPDATE native_submissions SET state = 'correlated', run_id = intended_run_id WHERE attempt_id = $p0",
+                    transaction, attemptId);
+            record = ReadSubmission(attemptId, transaction)!;
+            // Completion also ends authority; a duplicate acknowledgement never disturbs completed work.
+            stale = record.State == "correlated" && (!attempt.IsCurrent || attempt.Abandonment is not null)
+                && ReadCompletion(attemptId, transaction) is null;
+            transaction.Commit();
+        }
+        if (record.State != "correlated") throw ReplayBlocked();
+        if (stale)
+            throw new StaleAttempt("Authority was lost while the acknowledgement was in flight; factual correlation is retained.");
+        return record;
+    }
+
+    private static SubmissionConflict ReplayBlocked() =>
+        new("The target reported a conflicting immutable submission; this Attempt sends no further requests.");
+
+    /// <summary>
     /// The retained record must still be exactly what preparation froze from admitted authority,
     /// the approved asset retained in this store and a binding this release supports. Missing or
     /// corrupt content refuses; nothing is regenerated from today's installed files or rebound.
