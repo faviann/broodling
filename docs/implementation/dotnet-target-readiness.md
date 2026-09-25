@@ -49,6 +49,9 @@ existing stack, and readiness creates no directories or files. The separate
 `config.json` is the existing
 [invocation configuration](dotnet-native-dispatch.md#thin-operator-commands) for
 PR work: `{"target": "direct", "directOrigin": ..., "directRootCertificate": ...}`.
+Its root must be exactly `root.crt` in the recorded `rootCertificateMount`, so
+discovery trusts the root the stack mounts rather than system trust or another
+copy.
 A LocalTarget configuration, a field of the other kind, an unknown field or a
 secret is refused in both files.
 
@@ -78,8 +81,8 @@ privileged or host networking), drop no capabilities and use restart policy
 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and `CODEX_API_KEY`, including empty
 values. Its mounts must be exactly the recorded read/write state and home binds
 at `/state` and `/home/node` and the public root directory bound read-only at
-`/tls-root`. It publishes no port, including through publish-all, and is attached
-to the recorded network. Entrypoint is exactly `/usr/local/bin/broodling-target`;
+`/tls-root`. It publishes no port, including through publish-all, and carries
+the `zeroshot` alias on the recorded network, where `zeroshot-tls` forwards. Entrypoint is exactly `/usr/local/bin/broodling-target`;
 arguments must be exactly
 `--listen 0.0.0.0:18770 --public-origin <origin> --storage /state`, the fixed
 inner port. See the
@@ -94,9 +97,10 @@ publish only `443/tcp` and carry the origin's host name as an alias on the
 recorded network. Its mounts at `/tls-root-key` and `/tls-root` must be exactly
 the recorded key and public root directories, both read-only binds.
 
-`broodling` may mount the public root directory, but no mount of it may equal,
-contain or lie within any other `zeroshot-tls` mount source: the root key
-directory or Caddy's data, which holds the intermediate key.
+`broodling` must mount the public root directory, only as a read-only bind, and
+no other mount of it may equal, contain or lie within any other `zeroshot-tls`
+mount source: the root key directory or Caddy's data, which holds the
+intermediate key.
 
 Subsequent execs use the inspected target container ID, never a newly selected
 name:
@@ -122,8 +126,8 @@ Discovery keeps the origin's host name for TLS but connects to `zeroshot-tls`'s
 actual host publication, read from the inspection (a wildcard address is reached
 on loopback), rather than wherever the name resolves on the host; on the LAN it
 resolves to Traefik, which terminates TLS itself. It trusts exactly the
-configuration's `directRootCertificate`, or system trust when none is set, like
-invocation. The chain Caddy serves must therefore reach the configured root, so
+configuration's `directRootCertificate`, as invocation does, never system
+trust. The chain Caddy serves must therefore reach the configured root, so
 an intermediate that Caddy kept from before a rotation or restore fails
 discovery. Discovery uses the shared bounded exchange
 ([limits](zeroshot-native-integration.md#directtarget-http-transport-limits)):
@@ -153,8 +157,9 @@ Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check,
 inventory validity, credential, version/hash/help, UID and stock-discovery schema
 checks, plus a controlled-clock discovery stall that expires as refusal and
 cancels as cancellation. Invalid configuration and origin witnesses require zero
-target access. The small composed command case uses a Direct configuration,
-passes its root and creates no store. The Program usage witness checks routing
+target access, including a configuration with no root or another root. The small
+composed command case uses a Direct configuration, passes its root and creates no
+store. The Program usage witness checks routing
 without Docker or HTTP access.
 
 One case uses the actual images on host Docker (see `TargetStack`): the ADR stack

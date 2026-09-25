@@ -280,14 +280,16 @@ image, the Compose project network and canonical host mount paths in
 
 The [readiness reference](../docs/implementation/dotnet-target-readiness.md)
 lists every check: the `zeroshot` image, running/root/isolation/restart settings,
-exact mounts, no published port, fixed launch arguments and project network;
-`zeroshot-tls`'s pinned image, non-root user, `NET_BIND_SERVICE`-only
-capabilities, 443 publication, origin alias and separate root mounts; no key
-mount in `broodling`; credential exclusion, native/Codex/Node/gh pins and binary
-hashes, `gh api graphql --paginate --slurp`, the hosted UID/GID transition, and
-native discovery through `zeroshot-tls` using the configuration's root. Both
-files must select the same origin. It creates no target/state and dispatches
-zero provider tasks.
+exact mounts, no published port, fixed launch arguments and the `zeroshot` alias
+on the project network; `zeroshot-tls`'s pinned image, non-root user,
+`NET_BIND_SERVICE`-only capabilities, 443 publication, origin alias and separate
+root mounts; a read-only public root mount and no key mount in `broodling`;
+credential exclusion, native/Codex/Node/gh pins and binary hashes,
+`gh api graphql --paginate --slurp`, the hosted UID/GID transition, and native
+discovery through `zeroshot-tls` using the configuration's root. Both files must
+select the same origin, and the configuration's `directRootCertificate` must be
+`root.crt` in the recorded `rootCertificateMount`. It creates no target/state and
+dispatches zero provider tasks.
 
 The retained [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
 target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
@@ -380,7 +382,10 @@ this order:
    and `zeroshot-tls`, and `SSL_CERT_FILE=/tls-root/root.crt` makes it trust
    only the public root. Success leaves no native server running. Failure
    leaves partial durable state for inspection; it never deletes it or silently
-   retries over it.
+   retries over it. If it cannot reach the origin, check that `zeroshot-tls` is
+   running with this root and that the one-off container has the `zeroshot`
+   alias. To retry, deliberately clear the partial state and home first:
+   initialization refuses nonempty state.
 4. **Start the target** (`docker compose up -d zeroshot`) with the same
    arguments without `initialize`.
 

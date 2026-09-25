@@ -96,7 +96,7 @@ if [ "$mode" = initialize ]; then
         fi
         sleep 0.1
     done
-    [ "$ready" = true ] || refuse 'native initialization could not reach the origin through zeroshot-tls with the public root'
+    [ "$ready" = true ] || refuse 'native initialization could not reach the origin: is zeroshot-tls running with this root, and does this one-off container carry the zeroshot alias (docker compose run --use-aliases)? Clear the partial state deliberately before retrying'
     # A public read opens the native ledger without submitting work.
     SSL_CERT_FILE=/tls-root/root.crt timeout 10 zeroshot list --target broodling >/dev/null \
         || refuse 'native ledger initialization failed'

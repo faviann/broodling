@@ -29,7 +29,7 @@ public sealed class TargetReadinessTests
         await Assert.That(fixture.DiscoveryCalls).IsEqualTo(1);
         // Discovery reaches zeroshot-tls's actual publication and trusts the configured root.
         await Assert.That(fixture.Published).IsEqualTo(new IPEndPoint(IPAddress.Loopback, 18443));
-        await Assert.That(fixture.TrustedRoot).IsEqualTo(ReadinessFixture.RootCertificate);
+        await Assert.That(fixture.TrustedRoot).IsEqualTo(fixture.RootCertificate);
         await Assert.That(JsonSerializer.Serialize(facts).Contains(ReadinessFixture.Secret)).IsFalse();
     }
 
@@ -65,7 +65,8 @@ public sealed class TargetReadinessTests
     [Arguments("root-key", "mounts")]
     [Arguments("port-published", "publish no port")]
     [Arguments("publish-all", "publish no port")]
-    [Arguments("network", "project network")]
+    [Arguments("network", "zeroshot alias")]
+    [Arguments("target-alias", "zeroshot alias")]
     [Arguments("tls-image", "pinned image")]
     [Arguments("tls-stopped", "zeroshot-tls is stopped")]
     [Arguments("tls-root-user", "non-root user")]
@@ -85,6 +86,7 @@ public sealed class TargetReadinessTests
     [Arguments("broodling-key", "broodling must not mount")]
     [Arguments("broodling-key-parent", "broodling must not mount")]
     [Arguments("broodling-caddy-data", "broodling must not mount")]
+    [Arguments("broodling-root-rw", "public root directory as a read-only bind")]
     [Arguments("two-containers", "exactly the recorded")]
     [Arguments("malformed", "invalid")]
     public async Task ContainerDriftRefusesBeforeAnyExecOrDiscovery(string change, string message)
@@ -119,7 +121,8 @@ public sealed class TargetReadinessTests
             case "root-key": fixture.Target["Mounts"]![2]!["Source"] = fixture.Inventory.RootKeyMount; break;
             case "port-published": host["PortBindings"] = JsonNode.Parse("""{"18770/tcp":[{"HostIp":"127.0.0.1","HostPort":"18770"}]}"""); break;
             case "publish-all": host["PublishAllPorts"] = true; break;
-            case "network": fixture.Target["NetworkSettings"]!["Networks"] = new JsonObject { ["other"] = new JsonObject() }; break;
+            case "network": fixture.Target["NetworkSettings"]!["Networks"] = JsonNode.Parse("""{"other":{"Aliases":["zeroshot"]}}"""); break;
+            case "target-alias": fixture.Target["NetworkSettings"]!["Networks"]!["broodling_default"]!["Aliases"] = new JsonArray("other"); break;
             case "tls-image": tls["Config"]!["Image"] = "caddy:2.11.4-alpine"; break;
             case "tls-stopped": tls["State"]!["Running"] = false; break;
             case "tls-root-user": tls["Config"]!["User"] = ""; break;
@@ -139,6 +142,7 @@ public sealed class TargetReadinessTests
             case "broodling-key": broodlingMounts.Add(Bind(fixture.Inventory.RootKeyMount, "/key", false)); break;
             case "broodling-key-parent": broodlingMounts.Add(Bind(fixture.Root, "/srv", false)); break;
             case "broodling-caddy-data": broodlingMounts.Add(tls["Mounts"]![2]!.DeepClone()); break;
+            case "broodling-root-rw": broodlingMounts[0]!["RW"] = true; break;
             case "two-containers": fixture.Inspect = $"[{fixture.Target},{fixture.Tls}]"; break;
             case "malformed": fixture.Inspect = ReadinessFixture.Secret; break;
         }
@@ -179,7 +183,7 @@ public sealed class TargetReadinessTests
     {
         using var fixture = new ReadinessFixture();
         await Refuses(() => fixture.Readiness.CheckAsync(fixture.Inventory with { DirectOrigin = origin }, origin,
-            ReadinessFixture.RootCertificate), "HTTPS origin");
+            fixture.RootCertificate), "HTTPS origin");
         await Assert.That(fixture.Calls.Count + fixture.DiscoveryCalls).IsEqualTo(0);
     }
 
@@ -200,7 +204,7 @@ public sealed class TargetReadinessTests
             "duplicate-container" => fixture.Inventory with { BroodlingContainerName = fixture.Inventory.TlsContainerName },
             _ => fixture.Inventory with { Network = "" }
         };
-        await Refuses(() => fixture.Readiness.CheckAsync(inventory, inventory.DirectOrigin, ReadinessFixture.RootCertificate), message);
+        await Refuses(() => fixture.Readiness.CheckAsync(inventory, inventory.DirectOrigin, fixture.RootCertificate), message);
         await Assert.That(fixture.Calls.Count + fixture.DiscoveryCalls).IsEqualTo(0);
     }
 
@@ -273,7 +277,7 @@ public sealed class TargetReadinessTests
 
         using var stalled = new ReadinessFixture { DiscoveryStalls = true };
         using var cancellation = new CancellationTokenSource();
-        var cancelled = stalled.Readiness.CheckAsync(stalled.Inventory, stalled.Inventory.DirectOrigin, ReadinessFixture.RootCertificate,
+        var cancelled = stalled.Readiness.CheckAsync(stalled.Inventory, stalled.Inventory.DirectOrigin, stalled.RootCertificate,
             cancellation.Token);
         await stalled.DiscoveryStarted.Task;
         cancellation.Cancel();
@@ -292,7 +296,7 @@ public sealed class TargetReadinessTests
         await Assert.That(result.RootElement.GetProperty("providerTasks").GetInt32()).IsEqualTo(0);
         await Assert.That(fixture.Calls.Count).IsEqualTo(9);
         // Discovery trusts the invocation configuration's root, as invocation itself does.
-        await Assert.That(fixture.TrustedRoot).IsEqualTo(ReadinessFixture.RootCertificate);
+        await Assert.That(fixture.TrustedRoot).IsEqualTo(fixture.RootCertificate);
         await Assert.That(Directory.GetFiles(fixture.Root).Length).IsEqualTo(2);
     }
 
@@ -306,6 +310,8 @@ public sealed class TargetReadinessTests
     [Arguments("credential-inventory")]
     [Arguments("missing-inventory")]
     [Arguments("malformed-config")]
+    [Arguments("missing-root")]
+    [Arguments("other-root")]
     public async Task InvalidOrExtendedInputRefusesBeforeTargetAccessWithoutLeakingBytes(string change)
     {
         using var fixture = new ReadinessFixture();
@@ -329,6 +335,9 @@ public sealed class TargetReadinessTests
                 File.WriteAllText(fixture.Arguments[1], inventory.ToJsonString());
                 break;
             case "missing-inventory": File.Delete(fixture.Arguments[1]); break;
+            // Readiness must check the root the stack mounts, not system trust or another copy.
+            case "missing-root": config.AsObject().Remove("directRootCertificate"); break;
+            case "other-root": config["directRootCertificate"] = "/srv/broodling/zeroshot-tls-root.crt"; break;
         }
         File.WriteAllText(fixture.Arguments[2], change == "malformed-config" ? ReadinessFixture.Secret : config.ToJsonString());
         var output = new StringWriter();
@@ -421,12 +430,12 @@ public sealed class TargetReadinessTests
     {
         internal const string Secret = "secret sentinel";
         internal const string Origin = "https://zeroshot.dev.faviann.com";
-        internal const string RootCertificate = "/srv/broodling/zeroshot-tls-root.crt";
         internal string Root { get; } = Directory.CreateDirectory(Path.Combine(
             Environment.GetEnvironmentVariable("BROODLING_TEST_WORKSPACE_ROOT")
                 ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "broodling-tests"),
             "target-readiness-" + Guid.NewGuid().ToString("N"))).FullName;
         internal TargetReadinessInventory Inventory { get; }
+        internal string RootCertificate => Path.Combine(Inventory.RootCertificateMount, "root.crt");
         internal TargetReadiness Readiness { get; }
         internal JsonObject Target { get; }
         internal JsonObject Tls { get; }

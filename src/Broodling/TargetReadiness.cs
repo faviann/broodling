@@ -50,10 +50,11 @@ public sealed class TargetReadiness
 
     /// <summary>
     /// <paramref name="selectedDirectOrigin"/> and <paramref name="rootCertificate"/> are the invocation
-    /// configuration's origin and optional private root, which discovery trusts exactly as invocation does.
+    /// configuration's origin and root. The root must be the stack's public <c>root.crt</c>, which discovery
+    /// trusts exactly as invocation does.
     /// </summary>
     public async Task<TargetReadinessFacts> CheckAsync(TargetReadinessInventory inventory, string selectedDirectOrigin,
-        string? rootCertificate = null, CancellationToken cancellationToken = default)
+        string? rootCertificate, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -73,6 +74,8 @@ public sealed class TargetReadiness
                 "Target mount inventory must use canonical absolute paths.");
             Require(!Overlap(inventory.RootKeyMount, inventory.RootCertificateMount),
                 "The root key and certificate must be recorded in separate locations.");
+            Require(rootCertificate == Path.Combine(inventory.RootCertificateMount, "root.crt"),
+                "Invocation configuration must trust the stack's public root, root.crt in the recorded root certificate mount.");
 
             using var inspection = JsonDocument.Parse(await command(["inspect", "--type", "container", .. names], cancellationToken));
             var records = inspection.RootElement;
@@ -101,7 +104,8 @@ public sealed class TargetReadiness
             Require(Published(host).Length == 0, "Target must publish no port; zeroshot-tls serves its origin.");
             Require(Strings(config.GetProperty("Cmd")).SequenceEqual(["--listen", NativeListen,
                 "--public-origin", inventory.DirectOrigin, "--storage", "/state"]), "Target launch arguments differ from inventory.");
-            Require(Network(actual, inventory.Network) is not null, "Target is not on the recorded project network.");
+            // zeroshot-tls forwards to zeroshot:18770, so the inspected target must be the one answering there.
+            Require(HasAlias(actual, inventory.Network, "zeroshot"), "Target must carry the zeroshot alias on the recorded project network.");
 
             var tlsHost = tls.GetProperty("HostConfig");
             Require(tls.GetProperty("Config").GetProperty("Image").GetString() == TlsImage, "zeroshot-tls must run the pinned image.");
@@ -115,17 +119,18 @@ public sealed class TargetReadiness
                     .GetProperty("443/tcp") is { ValueKind: JsonValueKind.Array } bindings && bindings.GetArrayLength() > 0,
                 "zeroshot-tls must publish only its 443 port.");
             var published = PublishedEndpoint(tls.GetProperty("NetworkSettings").GetProperty("Ports").GetProperty("443/tcp")[0]);
-            Require(Network(tls, inventory.Network) is { } tlsNetwork && tlsNetwork.TryGetProperty("Aliases", out var aliases)
-                    && aliases.ValueKind == JsonValueKind.Array
-                    && Strings(aliases).Contains(origin.Host, StringComparer.OrdinalIgnoreCase),
-                "zeroshot-tls must carry the origin's alias on the recorded project network.");
+            Require(HasAlias(tls, inventory.Network, origin.Host), "zeroshot-tls must carry the origin's alias on the recorded project network.");
             var tlsMounts = Mounts(tls);
             Require(tlsMounts.Where(m => m.Destination is "/tls-root-key" or "/tls-root").ToHashSet().SetEquals([
                     new Mount(inventory.RootKeyMount, "/tls-root-key", false, true),
                     new Mount(inventory.RootCertificateMount, "/tls-root", false, true)]),
                 "zeroshot-tls root key and certificate mounts differ from inventory.");
+            var broodlingMounts = Mounts(broodling);
+            var publicRoot = broodlingMounts.Where(mount => mount.Source == inventory.RootCertificateMount).ToArray();
+            Require(publicRoot.Length > 0 && publicRoot.All(mount => mount is { ReadWrite: false, Bind: true }),
+                "broodling must mount the public root directory as a read-only bind.");
             // The key directory and Caddy's data (its intermediate key) are zeroshot-tls storage; only the public root is shared.
-            Require(Mounts(broodling).All(mount => mount.Source == inventory.RootCertificateMount
+            Require(broodlingMounts.All(mount => mount.Source == inventory.RootCertificateMount
                     || tlsMounts.All(storage => !Overlap(mount.Source, storage.Source))),
                 "broodling must not mount the root key or other zeroshot-tls storage.");
 
@@ -185,8 +190,10 @@ public sealed class TargetReadiness
         host.GetProperty("PublishAllPorts").GetBoolean() ? ["all"]
         : host.GetProperty("PortBindings") is { ValueKind: JsonValueKind.Object } ports ? ports.EnumerateObject().Select(port => port.Name).ToArray() : [];
 
-    private static JsonElement? Network(JsonElement container, string name) =>
-        container.GetProperty("NetworkSettings").GetProperty("Networks").TryGetProperty(name, out var network) ? network : null;
+    private static bool HasAlias(JsonElement container, string network, string alias) =>
+        container.GetProperty("NetworkSettings").GetProperty("Networks").TryGetProperty(network, out var attached)
+        && attached.TryGetProperty("Aliases", out var aliases) && aliases.ValueKind == JsonValueKind.Array
+        && Strings(aliases).Contains(alias, StringComparer.OrdinalIgnoreCase);
 
     private static string[] Capabilities(JsonElement host, string name) => Strings(host, name)
         .Select(capability => capability.ToUpperInvariant() is var upper && upper.StartsWith("CAP_", StringComparison.Ordinal) ? upper[4..] : upper)
