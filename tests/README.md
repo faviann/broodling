@@ -60,7 +60,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Selected-target configuration, dependency and discovery decisions | `TargetReadinessTests`: [readiness](../docs/implementation/dotnet-target-readiness.md) |
 | Shared DirectTarget HTTP/WebSocket bounds, budgets and stock discovery I/O | `DirectTargetExchangeTests`: [transport limits](../docs/implementation/zeroshot-native-integration.md#directtarget-http-transport-limits) |
 | DirectTarget session setup, JSON-RPC envelope and run status projection validation | `DirectTargetSessionTests`: loopback stock-target stand-in, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
-| DirectTarget wait polling cadence, per-read deadlines and cancellation | `DirectTargetRunTests`: the same loopback stand-in with a controlled clock, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
+| DirectTarget wait polling cadence, per-read deadlines and cancellation; stop precheck, single force and shared deadline | `DirectTargetRunTests`: the same loopback stand-in with a controlled clock, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
 
 `Broodling.ProcessWitness` is a test-only caller for real process-death and
 Git-lock boundaries. Ordinary build/test/publish copies the C administrative

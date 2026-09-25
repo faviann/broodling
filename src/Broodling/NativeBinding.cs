@@ -11,6 +11,12 @@ public sealed record NativeSource(string Repository, string Branch, string Revis
 /// </summary>
 public sealed record NativeRunBinding(NativeLocator Locator, string RunId, string Title, string Size, NativeSource? Source);
 
+/// <summary>
+/// Which run identity a network operation used: the intended ID of a dispatched but unacknowledged
+/// submission, or the confirmed ID of a correlated one. A snapshot, never a correlation fact.
+/// </summary>
+internal enum NativeRunIdentity { Intended, Confirmed }
+
 /// <summary>The one interpretation of a retained request's facts. It never rewrites the saved bytes.</summary>
 internal sealed record FrozenSubmission(string Delivery, NativeLocator Locator, string Title, string Size,
     NativeSource? Source, string Repository, string OriginUrl)

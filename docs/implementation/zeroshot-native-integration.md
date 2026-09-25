@@ -253,6 +253,20 @@ later read then has its own 10 seconds through the complete reply. The wait has
 no overall deadline. Cancellation or any failure detaches the caller without
 stopping the run.
 
+The persistence-free stop operation uses one 30-second budget for discovery,
+setup, an optional precheck, force and any polling. For an intended but
+unacknowledged run identity it first requires a valid matching status. Any
+unknown, foreign, malformed or unavailable precheck sends no force. A matching
+precheck, even a finished one, still leads to force. `run/force` names exactly
+the session's run and is sent once. Its reply goes through the same projection
+validator. A nonterminal reply continues through the polling loop within the
+remaining stop budget. The result is a closed value: `NotSent`, `Uncertain` or
+`Terminal` with the validated result. `NotSent` and `Uncertain` carry a fixed
+error kind. Any failure from the force request onward, including expiry, counts
+as `Uncertain`, because force may have been sent. The operation never fabricates
+a stopped result. Caller cancellation propagates as cancellation, even after force.
+No outcome proves physical cessation or establishes correlation.
+
 ## Local policy and cleanup limitation
 
 The [C# Codex launcher](../../src/Broodling/CodexLauncher.cs) applies explicit

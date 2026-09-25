@@ -78,6 +78,10 @@ internal sealed class DirectTargetSession : IAsyncDisposable
     internal async Task<DirectTargetRunStatus> StatusAsync(DirectTargetBudget budget) =>
         Projection(await CallAsync("run/status", new { runId = run.RunId }, budget));
 
+    /// <summary>Request native force of exactly this run; the reply is the same validated projection.</summary>
+    internal async Task<DirectTargetRunStatus> ForceAsync(DirectTargetBudget budget) =>
+        Projection(await CallAsync("run/force", new { runId = run.RunId }, budget));
+
     /// <summary>
     /// The one terminal-polling loop. Return as soon as a status carries a terminal result; otherwise
     /// pause two seconds under <paramref name="pacing"/> and read again, one read at a time. Each later
