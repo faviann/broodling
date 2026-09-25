@@ -29,6 +29,17 @@ internal sealed class AttemptFixture : IDisposable
     internal AttemptRecord Admit(BroodlingStore store, string? revision = null, string? root = null) =>
         store.AdmitAttempt(RevisionId, Repository, root ?? Workspaces, revision ?? Head);
 
+    /// <summary>The same Work Unit admitted for authorized PR delivery, the only HTTP Attempt profile.</summary>
+    internal static string PullRequestRevision(BroodlingStore store) => store.AdmitSources(ContractIngressTests.Reference,
+        [ContractIngressTests.Primary()], ContractIngressTests.Propose, [new("pr", "Open PR", "pull_request", "main")]).Revision.ContractRevisionId;
+
+    internal AttemptRecord AdmitHttp(BroodlingStore store, string? revision = null) =>
+        store.AdmitHttpAttempt(PullRequestRevision(store), Repository, revision ?? Head);
+
+    /// <summary>Everything a local resource could leave behind: state-root entries, branches and registered worktrees.</summary>
+    internal string LocalResources() => string.Join('\n', Directory.GetFileSystemEntries(State.Root).Order())
+        + "\n" + Git("for-each-ref", "refs/heads") + Git("worktree", "list", "--porcelain");
+
     internal string Commit(string text)
     {
         File.WriteAllText(System.IO.Path.Combine(Repository, "original.txt"), text);

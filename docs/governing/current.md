@@ -40,7 +40,7 @@ multi-project orchestrator.
 | Broodling owns | Zeroshot owns |
 | --- | --- |
 | Entitled source snapshots, immutable Contract admission, criteria and exact effect authorization | Implementing and validating the frozen task through the standard `software-change` workflow |
-| One current Attempt, original B1 and exclusive ownership of its dedicated local worktree | Native graph expansion/routing, acceptance/code review, repair and provider sessions |
+| One current Attempt, original B1 and, for LocalTarget worktree Attempts, exclusive ownership of the dedicated local worktree | Native graph expansion/routing, acceptance/code review, repair and provider sessions |
 | Frozen invocation, durable dispatch intent, Attempt/run correlation and current-authority checks | Submission-key idempotency, execution state, reconnectable terminal result and native stop |
 | Receipt validation against authorized delivery and atomic result/disposition retention | Authorized checkout, commit, push and PR creation/update, including delivery repair and receipt production |
 | Explicit local execution policy and refusal of unsafe cleanup/retry | Provider execution; operator/host procedure owns process/container containment and physical-cessation proof |
@@ -137,7 +137,9 @@ host is not authority to add them.
 
 Every dispatched Attempt remains ineligible for automatic deletion or
 replacement, including after native success or stop. Terminal labels are not
-physical-cessation receipts. Broodling records abandonment and requests native
+physical-cessation receipts. An HTTP DirectTarget Attempt owns no local
+directory; its safe retirement rests on abandonment with no committed dispatch
+intent and deletes nothing. Broodling records abandonment and requests native
 stop, while operators retain host/container containment responsibility. A safely
 retired never-dispatched Attempt can still be explicitly replaced from original
 B1. There is no override that converts incomplete historical proof into cleanup

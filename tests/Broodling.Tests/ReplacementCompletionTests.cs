@@ -28,7 +28,7 @@ public sealed class ReplacementCompletionTests
                 DROP TRIGGER attempts_no_abandoned_work;
                 INSERT INTO attempts SELECT 'historical-completed', work_unit_id, contract_revision_id, 1,
                     b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, workspace_root,
-                    enclosure || '-history', worktree_path || '-history', branch || '-history', admitted_at FROM attempts;
+                    enclosure || '-history', worktree_path || '-history', branch || '-history', admitted_at, resource_kind FROM attempts;
                 {guard};
                 INSERT INTO worktree_provisions VALUES ('historical-completed', 'then');
                 INSERT INTO native_submissions SELECT 'historical-completed', 'broodling:dotnet:v1:historical-completed',
@@ -60,7 +60,7 @@ public sealed class ReplacementCompletionTests
             command.CommandText = """
                 INSERT INTO attempts SELECT 'sql-successor', work_unit_id, contract_revision_id, 1,
                     b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision,
-                    $root, $root || '/sql-successor', $root || '/sql-successor/worktree', 'broodling/sql-successor', 'now'
+                    $root, $root || '/sql-successor', $root || '/sql-successor/worktree', 'broodling/sql-successor', 'now', resource_kind
                     FROM attempts WHERE attempt_id = $predecessor
                 """;
             SqliteException? refusal = null;

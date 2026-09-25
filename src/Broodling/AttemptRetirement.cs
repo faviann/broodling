@@ -25,10 +25,14 @@ public sealed partial class BroodlingStore
         var allocation = GetAttempt(attemptId);
         // Retained physical allocation/enclosure ownership still matters. A missing checkout
         // is allowed here; live Git inspection and deletion authority belong to retirement.
-        WorktreeMaterialization.ValidatePaths(allocation, Path, inspectGit: false);
-        if (Directory.Exists(allocation.Allocation.Enclosure)) WorktreeMaterialization.RequireMarker(allocation);
-        else if (File.Exists(allocation.Allocation.Enclosure) || allocation.Provision is not null || submitted is { State: not "prepared" })
-            throw new CessationUnconfirmed("The dispatched or acknowledged enclosure is missing or ambiguous; Attempt abandoned, containment remains with the operator.");
+        // An HTTP Attempt owns no local resource, so there is nothing to inspect.
+        if (allocation.ResourceKind == AttemptRecord.Worktree)
+        {
+            WorktreeMaterialization.ValidatePaths(allocation, Path, inspectGit: false);
+            if (Directory.Exists(allocation.Allocation.Enclosure)) WorktreeMaterialization.RequireMarker(allocation);
+            else if (File.Exists(allocation.Allocation.Enclosure) || allocation.Provision is not null || submitted is { State: not "prepared" })
+                throw new CessationUnconfirmed("The dispatched or acknowledged enclosure is missing or ambiguous; Attempt abandoned, containment remains with the operator.");
+        }
         if (submitted is { State: not "prepared" })
         {
             if (submitted.Run is not { } run)
@@ -47,33 +51,44 @@ public sealed partial class BroodlingStore
         var attempt = ReadAttempt(attemptId, transaction);
         if (ReadSubmission(attemptId, transaction) is { State: not "prepared" })
             throw new CessationUnconfirmed("Dispatched Attempts remain quarantined.");
-        WorktreeMaterialization.ValidatePaths(attempt, Path, inspectGit: false);
-        string basis;
-        if (!Directory.Exists(attempt.Allocation.Enclosure))
-        {
-            if (File.Exists(attempt.Allocation.Enclosure) || attempt.Provision is not null)
-                throw new CessationUnconfirmed("The acknowledged enclosure is missing or ambiguous.");
-            basis = "never_materialized";
-        }
-        else
-        {
-            WorktreeMaterialization.RequireMarker(attempt);
-            if (attempt.Provision is null)
-                throw new CessationUnconfirmed("Interrupted provisioning has no durable acknowledgment; cessation is unknown.");
-            basis = "never_dispatched";
-        }
+        // Abandonment has committed, so this writer serializes the proof against any dispatch intent.
+        var basis = attempt.ResourceKind == AttemptRecord.Http ? "no_dispatch_intent" : WorktreeRetirementBasis(attempt);
         Execute("INSERT INTO attempt_retirements VALUES ($p0, $p1, $p2, NULL)", transaction, attemptId, basis, Now());
         var result = ReadRetirement(attemptId, transaction)!;
         transaction.Commit();
         return result;
     }
 
-    /// <summary>Discard only the proven safe Attempt's exact checkout and branch. Keep enclosure and stable lock.</summary>
+    private string WorktreeRetirementBasis(AttemptRecord attempt)
+    {
+        WorktreeMaterialization.ValidatePaths(attempt, Path, inspectGit: false);
+        if (!Directory.Exists(attempt.Allocation.Enclosure))
+        {
+            if (File.Exists(attempt.Allocation.Enclosure) || attempt.Provision is not null)
+                throw new CessationUnconfirmed("The acknowledged enclosure is missing or ambiguous.");
+            return "never_materialized";
+        }
+        WorktreeMaterialization.RequireMarker(attempt);
+        if (attempt.Provision is null)
+            throw new CessationUnconfirmed("Interrupted provisioning has no durable acknowledgment; cessation is unknown.");
+        return "never_dispatched";
+    }
+
+    /// <summary>
+    /// Discard only the proven safe Attempt's exact checkout and branch. Keep enclosure and stable lock.
+    /// An HTTP Attempt has no local resource: retirement only acknowledges its retained proof.
+    /// </summary>
     public AttemptRetirement RetireAttempt(string attemptId)
     {
         var proof = FindRetirement(attemptId) ?? throw new CessationUnconfirmed("Retirement requires retained safe cessation proof.");
         if (proof.RetiredAt is not null) return proof;
         var attempt = GetAttempt(attemptId);
+        if (attempt.ResourceKind == AttemptRecord.Http)
+        {
+            using var transaction = connection.BeginTransaction(deferred: false);
+            RequireRetirementSafety(ReadAttempt(attemptId, transaction), transaction);
+            return AcknowledgeRetirement(attemptId, transaction);
+        }
         WorktreeMaterialization.ValidatePaths(attempt, Path, inspectGit: false);
         if (!Directory.Exists(attempt.Allocation.Enclosure))
         {
@@ -105,7 +120,7 @@ public sealed partial class BroodlingStore
     private void RequireRetirementSafety(AttemptRecord attempt, SqliteTransaction transaction)
     {
         if (attempt.IsCurrent || attempt.Abandonment is null || ReadSubmission(attempt.AttemptId, transaction) is { State: not "prepared" }
-            || ReadRetirement(attempt.AttemptId, transaction) is not { Basis: "never_materialized" or "never_dispatched" })
+            || ReadRetirement(attempt.AttemptId, transaction) is not { Basis: "never_materialized" or "never_dispatched" or "no_dispatch_intent" })
             throw new CessationUnconfirmed("Historical labels do not authorize new cleanup.");
     }
 

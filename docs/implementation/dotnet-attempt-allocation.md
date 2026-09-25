@@ -18,6 +18,10 @@ var attempt = store.AdmitAttempt(revisionId,
 var preparedAttempt = store.AdmitAttempt(submissionId,
     workspaceRoot: "/srv/broodling-dotnet/attempts");
 
+// HTTP DirectTarget Attempts retain B1 but own no local directory.
+var http = store.AdmitHttpAttempt(revisionId, repository: "/srv/broodling-dotnet/repositories/widget");
+var preparedHttp = store.AdmitHttpAttempt(submissionId);
+
 var current = store.RequireCurrentAttempt(attempt.AttemptId);
 var status = store.Status(revisionId); // exact revision, including Attempts
 var history = store.History(WorkReference.Parse("acme/widget", 123));
@@ -62,6 +66,35 @@ The workspace root must be absolute and physically outside `/tmp`, `/var/tmp`,
 disposable enclosure, including through symlinks. Admission creates no workspace
 directory, branch, marker or checkout. It reserves an enclosure named by the full
 Attempt ID, its `worktree` child and a `broodling/<attempt-id>` branch.
+
+## HTTP resource kind
+
+[#173](https://github.com/faviann/broodling/issues/173) adds a second, explicit
+Attempt resource kind. `AttemptRecord.ResourceKind` is `worktree` for the
+allocation above and `http` for an HTTP DirectTarget Attempt. The kind is
+stored in the Attempt row and never inferred: a worktree Attempt whose directory
+disappeared remains a worktree Attempt with its existing ownership refusals.
+
+`AdmitHttpAttempt` has an explicit-repository overload and a prepared-submission
+overload. Both share the admission core above: committed admitted Contract,
+cancellation, pause, completed-work and one-current-Attempt checks, supported
+checkout profile and the create-only `refs/broodling/starting/<commit>` pin in
+the canonical common Git directory before the SQLite acknowledgement. The
+prepared overload keeps the retained default-branch check. HTTP DirectTarget is
+the authorized-PR path, so the admitted Contract must authorize exactly one
+supported `pull_request` effect; no-effect work keeps the LocalTarget worktree.
+There is no workspace root, enclosure, marker, lock, branch, worktree or runtime
+directory, and none is created. The HTTP Attempt ID uses a separate identity
+domain, so an HTTP request for a current worktree Attempt's B1 conflicts rather
+than returning it, and vice versa.
+
+`AttemptRecord.WorktreeAllocation` is null for HTTP Attempts and is serialized
+as `allocation`; the non-null `Allocation` accessor used by worktree operations
+refuses with `worktree_provisioning_error`. SQL requires all four allocation
+columns for `worktree` and none for `http`, refuses a kind rewrite and refuses
+provisioning an HTTP Attempt. Bridge preparation/dispatch therefore cannot bind
+an HTTP Attempt. HTTP submission records, preparation and dispatch are added by
+later #163 slices.
 
 ## Atomicity, replay and observation
 

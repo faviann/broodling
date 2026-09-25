@@ -69,7 +69,7 @@ public sealed class CompletionPersistenceTests
         var clone = $"""
             INSERT INTO attempts SELECT 'another-attempt', work_unit_id, '{newer}', 1, b1_repository, b1_commit_oid,
                 b1_material_sha256, b1_requested_revision, workspace_root, enclosure || '-other', worktree_path || '-other',
-                branch || '-other', admitted_at FROM attempts
+                branch || '-other', admitted_at, resource_kind FROM attempts
             """;
         await Assert.That(() => fixture.Git.State.Execute(clone)).Throws<SqliteException>();
         foreach (var sql in new[] {
@@ -102,7 +102,7 @@ public sealed class CompletionPersistenceTests
             DROP TRIGGER attempts_no_abandoned_work;
             INSERT INTO attempts SELECT 'historical-second', work_unit_id, contract_revision_id, 1,
                 b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, workspace_root,
-                enclosure || '-second', worktree_path || '-second', branch || '-second', admitted_at FROM attempts;
+                enclosure || '-second', worktree_path || '-second', branch || '-second', admitted_at, resource_kind FROM attempts;
             {guard};
             INSERT INTO worktree_provisions VALUES ('historical-second', 'then');
             INSERT INTO native_submissions SELECT 'historical-second', 'broodling:dotnet:v1:historical-second',

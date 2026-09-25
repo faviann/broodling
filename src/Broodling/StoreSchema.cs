@@ -285,7 +285,7 @@ internal static class StoreSchema
     internal const string RetirementSql = """
         CREATE TABLE attempt_retirements (
             attempt_id TEXT PRIMARY KEY REFERENCES attempt_abandonments(attempt_id),
-            basis TEXT NOT NULL CHECK (basis IN ('never_materialized', 'never_dispatched')),
+            basis TEXT NOT NULL CHECK (basis IN ('never_materialized', 'never_dispatched', 'no_dispatch_intent')),
             ceased_at TEXT NOT NULL,
             retired_at TEXT
         ) STRICT;
@@ -295,6 +295,8 @@ internal static class StoreSchema
           OR EXISTS (SELECT 1 FROM native_submissions WHERE attempt_id = NEW.attempt_id AND state <> 'prepared')
           OR (NEW.basis = 'never_materialized' AND EXISTS (SELECT 1 FROM worktree_provisions WHERE attempt_id = NEW.attempt_id))
           OR (NEW.basis = 'never_dispatched' AND NOT EXISTS (SELECT 1 FROM worktree_provisions WHERE attempt_id = NEW.attempt_id))
+          OR NOT EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id
+            AND (resource_kind = 'http') = (NEW.basis = 'no_dispatch_intent'))
         BEGIN SELECT RAISE(ABORT, 'retirement requires abandoned never-dispatched history'); END;
         CREATE TRIGGER retirement_stable BEFORE UPDATE ON attempt_retirements
         WHEN OLD.attempt_id <> NEW.attempt_id OR OLD.basis <> NEW.basis OR OLD.ceased_at <> NEW.ceased_at
@@ -307,10 +309,11 @@ internal static class StoreSchema
             retry_key TEXT PRIMARY KEY CHECK (length(trim(retry_key)) > 0),
             predecessor_id TEXT NOT NULL UNIQUE REFERENCES attempt_retirements(attempt_id),
             attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(attempt_id) DEFERRABLE INITIALLY DEFERRED,
-            workspace_root TEXT NOT NULL,
-            target_json TEXT NOT NULL CHECK (json_valid(target_json) AND json_type(target_json) = 'object'),
+            workspace_root TEXT,
+            target_json TEXT CHECK (json_valid(target_json) AND json_type(target_json) = 'object'),
             requested_at TEXT NOT NULL,
-            CHECK (predecessor_id <> attempt_id)
+            CHECK (predecessor_id <> attempt_id),
+            CHECK ((workspace_root IS NULL) = (target_json IS NULL))
         ) STRICT;
         CREATE TRIGGER retry_requires_retirement BEFORE INSERT ON attempt_retries
         WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE retry_key = NEW.retry_key
@@ -340,13 +343,15 @@ internal static class StoreSchema
             WHERE r.attempt_id = NEW.attempt_id AND NEW.work_unit_id = p.work_unit_id
               AND NEW.contract_revision_id = p.contract_revision_id AND NEW.b1_repository = p.b1_repository
               AND NEW.b1_commit_oid = p.b1_commit_oid AND NEW.b1_material_sha256 = p.b1_material_sha256
-              AND NEW.b1_requested_revision = p.b1_requested_revision AND NEW.workspace_root = r.workspace_root
-              AND NEW.enclosure = r.workspace_root || '/' || NEW.attempt_id
-              AND NEW.worktree_path = NEW.enclosure || '/worktree' AND NEW.branch = 'broodling/' || NEW.attempt_id
+              AND NEW.b1_requested_revision = p.b1_requested_revision AND NEW.resource_kind = p.resource_kind
+              AND ((NEW.resource_kind = 'http' AND r.workspace_root IS NULL)
+                OR (NEW.resource_kind = 'worktree' AND NEW.workspace_root = r.workspace_root
+                  AND NEW.enclosure = r.workspace_root || '/' || NEW.attempt_id
+                  AND NEW.worktree_path = NEW.enclosure || '/worktree' AND NEW.branch = 'broodling/' || NEW.attempt_id))
         )
         BEGIN SELECT RAISE(ABORT, 'replacement must preserve original B1 and chosen allocation'); END;
         CREATE TRIGGER retry_submission_target BEFORE INSERT ON native_submissions
-        WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id
+        WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id AND target_json IS NOT NULL
             AND json(target_json) IS NOT json_extract(NEW.request_json, '$.target'))
         BEGIN SELECT RAISE(ABORT, 'replacement must preserve its chosen target'); END;
         """;
@@ -393,7 +398,8 @@ internal static class StoreSchema
             provisioned_at TEXT NOT NULL
         ) STRICT;
         CREATE TRIGGER provision_requires_current BEFORE INSERT ON worktree_provisions
-        WHEN NOT EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1)
+        WHEN NOT EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1
+            AND resource_kind = 'worktree')
         BEGIN SELECT RAISE(ABORT, 'provisioning requires current Attempt authority'); END;
         CREATE TRIGGER provisions_no_update BEFORE UPDATE ON worktree_provisions
         BEGIN SELECT RAISE(ABORT, 'first provisioning acknowledgment is immutable'); END;
@@ -531,6 +537,7 @@ internal static class StoreSchema
         """;
 
     // Allocation is part of the Attempt row: neither can commit without the other.
+    // An `http` Attempt owns no local enclosure, worktree or branch; its kind is stored, never inferred.
     internal const string AttemptSql = """
         CREATE TABLE attempts (
             attempt_id TEXT PRIMARY KEY,
@@ -541,12 +548,17 @@ internal static class StoreSchema
             b1_commit_oid TEXT NOT NULL CHECK (length(b1_commit_oid) = 40 AND b1_commit_oid NOT GLOB '*[^0-9a-f]*'),
             b1_material_sha256 TEXT NOT NULL CHECK (length(b1_material_sha256) = 64),
             b1_requested_revision TEXT NOT NULL,
-            workspace_root TEXT NOT NULL,
-            enclosure TEXT NOT NULL UNIQUE,
-            worktree_path TEXT NOT NULL UNIQUE,
-            branch TEXT NOT NULL,
+            workspace_root TEXT,
+            enclosure TEXT UNIQUE,
+            worktree_path TEXT UNIQUE,
+            branch TEXT,
             admitted_at TEXT NOT NULL,
-            UNIQUE (b1_repository, branch)
+            resource_kind TEXT NOT NULL,
+            UNIQUE (b1_repository, branch),
+            CHECK ((resource_kind = 'worktree' AND workspace_root IS NOT NULL AND enclosure IS NOT NULL
+                    AND worktree_path IS NOT NULL AND branch IS NOT NULL)
+                OR (resource_kind = 'http' AND workspace_root IS NULL AND enclosure IS NULL
+                    AND worktree_path IS NULL AND branch IS NULL))
         ) STRICT;
         CREATE UNIQUE INDEX one_current_attempt ON attempts(work_unit_id) WHERE is_current = 1;
         CREATE INDEX attempts_by_revision ON attempts(contract_revision_id);
@@ -577,9 +589,10 @@ internal static class StoreSchema
           OR OLD.b1_repository <> NEW.b1_repository OR OLD.b1_commit_oid <> NEW.b1_commit_oid
           OR OLD.b1_material_sha256 <> NEW.b1_material_sha256
           OR OLD.b1_requested_revision <> NEW.b1_requested_revision
-          OR OLD.workspace_root <> NEW.workspace_root OR OLD.enclosure <> NEW.enclosure
-          OR OLD.worktree_path <> NEW.worktree_path OR OLD.branch <> NEW.branch
-          OR OLD.admitted_at <> NEW.admitted_at OR OLD.is_current < NEW.is_current
+          OR OLD.workspace_root IS NOT NEW.workspace_root OR OLD.enclosure IS NOT NEW.enclosure
+          OR OLD.worktree_path IS NOT NEW.worktree_path OR OLD.branch IS NOT NEW.branch
+          OR OLD.admitted_at <> NEW.admitted_at OR OLD.resource_kind <> NEW.resource_kind
+          OR OLD.is_current < NEW.is_current
         BEGIN SELECT RAISE(ABORT, 'Attempt bindings are immutable and authority cannot be restored'); END;
         CREATE TRIGGER attempts_no_delete BEFORE DELETE ON attempts
         BEGIN SELECT RAISE(ABORT, 'Attempt history is immutable'); END;

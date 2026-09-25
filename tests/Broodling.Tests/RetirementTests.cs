@@ -58,8 +58,45 @@ public sealed class RetirementTests
         }
         await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "stop ambiguous setup", new ControlledTransport())).Throws<CessationUnconfirmed>();
         await Assert.That(store.GetAttempt(attempt.AttemptId).IsCurrent).IsFalse();
+        // A vanished local directory never reinterprets the record as a no-directory HTTP Attempt.
+        await Assert.That(store.GetAttempt(attempt.AttemptId).ResourceKind).IsEqualTo(AttemptRecord.Worktree);
+        await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retirements VALUES ('{attempt.AttemptId}', 'no_dispatch_intent', 'now', NULL)"))
+            .Throws<SqliteException>();
         await Assert.That(store.FindRetirement(attempt.AttemptId)).IsNull();
         await Assert.That(() => store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
+    }
+
+    [Test]
+    public async Task HttpUndispatchedStopAndRetirementNeedNoLocalResourceAndKeepCustody()
+    {
+        using var fixture = new AttemptFixture();
+        var local = fixture.LocalResources();
+        AttemptRecord attempt;
+        AttemptRetirement proof;
+        using (var store = fixture.State.Open())
+        {
+            attempt = fixture.AdmitHttp(store);
+            await Assert.That(() => store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
+            store.AbandonAttempt(attempt.AttemptId, "first reason");
+            // A worktree basis cannot describe an Attempt that never owned local material.
+            await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retirements VALUES ('{attempt.AttemptId}', 'never_materialized', 'now', NULL)"))
+                .Throws<SqliteException>();
+            proof = await store.StopAsync(attempt.AttemptId, "later reason", transport: null);
+            await Assert.That(proof.Basis).IsEqualTo("no_dispatch_intent");
+            await Assert.That(proof.RetiredAt).IsNull();
+        }
+        using var reopened = fixture.State.Open();
+        await Assert.That(await reopened.StopAsync(attempt.AttemptId, "second reason", transport: null)).IsEqualTo(proof);
+        var retired = reopened.RetireAttempt(attempt.AttemptId);
+        await Assert.That(retired.RetiredAt).IsNotNull();
+        await Assert.That(reopened.RetireAttempt(attempt.AttemptId)).IsEqualTo(retired);
+        var retained = reopened.GetAttempt(attempt.AttemptId);
+        await Assert.That(retained.Retirement).IsEqualTo(retired);
+        await Assert.That(retained.Abandonment!.Reason).IsEqualTo("first reason");
+        await Assert.That(retained.B1).IsEqualTo(attempt.B1);
+        await Assert.That(retained.ResourceKind).IsEqualTo(AttemptRecord.Http);
+        await Assert.That(fixture.Git("rev-parse", attempt.B1.RetentionRef).Trim()).IsEqualTo(attempt.B1.CommitOid);
+        await Assert.That(fixture.LocalResources()).IsEqualTo(local);
     }
 
     [Test]

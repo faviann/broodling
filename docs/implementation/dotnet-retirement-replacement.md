@@ -13,6 +13,7 @@ using var store = new BroodlingApplication().OpenStore(storePath);
 await store.StopAsync(attemptId, "Operator ended this Attempt", transport);
 var retirement = store.RetireAttempt(attemptId);
 var successor = store.AdmitRetry(attemptId, retryKey, workspaceRoot, profile);
+var httpSuccessor = store.AdmitRetry(httpAttemptId, retryKey); // HTTP resource kind
 var prepared = store.PrepareRetry(attemptId, retryKey, workspaceRoot, profile);
 var submitted = await store.RetryAsync(attemptId, retryKey, workspaceRoot,
     profile, transport, credentials);
@@ -61,13 +62,18 @@ Unknown dispatched identity is never discovered by replay. Success,
 `force_stopped`, `runtime_lost`, transport failure and cancellation grant no
 retirement/replacement authority. Native labels are not cessation receipts.
 
-Safe proof requires submission absent or merely prepared, and either:
+Safe proof requires submission absent or merely prepared, and one of:
 
 - no enclosure and no provisioning acknowledgment (`never_materialized`);
-- an owned existing enclosure and provisioning acknowledgment (`never_dispatched`).
+- an owned existing enclosure and provisioning acknowledgment (`never_dispatched`);
+- an HTTP resource-kind Attempt (`no_dispatch_intent`), which owns no local
+  resource to inspect.
 
 A marker alone, an actual checkout without durable acknowledgment, or a missing
-acknowledged enclosure cannot establish safe cessation. Proof commits under the
+acknowledged enclosure cannot establish safe cessation. The HTTP proof rests on
+abandonment plus the absence of any committed dispatch intent, checked under the
+same writer; a missing directory, unknown run or failed request never supplies
+it. SQL ties each basis to its resource kind. Proof commits under the
 SQLite writer after abandonment excludes queued provisioners/new dispatch.
 An orphan provisioner's unacknowledged host state remains ambiguous and refused.
 
@@ -84,7 +90,9 @@ inherits that same lock description; parent disposal never unlocks it. Retiremen
 acknowledgment follows both administrative commands. Caller death after removal
 loses acknowledgment; replay recognizes missing owned path/branch and finishes.
 A surviving Git child blocks followers before settled inspection/acknowledgment.
-There is no execution supervisor or native cleanup mechanism.
+There is no execution supervisor or native cleanup mechanism. Retiring an HTTP
+Attempt only acknowledges its retained proof under the writer: no filesystem or
+Git mutation, and B1/accepted pins, source and history remain.
 
 ## Explicit replacement and schema
 
@@ -98,7 +106,10 @@ A deferred FK prevents lineage-only commits; triggers check safe predecessor,
 original bindings and allocation. Same key/parameters converge across callers
 and reopen. Changed predecessor/root/target or a second predecessor key refuses.
 An old key returns its historical successor after replacement without reviving
-authority. Provision/prepare/dispatch independently guard currentness. Direct
+authority. A successor keeps its predecessor's resource kind: an HTTP
+predecessor takes `AdmitRetry(predecessorId, retryKey)` and its successor also
+has no local directory. Its retry records no root or target; the successor's own
+preparation freezes its target binding. Provision/prepare/dispatch independently guard currentness. Direct
 `PrepareSubmission` enforces the frozen retry target too. Dispatched retry
 recovery reuses F's correlation seam without reprovisioning candidate material.
 
