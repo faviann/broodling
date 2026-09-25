@@ -153,6 +153,30 @@ public sealed class HttpDispatchTests
     }
 
     [Test]
+    public async Task BundleBoundRequestFrozenBeforeReferenceAccessReplaysWithItsExactBytes()
+    {
+        await using var target = new StockTarget();
+        using var fixture = await BundleHttpFixture.CreateAsync();
+        var attemptId = fixture.Attempt.AttemptId;
+        // The earlier release prepared and sent it, and the acknowledgement was lost.
+        var earlier = fixture.PrepareAsEarlierRelease(target.Origin);
+        fixture.Git.State.Execute("UPDATE native_submissions SET state = 'dispatched'");
+        fixture.Store.Dispose();
+
+        using var store = fixture.Git.State.Open();
+        var retained = store.FindSubmission(attemptId)!;
+        await Assert.That(store.PrepareHttpSubmission(attemptId, target.Origin.GetLeftPart(UriPartial.Authority))).IsEqualTo(retained);
+        var correlated = await store.DispatchHttpAsync(attemptId, Credentials());
+
+        await Assert.That(correlated.State).IsEqualTo("correlated");
+        await Assert.That(correlated.RequestJson).IsEqualTo(earlier);
+        var sent = target.Bodies.Single();
+        sent.Remove("connections");
+        sent.Remove("githubToken");
+        await Assert.That(JsonNode.DeepEquals(sent, JsonNode.Parse(earlier))).IsTrue();
+    }
+
+    [Test]
     [Arguments(200, "foreign", "foreign_run")]
     [Arguments(200, "uppercase", "foreign_run")]
     [Arguments(200, "extra", "invalid_response")]

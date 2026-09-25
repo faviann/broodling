@@ -48,6 +48,108 @@ internal sealed class HttpFixture : IDisposable
     public void Dispose() { Store.Dispose(); Git.Dispose(); }
 }
 
+/// <summary>
+/// An HTTP Attempt of a bundle-bound Contract whose completed RequestBundle also holds a repository file
+/// and a linked issue, captured through controlled GitHub acquisition.
+/// </summary>
+internal sealed class BundleHttpFixture : IDisposable
+{
+    internal RepositoryPreparationTests.RepositoryPreparationFixture Git { get; } = new();
+    internal BroodlingStore Store { get; private set; } = null!;
+    internal RequestBundle Bundle { get; private set; } = null!;
+    internal AttemptRecord Attempt { get; private set; } = null!;
+
+    internal static async Task<BundleHttpFixture> CreateAsync()
+    {
+        var fixture = new BundleHttpFixture();
+        try
+        {
+            var git = fixture.Git;
+            git.CommitFile("docs/schema.md", "Schema canary\n");
+            git.SetIssue(12, "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n\n### Available references\n"
+                + "- schema: repo:docs/schema.md\n- design: https://github.com/acme/widget/issues/7\n");
+            git.SetIssue(7, "Supporting design canary.");
+            var store = fixture.Store = git.State.Initialize();
+            var submissionId = store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
+            fixture.Bundle = await store.CaptureRequestBundleAsync(submissionId, git.RepositoryRoot,
+                new GitHubRepositoryCredentials("configured-token"), new GitHubIssueSource(git.Gh), git.Source);
+            store.AdmitRequestBundle(submissionId, ContractIngressTests.Propose, "caller");
+            fixture.Attempt = store.AdmitHttpAttempt(submissionId);
+            return fixture;
+        }
+        catch
+        {
+            fixture.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Commit the prepared record the release before reference access (#114) froze for this Attempt, built
+    /// the way it built it: the stock request whose task carries only the Contract, Executable Request and B1.
+    /// </summary>
+    internal string PrepareAsEarlierRelease(Uri target)
+    {
+        var status = Store.Status(Attempt.ContractRevisionId);
+        var request = status.Sources.Single();
+        var authority = new JsonObject
+        {
+            ["contract"] = JsonNode.Parse(status.Revision.CanonicalBytes),
+            ["admittedInstructions"] = new JsonArray(new JsonObject
+            {
+                ["sourceId"] = request.SourceId, ["kind"] = request.Kind, ["locator"] = request.Locator,
+                ["mediaType"] = request.MediaType, ["contentSha256"] = request.ContentSha256, ["encoding"] = "utf-8",
+                ["content"] = Encoding.UTF8.GetString(request.Content)
+            }),
+            ["comparisonBase"] = Attempt.B1.CommitOid
+        };
+        var asset = ExecutionAsset.LoadBundled();
+        var intended = Guid.CreateVersion7().ToString();
+        var key = "broodling:http:v1:" + Attempt.AttemptId;
+        var json = new JsonObject
+        {
+            ["runId"] = intended,
+            ["submission"] = new JsonObject
+            {
+                ["title"] = "Broodling Attempt " + Attempt.AttemptId, ["graph"] = asset.Graph(), ["runtime"] = asset.Runtime(),
+                ["initialInput"] = new JsonObject
+                {
+                    ["task"] = "Complete this admitted software-development Work Unit. The frozen Contract and entitled source material below govern scope and acceptance. "
+                        + "Candidate edits cannot amend that authority. Implement the criteria and run declared/relevant checks; independently verify the actual outcome. "
+                        + "The sole authorized external effect is native pull-request delivery. Do not publish, push, create or update a PR, merge, change issues, deploy, or perform other authoritative effects yourself; the native delivery node alone owns the authorized PR effect."
+                        + "\n\n" + authority.ToJsonString()
+                },
+                ["source"] = new JsonObject { ["repository"] = "acme/widget", ["branch"] = "main", ["revision"] = Attempt.B1.CommitOid },
+                ["submissionKey"] = key
+            }
+        }.ToJsonString();
+        var binding = new JsonObject
+        {
+            ["protocol"] = "zeroshot.native-v2-target/v2", ["origin"] = target.GetLeftPart(UriPartial.Authority),
+            ["repository"] = Attempt.B1.Repository, ["resultOrigin"] = "https://github.com/acme/widget.git",
+            ["native"] = new JsonObject
+            {
+                ["version"] = NativeProfile.NativeVersion, ["sourceRevision"] = NativeProfile.NativeSourceRevision,
+                ["linuxX64ExecutableSha256"] = NativeProfile.NativeExecutableSha256
+            }
+        }.ToJsonString();
+        using var connection = Git.State.Connect();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO execution_assets VALUES ($sha, $content);
+            INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state, intended_run_id,
+                asset_sha256, binding_json) VALUES ($attempt, 'http.v1', $key, $request, 'prepared', $intended, $sha, $binding);
+            """;
+        foreach (var (name, value) in new (string, object)[] { ("$sha", asset.Sha256), ("$content", asset.Content()),
+            ("$attempt", Attempt.AttemptId), ("$key", key), ("$request", json), ("$intended", intended), ("$binding", binding) })
+            command.Parameters.AddWithValue(name, value);
+        command.ExecuteNonQuery();
+        return json;
+    }
+
+    public void Dispose() { Store?.Dispose(); Git.Dispose(); }
+}
+
 public sealed class HttpSubmissionTests
 {
     [Test]
@@ -112,6 +214,40 @@ public sealed class HttpSubmissionTests
         await Assert.That(await fixture.Store.ObserveAsync(attempt.AttemptId, new ControlledTransport())).IsNull();
         await Assert.That(fixture.Git.Git("rev-parse", attempt.B1.RetentionRef).Trim()).IsEqualTo(attempt.B1.CommitOid);
         await Assert.That(fixture.Git.LocalResources()).IsEqualTo(local);
+    }
+
+    [Test]
+    public async Task BundleBoundTaskListsItsReferencesForOnDemandReadsWithoutTheirBodies()
+    {
+        using var fixture = await BundleHttpFixture.CreateAsync();
+        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target);
+
+        var task = (string)JsonNode.Parse(prepared.RequestJson)!["submission"]!["initialInput"]!["task"]!;
+        var authority = JsonNode.Parse(task[(task.IndexOf("\n\n", StringComparison.Ordinal) + 2)..])!;
+        var bundle = fixture.Bundle;
+        await Assert.That(string.Join(",", authority.AsObject().Select(field => field.Key)))
+            .IsEqualTo("contract,admittedInstructions,comparisonBase,requestBundle");
+        // The Executable Request stays the only inlined source; no reference body is expanded.
+        await Assert.That((string)authority["admittedInstructions"]!.AsArray().Single()!["kind"]!).IsEqualTo("executable_request");
+        await Assert.That(prepared.RequestJson.Contains("canary")).IsFalse();
+        var manifest = authority["requestBundle"]!;
+        await Assert.That(new ContractRequestBundle((string)manifest["bundleId"]!, (string)manifest["manifestSha256"]!))
+            .IsEqualTo(fixture.Store.GetContractRevision(fixture.Attempt.ContractRevisionId).Contract.RequestBundle);
+        // Every member in manifest order: identity, readable selector and digest, plus the pinned file of a Git capture.
+        await Assert.That(JsonNode.DeepEquals(manifest["references"], new JsonArray(bundle.References.Select(reference =>
+        {
+            var entry = new JsonObject
+            {
+                ["referenceId"] = reference.ReferenceId, ["captureKind"] = reference.CaptureKind,
+                ["selector"] = JsonNode.Parse(reference.Selector), ["contentSha256"] = reference.ContentSha256
+            };
+            if (reference.GitPath is not null) { entry["gitCommitOid"] = reference.GitCommitOid; entry["gitPath"] = reference.GitPath; }
+            return (JsonNode)entry;
+        }).ToArray()))).IsTrue();
+        await Assert.That(string.Join(",", bundle.References.Select(reference => reference.ReferenceId)))
+            .IsEqualTo("primary,request,repo:docs/schema.md,github:acme/widget/issues/7");
+        await Assert.That(bundle.References[2].GitCommitOid).IsEqualTo(fixture.Attempt.B1.CommitOid);
+        await Assert.That(task.Contains("`/usr/local/bin/broodling-reference <bundleId> <referenceId>`")).IsTrue();
     }
 
     [Test]
