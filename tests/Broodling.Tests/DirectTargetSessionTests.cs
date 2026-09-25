@@ -17,7 +17,7 @@ namespace Broodling.Tests;
 /// </summary>
 public sealed class DirectTargetSessionTests
 {
-    private const string RunId = "01996f2e-7a4b-7c3d-8e5f-0123456789ab";
+    internal const string RunId = "01996f2e-7a4b-7c3d-8e5f-0123456789ab";
     private static readonly NativeSource Source = new("owner/widget", "broodling/fix-widget", new string('b', 40));
 
     [Test]
@@ -278,7 +278,7 @@ public sealed class DirectTargetSessionTests
         await Assert.That(string.Join(" ", target.Stages)).IsEqualTo(string.Join(" ", stages[..(Array.IndexOf(stages, stage) + 1)]));
     }
 
-    private static NativeRunBinding Binding(Uri origin) =>
+    internal static NativeRunBinding Binding(Uri origin) =>
         new(new NativeLocator("direct", origin.GetLeftPart(UriPartial.Authority)), RunId, "Fix the widget", "small", Source);
 
     private static DirectTargetBudget Budget() => DirectTargetBudget.Start(DirectTargetLimits.Progress, new FakeTimeProvider(), default);
@@ -290,14 +290,14 @@ public sealed class DirectTargetSessionTests
         return await session.StatusAsync(budget);
     }
 
-    private static JsonObject Projection(JsonObject status) => new()
+    internal static JsonObject Projection(JsonObject status) => new()
     {
         ["runId"] = RunId, ["title"] = "Fix the widget", ["size"] = "small", ["atCursor"] = "opaque-cursor",
         ["source"] = new JsonObject { ["repository"] = Source.Repository, ["branch"] = Source.Branch, ["revision"] = Source.Revision },
         ["status"] = status
     };
 
-    private static JsonObject Running() => Projection(new JsonObject
+    internal static JsonObject Running() => Projection(new JsonObject
     {
         ["phase"] = "running",
         ["activeExecutions"] = new JsonArray(
@@ -305,7 +305,7 @@ public sealed class DirectTargetSessionTests
             new JsonObject { ["execution"] = "execution-2", ["node"] = "verifier" })
     });
 
-    private static async Task<Exception> Fails<T>(Func<Task<T>> action, string kind)
+    internal static async Task<Exception> Fails<T>(Func<Task<T>> action, string kind)
     {
         try { await action(); }
         catch (NativeTransportError error)
@@ -318,9 +318,10 @@ public sealed class DirectTargetSessionTests
 
     /// <summary>
     /// A loopback stand-in for the stock target: discovery, session creation and an OECP WebSocket
-    /// answering initialize and run/status. It records each stage reached and can stall at one.
+    /// answering initialize, then run/status and run/force from <see cref="Projections"/>, where a
+    /// null entry never replies. It records each stage reached and can stall at one.
     /// </summary>
-    private sealed class StockTarget : IAsyncDisposable
+    internal sealed class StockTarget : IAsyncDisposable
     {
         private readonly TcpListener listener = new(IPAddress.Loopback, 0);
         private readonly CancellationTokenSource stop = new();
@@ -331,7 +332,7 @@ public sealed class DirectTargetSessionTests
         internal string? StallAt { get; init; }
         internal TaskCompletionSource Stalled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal (int Status, string Body)? Session { get; set; }
-        internal Queue<JsonObject> Projections { get; } = new();
+        internal Queue<JsonObject?> Projections { get; } = new();
         /// <summary>A raw reply for a request, or null for the stock reply.</summary>
         internal Func<JsonObject, string, string?> Reply { get; set; } = (_, _) => null;
         internal List<string> Stages { get; } = [];
@@ -431,13 +432,24 @@ public sealed class DirectTargetSessionTests
                 var method = (string)request["method"]!;
                 var id = (string)request["id"]!;
                 await Reached(method);
-                var reply = Reply(request, id) ?? new JsonObject
+                var reply = Reply(request, id);
+                if (reply is null)
                 {
-                    ["jsonrpc"] = "2.0", ["id"] = id,
-                    ["result"] = method == "initialize" ? Initialize() : Projections.Dequeue()
-                }.ToJsonString();
+                    var result = method == "initialize" ? Initialize() : Projections.Dequeue();
+                    if (result is null)
+                    {
+                        Stalled.TrySetResult();
+                        await Task.Delay(Timeout.Infinite, stop.Token);
+                    }
+                    reply = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result }.ToJsonString();
+                }
                 await socket.SendAsync(Encoding.UTF8.GetBytes(reply), WebSocketMessageType.Text, true, stop.Token);
             }
+        }
+
+        internal int Count(string method)
+        {
+            lock (Messages) return Messages.Count(message => (string)message["method"]! == method);
         }
 
         private async Task Reached(string stage)

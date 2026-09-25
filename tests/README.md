@@ -60,6 +60,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Selected-target configuration, dependency and discovery decisions | `TargetReadinessTests`: [readiness](../docs/implementation/dotnet-target-readiness.md) |
 | Shared DirectTarget HTTP/WebSocket bounds, budgets and stock discovery I/O | `DirectTargetExchangeTests`: [transport limits](../docs/implementation/zeroshot-native-integration.md#directtarget-http-transport-limits) |
 | DirectTarget session setup, JSON-RPC envelope and run status projection validation | `DirectTargetSessionTests`: loopback stock-target stand-in, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
+| DirectTarget wait polling cadence, per-read deadlines and cancellation | `DirectTargetRunTests`: the same loopback stand-in with a controlled clock, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
 
 `Broodling.ProcessWitness` is a test-only caller for real process-death and
 Git-lock boundaries. Ordinary build/test/publish copies the C administrative
@@ -71,7 +72,7 @@ provider; the released SDK and bundled native engine run. The Python files in
 [Fixtures](Broodling.Tests/Fixtures/README.md) control SDK responses, malformed
 transport or profile inspection. None implements another Broodling application
 or authority store. Stub PR receipts are not real DirectTarget delivery.
-Readiness, exchange and session tests control Docker/HTTP boundaries or use loopback peers and contact no real target.
+Readiness, exchange, session and run tests control Docker/HTTP boundaries or use loopback peers and contact no real target.
 
 ## Evidence limits and history
 

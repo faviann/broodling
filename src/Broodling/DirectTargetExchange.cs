@@ -23,6 +23,8 @@ internal static class DirectTargetLimits
     internal static readonly TimeSpan Stop = TimeSpan.FromSeconds(30);
     internal static readonly TimeSpan WaitSetup = TimeSpan.FromSeconds(30);
     internal static readonly TimeSpan WaitRead = TimeSpan.FromSeconds(10);
+    /// <summary>The pause after each nonterminal status before the next read; waiting, not retry.</summary>
+    internal static readonly TimeSpan PollDelay = TimeSpan.FromSeconds(2);
 }
 
 /// <summary>
@@ -31,12 +33,14 @@ internal static class DirectTargetLimits
 /// </summary>
 internal sealed class DirectTargetBudget : IDisposable
 {
+    private readonly TimeProvider clock;
     private readonly CancellationToken caller;
     private readonly CancellationTokenSource deadline;
     private readonly CancellationTokenSource linked;
 
     private DirectTargetBudget(TimeSpan total, TimeProvider clock, CancellationToken caller)
     {
+        this.clock = clock;
         this.caller = caller;
         deadline = new CancellationTokenSource(total, clock);
         linked = CancellationTokenSource.CreateLinkedTokenSource(caller, deadline.Token);
@@ -44,6 +48,16 @@ internal sealed class DirectTargetBudget : IDisposable
 
     internal static DirectTargetBudget Start(TimeSpan total, TimeProvider clock, CancellationToken caller) =>
         new(total, clock, caller);
+
+    /// <summary>A new budget with the same clock and caller, for an exchange with its own total.</summary>
+    internal DirectTargetBudget Fresh(TimeSpan total) => new(total, clock, caller);
+
+    /// <summary>A pause that the caller can cancel and that never outlasts this budget.</summary>
+    internal Task DelayAsync(TimeSpan delay) => RunAsync(async token =>
+    {
+        await Task.Delay(delay, clock, token);
+        return true;
+    });
 
     internal async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> exchange)
     {

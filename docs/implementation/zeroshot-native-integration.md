@@ -241,6 +241,18 @@ projection names a different run or source. `RunNotFoundError` is OECP
 `invalid_response` covers every malformed reply. An unsupported binding,
 discovery or initialization refuses as an unsupported runtime.
 
+One polling loop serves wait and stop. A terminal status returns at once.
+After each nonterminal status the loop pauses two seconds, then reads again,
+with one read outstanding. The pause runs under the enclosing budget and
+responds to caller cancellation. It never sends `run/watch`, never retries and
+never compares cursors, so a repeated cursor cannot hide a new terminal result.
+The persistence-free wait operation in
+[`DirectTargetRun.cs`](../../src/Broodling/DirectTargetRun.cs) opens a fresh
+session and reads immediately. Setup and that first read share 30 seconds. Each
+later read then has its own 10 seconds through the complete reply. The wait has
+no overall deadline. Cancellation or any failure detaches the caller without
+stopping the run.
+
 ## Local policy and cleanup limitation
 
 The [C# Codex launcher](../../src/Broodling/CodexLauncher.cs) applies explicit

@@ -79,6 +79,27 @@ internal sealed class DirectTargetSession : IAsyncDisposable
         Projection(await CallAsync("run/status", new { runId = run.RunId }, budget));
 
     /// <summary>
+    /// The one terminal-polling loop. Return as soon as a status carries a terminal result; otherwise
+    /// pause two seconds under <paramref name="pacing"/> and read again, one read at a time. Each later
+    /// read gets a fresh <paramref name="eachRead"/> budget, or shares <paramref name="pacing"/> when
+    /// null. Cursors are never compared, so a repeated cursor cannot hide a newly reported result.
+    /// </summary>
+    internal async Task<NativeResult> TerminalAsync(DirectTargetRunStatus current, DirectTargetBudget pacing, TimeSpan? eachRead)
+    {
+        while (current.Result is null)
+        {
+            await pacing.DelayAsync(DirectTargetLimits.PollDelay);
+            if (eachRead is not { } total) current = await StatusAsync(pacing);
+            else
+            {
+                using var read = pacing.Fresh(total);
+                current = await StatusAsync(read);
+            }
+        }
+        return current.Result;
+    }
+
+    /// <summary>
     /// The one place a retained binding names its target: the direct locator's canonical origin,
     /// HTTPS or literal-loopback HTTP, plus the frozen PR source every projection must match.
     /// </summary>
