@@ -190,12 +190,11 @@ with `dotnet publish src/Broodling.Codex --configuration Release`; the
 [release guide](../../deployment/README.md#build-a-release-artifact) packages
 both complete outputs without installing or deploying them.
 
-The bridge boundary has three independent roles. `INativeSubmitter.SubmitAsync(requestJson)`
-serves dispatch. `INativeReader` provides `WaitAsync(run)` and
+The bridge boundary has two narrow roles. `INativeReader` provides `WaitAsync(run)` and
 `StatusAsync(run, bound)` for completion and progress. `INativeStopper.StopAsync(run)`
 serves stop and cancellation. Read and stop operations depend only on their role.
-Bridge dispatch takes `INativeTransport`, which combines all three, because it
-also stops a run whose acknowledgement arrives after abandonment;
+`INativeTransport` adds `SubmitAsync(requestJson)` to both. Bridge dispatch takes it
+because it also stops a run whose acknowledgement arrives after abandonment;
 `InvocationTarget.Local` uses it too. HTTP records never use these roles. Read
 and stop receive a `NativeRunBinding`: the retained locator, correlated run ID,
 frozen title, runtime size and, for HTTP delivery, the frozen repository,
@@ -299,7 +298,7 @@ operator review requirements remain.
 | --- | --- |
 | `src/Broodling/NativeDispatch.cs` | Frozen request, exact task bytes, durable intent, conflict recovery, current authority and correlation |
 | `src/Broodling/NativeProfile.cs` | Fixed LocalTarget runtime/target, local profile identity, PR credential policy and bridge locator validation |
-| `src/Broodling/NativeTransport.cs`, `src/Broodling/bridge/zeroshot_bridge.py` | Native submit/read/stop roles, pinned SDK bridge and locator/run-only result transport for G/H |
+| `src/Broodling/NativeTransport.cs`, `src/Broodling/bridge/zeroshot_bridge.py` | Native read/stop roles and combined transport, pinned SDK bridge and locator/run-only result transport for G/H |
 | `src/Broodling/NativeBinding.cs` | Retained run binding and the single interpretation of frozen request facts, per format |
 | `src/Broodling/HttpSubmission.cs` | HTTP preparation, retained-content validation and the stock request/binding shape |
 | `src/Broodling/CodexLauncher.cs`, `src/Broodling.Codex/{Program.cs,Broodling.Codex.csproj}` | C# launcher policy, same-PID exec and self-contained packaging |

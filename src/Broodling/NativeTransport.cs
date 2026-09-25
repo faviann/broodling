@@ -12,12 +12,6 @@ public sealed record NativeResult(string RunId, bool Succeeded, JsonElement Outp
 /// <summary>The SDK's current run phase and the nodes of its active executions.</summary>
 public sealed record NativeProgress(string Phase, IReadOnlyList<string> ActiveNodes);
 
-/// <summary>Submits one frozen LocalTarget request; returns the acknowledged run ID.</summary>
-public interface INativeSubmitter
-{
-    Task<string> SubmitAsync(string requestJson, CancellationToken cancellationToken = default);
-}
-
 /// <summary>Reads a retained run's terminal result or bounded progress, without credentials.</summary>
 public interface INativeReader
 {
@@ -32,7 +26,11 @@ public interface INativeStopper
 }
 
 /// <summary>The native boundary only. G/H decide what a result/stop means to the application.</summary>
-public interface INativeTransport : INativeSubmitter, INativeReader, INativeStopper;
+public interface INativeTransport : INativeReader, INativeStopper
+{
+    /// <summary>Submits one frozen LocalTarget request; returns the acknowledged run ID.</summary>
+    Task<string> SubmitAsync(string requestJson, CancellationToken cancellationToken = default);
+}
 
 /// <summary>Internal transport seam for the one bridge that must inherit the initiation lock.</summary>
 internal interface IInitiationAwareNativeTransport
