@@ -158,6 +158,28 @@ public sealed class RequestAdmissionTests
         await Assert.That(store.History(ContractIngressTests.Reference).Count).IsEqualTo(1);
     }
 
+    [Test]
+    [Arguments(12)]
+    [Arguments(13)]
+    public async Task EarlierUnboundAssociationIsNeitherReturnedNorAdmittedAsBundleAuthority(int issue)
+    {
+        // Authentic pre-#111 state: issue 12's completed bundle was associated with an admitted
+        // unbound Contract, issue 13's with a recorded but undecided one.
+        using var fixture = new StoreFixture();
+        StoreLifecycleTests.Restore(fixture.Path, "application-v1-unbound-association.sql");
+        using var store = fixture.Open();
+        var submission = store.FindIssueSubmission($"https://github.com/acme/widget/issues/{issue}")!;
+        var decision = store.FindAdmissionDecision(submission.ContractRevisionId!)?.DecisionId;
+
+        await Assert.That(() => store.AdmitRequestBundle(submission.SubmissionId,
+            _ => throw new InvalidOperationException("An associated submission was proposed."), "caller"))
+            .Throws<IssueSubmissionConflict>();
+        await Assert.That(() => store.AdmitHttpAttempt(submission.SubmissionId)).Throws<AttemptAdmissionError>();
+        await Assert.That(store.FindAdmissionDecision(submission.ContractRevisionId!)?.DecisionId).IsEqualTo(decision);
+        var retained = store.GetIssueSubmission(submission.SubmissionId);
+        await Assert.That((retained.State, retained.ContractRevisionId)).IsEqualTo((submission.State, submission.ContractRevisionId));
+    }
+
     private static string Request(params string[] declarations) =>
         "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n"
         + (declarations.Length == 0 ? "" : "\n### Available references\n" + string.Join("\n", declarations) + "\n");

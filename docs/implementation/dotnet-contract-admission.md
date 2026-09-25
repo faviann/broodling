@@ -85,7 +85,12 @@ pause checks. The decision also moves the submission from `capturing` to
 undecided revision. A later call decides it without calling the proposer again,
 and it returns an existing decision even while paused, as `Admit` does. A new
 proposal refuses under pause, and a cancelled submission is refused before the
-proposer runs. When concurrent callers propose for one submission, the first
+proposer runs. Replay requires the associated Contract to be bound to the
+submission's exact completed bundle identity and manifest digest. State written
+before #111 can associate a completed bundle with an unbound Contract. Replay
+refuses that association with `IssueSubmissionConflict`, creates no decision and
+never converts it into bundle authority. `AdmitHttpAttempt(submissionId)`
+refuses it too. When concurrent callers propose for one submission, the first
 association wins. The other caller discards its uncommitted proposal and returns
 the winning revision's status.
 

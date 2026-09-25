@@ -56,7 +56,7 @@ public sealed class StoreLifecycleTests
         catch (StoreStateException refusal) { return refusal.Code; }
     }
 
-    private static void Restore(string path, string name)
+    internal static void Restore(string path, string name)
     {
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
         using var connection = new SqliteConnection(new SqliteConnectionStringBuilder

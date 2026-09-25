@@ -162,7 +162,7 @@ public sealed partial class BroodlingStore
             throw new InvalidContractProposal("A proposer is required.");
         var submission = GetIssueSubmission(submissionId);
         if (submission.ContractRevisionId is { } bound)
-            return BoundAdmission(bound);
+            return BoundAdmission(submissionId, bound);
         RequireUnpaused();
         if (submission.State == "cancelled")
             throw new IssueSubmissionConflict("A cancelled Issue submission cannot acquire Contract authority.");
@@ -190,14 +190,25 @@ public sealed partial class BroodlingStore
                 transaction.Commit();
             }
         }
-        return BoundAdmission(revisionId);
+        return BoundAdmission(submissionId, revisionId);
     }
 
-    private AdmissionStatus BoundAdmission(string revisionId)
+    /// <summary>
+    /// Decide or replay an associated revision only when it is bound to the submission's exact
+    /// completed bundle. An older association to an unbound Contract is refused, never admitted
+    /// or converted into bundle authority.
+    /// </summary>
+    private AdmissionStatus BoundAdmission(string submissionId, string revisionId)
     {
+        if (GetContractRevision(revisionId).Contract.RequestBundle != Binding(GetRequestBundle(submissionId)))
+            throw new IssueSubmissionConflict("The Issue submission's Contract is not bound to its completed RequestBundle.");
         Admit(revisionId);
         return Status(revisionId);
     }
+
+    /// <summary>The binding a Contract admitted from this bundle carries; none until it completes.</summary>
+    private static ContractRequestBundle? Binding(RequestBundle? bundle) =>
+        bundle is { State: "complete" } ? new(bundle.BundleId, bundle.ManifestSha256!) : null;
 
     /// <summary>
     /// Take the attributed Executable Request and the PR target from the digest-verified manifest,

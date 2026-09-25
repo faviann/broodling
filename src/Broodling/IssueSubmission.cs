@@ -175,7 +175,7 @@ public sealed partial class BroodlingStore
         var bundle = ReadRequestBundle(submissionId, transaction);
         if (bundle is { State: not "complete" })
             throw new IssueSubmissionConflict("The Issue submission's RequestBundle must complete before Contract association.");
-        if (revision.Contract.RequestBundle != (bundle is null ? null : new ContractRequestBundle(bundle.BundleId, bundle.ManifestSha256!)))
+        if (revision.Contract.RequestBundle != Binding(bundle))
             throw new IssueSubmissionConflict("The Contract revision is not bound to this Issue submission's RequestBundle.");
         Execute("UPDATE issue_submissions SET contract_revision_id = $p0 WHERE submission_id = $p1", transaction,
             contractRevisionId, submissionId);

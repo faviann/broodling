@@ -72,7 +72,7 @@ public sealed partial class BroodlingStore
             throw new AttemptAdmissionError("The Issue submission has no admitted Contract revision.");
         var bundle = GetRequestBundle(submissionId);
         // Bundle-bound admission already fixed the PR target from this same preparation.
-        if (GetContractRevision(revisionId).Contract.RequestBundle?.BundleId != bundle.BundleId
+        if (GetContractRevision(revisionId).Contract.RequestBundle is not { } binding || binding != Binding(bundle)
             || bundle.Repository is not { } repository)
             throw new AttemptAdmissionError("The Contract is not bound to this Issue submission's prepared RequestBundle.");
         return AdmitAttempt(revisionId, repository.StartingState, root: null);
