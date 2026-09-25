@@ -124,6 +124,37 @@ exact authorized delivery. Native failure records abandonment; invalid receipts,
 late success after abandonment and no-effect stable-result gaps refuse successful
 completion. Store errors grant no partial disposition.
 
+## DirectTarget HTTP transport limits
+
+[`DirectTargetExchange.cs`](../../src/Broodling/DirectTargetExchange.cs) holds the
+fixed client bounds of the selected
+[HTTP/OECP contract](https://github.com/faviann/broodling/issues/167#issuecomment-5823939438).
+Target readiness discovery is its first caller; submit, observation, wait and
+stop do not use it yet. The bounds are internal constants, not operator
+settings:
+
+| Resource | Limit |
+| --- | --- |
+| HTTP JSON body in either direction; assembled incoming WebSocket message | 4 MiB, counted as bytes arrive regardless of chunking, fragmentation or declared length |
+| Outgoing WebSocket message | 1 MiB, refused before sending |
+| HTTP response headers / JSON nesting | 32 KiB / 64 levels; duplicate properties refuse at any level |
+| Operation budgets | Progress 10s, submit 60s, stop 30s, wait setup and first status 30s, each later wait read 10s |
+
+One budget encloses every exchange in an operation: setup, headers, body or
+message assembly and parsing. After caller cancellation or expiry, no further
+exchange starts. Caller cancellation propagates as cancellation. Expiry, by
+contrast, becomes the fixed `TimeoutError` kind. The budgets limit only client
+operations, never native execution. The HTTP client disables redirects, proxying,
+cookies and ambient credentials and keeps ordinary TLS verification. It never
+retries. Failures are fixed `NativeTransportError` kinds (`TimeoutError`,
+`transport_failed`, `invalid_response`, `request_too_large`) and never include
+response bytes. Discovery accepts only the stock
+`zeroshot.native-v2-target/v2` document with `authentication: none`, `audience:
+controller` and the exact run, session and OECP routes. `privateBootstrapPath`,
+`oauth` and `loginSession` may only be absent or null, and `extensions` absent
+or empty. Any other field refuses as an unsupported runtime. Discovery confirms
+protocol shape. It does not attest native or image bytes or durable target state.
+
 ## Local policy and cleanup limitation
 
 The [C# Codex launcher](../../src/Broodling/CodexLauncher.cs) applies explicit

@@ -84,12 +84,18 @@ Subsequent execs use the inspected container ID, never a newly selected name:
 | `/usr/bin/gh api graphql --paginate --slurp --help` | Declares the `--slurp` flag |
 | Short Python exec | `setgroups([10002])`, `setgid(10002)`, `setuid(10002)` and assertions of the resulting UID/GID succeed |
 
-Finally a GET of `<origin>/.well-known/zeroshot-native-v2` must return native
-kind `zeroshot.native-v2-target/v2`, authentication `none`, and `oecpPath`
-`/native-v2/oecp`. The production HttpClient disables proxying and redirects so
-discovery stays at the selected endpoint. Commands have a 30-second inspection
-timeout, discovery a 10-second timeout. Cancellation ends only the selected
-Docker CLI process; it never stops the target or asserts cessation of an exec.
+Finally a GET of `<origin>/.well-known/zeroshot-native-v2` must return HTTP 200
+and the exact stock discovery document: kind `zeroshot.native-v2-target/v2`,
+authentication `none`, audience `controller` and the stock run, session and OECP
+routes. `privateBootstrapPath`, `oauth` and `loginSession` may be absent or null,
+and `extensions` absent or empty. Unknown or duplicate fields refuse. Discovery
+uses the shared bounded exchange
+([limits](zeroshot-native-integration.md#directtarget-http-transport-limits)):
+redirects, proxying, cookies and ambient credentials are disabled, and the
+response is byte-counted and parsed within one 10-second budget. Commands have a
+30-second inspection timeout. Discovery expiry is a safe refusal. Caller
+cancellation remains cancellation and ends only the selected Docker CLI process
+or local HTTP exchange. It never stops the target or asserts cessation of an exec.
 
 Readiness inspects existing state and performs the baseline's controlled short
 UID-transition exec. It never creates, initializes, stops, restarts or replaces a
@@ -107,10 +113,17 @@ boundaries. Its success witness asserts exact inspect/exec selection, the comple
 UID probe, discovery URL/method, no authentication header, checked facts and
 exclusion of a synthetic secret appended to otherwise valid gh output. Refusal
 cases own image/state/root/isolation/capability/restart, entrypoint/argument,
-mount, port, credential, version/hash/help, UID and discovery checks. Invalid
+mount, port, credential, version/hash/help, UID and stock-discovery schema checks,
+plus a controlled-clock discovery stall that expires as refusal and cancels as
+cancellation. Invalid
 configuration and origin witnesses require zero target access. The small composed
 command case uses unavailable Python/state/workspace paths and creates no store.
 The Program usage witness checks routing without Docker or HTTP access.
+
+`DirectTargetExchangeTests` own the shared bounds over real loopback sockets:
+chunked stock discovery, redirect refusal, header limit, truncated and oversized
+chunked bodies, stall expiry versus caller cancellation, no exchange after expiry,
+and fragmented, binary, closed and oversized WebSocket messages.
 
 Only the process adapter's safe-error witness runs harmless local shell commands
 and a missing executable. These readiness tests contact no Docker, real target, forge, gateway
