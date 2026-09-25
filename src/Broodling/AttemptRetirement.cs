@@ -160,9 +160,10 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// Retire a dispatched HTTP Attempt during verified maintenance. The host procedure stops the target
-    /// and supplies a current check on every call; this records it with the retirement and deletes nothing.
-    /// It requires the pause, a complete check made during that pause and naming this Attempt's target,
-    /// no local dispatch still initiating, a non-current (abandoned or completed) Attempt with dispatch
+    /// and owns supplying a fresh check for every maintenance invocation; this records it with the
+    /// retirement and deletes nothing. It binds the check to the current pause epoch only. It requires the
+    /// pause, a complete check made no earlier than that pause and no later than now, naming this Attempt's
+    /// target, no local dispatch still initiating, a non-current (abandoned or completed) Attempt with dispatch
     /// intent, and its retained B1 and accepted pins. Drainage is required, never authority by itself.
     /// A submission without correlation stays <c>dispatched</c>. Replacement remains a separate operation.
     /// An existing retirement is returned unchanged, whatever its basis.
@@ -178,6 +179,7 @@ public sealed partial class BroodlingStore
         if (!control.IsPaused)
             throw new MaintenanceUnverified("Maintenance retirement requires the installation pause.");
         // Host and application share a clock. A future check would otherwise outlive a later release and re-pause.
+        // A paused-throughout interruption keeps this epoch; freshness per invocation is the host's (#356).
         if (check.VerifiedAt < DateTimeOffset.Parse(control.ChangedAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
             || check.VerifiedAt > DateTimeOffset.UtcNow)
             throw new MaintenanceUnverified("The stopped-target check was not made during the current pause; verify the target again.");

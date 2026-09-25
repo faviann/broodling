@@ -148,12 +148,16 @@ dotnet /RELEASE/host/Broodling.Host.dll retire-attempt /EXISTING/DOTNET/state.sq
 as supplied and refuses a blank one; the command parser also requires each member
 exactly once, exactly spelled, and nothing else. Under one SQLite writer it
 requires the persisted pause, `verifiedAt` no earlier than that pause took effect
-and no later than now (host and application share a clock, so an earlier or
-future check never carries over a release or interruption), the check's origin
+and no later than now (host and application share a clock), the check's origin
 equal to the Attempt's retained binding origin, a drained initiation lock, a
 non-current HTTP Attempt (abandoned or completed) with dispatch intent, and its
 B1 pin and any accepted pin, read from Git while the writer is held. Drainage is an additional condition, never authorization: a sender that
 committed intent before the stop holds that lock until its send returns.
+This binds a check to the current pause epoch only: release and re-pause
+invalidate it. An interrupted maintenance invocation that leaves the installation
+paused does not change that epoch, so Broodling cannot tell an earlier check from
+a fresh one. Producing a fresh check for every maintenance invocation, including
+after such an interruption, is the host procedure's responsibility (#356).
 Pause/check/drainage refusals are `maintenance_unverified`; ineligible Attempts
 are `cessation_unconfirmed`. A native terminal label, a stop result, local
 drainage or a missing directory grants nothing on its own.

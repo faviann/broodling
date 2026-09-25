@@ -459,7 +459,7 @@ public sealed class RetirementTests
         if (condition != "current") fixture.Store.AbandonAttempt(id, "operator stop");
         fixture.Store.PauseInstallation();
         var check = Check(submission.Locator.Address);
-        // An earlier check is not permission after the maintenance was interrupted and paused again.
+        // A check made before a release and re-pause belongs to the earlier pause epoch.
         if (condition == "check-before-pause") { fixture.Store.ReleaseInstallation(); fixture.Store.PauseInstallation(); }
         if (condition == "unpaused") fixture.Store.ReleaseInstallation();
         // A future check would otherwise also satisfy any later pause.
