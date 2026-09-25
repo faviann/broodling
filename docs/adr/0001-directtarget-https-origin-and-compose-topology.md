@@ -18,8 +18,8 @@ readable only by `zeroshot-tls`'s user, the certificate in a separate directory
 of public material only. Caddy signs with the configured root (`pki { ca local
 { root { cert, key } } }`) and still issues and renews its intermediate and leaf
 certificates itself. Broodling mounts only the public directory read-only and
-re-reads the root for each DirectTarget operation; no key reaches it. Outside
-the project, LAN DNS resolves the same name to Traefik, which serves the public
+re-reads the root for each new connection; no key reaches it. Outside the
+project, LAN DNS resolves the same name to Traefik, which serves the public
 wildcard certificate and forwards to `zeroshot-tls`'s port on the LXC. The
 stack's internal communication thus depends on nothing outside it, while the
 operator can use the Zeroshot CLI, HTTP requests or a browser from the LAN
@@ -47,13 +47,14 @@ as container root, as native's process-identity allocation requires.
   transport retry; that is an accepted limitation until retry is designed.
 - Changing the origin name later requires a stopped-target transition of native
   state.
-- Ordinary startup refuses a missing or mismatched root, including a stored
-  intermediate that does not chain to it, instead of regenerating it, as for
-  native state. Caddy itself fails closed on missing or mismatched root files
-  but keeps a stale intermediate after the root changes.
+- Caddy only loads the provided root and never generates one: missing or
+  mismatched root files stop it from starting. A stored intermediate that no
+  longer chains to the root (after a rotation or restore that skipped Caddy's
+  data) fails readiness discovery through the origin with the configured root.
+  No separate startup check of the root is added.
 - Rotating the root is a deliberate, documented step: replace the key and
   certificate together and remove Caddy's stored intermediate and leaf.
-  Broodling picks up the new root on its next DirectTarget operation.
+  Broodling picks up the new root on its next connection.
 - The published LXC port is free to choose; exact-origin native clients on the
   LAN reach 443 through Traefik.
 
