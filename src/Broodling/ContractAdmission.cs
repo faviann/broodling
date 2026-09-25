@@ -141,7 +141,7 @@ public sealed partial class BroodlingStore
         var work = ResolveWorkUnit(reference);
         var captured = supplied.Select(source => EntitleSource(work.WorkUnitId, source)).ToArray();
         var inputs = new ContractProposalInput(work, captured, effects, constructedBy);
-        var revision = RecordContractRevision(Proposal(inputs, propose));
+        var revision = RecordContractRevision(Proposal(inputs, propose(inputs)));
         Admit(revision.ContractRevisionId);
         return Status(revision.ContractRevisionId);
     }
@@ -152,17 +152,46 @@ public sealed partial class BroodlingStore
     /// references are supporting material reached through the bound bundle, so their capture
     /// adds no work. Broodling supplies the one pull-request effect to the retained PR target
     /// branch. The revision and its submission association commit together and the decision
-    /// goes through <see cref="Admit"/>; a bound submission is never proposed again.
+    /// goes through <see cref="Admit"/>; a bound submission is never proposed again. A malformed
+    /// or authority-changing proposal is retained as the submission's refusal and throws
+    /// <see cref="ContractProposalRefused"/>, then and on every later call.
     /// </summary>
     public AdmissionStatus AdmitRequestBundle(string submissionId, Func<ContractProposalInput, Contract> propose,
         string constructedBy = "model_extraction")
     {
-        // Proposal refuses an unrecognized producer: the proposal must validate and repeat it.
         if (propose is null)
             throw new InvalidContractProposal("A proposer is required.");
+        // The callback runs synchronously, so the shared body completes without awaiting I/O.
+        return AdmitRequestBundle(submissionId, (input, _) => Task.FromResult(propose(input)), constructedBy,
+            CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// The same admission with the bundled proposer: the supported model behind the pinned gateway,
+    /// using current credentials (by default <c>GATEWAY_BASE_URL</c> and <c>GATEWAY_API_KEY</c>) that
+    /// are never retained. A gateway failure throws <see cref="ContractProposerError"/> and retains
+    /// nothing, so a later call proposes again from the same frozen inputs.
+    /// </summary>
+    public Task<AdmissionStatus> AdmitRequestBundleAsync(string submissionId, GatewayCredentials? credentials = null,
+        CancellationToken cancellationToken = default) =>
+        AdmitRequestBundleAsync(submissionId, credentials, null, cancellationToken);
+
+    /// <summary>Tests supply the gateway's HTTP handler; production uses the pinned endpoint.</summary>
+    internal Task<AdmissionStatus> AdmitRequestBundleAsync(string submissionId, GatewayCredentials? credentials,
+        HttpMessageHandler? gateway, CancellationToken cancellationToken) =>
+        AdmitRequestBundle(submissionId, new BundledProposer(this, credentials ?? GatewayCredentials.FromEnvironment(),
+            gateway).ProposeAsync, "model_extraction", cancellationToken);
+
+    private async Task<AdmissionStatus> AdmitRequestBundle(string submissionId,
+        Func<ContractProposalInput, CancellationToken, Task<Contract>> propose, string constructedBy,
+        CancellationToken cancellationToken)
+    {
+        // Proposal refuses an unrecognized producer: the proposal must validate and repeat it.
         var submission = GetIssueSubmission(submissionId);
         if (submission.ContractRevisionId is { } bound)
             return BoundAdmission(bound);
+        if (submission.ProposalRefusal is { } refusal)
+            throw new ContractProposalRefused(refusal);
         RequireUnpaused();
         if (submission.State == "cancelled")
             throw new IssueSubmissionConflict("A cancelled Issue submission cannot acquire Contract authority.");
@@ -175,7 +204,14 @@ public sealed partial class BroodlingStore
         var effect = new RequiredEffect("pull_request",
             $"Deliver one proposal as a pull request to branch '{targetBranch}' of {work.Owner}/{work.Repository}, including its commit and push.",
             "pull_request", targetBranch);
-        var proposal = Proposal(new ContractProposalInput(work, [request], [effect], constructedBy, bundle), propose);
+        var inputs = new ContractProposalInput(work, [request], [effect], constructedBy, bundle);
+        // No transaction is open while the proposer runs.
+        Contract proposal;
+        try { proposal = Proposal(inputs, await propose(inputs, cancellationToken)); }
+        catch (BroodlingException refused) when (refused is InvalidContractProposal or SourceAttributionError)
+        {
+            return RefuseProposal(submissionId, new ContractProposalFinding(refused.Code, refused.Message));
+        }
         string revisionId;
         using (var transaction = connection.BeginTransaction(deferred: false))
         {
@@ -191,6 +227,36 @@ public sealed partial class BroodlingStore
             }
         }
         return BoundAdmission(revisionId);
+    }
+
+    /// <summary>
+    /// Retain a refused proposal and reject its submission, as a refused capture does. A concurrent
+    /// binding or an earlier refusal stands instead; a cancelled submission records nothing.
+    /// </summary>
+    private AdmissionStatus RefuseProposal(string submissionId, ContractProposalFinding finding)
+    {
+        ContractProposalRefusal refusal;
+        using (var transaction = connection.BeginTransaction(deferred: false))
+        {
+            var current = ReadIssueSubmission(submissionId, transaction)!;
+            if (current.ContractRevisionId is { } raced)
+            {
+                transaction.Commit();
+                return BoundAdmission(raced);
+            }
+            if (current.ProposalRefusal is null)
+            {
+                if (current.State != "capturing")
+                    throw new IssueSubmissionConflict("The Issue submission can no longer be prepared.");
+                Execute("INSERT INTO contract_proposal_refusals VALUES ($p0, $p1, $p2)", transaction,
+                    submissionId, JsonSerializer.Serialize(new[] { finding }), Now());
+                Execute("UPDATE issue_submissions SET state = 'rejected' WHERE submission_id = $p0 AND state = 'capturing'",
+                    transaction, submissionId);
+            }
+            refusal = ReadIssueSubmission(submissionId, transaction)!.ProposalRefusal!;
+            transaction.Commit();
+        }
+        throw new ContractProposalRefused(refusal);
     }
 
     private AdmissionStatus BoundAdmission(string revisionId)
@@ -255,10 +321,11 @@ public sealed partial class BroodlingStore
         return (source, repository.DefaultBranch);
     }
 
-    /// <summary>Run the proposer and refuse any change to the authority it was given.</summary>
-    private static Contract Proposal(ContractProposalInput inputs, Func<ContractProposalInput, Contract> propose)
+    /// <summary>Refuse a proposal that is not a valid Contract or changes the authority it was given.</summary>
+    private static Contract Proposal(ContractProposalInput inputs, Contract? proposal)
     {
-        var proposal = propose(inputs) ?? throw new InvalidContractProposal("A typed Contract proposal is required.");
+        if (proposal is null)
+            throw new InvalidContractProposal("A typed Contract proposal is required.");
         proposal.Validate();
         if (proposal.WorkUnitId != inputs.WorkUnit.WorkUnitId || proposal.ConstructedBy != inputs.ConstructedBy)
             throw new InvalidContractProposal("The proposal changed its Work Unit or producer attribution.");

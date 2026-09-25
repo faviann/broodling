@@ -12,7 +12,32 @@ internal static class StoreSchema
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
     internal const string Sql = IdentitySql + "\n" + AdmissionSql + "\n" + AttemptSql + "\n" + ProvisioningSql
         + "\n" + DispatchSql + "\n" + CompletionSql + "\n" + RetirementSql + "\n" + IssueSubmissionSql
-        + "\n" + InstallationSql + "\n" + RequestBundleSql + "\n" + CancellationSql + "\n" + RepositoryPreparationSql;
+        + "\n" + InstallationSql + "\n" + RequestBundleSql + "\n" + CancellationSql + "\n" + RepositoryPreparationSql
+        + "\n" + ProposalRefusalSql;
+
+    // A refused proposal leaves findings and no Contract; the submission can never bind one later.
+    internal const string ProposalRefusalSql = """
+        CREATE TABLE contract_proposal_refusals (
+            submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
+            findings_json TEXT NOT NULL CHECK (json_valid(findings_json) AND json_array_length(findings_json) > 0),
+            refused_at TEXT NOT NULL
+        ) STRICT;
+        CREATE TRIGGER contract_proposal_refusal_bound BEFORE INSERT ON contract_proposal_refusals
+        WHEN NOT EXISTS (
+            SELECT 1 FROM issue_submissions AS s JOIN request_bundles AS b USING (submission_id)
+            WHERE s.submission_id = NEW.submission_id AND s.state = 'capturing'
+              AND s.contract_revision_id IS NULL AND b.state = 'complete'
+        )
+        BEGIN SELECT RAISE(ABORT, 'Contract proposal refusal requires an unbound submission with a completed RequestBundle'); END;
+        CREATE TRIGGER contract_proposal_refusal_no_update BEFORE UPDATE ON contract_proposal_refusals
+        BEGIN SELECT RAISE(ABORT, 'Contract proposal refusal is immutable'); END;
+        CREATE TRIGGER contract_proposal_refusal_no_delete BEFORE DELETE ON contract_proposal_refusals
+        BEGIN SELECT RAISE(ABORT, 'Contract proposal refusal is durable'); END;
+        CREATE TRIGGER contract_proposal_refusal_final BEFORE UPDATE OF contract_revision_id ON issue_submissions
+        WHEN NEW.contract_revision_id IS NOT NULL
+          AND EXISTS (SELECT 1 FROM contract_proposal_refusals WHERE submission_id = NEW.submission_id)
+        BEGIN SELECT RAISE(ABORT, 'A refused Contract proposal is final for its Issue submission'); END;
+        """;
 
     internal const string CancellationSql = """
         CREATE TABLE issue_submission_cancellations (

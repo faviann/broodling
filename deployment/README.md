@@ -434,6 +434,30 @@ stop. Unknown correlation is never redispatched to discover a run. Explicit
 never-dispatched retirement/retry remain [callable operations](../docs/implementation/dotnet-retirement-replacement.md),
 not an automatic CLI recovery sequence.
 
+### Bundled Contract proposer
+
+The callable `AdmitRequestBundleAsync` prepares a completed RequestBundle's
+Contract with the one built-in proposer
+([reference](../docs/implementation/dotnet-contract-admission.md#bundled-proposer)).
+No host command runs it yet; #116 and #120 compose it into the service. Its
+profile is fixed, not configurable:
+
+| Setting | Value |
+| --- | --- |
+| Gateway | OpenAI-compatible Chat Completions at exactly `https://cliproxy.local.faviann.com/v1` |
+| Model | `gpt-5.6-sol` |
+| Credentials | Current `GATEWAY_API_KEY` and exactly `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`, read from the process environment for each proposal |
+| Trust | The host's system TLS trust for the gateway |
+
+Supply the key through the same secret source as dispatch credentials. It is
+sent only as the gateway's bearer token. It is never written to the
+RequestBundle, Contract revision, refusal findings, submission rows or error
+messages. A missing key, another base URL or a gateway refusal is a
+non-retryable `ContractProposerError`. Transport loss, timeout and HTTP
+408/429/5xx are retryable. Neither retains anything, so a later call proposes
+again from the same frozen request. A bound or refused submission never calls
+the gateway.
+
 ## Retention and limitations
 
 Keep the authoritative SQLite store/sidecars, original source common Git and

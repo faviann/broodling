@@ -55,7 +55,9 @@ identity was advanced: the four definitions were copied verbatim from a store
 initialized by the #118 application and appended before `COMMIT`, and the stored
 definition and manifest hashes were replaced with that store's values. The
 restored schema then equals a freshly initialized store's schema exactly. No row
-changed. Its public API
+changed. #112 likewise added the empty `contract_proposal_refusals` table and its
+four triggers. The same procedure appended those five definitions verbatim from a
+store initialized by the #112 application and replaced both hashes again. Its public API
 initialized a new store and, for `acme/widget#12` and `#13`, completed a
 RequestBundle through the checkpoint API. It then associated each submission
 with a pull-request Contract that has no RequestBundle binding: admitted
@@ -68,9 +70,12 @@ Python's `sqlite3.Connection.iterdump` produced the dump.
 - Original definition hash: `0488df48ef9ba6a74962fcb61977d6d9b937217534b499b2d630c844c7c3dcda`.
 - Original manifest hash: `6c25204951751c5f22730d5125ae749d19edaf237d9fe0647746ffa7c880e4af`.
 - Original SQL fixture SHA-256: `3aac2be573e36e88b9215c1932cbd906dd5d56dfbd62c4d1ae37b79b86484e67`.
-- Current definition hash: `8c5cd46fc733cada63fc2d3a1a8bee180d0d802fa9e803d50824c7fa195903b3`.
-- Current manifest hash: `1c70f7d77923da3d13b54c3fa8ea72c78d03f522612fad14e5080b2fbbb79a9c`.
-- Current SQL fixture SHA-256: `dfcefc8ec4f4241147b29c6d8ae4be913f97c4a1095c9ae325c54eb1b5f1dcb7`.
+- #118 definition hash: `8c5cd46fc733cada63fc2d3a1a8bee180d0d802fa9e803d50824c7fa195903b3`.
+- #118 manifest hash: `1c70f7d77923da3d13b54c3fa8ea72c78d03f522612fad14e5080b2fbbb79a9c`.
+- #118 SQL fixture SHA-256: `dfcefc8ec4f4241147b29c6d8ae4be913f97c4a1095c9ae325c54eb1b5f1dcb7`.
+- Current definition hash: `dd6895ba373a28777d12008f80e4ef1f8858e8bb8cde57f13adea2a8d8fbd853`.
+- Current manifest hash: `fa5ce4fd0fe07dfdb2e992f0a39debb89d3b70fca5804d39c51192e3800c00b0`.
+- Current SQL fixture SHA-256: `a99df9dc1a174adcca2fa812e9d0c3b8b1bae80c618c63f6c6964a7d44ba6fe2`.
 
 # Other fixtures
 
