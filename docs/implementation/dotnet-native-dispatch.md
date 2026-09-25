@@ -35,7 +35,9 @@ interrupted materialization before a submission exists. Once any invocation is
 prepared it reconciles the frozen request without restoring its workspace.
 Direct `ProvisionAttempt` also refuses after dispatch intent.
 
-`Status` and `History` now include `Submissions`, alongside the existing exact
+`Status` and `History` now include `Submissions` (with an HTTP record's
+`Format`, `IntendedRunId` and `ReplayBlockedReason`; `RunId` stays confirmed
+correlation only), alongside the existing exact
 revision's sources, Contract, decision and Attempts. They remain coherent,
 deferred SQLite reads without native access. Exceptions do not undo earlier
 commits: use history to find the exact revision after a failed submit.
@@ -66,9 +68,19 @@ before the short SQLite writer and releases both before the external SDK call.
 No subprocess owns that lock during native execution.
 
 F introduced schema **5**, retained within the fresh `broodling.application` schema, with one
-`native_submissions` row per provisioned Attempt. SQL
-constraints/triggers protect the request/key and permit only
-`prepared → dispatched → correlated|blocked`. Preparation and dispatch require
+`native_submissions` row per Attempt. Its immutable `format` is `bridge` for a
+provisioned worktree Attempt or `http.v1` for an HTTP Attempt; see
+[HTTP submission preparation](zeroshot-native-integration.md#http-submission-preparation).
+For every format, any state after `prepared` is committed dispatch intent, the
+one fact that retirement, replacement, quarantine and unresolved-dispatch
+counting read. SQL constraints/triggers protect the request/key and permit only
+`prepared → dispatched → correlated|blocked` for bridge rows. An `http.v1` row
+permits only `prepared → dispatched → correlated`, with `run_id` equal to its
+immutable `intended_run_id`. Its `replay_blocked_reason = submission_conflict`
+may be recorded once while dispatched or correlated and never cleared. A
+cross-row guard refuses an intended ID that another Attempt's confirmed `run_id`
+names, and the reverse. The completion trigger accepts either format's exact
+source binding. Preparation and dispatch require
 current authority. Correlation deliberately does not: an acknowledgment arriving
 after abandonment retains factual run identity, commits it, then raises
 `StaleAttempt`. It never restores authority. Once authority is lost, an
@@ -274,7 +286,8 @@ operator review requirements remain.
 | `src/Broodling/NativeDispatch.cs` | Frozen request, exact task bytes, durable intent, conflict recovery, current authority and correlation |
 | `src/Broodling/NativeProfile.cs` | Fixed runtime/target, local profile identity, credential policy and locator validation |
 | `src/Broodling/NativeTransport.cs`, `src/Broodling/bridge/zeroshot_bridge.py` | Native submit/read/stop roles, pinned SDK bridge and locator/run-only result transport for G/H |
-| `src/Broodling/NativeBinding.cs` | Retained run binding and the single interpretation of frozen request facts |
+| `src/Broodling/NativeBinding.cs` | Retained run binding and the single interpretation of frozen request facts, per format |
+| `src/Broodling/HttpSubmission.cs` | HTTP preparation, retained-content validation and the stock request/binding shape |
 | `src/Broodling/CodexLauncher.cs`, `src/Broodling.Codex/{Program.cs,Broodling.Codex.csproj}` | C# launcher policy, same-PID exec and self-contained packaging |
 | `src/Broodling/Invocation.cs`, `src/Broodling.Host/{InvocationCommands.cs,Program.cs}` | Callable and thin operator submit/resume |
 | `src/Broodling/{StoreSchema.cs,BroodlingStore.cs,ContractAdmission.cs,WorktreeProvisioning.cs,Errors.cs}` | Schema, retained inspection, materialization guard and typed errors |

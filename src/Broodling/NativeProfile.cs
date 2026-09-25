@@ -18,7 +18,11 @@ public sealed class DispatchCredentials(string? githubToken, string? gatewayBase
     public override string ToString() => nameof(DispatchCredentials);
 }
 
-public sealed record NativeLocator(string Kind, string Address, string SdkVersion = NativeProfile.SdkVersion)
+/// <summary>
+/// Where a retained run lives. <see cref="SdkVersion"/> pins the bridge SDK; an HTTP DirectTarget
+/// binding has none, since its origin and retained protocol binding name the target.
+/// </summary>
+public sealed record NativeLocator(string Kind, string Address, string? SdkVersion = NativeProfile.SdkVersion)
 {
     internal void Validate()
     {

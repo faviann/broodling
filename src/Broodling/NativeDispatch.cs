@@ -4,10 +4,22 @@ using Microsoft.Data.Sqlite;
 
 namespace Broodling;
 
-public sealed record NativeSubmission(string AttemptId, string SubmissionKey, string RequestJson, string State, string? RunId)
+/// <summary>
+/// One Attempt's retained submission. <see cref="State"/> is its monotonic phase; any phase after
+/// <c>prepared</c> is committed dispatch intent. <see cref="RunId"/> is confirmed correlation only.
+/// An <c>http.v1</c> record also carries its <see cref="IntendedRunId"/>, which never implies
+/// acceptance, a monotonic <see cref="ReplayBlockedReason"/>, its retained asset identity and
+/// Broodling-only binding; a <c>bridge</c> record has none of these.
+/// </summary>
+public sealed record NativeSubmission(string AttemptId, string SubmissionKey, string RequestJson, string State, string? RunId,
+    string Format = NativeSubmission.Bridge, string? IntendedRunId = null, string? ReplayBlockedReason = null,
+    string? AssetSha256 = null, string? BindingJson = null)
 {
+    public const string Bridge = "bridge";
+    public const string Http = "http.v1";
+
     public NativeLocator Locator => Frozen.Locator;
-    internal FrozenSubmission Frozen => FrozenSubmission.Read(RequestJson);
+    internal FrozenSubmission Frozen => Format == Http ? FrozenSubmission.ReadHttp(RequestJson, BindingJson!) : FrozenSubmission.Read(RequestJson);
     /// <summary>The retained binding for read/stop; null until correlation.</summary>
     internal NativeRunBinding? Run => RunId is null ? null : Frozen.Run(RunId);
 }
@@ -18,15 +30,28 @@ public sealed partial class BroodlingStore
 
     private NativeSubmission? ReadSubmission(string attemptId, SqliteTransaction? transaction = null)
     {
-        using var command = Command("SELECT attempt_id, submission_key, request_json, state, run_id FROM native_submissions WHERE attempt_id = $p0", transaction, attemptId);
+        using var command = Command("""
+            SELECT attempt_id, submission_key, request_json, state, run_id, format, intended_run_id,
+                replay_blocked_reason, asset_sha256, binding_json FROM native_submissions WHERE attempt_id = $p0
+            """, transaction, attemptId);
         using var row = command.ExecuteReader();
-        return row.Read() ? new(row.GetString(0), row.GetString(1), row.GetString(2), row.GetString(3), row.IsDBNull(4) ? null : row.GetString(4)) : null;
+        string? Optional(int index) => row.IsDBNull(index) ? null : row.GetString(index);
+        return row.Read() ? new(row.GetString(0), row.GetString(1), row.GetString(2), row.GetString(3), Optional(4),
+            row.GetString(5), Optional(6), Optional(7), Optional(8), Optional(9)) : null;
+    }
+
+    /// <summary>The Python bridge path serves worktree Attempts only; it never reads an HTTP record as a bridge request.</summary>
+    private static void RequireBridgeAttempt(AttemptRecord attempt)
+    {
+        if (attempt.ResourceKind == AttemptRecord.Http)
+            throw new SubmissionNotReady("An HTTP Attempt uses HTTP submission preparation, not the bridge.");
     }
 
     /// <summary>Freeze admitted facts and supported policy before any external submission.</summary>
     public NativeSubmission PrepareSubmission(string attemptId, NativeProfile profile)
     {
         var attempt = GetAttempt(attemptId);
+        RequireBridgeAttempt(attempt);
         using var held = DispatchLock(attempt);
         using var transaction = connection.BeginTransaction(deferred: false);
         attempt = RequireCurrentAttempt(attemptId, transaction);
@@ -40,8 +65,10 @@ public sealed partial class BroodlingStore
             return previous;
         }
         ValidateDispatchSource(attempt, requireB1: true);
-        Execute("INSERT INTO native_submissions VALUES ($p0, $p1, $p2, 'prepared', NULL)", transaction,
-            attemptId, "broodling:dotnet:v1:" + attemptId, request);
+        Execute("""
+            INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state)
+            VALUES ($p0, 'bridge', $p1, $p2, 'prepared')
+            """, transaction, attemptId, "broodling:dotnet:v1:" + attemptId, request);
         var result = ReadSubmission(attemptId, transaction)!;
         transaction.Commit();
         return result;
@@ -52,6 +79,7 @@ public sealed partial class BroodlingStore
         DispatchCredentials? credentials = null, CancellationToken cancellationToken = default)
     {
         var attempt = RequireCurrentAttempt(attemptId);
+        RequireBridgeAttempt(attempt);
         var record = FindSubmission(attemptId) ?? PrepareSubmission(attemptId, profile);
         if (record.State == "correlated") return record; // No old workspace/profile/credential dependency.
         if (record.State == "blocked") throw new SubmissionConflict("The native submission has a retained conflict.");
@@ -194,6 +222,11 @@ public sealed partial class BroodlingStore
 
     private void ValidateFrozenInvocation(AttemptRecord attempt, NativeSubmission record, SqliteTransaction transaction)
     {
+        if (record.Format == NativeSubmission.Http)
+        {
+            RequireRetainedHttpSubmission(attempt, record, transaction);
+            return;
+        }
         var frozen = JsonNode.Parse(record.RequestJson)!.AsObject();
         if (record.SubmissionKey != "broodling:dotnet:v1:" + attempt.AttemptId
             || BuildInvocation(attempt, transaction, frozen: frozen) != record.RequestJson)
@@ -201,6 +234,31 @@ public sealed partial class BroodlingStore
     }
 
     private string BuildInvocation(AttemptRecord attempt, SqliteTransaction transaction, NativeProfile? profile = null, JsonObject? frozen = null)
+    {
+        var (task, work, authorization) = AdmittedTask(attempt, transaction);
+        var delivery = authorization.Mode;
+        var request = new JsonObject
+        {
+            ["submissionKey"] = "broodling:dotnet:v1:" + attempt.AttemptId, ["title"] = "Broodling Attempt " + attempt.AttemptId,
+            ["task"] = task, ["preset"] = new JsonObject { ["name"] = "software-change", ["delivery"] = delivery },
+            ["runtime"] = NativeProfile.Runtime(delivery), ["workspace"] = attempt.Allocation.WorktreePath,
+            ["repository"] = attempt.B1.Repository, ["branch"] = attempt.Allocation.Branch, ["startingCommit"] = attempt.B1.CommitOid,
+            ["materialSha256"] = attempt.B1.MaterialSha256,
+            ["originUrl"] = frozen is null ? Origin(attempt) : (string)frozen["originUrl"]!,
+            ["target"] = frozen is null ? profile!.Target(delivery) : frozen["target"]!.DeepClone()
+        };
+        if (delivery == "pull_request") request["source"] = new JsonObject
+        {
+            ["repository"] = work.Owner + "/" + work.Repository, ["branch"] = authorization.TargetBranch, ["revision"] = attempt.B1.CommitOid
+        };
+        if (ReadRetry("attempt_id", attempt.AttemptId, transaction) is { } retry
+            && (retry.TargetJson is null || !JsonNode.DeepEquals(JsonNode.Parse(retry.TargetJson), request["target"])))
+            throw new AttemptConflict("The replacement target differs from its durable retry request.");
+        return request.ToJsonString();
+    }
+
+    /// <summary>The complete frozen task: admitted Contract, exact entitled bytes and original B1, from retained authority only.</summary>
+    private (string Task, WorkUnit Work, DeliveryAuthorization Authorization) AdmittedTask(AttemptRecord attempt, SqliteTransaction transaction)
     {
         var revision = ReadRevision(attempt.ContractRevisionId, transaction) ?? throw new UnknownRecord("Unknown Contract revision.");
         if (ReadDecision(attempt.ContractRevisionId, transaction)?.Admitted != true)
@@ -233,23 +291,6 @@ public sealed partial class BroodlingStore
             + (delivery == "none" ? "The required-effect set is empty. Keep changes in this assigned worktree."
                 : "The sole authorized external effect is native pull-request delivery. Do not publish, push, create or update a PR, merge, change issues, deploy, or perform other authoritative effects yourself; the native delivery node alone owns the authorized PR effect.")
             + "\n\n" + authority.ToJsonString();
-        var request = new JsonObject
-        {
-            ["submissionKey"] = "broodling:dotnet:v1:" + attempt.AttemptId, ["title"] = "Broodling Attempt " + attempt.AttemptId,
-            ["task"] = task, ["preset"] = new JsonObject { ["name"] = "software-change", ["delivery"] = delivery },
-            ["runtime"] = NativeProfile.Runtime(delivery), ["workspace"] = attempt.Allocation.WorktreePath,
-            ["repository"] = attempt.B1.Repository, ["branch"] = attempt.Allocation.Branch, ["startingCommit"] = attempt.B1.CommitOid,
-            ["materialSha256"] = attempt.B1.MaterialSha256,
-            ["originUrl"] = frozen is null ? Origin(attempt) : (string)frozen["originUrl"]!,
-            ["target"] = frozen is null ? profile!.Target(delivery) : frozen["target"]!.DeepClone()
-        };
-        if (delivery == "pull_request") request["source"] = new JsonObject
-        {
-            ["repository"] = work.Owner + "/" + work.Repository, ["branch"] = authorization.TargetBranch, ["revision"] = attempt.B1.CommitOid
-        };
-        if (ReadRetry("attempt_id", attempt.AttemptId, transaction) is { } retry
-            && (retry.TargetJson is null || !JsonNode.DeepEquals(JsonNode.Parse(retry.TargetJson), request["target"])))
-            throw new AttemptConflict("The replacement target differs from its durable retry request.");
-        return request.ToJsonString();
+        return (task, work, authorization);
     }
 }

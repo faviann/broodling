@@ -105,8 +105,9 @@ public sealed class CompletionPersistenceTests
                 enclosure || '-second', worktree_path || '-second', branch || '-second', admitted_at, resource_kind FROM attempts;
             {guard};
             INSERT INTO worktree_provisions VALUES ('historical-second', 'then');
-            INSERT INTO native_submissions SELECT 'historical-second', 'broodling:dotnet:v1:historical-second',
-                json_set(request_json, '$.submissionKey', 'broodling:dotnet:v1:historical-second'), 'prepared', NULL FROM native_submissions;
+            INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state)
+                    SELECT 'historical-second', 'bridge', 'broodling:dotnet:v1:historical-second',
+                json_set(request_json, '$.submissionKey', 'broodling:dotnet:v1:historical-second'), 'prepared' FROM native_submissions;
             UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = 'historical-second';
             UPDATE native_submissions SET state = 'correlated', run_id = 'second-run' WHERE attempt_id = 'historical-second';
             """);

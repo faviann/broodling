@@ -221,18 +221,27 @@ internal static class StoreSchema
               AND a.work_unit_id = NEW.work_unit_id AND c.work_unit_id = a.work_unit_id
               AND a.contract_revision_id = NEW.contract_revision_id AND d.outcome = 'admitted'
               AND s.state = 'correlated' AND s.run_id = NEW.run_id
-              AND s.submission_key = 'broodling:dotnet:v1:' || a.attempt_id
-              AND json_extract(s.request_json, '$.submissionKey') = s.submission_key
               AND json_type(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects') = 'array'
               AND json_array_length(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects') = 1
               AND json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].kind') = 'pull_request'
-              AND json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
-                  = json_extract(s.request_json, '$.source.branch')
-              AND json_extract(s.request_json, '$.preset.name') = 'software-change'
-              AND json_extract(s.request_json, '$.preset.delivery') = 'pull_request'
               AND w.host = 'github.com'
-              AND json_extract(s.request_json, '$.source.repository') = w.owner || '/' || w.repository
-              AND json_extract(s.request_json, '$.source.revision') = a.b1_commit_oid
+              AND ((s.format = 'bridge'
+                    AND s.submission_key = 'broodling:dotnet:v1:' || a.attempt_id
+                    AND json_extract(s.request_json, '$.submissionKey') = s.submission_key
+                    AND json_extract(s.request_json, '$.preset.name') = 'software-change'
+                    AND json_extract(s.request_json, '$.preset.delivery') = 'pull_request'
+                    AND json_extract(s.request_json, '$.source.branch')
+                        = json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
+                    AND json_extract(s.request_json, '$.source.repository') = w.owner || '/' || w.repository
+                    AND json_extract(s.request_json, '$.source.revision') = a.b1_commit_oid)
+                OR (s.format = 'http.v1' AND s.run_id = s.intended_run_id
+                    AND s.submission_key = 'broodling:http:v1:' || a.attempt_id
+                    AND json_extract(s.request_json, '$.runId') = s.intended_run_id
+                    AND json_extract(s.request_json, '$.submission.submissionKey') = s.submission_key
+                    AND json_extract(s.request_json, '$.submission.source.branch')
+                        = json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
+                    AND json_extract(s.request_json, '$.submission.source.repository') = w.owner || '/' || w.repository
+                    AND json_extract(s.request_json, '$.submission.source.revision') = a.b1_commit_oid))
               AND json_type(NEW.receipt_json) = 'object'
               AND (SELECT count(*) FROM json_each(NEW.receipt_json)) = 7
               AND (SELECT count(*) FROM json_each(NEW.receipt_json) WHERE type = 'text'
@@ -240,8 +249,9 @@ internal static class StoreSchema
               AND json_extract(NEW.receipt_json, '$.version') = 'v1'
               AND json_extract(NEW.receipt_json, '$.mode') = 'pr'
               AND json_extract(NEW.receipt_json, '$.outcome') = 'opened'
-              AND json_extract(NEW.receipt_json, '$.repository') = json_extract(s.request_json, '$.source.repository')
-              AND json_extract(NEW.receipt_json, '$.targetBranch') = json_extract(s.request_json, '$.source.branch')
+              AND json_extract(NEW.receipt_json, '$.repository') = w.owner || '/' || w.repository
+              AND json_extract(NEW.receipt_json, '$.targetBranch')
+                  = json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')
               AND length(json_extract(NEW.receipt_json, '$.headRevision')) = 40
               AND json_extract(NEW.receipt_json, '$.headRevision') NOT GLOB '*[^0-9a-f]*'
               AND instr(json_extract(NEW.receipt_json, '$.headRevision'), char(0)) = 0
@@ -364,28 +374,78 @@ internal static class StoreSchema
         ) STRICT;
         """;
 
+    // One row per Attempt is the single source of dispatch-intent truth for every format:
+    // `state <> 'prepared'` means intent was committed. `bridge` rows belong to provisioned
+    // worktree Attempts; `http.v1` rows to HTTP Attempts, with a separate intended identity,
+    // confirmed `run_id` and monotonic replay block instead of an absorbing `blocked` state.
     internal const string DispatchSql = """
+        CREATE TABLE execution_assets (
+            asset_sha256 TEXT PRIMARY KEY CHECK (length(asset_sha256) = 64 AND asset_sha256 NOT GLOB '*[^0-9a-f]*'),
+            content BLOB NOT NULL
+        ) STRICT;
+        CREATE TRIGGER execution_assets_no_update BEFORE UPDATE ON execution_assets
+        BEGIN SELECT RAISE(ABORT, 'execution asset content is immutable'); END;
+        CREATE TRIGGER execution_assets_no_delete BEFORE DELETE ON execution_assets
+        BEGIN SELECT RAISE(ABORT, 'execution asset content is durable'); END;
+
         CREATE TABLE native_submissions (
-            attempt_id TEXT PRIMARY KEY REFERENCES worktree_provisions(attempt_id),
+            attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
+            format TEXT NOT NULL CHECK (format IN ('bridge', 'http.v1')),
             submission_key TEXT NOT NULL UNIQUE,
             request_json TEXT NOT NULL CHECK (json_valid(request_json)),
             state TEXT NOT NULL CHECK (state IN ('prepared', 'dispatched', 'correlated', 'blocked')),
             run_id TEXT UNIQUE,
-            CHECK ((state = 'correlated' AND run_id IS NOT NULL AND length(trim(run_id)) > 0)
-                OR (state <> 'correlated' AND run_id IS NULL))
+            intended_run_id TEXT UNIQUE CHECK (intended_run_id GLOB
+                '[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-7[0-9a-f][0-9a-f][0-9a-f]-[89ab][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'),
+            replay_blocked_reason TEXT CHECK (replay_blocked_reason = 'submission_conflict'),
+            asset_sha256 TEXT REFERENCES execution_assets(asset_sha256),
+            binding_json TEXT CHECK (json_valid(binding_json) AND json_type(binding_json) = 'object'),
+            CHECK ((format = 'bridge' AND intended_run_id IS NULL AND replay_blocked_reason IS NULL
+                    AND asset_sha256 IS NULL AND binding_json IS NULL
+                    AND ((state = 'correlated' AND run_id IS NOT NULL AND length(trim(run_id)) > 0)
+                        OR (state <> 'correlated' AND run_id IS NULL)))
+                OR (format = 'http.v1' AND state <> 'blocked' AND intended_run_id IS NOT NULL
+                    AND asset_sha256 IS NOT NULL AND binding_json IS NOT NULL
+                    AND (replay_blocked_reason IS NULL OR state <> 'prepared')
+                    AND ((state = 'correlated' AND run_id = intended_run_id)
+                        OR (state <> 'correlated' AND run_id IS NULL))))
         ) STRICT;
         CREATE TRIGGER submission_requires_current BEFORE INSERT ON native_submissions
         WHEN NEW.state <> 'prepared' OR NOT EXISTS (
-            SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1)
-        BEGIN SELECT RAISE(ABORT, 'preparation requires current provisioned authority'); END;
+            SELECT 1 FROM attempts AS a
+            WHERE a.attempt_id = NEW.attempt_id AND a.is_current = 1
+              AND ((NEW.format = 'bridge' AND a.resource_kind = 'worktree'
+                    AND EXISTS (SELECT 1 FROM worktree_provisions WHERE attempt_id = NEW.attempt_id))
+                OR (NEW.format = 'http.v1' AND a.resource_kind = 'http'
+                    AND NEW.submission_key = 'broodling:http:v1:' || a.attempt_id
+                    AND (SELECT count(*) FROM json_each(NEW.request_json)) = 2
+                    AND json_extract(NEW.request_json, '$.runId') = NEW.intended_run_id
+                    AND json_extract(NEW.request_json, '$.submission.submissionKey') = NEW.submission_key
+                    AND json_extract(NEW.request_json, '$.submission.source.revision') = a.b1_commit_oid
+                    AND json_extract(NEW.binding_json, '$.repository') = a.b1_repository))
+        )
+        BEGIN SELECT RAISE(ABORT, 'preparation requires current authority for its resource kind'); END;
+        CREATE TRIGGER submission_intended_exclusive BEFORE INSERT ON native_submissions
+        WHEN EXISTS (SELECT 1 FROM native_submissions WHERE run_id = NEW.intended_run_id)
+        BEGIN SELECT RAISE(ABORT, 'intended run identity names another Attempt''s execution'); END;
         CREATE TRIGGER submission_binding_stable BEFORE UPDATE ON native_submissions
-        WHEN OLD.attempt_id <> NEW.attempt_id OR OLD.submission_key <> NEW.submission_key
-          OR OLD.request_json <> NEW.request_json
+        WHEN OLD.attempt_id <> NEW.attempt_id OR OLD.format <> NEW.format
+          OR OLD.submission_key <> NEW.submission_key OR OLD.request_json <> NEW.request_json
+          OR OLD.intended_run_id IS NOT NEW.intended_run_id OR OLD.asset_sha256 IS NOT NEW.asset_sha256
+          OR OLD.binding_json IS NOT NEW.binding_json
+          OR (OLD.replay_blocked_reason IS NOT NULL AND OLD.replay_blocked_reason IS NOT NEW.replay_blocked_reason)
           OR NOT ((OLD.state = 'prepared' AND NEW.state = 'dispatched')
-            OR (OLD.state = 'dispatched' AND NEW.state IN ('correlated', 'blocked')))
+            OR (OLD.state = 'dispatched' AND NEW.state = 'correlated')
+            OR (OLD.format = 'bridge' AND OLD.state = 'dispatched' AND NEW.state = 'blocked')
+            OR (OLD.format = 'http.v1' AND OLD.state = NEW.state AND OLD.run_id IS NEW.run_id
+                AND OLD.replay_blocked_reason IS NULL AND NEW.replay_blocked_reason IS NOT NULL))
         BEGIN SELECT RAISE(ABORT, 'frozen dispatch and correlation are irreversible'); END;
+        CREATE TRIGGER correlation_exclusive BEFORE UPDATE OF run_id ON native_submissions
+        WHEN NEW.run_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM native_submissions WHERE intended_run_id = NEW.run_id AND attempt_id <> NEW.attempt_id)
+        BEGIN SELECT RAISE(ABORT, 'confirmed run identity is another Attempt''s intended execution'); END;
         CREATE TRIGGER dispatch_requires_current BEFORE UPDATE ON native_submissions
-        WHEN NEW.state = 'dispatched' AND NOT EXISTS (
+        WHEN NEW.state = 'dispatched' AND OLD.state <> 'dispatched' AND NOT EXISTS (
             SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id AND is_current = 1)
         BEGIN SELECT RAISE(ABORT, 'dispatch requires current authority'); END;
         CREATE TRIGGER submissions_retained BEFORE DELETE ON native_submissions

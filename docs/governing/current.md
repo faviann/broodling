@@ -139,7 +139,9 @@ Every dispatched Attempt remains ineligible for automatic deletion or
 replacement, including after native success or stop. Terminal labels are not
 physical-cessation receipts. An HTTP DirectTarget Attempt owns no local
 directory; its safe retirement rests on abandonment with no committed dispatch
-intent and deletes nothing. Broodling records abandonment and requests native
+intent and deletes nothing. Its prepared submission retains the complete request,
+approved asset bytes and an intended run identity; that is neither dispatch intent
+nor native acceptance. Broodling records abandonment and requests native
 stop, while operators retain host/container containment responsibility. A safely
 retired never-dispatched Attempt can still be explicitly replaced from original
 B1. There is no override that converts incomplete historical proof into cleanup

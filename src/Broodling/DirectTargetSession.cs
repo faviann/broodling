@@ -84,12 +84,8 @@ internal sealed class DirectTargetSession : IAsyncDisposable
     /// </summary>
     private static (Uri Origin, NativeSource Source) Target(NativeRunBinding run)
     {
-        var address = run.Locator.Address;
         if (run.Locator.Kind == "direct" && run.Source is { } source
-            && Uri.TryCreate(address, UriKind.Absolute, out var origin) && origin.UserInfo == ""
-            && address == origin.GetLeftPart(UriPartial.Authority)
-            && (origin.Scheme == Uri.UriSchemeHttps || origin.Scheme == Uri.UriSchemeHttp
-                && IPAddress.TryParse(origin.DnsSafeHost, out var host) && IPAddress.IsLoopback(host)))
+            && DirectTargetExchange.CanonicalOrigin(run.Locator.Address) is { } origin)
             return (origin, source);
         throw new UnsupportedRuntime("The retained DirectTarget binding is unsupported.");
     }

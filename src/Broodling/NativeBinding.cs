@@ -25,5 +25,20 @@ internal sealed record FrozenSubmission(string Delivery, NativeLocator Locator, 
             (string)request["repository"]!, (string)request["originUrl"]!);
     }
 
+    /// <summary>
+    /// The HTTP facts: the stock request names title, size and source; the Broodling-only
+    /// binding names the target origin, shared Git custody and the frozen result-fetch origin.
+    /// </summary>
+    internal static FrozenSubmission ReadHttp(string requestJson, string bindingJson)
+    {
+        var submission = JsonNode.Parse(requestJson)!["submission"]!;
+        var binding = JsonNode.Parse(bindingJson)!;
+        var source = submission["source"]!;
+        return new("pull_request", new NativeLocator("direct", (string)binding["origin"]!, null),
+            (string)submission["title"]!, (string)submission["runtime"]!["size"]!,
+            new((string)source["repository"]!, (string)source["branch"]!, (string)source["revision"]!),
+            (string)binding["repository"]!, (string)binding["resultOrigin"]!);
+    }
+
     internal NativeRunBinding Run(string runId) => new(Locator, runId, Title, Size, Source);
 }

@@ -191,7 +191,7 @@ public sealed class ReplacementTests
         foreach (var sql in new[] { "DELETE FROM attempt_retries", "UPDATE attempt_retries SET target_json = '{}'", "INSERT OR REPLACE INTO attempt_retries SELECT * FROM attempt_retries" })
             await Assert.That(() => fixture.Git.State.Execute(sql)).Throws<SqliteException>();
         store.ProvisionAttempt(successor.AttemptId);
-        await Assert.That(() => fixture.Git.State.Execute($"INSERT INTO native_submissions VALUES ('{successor.AttemptId}', 'key', '{{}}', 'prepared', NULL)")).Throws<SqliteException>();
+        await Assert.That(() => fixture.Git.State.Execute($"INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state) VALUES ('{successor.AttemptId}', 'bridge', 'key', '{{}}', 'prepared')")).Throws<SqliteException>();
     }
 
     [Test]

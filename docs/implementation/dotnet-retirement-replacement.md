@@ -109,7 +109,9 @@ An old key returns its historical successor after replacement without reviving
 authority. A successor keeps its predecessor's resource kind: an HTTP
 predecessor takes `AdmitRetry(predecessorId, retryKey)` and its successor also
 has no local directory. Its retry records no root or target; the successor's own
-preparation freezes its target binding. Provision/prepare/dispatch independently guard currentness. Direct
+`PrepareHttpSubmission` freezes its target binding and a new intended run ID,
+also while paused. A prepared-only HTTP record keeps the `no_dispatch_intent`
+basis; any later phase quarantines. Provision/prepare/dispatch independently guard currentness. Direct
 `PrepareSubmission` enforces the frozen retry target too. Dispatched retry
 recovery reuses F's correlation seam without reprovisioning candidate material.
 

@@ -24,6 +24,10 @@ public sealed class ExecutionAsset
     internal JsonNode Graph() => JsonNode.Parse(content)!["graph"]!.DeepClone();
     internal JsonNode Runtime() => JsonNode.Parse(content)!["runtime"]!.DeepClone();
 
+    /// <summary>Retained content, never today's installed file. Only the approved identity is supported.</summary>
+    internal static ExecutionAsset? FromRetained(byte[]? bytes) =>
+        bytes is not null && bytes.Length == ApprovedLength && Digests.Bytes(bytes) == ApprovedSha256 ? new(bytes) : null;
+
     public static ExecutionAsset LoadBundled() => Load(Path.Combine(AppContext.BaseDirectory, "execution-assets"));
 
     internal static ExecutionAsset Load(string directory)

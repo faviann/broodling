@@ -83,6 +83,48 @@ checks the exact approved bytes. It then re-admits the graph/runtime through
 `profile set --graph --runtime-config` and requires an exact round trip. It runs
 no target or provider. It is not a runtime helper.
 
+## HTTP submission preparation
+
+`PrepareHttpSubmission(attemptId, directOrigin)` freezes one HTTP Attempt's
+complete request without target contact or dispatch credentials. The
+[prepared record](../../src/Broodling/HttpSubmission.cs) is the preparation fact.
+It implies neither dispatch intent nor native acceptance. The origin must be
+canonical HTTPS or literal-loopback HTTP; the status reader uses the same check.
+
+Preparation first establishes exact B1 custody: the direct
+`refs/broodling/starting/<B1>` pin in the Attempt's common Git directory. It then
+captures the result-fetch origin from that directory's `remote.origin.url`. The
+origin must name the admitted GitHub repository and carry no user information. A
+crash after pinning but before the SQLite commit leaves only the pin, which grants
+nothing. Preparation then rechecks current authority and pause in one immediate
+transaction, including the explicit-replacement exception. That transaction
+commits all of the following together:
+
+- The stock request `{runId, submission: {title, graph, runtime,
+  initialInput: {task}, source: {repository, branch, revision}, submissionKey}}`,
+  without `connections` or `githubToken`. `graph` and `runtime` are the approved
+  asset's values, and `task` is the same complete Contract, entitled bytes and B1
+  authority that the bridge freezes. `source` names the admitted owner/repository
+  and the authorized PR branch, separate from exact original B1.
+- The intended run ID, a canonical UUIDv7 generated only when no record exists,
+  and the key `broodling:http:v1:<attempt-id>`.
+- The exact asset bytes in the content-addressed `execution_assets` row.
+- A Broodling-only binding that is never sent: protocol
+  `zeroshot.native-v2-target/v2`, the target origin, the common Git directory,
+  the frozen result-fetch origin and the native release pins.
+
+Concurrent preparers converge on the first committed record; a loser never
+generates or compares another identity. Repeating preparation does not read the
+installed asset. It validates the retained record against the retained asset
+bytes, the approved identity and native binding, and a rebuild of the request
+from admitted authority. A missing or corrupt asset, a request whose graph,
+runtime or task differs, an unsupported binding or a different target origin
+refuses. Nothing is regenerated or rebound.
+
+The record's retained binding is a `NativeRunBinding` with a `direct` locator
+whose `SdkVersion` is null, since no bridge SDK is involved. The bridge
+`PrepareSubmission`/`DispatchAsync` refuse HTTP Attempts.
+
 ## Dispatch, recovery and completion
 
 Preparation retains the immutable request and submission key. A short transaction

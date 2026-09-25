@@ -31,8 +31,9 @@ public sealed class ReplacementCompletionTests
                     enclosure || '-history', worktree_path || '-history', branch || '-history', admitted_at, resource_kind FROM attempts;
                 {guard};
                 INSERT INTO worktree_provisions VALUES ('historical-completed', 'then');
-                INSERT INTO native_submissions SELECT 'historical-completed', 'broodling:dotnet:v1:historical-completed',
-                    json_set(request_json, '$.submissionKey', 'broodling:dotnet:v1:historical-completed'), 'prepared', NULL FROM native_submissions;
+                INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state)
+                    SELECT 'historical-completed', 'bridge', 'broodling:dotnet:v1:historical-completed',
+                    json_set(request_json, '$.submissionKey', 'broodling:dotnet:v1:historical-completed'), 'prepared' FROM native_submissions;
                 UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = 'historical-completed';
                 UPDATE native_submissions SET state = 'correlated', run_id = 'historical-run' WHERE attempt_id = 'historical-completed';
                 INSERT INTO attempt_completions SELECT attempt_id, work_unit_id, contract_revision_id,

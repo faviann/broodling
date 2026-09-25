@@ -80,6 +80,17 @@ internal static class DirectTargetExchange
     internal static HttpClient CreateClient(SocketsHttpHandler? shared = null) =>
         new(shared ?? CreateHandler(), disposeHandler: shared is null) { Timeout = Timeout.InfiniteTimeSpan };
 
+    /// <summary>
+    /// A canonical DirectTarget origin: HTTPS, or literal-loopback HTTP, spelled exactly as its
+    /// scheme and authority, with no userinfo, path, query or fragment. Otherwise null.
+    /// </summary>
+    internal static Uri? CanonicalOrigin(string address) =>
+        Uri.TryCreate(address, UriKind.Absolute, out var origin) && origin.UserInfo == ""
+        && address == origin.GetLeftPart(UriPartial.Authority)
+        && (origin.Scheme == Uri.UriSchemeHttps || origin.Scheme == Uri.UriSchemeHttp
+            && IPAddress.TryParse(origin.DnsSafeHost, out var host) && IPAddress.IsLoopback(host))
+            ? origin : null;
+
     /// <summary>A JSON request body with a known Content-Length.</summary>
     internal static HttpContent JsonContent(byte[] body)
     {
