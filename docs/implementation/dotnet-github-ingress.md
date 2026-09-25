@@ -73,9 +73,10 @@ custody retention. A
 changed repository identity, default branch or canonical endpoint refuses the
 acquisition, so the fetched content cannot be retained under stale metadata.
 `GitHubRepositoryError.Retryable` is false for a mismatched identity, pin or clone
-URL, an unsupported default branch, and for a misconfigured root or a conflicting local
-repository path or origin; those need attention. Failed or changing acquisition
-is retryable.
+URL and an unsupported default branch. It is also false for local configuration:
+a misconfigured or unwritable root, a `git` or `gh` that cannot be started, and a
+conflicting local repository path or origin. Those need attention. Failed or
+changing acquisition is retryable.
 Caller cancellation is preserved; an active acquisition process and its owned
 process tree are terminated, and the root plus inherited output pipes are
 reaped before the operation returns. Git and `gh` acquisition helpers are

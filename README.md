@@ -53,7 +53,7 @@ Application behavior is callable without HTTP. Follow the seam you need:
 
 The ASP.NET host serves retained work and frozen references over read-only HTTP
 from existing state. The bundled Contract proposer and exact-submission
-[preparation](docs/implementation/dotnet-contract-admission.md#submission-preparation)
+[preparation](docs/implementation/dotnet-contract-admission.md#issue-submission-preparation)
 are callable only ([configuration](deployment/README.md#bundled-contract-proposer)).
 The host runs no #100 submission intake, pre-Contract preparation, automatic
 progression or automatic completion capture. Scheduling, backlog selection,

@@ -177,9 +177,9 @@ replace an Attempt from it refuses with `IssueSubmissionConflict`, and nothing i
 converted into bundle authority. Revisions with no bundled submission, including
 supplied-source Contracts, use the revision-based APIs unchanged.
 
-## Submission preparation
+## Issue submission preparation
 
-`SubmissionPreparer.PrepareAsync(submissionId, githubCredentials, gatewayCredentials, cancellationToken)`
+`IssueSubmissionPreparer.PrepareAsync(submissionId, githubCredentials, gatewayCredentials, cancellationToken)`
 ([#116](https://github.com/faviann/broodling/issues/116)) takes one exact accepted
 Issue submission through [capture](dotnet-github-ingress.md#executable-request-capture),
 which includes repository selection, and then `AdmitRequestBundleAsync`. It adds
@@ -188,7 +188,7 @@ admission records above. The preparer is constructed with the application, the
 store path, the service repository root and a lifetime token that is cancelled at
 shutdown.
 
-- It returns a `SubmissionPreparation`: `Decided` with the admission status
+- It returns a `IssueSubmissionPreparation`: `Decided` with the admission status
   (admitted, or rejected with its findings), `CaptureRefused` with the refused
   bundle, `ProposalRefused` with the retained refusal, `Cancelled`, or `Failed`
   with a safe code and message and `Retryable`. Retryable failures are

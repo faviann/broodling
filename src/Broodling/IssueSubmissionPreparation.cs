@@ -6,26 +6,26 @@ namespace Broodling;
 /// Where one preparation of an Issue submission ended. Every case except <see cref="Failed"/> is a retained
 /// fact that a later preparation returns again without acquisition or a model call.
 /// </summary>
-public abstract record SubmissionPreparation
+public abstract record IssueSubmissionPreparation
 {
-    private SubmissionPreparation(string submissionId) => SubmissionId = submissionId;
+    private IssueSubmissionPreparation(string submissionId) => SubmissionId = submissionId;
 
     public string SubmissionId { get; }
 
     /// <summary>The submission's Contract has its admission decision: admitted, or rejected with its findings.</summary>
     public sealed record Decided(IssueSubmission Submission, AdmissionStatus Admission)
-        : SubmissionPreparation(Submission.SubmissionId);
+        : IssueSubmissionPreparation(Submission.SubmissionId);
 
     /// <summary>Capture was refused; the RequestBundle retains its findings and the submission is rejected.</summary>
     public sealed record CaptureRefused(IssueSubmission Submission, RequestBundle Bundle)
-        : SubmissionPreparation(Submission.SubmissionId);
+        : IssueSubmissionPreparation(Submission.SubmissionId);
 
     /// <summary>The Contract proposal was refused; the submission retains its findings and is rejected.</summary>
     public sealed record ProposalRefused(IssueSubmission Submission, ContractProposalRefusal Refusal)
-        : SubmissionPreparation(Submission.SubmissionId);
+        : IssueSubmissionPreparation(Submission.SubmissionId);
 
     /// <summary>The submission is cancelled, so it cannot progress.</summary>
-    public sealed record Cancelled(IssueSubmission Submission) : SubmissionPreparation(Submission.SubmissionId);
+    public sealed record Cancelled(IssueSubmission Submission) : IssueSubmissionPreparation(Submission.SubmissionId);
 
     /// <summary>
     /// Preparation stopped with nothing retained beyond its committed checkpoints. A retryable failure is
@@ -33,7 +33,7 @@ public abstract record SubmissionPreparation
     /// and message are safe for operator output.
     /// </summary>
     public sealed record Failed(string SubmissionId, string Code, string Message, bool Retryable)
-        : SubmissionPreparation(SubmissionId);
+        : IssueSubmissionPreparation(SubmissionId);
 }
 
 /// <summary>
@@ -47,10 +47,10 @@ public abstract record SubmissionPreparation
 /// Cancelled at shutdown. It is the only token that stops a preparation; progress is kept in its committed
 /// checkpoints and a later preparer continues from them.
 /// </param>
-public sealed class SubmissionPreparer(BroodlingApplication application, string storePath, string repositoryRoot,
+public sealed class IssueSubmissionPreparer(BroodlingApplication application, string storePath, string repositoryRoot,
     CancellationToken lifetime)
 {
-    private readonly Dictionary<string, Task<SubmissionPreparation>> preparing = [];
+    private readonly Dictionary<string, Task<IssueSubmissionPreparation>> preparing = [];
 
     /// <summary>Tests control acquisition; production uses the authenticated GitHub CLI and Git.</summary>
     internal GitHubIssueSource? IssueSource { get; init; }
@@ -64,12 +64,12 @@ public sealed class SubmissionPreparer(BroodlingApplication application, string 
     /// A caller's token only ends that caller's wait; the shared preparation continues. At shutdown every
     /// waiting caller observes cancellation.
     /// </summary>
-    public Task<SubmissionPreparation> PrepareAsync(string submissionId, GitHubRepositoryCredentials github,
+    public Task<IssueSubmissionPreparation> PrepareAsync(string submissionId, GitHubRepositoryCredentials github,
         GatewayCredentials? gateway = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(submissionId);
         ArgumentNullException.ThrowIfNull(github);
-        Task<SubmissionPreparation>? preparation;
+        Task<IssueSubmissionPreparation>? preparation;
         lock (preparing)
         {
             if (!preparing.TryGetValue(submissionId, out preparation))
@@ -88,7 +88,7 @@ public sealed class SubmissionPreparer(BroodlingApplication application, string 
         return preparation.WaitAsync(cancellationToken);
     }
 
-    private async Task<SubmissionPreparation> PrepareOnceAsync(string submissionId, GitHubRepositoryCredentials github,
+    private async Task<IssueSubmissionPreparation> PrepareOnceAsync(string submissionId, GitHubRepositoryCredentials github,
         GatewayCredentials? gateway)
     {
         BroodlingStore? store = null;
@@ -109,13 +109,7 @@ public sealed class SubmissionPreparer(BroodlingApplication application, string 
             }
             var admission = await store.AdmitRequestBundleAsync(submissionId, gateway, Gateway, lifetime);
             var decided = store.GetIssueSubmission(submissionId);
-            return Ended(store, decided) ?? new SubmissionPreparation.Decided(decided, admission);
-        }
-        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
-        {
-            // Not shutdown: report it once rather than as cancellation of the waiting callers.
-            return new SubmissionPreparation.Failed(submissionId, "preparation_interrupted",
-                "Preparation was interrupted before its next checkpoint.", true);
+            return Ended(store, decided) ?? new IssueSubmissionPreparation.Decided(decided, admission);
         }
         catch (Exception failure) when (failure is BroodlingException or SqliteException)
         {
@@ -136,14 +130,14 @@ public sealed class SubmissionPreparer(BroodlingApplication application, string 
     }
 
     /// <summary>The retained cancellation or refusal that ends preparation before any decision, if any.</summary>
-    private static SubmissionPreparation? Ended(BroodlingStore store, IssueSubmission submission)
+    private static IssueSubmissionPreparation? Ended(BroodlingStore store, IssueSubmission submission)
     {
         if (submission.State == "cancelled")
-            return new SubmissionPreparation.Cancelled(submission);
+            return new IssueSubmissionPreparation.Cancelled(submission);
         if (submission.ProposalRefusal is { } refusal)
-            return new SubmissionPreparation.ProposalRefused(submission, refusal);
+            return new IssueSubmissionPreparation.ProposalRefused(submission, refusal);
         if (submission.ContractRevisionId is null && submission.State == "rejected")
-            return new SubmissionPreparation.CaptureRefused(submission, store.GetRequestBundle(submission.SubmissionId));
+            return new IssueSubmissionPreparation.CaptureRefused(submission, store.GetRequestBundle(submission.SubmissionId));
         return null;
     }
 
@@ -151,7 +145,7 @@ public sealed class SubmissionPreparer(BroodlingApplication application, string 
     /// Only temporary acquisition and gateway failures, the pause and a busy or locked store are retryable.
     /// Store state, identity and integrity failures, including guard aborts, need attention.
     /// </summary>
-    internal static SubmissionPreparation.Failed Failure(string submissionId, Exception failure) => failure switch
+    internal static IssueSubmissionPreparation.Failed Failure(string submissionId, Exception failure) => failure switch
     {
         BroodlingException error => new(submissionId, error.Code, error.Message, error switch
         {

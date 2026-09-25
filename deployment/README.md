@@ -540,7 +540,7 @@ not an automatic CLI recovery sequence.
 The callable `AdmitRequestBundleAsync` prepares a completed RequestBundle's
 Contract with the one built-in proposer
 ([reference](../docs/implementation/dotnet-contract-admission.md#bundled-proposer)).
-The callable `SubmissionPreparer` (#116) runs it after capture. No host command
+The callable `IssueSubmissionPreparer` (#116) runs it after capture. No host command
 runs either yet; #117 and #120 attach them to the service. The proposer's profile
 is fixed, not configurable:
 

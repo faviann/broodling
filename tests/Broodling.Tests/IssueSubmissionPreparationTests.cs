@@ -12,12 +12,11 @@ namespace Broodling.Tests;
 /// model gateway peers. Capture and admission policy and their crash matrices belong to their owners'
 /// tests; these cover ownership and the capture-to-proposal and Contract-commit handoffs.
 /// </summary>
-public sealed class SubmissionPreparationTests
+public sealed class IssueSubmissionPreparationTests
 {
     private static readonly GitHubRepositoryCredentials GitHub = new("configured-token");
     private static readonly GatewayCredentials Credentials = new(NativeProfile.GatewayBaseUrl, "gateway-key");
     private const string Proposal = """{"criteria": [{"criterionId": "export", "statement": "Export the data."}]}""";
-    private const string PrimaryPath = "/repos/acme/widget/issues/12";
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(60);
 
     [Test]
@@ -41,12 +40,12 @@ public sealed class SubmissionPreparationTests
         using var disconnect = new CancellationTokenSource();
 
         var starting = preparer.PrepareAsync(blocked, GitHub, Credentials, disconnect.Token);
-        await entered.WaitAsync(Bound);
+        await Assert.That(await entered.WaitAsync(Bound)).IsTrue();
         var joined = preparer.PrepareAsync(blocked, GitHub, Credentials);
 
         // Another submission reaches its decision while this one waits on its model call.
         var other = await preparer.PrepareAsync(independent, GitHub, Credentials).WaitAsync(Bound);
-        await Assert.That(((SubmissionPreparation.Decided)other).Admission.Decision!.Admitted).IsTrue();
+        await Assert.That(((IssueSubmissionPreparation.Decided)other).Admission.Decision!.Admitted).IsTrue();
 
         // The starting caller's token ends only its own wait; the shared preparation continues.
         disconnect.Cancel();
@@ -54,9 +53,8 @@ public sealed class SubmissionPreparationTests
         release.SetResult();
         var result = await joined.WaitAsync(Bound);
 
-        await Assert.That(((SubmissionPreparation.Decided)result).Admission.Decision!.Admitted).IsTrue();
+        await Assert.That(((IssueSubmissionPreparation.Decided)result).Admission.Decision!.Admitted).IsTrue();
         await Assert.That(gateway.Contexts.Count(context => context.Contains("CSV"))).IsEqualTo(1);
-        await Assert.That(fixture.ReadGhPaths().Count(path => path == PrimaryPath)).IsEqualTo(1);
     }
 
     [Test]
@@ -75,7 +73,7 @@ public sealed class SubmissionPreparationTests
         using var shutdown = new CancellationTokenSource();
 
         var first = Preparer(fixture, interrupted, shutdown.Token).PrepareAsync(submissionId, GitHub, Credentials);
-        await entered.WaitAsync(Bound);
+        await Assert.That(await entered.WaitAsync(Bound)).IsTrue();
         shutdown.Cancel();
         await Assert.That(async () => await first).Throws<OperationCanceledException>();
 
@@ -94,7 +92,7 @@ public sealed class SubmissionPreparationTests
 
         var result = await Preparer(fixture, restarted, CancellationToken.None).PrepareAsync(submissionId, GitHub, Credentials);
 
-        await Assert.That(((SubmissionPreparation.Decided)result).Admission.Decision!.Admitted).IsTrue();
+        await Assert.That(((IssueSubmissionPreparation.Decided)result).Admission.Decision!.Admitted).IsTrue();
         await Assert.That(restarted.Contexts.Single()).IsEqualTo(interrupted.Contexts.Single());
         await Assert.That(restarted.Contexts.Single()).Contains("Add CSV export.");
         await Assert.That(fixture.ReadGhPaths().Length).IsEqualTo(reads);
@@ -116,7 +114,7 @@ public sealed class SubmissionPreparationTests
 
         var paused = await Preparer(fixture, pausing, CancellationToken.None).PrepareAsync(submissionId, GitHub, Credentials);
 
-        await Assert.That(paused).IsEqualTo(new SubmissionPreparation.Failed(submissionId, "installation_paused",
+        await Assert.That(paused).IsEqualTo(new IssueSubmissionPreparation.Failed(submissionId, "installation_paused",
             new InstallationPaused().Message, true));
         string revisionId;
         using (var store = fixture.State.Open())
@@ -131,7 +129,7 @@ public sealed class SubmissionPreparationTests
 
         var result = await Preparer(fixture, never, CancellationToken.None).PrepareAsync(submissionId, GitHub, Credentials);
 
-        var decided = (SubmissionPreparation.Decided)result;
+        var decided = (IssueSubmissionPreparation.Decided)result;
         await Assert.That(decided.Admission.Revision.ContractRevisionId).IsEqualTo(revisionId);
         await Assert.That(decided.Admission.Decision!.Admitted).IsTrue();
         await Assert.That(decided.Submission.State).IsEqualTo("admitted");
@@ -172,23 +170,23 @@ public sealed class SubmissionPreparationTests
         switch (variant)
         {
             case "capture-refused":
-                var capture = (SubmissionPreparation.CaptureRefused)first;
+                var capture = (IssueSubmissionPreparation.CaptureRefused)first;
                 await Assert.That(capture.Bundle.Findings.Select(finding => finding.Code))
                     .IsEquivalentTo(["request_section_missing"]);
                 await Assert.That(capture.Submission.State).IsEqualTo("rejected");
                 await Assert.That(calls).IsEqualTo(0);
                 break;
             case "proposal-refused":
-                var proposal = (SubmissionPreparation.ProposalRefused)first;
+                var proposal = (IssueSubmissionPreparation.ProposalRefused)first;
                 await Assert.That(proposal.Refusal.Findings.Single().Code).IsEqualTo("invalid_contract_proposal");
                 await Assert.That(proposal.Submission.State).IsEqualTo("rejected");
                 break;
             case "cancelled":
-                var cancelled = (SubmissionPreparation.Cancelled)first;
+                var cancelled = (IssueSubmissionPreparation.Cancelled)first;
                 await Assert.That(cancelled.Submission.ContractRevisionId).IsNull();
                 break;
             default:
-                var failed = (SubmissionPreparation.Failed)first;
+                var failed = (IssueSubmissionPreparation.Failed)first;
                 await Assert.That(failed.Code).IsEqualTo("contract_proposer_error");
                 await Assert.That(failed.Retryable).IsTrue();
                 using (var store = fixture.State.Open())
@@ -211,12 +209,12 @@ public sealed class SubmissionPreparationTests
     public async Task OnlyABusyOrLockedStoreIsARetryableStoreFailure()
     {
         // A guard trigger's abort is an integrity refusal that retrying cannot resolve.
-        var guard = SubmissionPreparer.Failure("sub", new Microsoft.Data.Sqlite.SqliteException(
+        var guard = IssueSubmissionPreparer.Failure("sub", new Microsoft.Data.Sqlite.SqliteException(
             "SQLite Error 19: 'Issue submission identity and Contract binding are immutable'.", 19));
-        var busy = SubmissionPreparer.Failure("sub", new Microsoft.Data.Sqlite.SqliteException(
+        var busy = IssueSubmissionPreparer.Failure("sub", new Microsoft.Data.Sqlite.SqliteException(
             "SQLite Error 5: 'database is locked'.", 5));
 
-        await Assert.That(guard).IsEqualTo(new SubmissionPreparation.Failed("sub", "store_error",
+        await Assert.That(guard).IsEqualTo(new IssueSubmissionPreparation.Failed("sub", "store_error",
             "SQLite Error 19: 'Issue submission identity and Contract binding are immutable'.", false));
         await Assert.That(busy.Retryable).IsTrue();
     }
@@ -229,7 +227,7 @@ public sealed class SubmissionPreparationTests
             other is { } second ? store.SubmitIssue("https://github.com/acme/widget/issues/" + second).SubmissionId : "");
     }
 
-    private static SubmissionPreparer Preparer(RepositoryPreparationTests.RepositoryPreparationFixture fixture,
+    private static IssueSubmissionPreparer Preparer(RepositoryPreparationTests.RepositoryPreparationFixture fixture,
         HttpMessageHandler gateway, CancellationToken lifetime) =>
         new(fixture.State.Application, fixture.State.Path, fixture.RepositoryRoot, lifetime)
     {

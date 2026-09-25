@@ -175,8 +175,12 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
         {
             throw;
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
-            or Win32Exception or InvalidOperationException or ArgumentException)
+        catch (Exception exception) when (exception is UnauthorizedAccessException or Win32Exception)
+        {
+            // The repository root is not writable, or git cannot be started: local configuration.
+            throw new GitHubRepositoryError("GitHub repository acquisition failed.", retryable: false);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or ArgumentException)
         {
             throw new GitHubRepositoryError("GitHub repository acquisition failed.");
         }
@@ -276,7 +280,9 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
             or InvalidOperationException or ArgumentException)
         {
             await StopAndReapAsync(process, output, error);
-            throw new GitHubRepositoryError("GitHub repository acquisition failed.");
+            // A process that cannot be started is local configuration, such as a missing git or gh.
+            throw new GitHubRepositoryError("GitHub repository acquisition failed.",
+                retryable: exception is not Win32Exception);
         }
     }
 
