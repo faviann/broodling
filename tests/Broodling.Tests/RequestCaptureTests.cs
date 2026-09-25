@@ -28,6 +28,8 @@ public sealed class RequestCaptureTests
             ## Hidden note, not a heading
             -->
 
+                <!-- indented code, not a comment opener
+
             ### Details
             Conform to `schema`.
 
@@ -38,7 +40,8 @@ public sealed class RequestCaptureTests
 
             """;
         fixture.SetIssue(12, "# Widget\n\nBackground: https://github.com/acme/widget/issues/13\n"
-            + "Use `<!-- broodling-request:v1 -->` or `<!-- broodling-request:v9 -->` inline.\n\n"
+            + "Use `<!-- broodling-request:v1 -->` or `<!-- broodling-request:v9 -->` inline, or as indented code:\n\n"
+            + "    <!-- broodling-request:v1 -->\n\n"
             + request + "## Discussion\nNot part of the request.\n");
         fixture.SetIssue(7, "Decision https://github.com/acme/widget/issues/8#issuecomment-456, primary "
             + "https://github.com/acme/widget/issues/12, self https://github.com/acme/widget/issues/7, "

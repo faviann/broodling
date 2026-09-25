@@ -45,11 +45,12 @@ internal static partial class ExecutableRequest
 {
     internal const string Convention = "broodling-request:v1";
 
-    // Only a whole, visible line is a marker; an inline mention is prose.
-    [GeneratedRegex(@"\A[ \t]*<!--[ \t]*broodling-request:([^\s>]*)[ \t]*-->[ \t]*\z", RegexOptions.CultureInvariant)]
+    // Only a whole, visible, unindented line is a marker; an inline mention or
+    // indented code is prose.
+    [GeneratedRegex(@"\A {0,3}<!--[ \t]*broodling-request:([^\s>]*)[ \t]*-->[ \t]*\z", RegexOptions.CultureInvariant)]
     private static partial Regex Marker();
 
-    [GeneratedRegex(@"\A[ \t]*<!--(?:(?!-->).)*-->[ \t]*\z", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A {0,3}<!--(?:(?!-->).)*-->[ \t]*\z", RegexOptions.CultureInvariant)]
     private static partial Regex Comment();
 
     [GeneratedRegex(@"\A {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*\z", RegexOptions.CultureInvariant)]
@@ -206,9 +207,11 @@ internal static partial class ExecutableRequest
             else
             {
                 // An opener hides the following lines, but visible text before it
-                // still classifies this line.
+                // still classifies this line. Indented code opens nothing.
+                var indent = text.Length - text.TrimStart(' ', '\t').Length;
                 var opener = text.LastIndexOf("<!--", StringComparison.Ordinal);
-                inComment = opener > text.LastIndexOf("-->", StringComparison.Ordinal);
+                inComment = opener > text.LastIndexOf("-->", StringComparison.Ordinal)
+                    && indent < 4 && !text[..indent].Contains('\t');
                 if (Heading().Match(text) is { Success: true } heading)
                     lines.Add(new(start, text, LineKind.Heading, heading.Groups[1].Length,
                         Regex.Replace(heading.Groups[2].Value, @"(?:\A|[ \t]+)#+\z", "").Trim()));

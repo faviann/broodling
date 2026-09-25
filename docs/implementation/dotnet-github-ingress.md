@@ -138,7 +138,9 @@ The primary issue body must contain exactly one `<!-- broodling-request:v1 -->`
 line directly beneath an ATX Markdown heading of any name or level. Blank lines
 may separate them. The section runs from that heading to the next heading of the
 same or higher level, or to the body end, and includes nested subsections.
-Only a whole, visible line is a marker, so an inline mention in prose is ignored.
+Only a whole, visible line indented by at most three spaces is a marker, so an
+inline mention or an indented code example is ignored; indented code also never
+opens or forms an HTML comment.
 Lines inside fenced code or HTML comments are never headings, markers or
 declarations. The exact section text is
 retained as the `request` member (`executable_request` source kind), next to the
