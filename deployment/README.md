@@ -442,7 +442,7 @@ Rotation is a deliberate step, not something Caddy or Broodling does:
 
    ```bash
    docker compose run --rm --no-deps --entrypoint rm zeroshot-tls \
-     -r /data/caddy/pki/authorities/local /data/caddy/certificates/local
+     -rf /data/caddy/pki/authorities/local /data/caddy/certificates/local
    ```
 
 4. Create the new pair with `initialize-tls`, exactly as at first

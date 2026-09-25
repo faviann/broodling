@@ -34,6 +34,17 @@ public sealed class TargetReadinessTests
     }
 
     [Test]
+    public async Task SourcelessTmpfsMountsShareNoStorage()
+    {
+        using var fixture = new ReadinessFixture();
+        // Docker reports tmpfs with an empty Source, which is no host path at all.
+        var tmpfs = new JsonObject { ["Type"] = "tmpfs", ["RW"] = true, ["Source"] = "", ["Destination"] = "/tmp" };
+        fixture.Broodling["Mounts"]!.AsArray().Add(tmpfs);
+        fixture.Tls["Mounts"]!.AsArray().Add(tmpfs.DeepClone());
+        await Assert.That((await fixture.Check()).Ready).IsTrue();
+    }
+
+    [Test]
     [Arguments("0.0.0.0", "127.0.0.1")]
     [Arguments("192.0.2.10", "192.0.2.10")]
     public async Task DiscoveryConnectsWhereZeroshotTlsIsPublishedOnTheHost(string hostIp, string reached)

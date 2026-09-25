@@ -182,8 +182,10 @@ public sealed class TargetReadiness
         m.GetProperty("Source").GetString(), m.GetProperty("Destination").GetString(), m.GetProperty("RW").GetBoolean(),
         m.GetProperty("Type").GetString() == "bind")).ToArray();
 
+    /// <summary>Host paths that share storage; a sourceless mount (tmpfs) shares none.</summary>
     private static bool Overlap(string? first, string? second) =>
-        first is not null && second is not null && (PhysicalPaths.Contains(first, second) || PhysicalPaths.Contains(second, first));
+        !string.IsNullOrEmpty(first) && !string.IsNullOrEmpty(second)
+        && (PhysicalPaths.Contains(first, second) || PhysicalPaths.Contains(second, first));
 
     private static bool OrdinaryIsolation(JsonElement host) =>
         !host.GetProperty("Privileged").GetBoolean() && host.GetProperty("NetworkMode").GetString() != "host";
