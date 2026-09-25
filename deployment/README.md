@@ -121,6 +121,9 @@ receives these inputs; this repository builds and publishes neither image:
   `10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8` and checks
   native admission. It needs `python3` but no credentials, target or provider. See
   [execution asset](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset).
+  The TUnit suite checks build output only. The image build owns the regression
+  that published Broodling output carries `execution-assets/` with the approved
+  SHA-256; without it, HTTP preparation refuses.
 - The native pins: `zeroshot 10.3.0`, source
   `054ad3fd6c763b98d12f5b2e90830b97116561ad`, from the SDK 10.3.0.post1 wheel in
   [bridge/requirements.txt](../src/Broodling/bridge/requirements.txt), and the

@@ -213,7 +213,7 @@ transport only to a LocalTarget record.
 
 The operator configuration names `"target": "direct"` with only a canonical
 loopback `directOrigin`, or `"target": "local"` with only the bridge, state,
-workspace and optional Codex-profile paths. Mixed, unknown or secret fields
+workspace and all four Codex-profile paths. Mixed, unknown or secret fields
 refuse. Operator `wait` and `stop` need the pinned SDK Python only for a
 LocalTarget record. See the [release guide](../../deployment/README.md#invocation-configuration).
 
