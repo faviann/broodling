@@ -48,8 +48,14 @@ produced the dump; restoring it reproduces the original schema and every row.
 
 `application-v1-unbound-association.sql` is a `broodling.application` version-1
 dump produced on 25 September 2026 by the actual application at `aaa444a`, the
-parent of #111, built in Release. #111 leaves the schema definition unchanged, so
-the current application opens this state directly. Its public API
+parent of #111, built in Release. #111 leaves the schema definition unchanged.
+#118 later added the empty `completion_refusals` table and its three triggers to
+the in-place version-1 definition. To keep this state openable, only its schema
+identity was advanced: the four definitions were copied verbatim from a store
+initialized by the #118 application and appended before `COMMIT`, and the stored
+definition and manifest hashes were replaced with that store's values. The
+restored schema then equals a freshly initialized store's schema exactly. No row
+changed. Its public API
 initialized a new store and, for `acme/widget#12` and `#13`, completed a
 RequestBundle through the checkpoint API. It then associated each submission
 with a pull-request Contract that has no RequestBundle binding: admitted
@@ -59,9 +65,12 @@ both associations stay readable but acquire no admission or Attempt authority.
 Python's `sqlite3.Connection.iterdump` produced the dump.
 
 - Application assembly SHA-256: `ced6bc100eed4d14b459636b3733ef3f76bc63ea283b2ba61875581e541217c6`.
-- Definition hash: `0488df48ef9ba6a74962fcb61977d6d9b937217534b499b2d630c844c7c3dcda`.
-- Manifest hash: `6c25204951751c5f22730d5125ae749d19edaf237d9fe0647746ffa7c880e4af`.
-- SQL fixture SHA-256: `3aac2be573e36e88b9215c1932cbd906dd5d56dfbd62c4d1ae37b79b86484e67`.
+- Original definition hash: `0488df48ef9ba6a74962fcb61977d6d9b937217534b499b2d630c844c7c3dcda`.
+- Original manifest hash: `6c25204951751c5f22730d5125ae749d19edaf237d9fe0647746ffa7c880e4af`.
+- Original SQL fixture SHA-256: `3aac2be573e36e88b9215c1932cbd906dd5d56dfbd62c4d1ae37b79b86484e67`.
+- Current definition hash: `8c5cd46fc733cada63fc2d3a1a8bee180d0d802fa9e803d50824c7fa195903b3`.
+- Current manifest hash: `1c70f7d77923da3d13b54c3fa8ea72c78d03f522612fad14e5080b2fbbb79a9c`.
+- Current SQL fixture SHA-256: `dfcefc8ec4f4241147b29c6d8ae4be913f97c4a1095c9ae325c54eb1b5f1dcb7`.
 
 # Other fixtures
 

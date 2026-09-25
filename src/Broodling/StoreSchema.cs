@@ -262,6 +262,21 @@ internal static class StoreSchema
         BEGIN SELECT RAISE(ABORT, 'completion is immutable'); END;
         CREATE TRIGGER completion_no_delete BEFORE DELETE ON attempt_completions
         BEGIN SELECT RAISE(ABORT, 'completion is durable'); END;
+        CREATE TABLE completion_refusals (
+            attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
+            reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+            refused_at TEXT NOT NULL
+        ) STRICT;
+        CREATE TRIGGER completion_refusal_bound BEFORE INSERT ON completion_refusals
+        WHEN NOT EXISTS (
+            SELECT 1 FROM attempts JOIN native_submissions USING (attempt_id)
+            WHERE attempt_id = NEW.attempt_id AND is_current = 1 AND format = 'http.v1' AND state = 'correlated'
+        )
+        BEGIN SELECT RAISE(ABORT, 'completion refusal requires a current correlated HTTP Attempt'); END;
+        CREATE TRIGGER completion_refusal_no_update BEFORE UPDATE ON completion_refusals
+        BEGIN SELECT RAISE(ABORT, 'completion refusal is immutable'); END;
+        CREATE TRIGGER completion_refusal_no_delete BEFORE DELETE ON completion_refusals
+        BEGIN SELECT RAISE(ABORT, 'completion refusal is durable'); END;
         CREATE TRIGGER completion_ends_authority AFTER INSERT ON attempt_completions
         BEGIN UPDATE attempts SET is_current = 0 WHERE attempt_id = NEW.attempt_id; END;
         CREATE TRIGGER attempts_currentness_justified BEFORE UPDATE OF is_current ON attempts

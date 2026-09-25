@@ -20,7 +20,8 @@ public sealed record WorktreeProvision(string ProvisionedAt);
 public sealed record AttemptRecord(string AttemptId, string WorkUnitId, string ContractRevisionId, bool IsCurrent,
     OriginalB1 B1, string ResourceKind, [property: JsonPropertyName("allocation")] WorkspaceAllocation? WorktreeAllocation,
     string AdmittedAt, AttemptAbandonment? Abandonment,
-    WorktreeProvision? Provision = null, AttemptRetirement? Retirement = null, AttemptRetry? Retry = null)
+    WorktreeProvision? Provision = null, AttemptRetirement? Retirement = null, AttemptRetry? Retry = null,
+    CompletionRefusal? CompletionRefusal = null)
 {
     public const string Worktree = "worktree";
     public const string Http = "http";
@@ -200,9 +201,10 @@ public sealed partial class BroodlingStore
     private IReadOnlyList<AttemptRecord> ReadAttempts(string predicate, string value, SqliteTransaction? transaction = null)
     {
         using var command = Command($"""
-            SELECT a.*, b.reason, b.abandoned_at, p.provisioned_at FROM attempts AS a
+            SELECT a.*, b.reason, b.abandoned_at, p.provisioned_at, r.reason, r.refused_at FROM attempts AS a
             LEFT JOIN attempt_abandonments AS b USING (attempt_id)
             LEFT JOIN worktree_provisions AS p USING (attempt_id)
+            LEFT JOIN completion_refusals AS r USING (attempt_id)
             WHERE {predicate} ORDER BY a.rowid
             """, transaction, value);
         using var row = command.ExecuteReader();
@@ -214,7 +216,8 @@ public sealed partial class BroodlingStore
                     : new(row.GetString(8), row.GetString(9), row.GetString(10), row.GetString(11), row.GetString(12)),
                 row.GetString(12), row.IsDBNull(14) ? null : new(row.GetString(0), row.GetString(14), row.GetString(15)),
                 row.IsDBNull(16) ? null : new(row.GetString(16)), ReadRetirement(row.GetString(0), transaction),
-                ReadRetry("attempt_id", row.GetString(0), transaction)));
+                ReadRetry("attempt_id", row.GetString(0), transaction),
+                row.IsDBNull(17) ? null : new(row.GetString(0), row.GetString(17), row.GetString(18))));
         return result.AsReadOnly();
     }
 }

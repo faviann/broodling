@@ -189,13 +189,13 @@ internal static class GitCustody
     private static void Pin(string repository, string oid, string reference, AdministrativeGitProcess.EnclosureLock? enclosureLock = null)
     {
         if (Text(repository, "cat-file", "-t", oid).Trim() != "commit")
-            throw new UnsupportedStartingState("The retained object is not a commit.");
+            throw new RetentionRefused("The retained object is not a commit.");
         // --no-walk restricts validation to this snapshot, never every ancestor.
         Text(repository, "rev-list", "--objects", "--no-walk", "--missing=error", oid);
         var existing = RetentionOid(repository, reference);
         if (existing == oid) return;
         if (existing is not null)
-            throw new UnsupportedStartingState("The retention pin conflicts with the selected commit.");
+            throw new RetentionRefused("The retention pin conflicts with the selected commit.");
         var update = Run(repository, ["update-ref", "--no-deref", reference, oid, new string('0', 40)], enclosureLock: enclosureLock);
         // Concurrent creation is acceptable only if it left precisely the same direct pin.
         if (update.ExitCode != 0 && RetentionOid(repository, reference) != oid)
@@ -208,7 +208,7 @@ internal static class GitCustody
     {
         var symbolic = Run(repository, ["symbolic-ref", "--quiet", reference]);
         if (symbolic.ExitCode == 0)
-            throw new UnsupportedStartingState("The retention pin is symbolic; a direct pin is required.");
+            throw new RetentionRefused("The retention pin is symbolic; a direct pin is required.");
         if (symbolic.ExitCode != 1) throw Failure(symbolic);
         var exists = Run(repository, ["show-ref", "--verify", "--quiet", reference]);
         if (exists.ExitCode == 1) return null;

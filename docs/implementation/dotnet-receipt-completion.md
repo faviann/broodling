@@ -74,7 +74,9 @@ the result readable after the origin branch or repository, the Attempt worktree
 and branch are gone and `git gc --prune=now` has run.
 
 A failed fetch, a still-missing object or a conflicting pin raises
-`ResultRetentionError` (`result_retention_error`) without a completion row. The
+`ResultRetentionError` (`result_retention_error`) without a completion row. A
+pin that can never succeed (a non-commit object, or a symbolic or conflicting
+accepted ref) raises its `AcceptedRevisionRefused` subtype. The
 Attempt stays current and the next wait consumes the same native result again.
 A pin alone is not success; a later retry converges on the unchanged pin.
 Cancelling the wait during the fetch kills and reaps that Git process tree and
@@ -114,6 +116,79 @@ Retained completion needs no executable, dispatch configuration, credentials, or
 access or working native target. Existing `resume`, `status` and `history`
 commands include completion facts; Ctrl+C from wait returns caller-detached
 handback.
+
+## Automatic completion observation
+
+[#118](https://github.com/faviann/broodling/issues/118) adds
+`CompletionObserver`, which retains a correlated HTTP result when no caller is
+waiting:
+
+```csharp
+await new CompletionObserver(new BroodlingApplication(), databasePath, directTargetRootCertificate,
+    (attemptId, failure) => report(attemptId, failure)).RunAsync(processLifetime);
+```
+
+The third argument is the DirectTarget root certificate that explicit waits
+use. Every observer session opens with it, so HTTPS automatic completion trusts
+the same private root. A caller passes null only to choose system trust
+deliberately.
+
+It scans at startup and then every 15 seconds for Attempts whose retained
+`http.v1` submission is correlated, that still hold current authority and that
+have no completion refusal. It consumes each through `WaitAsync` in its own
+store session, one wait per Attempt at a time. It reads only durable correlation
+records, so it works the same whichever process or caller acknowledged the run.
+It never prepares, dispatches or stops, and it continues while the installation
+is paused. LocalTarget bridge records need a Python transport and cannot produce
+a successful disposition, so the observer ignores them.
+
+A wait ends in one of five ways:
+
+- Success retains the completion as above.
+- Native failure records abandonment as above. Its reason is the inspectable
+  outcome.
+- A refusal of the run's terminal result, which every later read of the same run
+  returns again. `ReceiptRefused` covers a result that names another run and a
+  receipt that is incomplete or does not match frozen PR authority.
+  `AcceptedRevisionRefused` (a `ResultRetentionError`) covers an accepted
+  revision that can never be pinned: the object is not a commit, or its accepted
+  ref is symbolic or names another commit. The observer retains a
+  `completion_refusals` row (Attempt, fixed reason, time), read as
+  `AttemptRecord.CompletionRefusal` through `Status`, `History` and the
+  read-only Attempt route. The refusal leaves authority and disposition
+  unchanged: the Attempt stays current and unabandoned, and an explicit wait can
+  still consume it. No observer retries it, including after a restart.
+- A known temporary failure leaves the Attempt eligible, and the next scan
+  retries it. These are transport failures including an unreadable root
+  (`NativeTransportError`), an unsupported target reply (`UnsupportedRuntime`),
+  an accepted commit that cannot yet be fetched or read (`ResultRetentionError`),
+  and storage errors (`StoreStateException`, `SqliteException`). They also
+  include a retained submission that no longer matches this release's native or
+  asset pins, which refuses before target contact (`SubmissionConflict`); a
+  release rollback lets observation continue. `StaleAttempt` and
+  `SubmissionNotReady` mean authority has ended, so the next scan no longer
+  selects the Attempt. Retries happen at most once per scan interval, and an
+  operator can repair target configuration without a restart.
+- Any other exception is an unexpected service failure, not a retry. The
+  observer passes the Attempt ID and exception once to the required
+  `unexpectedFailure` callback, and a callback that throws is ignored. That
+  Attempt is not observed again in this process, while other observations
+  continue; a restart observes it again. The library has no logging, so #120
+  owns what the callback reports when it attaches the observer to the host. An
+  unexpected failure of discovery itself ends `RunAsync` with that exception.
+
+Each successful scan also detaches any wait whose Attempt has left that set,
+for example after an independent stop or abandonment ends its authority. Such a
+wait can no longer retain a result and would otherwise poll a still-running
+target indefinitely. Detaching neither stops the run nor changes the Attempt's
+disposition. A scan that cannot read the store detaches nothing. Cancelling
+`RunAsync` detaches every wait without stopping or abandoning the run. The next process rediscovers the same correlated records and reconnects
+through their retained bindings. Concurrent observers, or an observer racing an
+explicit wait, converge through the final write described above. A retained
+completion is never selected again, so it stays readable with no target or
+origin. Attaching the observer to the ASP.NET host's lifetime belongs to
+[#120](https://github.com/faviann/broodling/issues/120); the host remains
+read-only.
 
 ## Durable authority and upgrades
 
