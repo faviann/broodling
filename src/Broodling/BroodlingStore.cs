@@ -14,16 +14,13 @@ public sealed partial class BroodlingStore : IDisposable
     public string Path { get; }
     public StoreInformation Information { get; private set; } = null!;
 
-    private BroodlingStore(string path, bool mainFileOnly = false)
+    private BroodlingStore(string path)
     {
         Path = path;
         connection = new(new SqliteConnectionStringBuilder
         {
-            // SQLite URI: immutable reads the main file without locks, journal replay or WAL.
-            DataSource = mainFileOnly
-                ? "file:" + path.Replace("%", "%25").Replace("?", "%3f").Replace("#", "%23") + "?immutable=1"
-                : path,
-            Mode = mainFileOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWrite,
+            DataSource = path,
+            Mode = SqliteOpenMode.ReadWrite,
             Pooling = false,
             ForeignKeys = true,
             DefaultTimeout = 10
@@ -75,18 +72,10 @@ public sealed partial class BroodlingStore : IDisposable
         var target = StorePath(path);
         if (!File.Exists(target))
             throw new StoreStateException("store_missing", "The store does not exist; initialize a new installation explicitly or restore existing state.");
-        BroodlingStore? store = null;
+        var store = new BroodlingStore(target);
         try
         {
-            // A read-write open can replay a hot journal or checkpoint a WAL into the
-            // main file. Refuse unsupported state first from the main file alone, where
-            // initialization commits the identity and schema before enabling WAL.
-            using (var probe = new BroodlingStore(target, mainFileOnly: true))
-            {
-                probe.connection.Open();
-                probe.RequireCurrentSchema();
-            }
-            store = new BroodlingStore(target);
+            RequireSupportedIdentity(target);
             store.connection.Open();
             store.RequireCurrentSchema();
             store.Configure();
@@ -94,14 +83,41 @@ public sealed partial class BroodlingStore : IDisposable
         }
         catch (SqliteException)
         {
-            store?.Dispose();
+            store.Dispose();
             throw new StoreStateException("incompatible_store", UnsupportedStore);
         }
         catch
         {
-            store?.Dispose();
+            store.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Refuse unsupported state before the read-write open, which can replay a hot
+    /// journal or checkpoint a WAL into the main file. The immutable SQLite URI reads
+    /// the main file without locks, journal or WAL. It reads only the identity row:
+    /// initialization commits it before enabling WAL and nothing rewrites it, so
+    /// concurrent writes and checkpoints of a current store cannot make it spuriously
+    /// refuse. Everything else is checked on the read-write connection.
+    /// </summary>
+    private static void RequireSupportedIdentity(string target)
+    {
+        using var probe = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = "file:" + target.Replace("%", "%25").Replace("?", "%3f").Replace("#", "%23") + "?immutable=1",
+            Mode = SqliteOpenMode.ReadOnly,
+            Pooling = false
+        }.ToString());
+        probe.Open();
+        using var command = probe.CreateCommand();
+        command.CommandText = "SELECT format, version, definition_hash FROM store_metadata WHERE singleton = 1";
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()
+            || reader.GetValue(0) is not string format || format != StoreSchema.Format
+            || reader.GetValue(1) is not long version || version != StoreSchema.Version
+            || reader.GetValue(2) is not string definition || definition != StoreSchema.DefinitionHash)
+            throw new StoreStateException("incompatible_store", UnsupportedStore);
     }
 
     /// <summary>

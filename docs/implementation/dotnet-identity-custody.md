@@ -131,11 +131,13 @@ through parent symlinks. Caller paths containing malformed UTF-16 refuse with
 `invalid_store_path` before physical path resolution or any filesystem access:
 a lone surrogate cannot create, open or upgrade a legitimate U+FFFD filename.
 Well-formed replacement and supplementary characters remain valid path text.
-Open first checks format/version/definition, retained schema manifest and
-installation control through an immutable read of the main file alone, so
-refusal never replays a journal, checkpoints a WAL or creates sidecars. Only a
-current store is then opened in SQLite read/write mode without create, checked
-again and configured for WAL and full synchronization. An incompatible or
+Open first checks the format/version/definition identity row through an
+immutable read of the main file alone, so refusal never replays a journal,
+checkpoints a WAL or creates sidecars. That row is committed before WAL is
+enabled and never rewritten. Only a matching store is then opened in SQLite
+read/write mode without create, where the full identity, retained schema
+manifest and installation control are checked before WAL and full
+synchronization are configured. An incompatible or
 unknown file is not initialized or rewritten. Foreign keys and immediate write
 transactions enforce custody.
 
