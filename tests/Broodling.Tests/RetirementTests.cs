@@ -407,10 +407,9 @@ public sealed class RetirementTests
         await Assert.That(status.Attempts.Single().Retirement).IsEqualTo(retired);
         await Assert.That(status.Attempts.Single().Abandonment!.Reason).IsEqualTo("operator stop");
         await Assert.That(status.QuarantinedAttemptIds.Count).IsEqualTo(0);
-        // Retirement resolves no acceptance uncertainty and grants no replacement.
+        // Retirement resolves no acceptance uncertainty and creates no successor.
         await Assert.That(reopened.FindSubmission(id)).IsEqualTo(submission);
         await Assert.That(reopened.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(state == "dispatched" ? 1 : 0);
-        await Assert.That(() => reopened.AdmitRetry(id, "replacement")).Throws<CessationUnconfirmed>();
         await Assert.That(fixture.Git.LocalResources()).IsEqualTo(local);
         await Assert.That(fixture.Git.Git("rev-parse", fixture.Attempt.B1.RetentionRef).Trim()).IsEqualTo(fixture.Attempt.B1.CommitOid);
     }
@@ -449,6 +448,8 @@ public sealed class RetirementTests
         await Assert.That(status.Completions.Single()).IsEqualTo(completion);
         await Assert.That(await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null)).IsEqualTo(completion);
         await Assert.That(fixture.Git.Git("rev-parse", "refs/broodling/accepted/" + accepted).Trim()).IsEqualTo(accepted);
+        // Replacement of retired dispatched work still never reopens a completed Work Unit.
+        await Assert.That(() => fixture.Store.AdmitRetry(fixture.Attempt.AttemptId, "replacement")).Throws<StaleAttempt>();
     }
 
     [Test]

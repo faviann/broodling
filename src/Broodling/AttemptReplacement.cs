@@ -61,9 +61,11 @@ public sealed partial class BroodlingStore
         }
         RequireIncompleteWorkUnit(predecessor.WorkUnitId, transaction);
         RequireBundleAuthority(contract, transaction);
-        if (predecessor.Abandonment is null || ReadRetirement(predecessorId, transaction)?.RetiredAt is null)
-            throw new AttemptAdmissionError("Replacement requires abandonment and completed safe retirement.");
-        RequireRetirementSafety(predecessor, transaction);
+        if (predecessor.Abandonment is null || ReadRetirement(predecessorId, transaction) is not { RetiredAt: not null } retirement)
+            throw new AttemptAdmissionError("Replacement requires abandonment and completed retirement.");
+        // Verified stopped-target maintenance is the only retirement of dispatched (DirectTarget) work;
+        // every other predecessor must still prove it never dispatched.
+        if (retirement.Basis != "stopped_target") RequireRetirementSafety(predecessor, transaction);
         if (ReadRetry("predecessor_id", predecessorId, transaction) is not null)
             throw new AttemptConflict("This predecessor already has an explicit successor.");
         if (ReadAttempts("work_unit_id = $p0 AND is_current = 1", predecessor.WorkUnitId, transaction).Count != 0)

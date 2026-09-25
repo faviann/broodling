@@ -261,6 +261,62 @@ public sealed class ReplacementTests
         await Assert.That(fixture.LocalResources()).IsEqualTo(local);
     }
 
+    [Test]
+    public async Task StoppedTargetRetiredDirectTargetWorkIsReplacedFromItsFrozenAuthorityAndDispatchedOnlyAfterRelease()
+    {
+        await using var target = new StockTarget();
+        using var fixture = await BundleHttpFixture.CreateAsync();
+        var store = fixture.Store;
+        var original = fixture.Attempt;
+        var origin = target.Origin.GetLeftPart(UriPartial.Authority);
+        // The predecessor's send is left unresolved: the target may hold its run until maintenance stops it.
+        var sent = store.PrepareHttpSubmission(original.AttemptId, origin);
+        target.Submit = _ => Task.FromResult((503, """{"code":"target.unavailable","message":"unavailable"}"""));
+        await Assert.That(async () => await store.DispatchHttpAsync(original.AttemptId, HttpDispatchTests.Credentials()))
+            .Throws<NativeTransportError>();
+        target.Submit = body => Task.FromResult(target.Accept(body));
+        var unresolved = store.FindSubmission(original.AttemptId)!;
+        store.AbandonAttempt(original.AttemptId, "target lost");
+        store.PauseInstallation();
+        var retired = store.RetireStoppedTargetAttempt(original.AttemptId, new StoppedTargetCheck(origin, "broodling-target",
+            "/srv/broodling/target-state", "/srv/broodling/target-home", DateTimeOffset.UtcNow));
+
+        // Allocation and preparation under the maintenance pause; dispatch is refused until release.
+        var successor = store.AdmitRetry(original.AttemptId, "after-maintenance");
+        await Assert.That(successor.AttemptId == original.AttemptId).IsFalse();
+        await Assert.That(successor.ContractRevisionId).IsEqualTo(original.ContractRevisionId);
+        await Assert.That(successor.B1).IsEqualTo(original.B1);
+        await Assert.That(successor.ResourceKind).IsEqualTo(AttemptRecord.Http);
+        await Assert.That(store.AdmitRetry(original.AttemptId, "after-maintenance")).IsEqualTo(successor);
+        await Assert.That(() => store.AdmitRetry(original.AttemptId, "second")).Throws<AttemptConflict>();
+        var prepared = store.PrepareHttpSubmission(successor.AttemptId, origin);
+        await Assert.That(prepared.IntendedRunId == sent.IntendedRunId).IsFalse();
+        // The same bundle-bound task and exact B1 source; only the Attempt's own identities differ.
+        JsonNode Submission(NativeSubmission record) => JsonNode.Parse(record.RequestJson)!["submission"]!;
+        await Assert.That(JsonNode.DeepEquals(Submission(prepared)["initialInput"], Submission(sent)["initialInput"])).IsTrue();
+        await Assert.That(JsonNode.DeepEquals(Submission(prepared)["source"], Submission(sent)["source"])).IsTrue();
+        await Assert.That(async () => await store.DispatchHttpAsync(successor.AttemptId, HttpDispatchTests.Credentials()))
+            .Throws<InstallationPaused>();
+        await Assert.That(target.Bodies.Count).IsEqualTo(1);
+
+        store.ReleaseInstallation();
+        var resumed = await new Invocation(store, new InvocationTarget.Direct(origin))
+            .ResumeAsync(original.ContractRevisionId, credentials: HttpDispatchTests.Credentials());
+        await Assert.That(resumed.Submissions.Single(record => record.AttemptId == successor.AttemptId).RunId)
+            .IsEqualTo(prepared.IntendedRunId);
+        await Assert.That((string)target.Bodies.Last()["runId"]!).IsEqualTo(prepared.IntendedRunId);
+
+        // The predecessor's history stays exactly as retained; only the successor is quarantined now.
+        await Assert.That(store.FindSubmission(original.AttemptId)).IsEqualTo(unresolved);
+        await Assert.That(store.FindRetirement(original.AttemptId)).IsEqualTo(retired);
+        var lineage = original.AttemptId + "," + successor.AttemptId;
+        await Assert.That(string.Join(",", resumed.Attempts.Select(attempt => attempt.AttemptId))).IsEqualTo(lineage);
+        await Assert.That(resumed.Attempts[0].Abandonment!.Reason).IsEqualTo("target lost");
+        await Assert.That(resumed.QuarantinedAttemptIds.Single()).IsEqualTo(successor.AttemptId);
+        await Assert.That(store.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(1);
+        await Assert.That(string.Join(",", store.GetIssueSubmission(fixture.Bundle.SubmissionId).AttemptIds)).IsEqualTo(lineage);
+    }
+
     internal static async Task SafeRetire(BroodlingStore store, AttemptRecord attempt)
     {
         await store.StopAsync(attempt.AttemptId, "explicit replacement", new ControlledTransport());

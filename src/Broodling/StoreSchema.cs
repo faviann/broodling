@@ -377,7 +377,8 @@ internal static class StoreSchema
             JOIN attempts AS a USING (attempt_id)
             WHERE r.attempt_id = NEW.predecessor_id AND r.retired_at IS NOT NULL AND a.is_current = 0
               AND NOT EXISTS (SELECT 1 FROM attempts AS current WHERE current.work_unit_id = a.work_unit_id AND current.is_current = 1)
-              AND NOT EXISTS (SELECT 1 FROM native_submissions AS s WHERE s.attempt_id = a.attempt_id AND s.state <> 'prepared')
+              AND (r.basis = 'stopped_target'
+                OR NOT EXISTS (SELECT 1 FROM native_submissions AS s WHERE s.attempt_id = a.attempt_id AND s.state <> 'prepared'))
         ) OR EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id)
         BEGIN SELECT RAISE(ABORT, 'retry requires safely retired predecessor and a new successor'); END;
         CREATE TRIGGER retries_no_update BEFORE UPDATE ON attempt_retries
