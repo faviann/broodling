@@ -129,8 +129,8 @@ completion. Store errors grant no partial disposition.
 [`DirectTargetExchange.cs`](../../src/Broodling/DirectTargetExchange.cs) holds the
 fixed client bounds of the selected
 [HTTP/OECP contract](https://github.com/faviann/broodling/issues/167#issuecomment-5823939438).
-Target readiness discovery is its first caller; submit, observation, wait and
-stop do not use it yet. The bounds are internal constants, not operator
+Target readiness discovery and the run status reader below use it; submit,
+public observation, wait and stop do not use it yet. The bounds are internal constants, not operator
 settings:
 
 | Resource | Limit |
@@ -154,6 +154,50 @@ controller` and the exact run, session and OECP routes. `privateBootstrapPath`,
 `oauth` and `loginSession` may only be absent or null, and `extensions` absent
 or empty. Any other field refuses as an unsupported runtime. Discovery confirms
 protocol shape. It does not attest native or image bytes or durable target state.
+
+### DirectTarget run status reader
+
+[`DirectTargetSession.cs`](../../src/Broodling/DirectTargetSession.cs) is the one
+validated status reader that progress, wait and stop will share. It is not yet
+wired to a public operation. Its input is a `NativeRunBinding`: the direct
+locator's retained origin, the run ID, frozen title, size and PR source. The origin
+must be canonical HTTPS or literal-loopback HTTP, with no path, query, fragment or
+user information. The binding carries no credentials.
+
+Opening a session validates discovery and posts exactly `{runId}` to
+`/native-v2/oecp-session`. The reply must be HTTP 200 with an `endpoint` and an
+absent or null `bearerToken`. The endpoint must equal the origin's paired
+`ws`/`wss` authority plus `/native-v2/oecp`, and is checked before connecting.
+The WebSocket upgrade uses the same redirect-, proxy- and cookie-free handler.
+`initialize` must return the pinned stock reply exactly. At native revision
+`054ad3fd` that reply is constant: the full graph profile, logs, agent attach and
+an empty controller status. The stock controller reports that status for every
+connection, and neither the session nor initialization proves that the run exists.
+
+Each `run/status` request names the retained run. The session keeps one
+outstanding JSON-RPC request with string IDs. A reply must be exactly
+`{jsonrpc: "2.0", id, result}` or `{jsonrpc: "2.0", id, error}` for that ID.
+Batches, notifications, stale or wrong IDs and unknown envelope fields refuse.
+The projection must be exactly `{runId, title, source, size, atCursor, status}`,
+with run, title, size, repository, branch and B1 equal to the binding. The
+reader accepts only the pinned phase union. `admitted` carries only its phase.
+`running` and `stopping` also list active executions with their nodes.
+`finished` adds a terminal result and optional metadata. Unknown fields and
+contradictory variants refuse. `atCursor` must be a string, never interpreted.
+Output is opaque within the transport bounds. Metadata is validated and dropped:
+absent metadata means empty, explicit null refuses. The reader passes through the
+failure labels `force_stopped`, `runtime_lost` and `runtime_failed`. It maps every
+other valid native label to `native_failed`.
+
+The validated read returns progress (phase and active nodes) and, for `finished`,
+a `NativeResult`. Reading a finished status consumes no completion and establishes
+no acknowledgement. Setup and each request run inside the caller's budget, so
+wait and stop can reuse one session under their own remaining deadline. Failures
+are fixed kinds that never contain remote text. `foreign_run` means the
+projection names a different run or source. `RunNotFoundError` is OECP
+`NOT_FOUND`. `TargetError` covers any other valid OECP error or HTTP problem.
+`invalid_response` covers every malformed reply. An unsupported binding,
+discovery or initialization refuses as an unsupported runtime.
 
 ## Local policy and cleanup limitation
 

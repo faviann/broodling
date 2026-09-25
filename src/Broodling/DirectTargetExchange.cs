@@ -67,7 +67,7 @@ internal static class DirectTargetExchange
     private static readonly JsonDocumentOptions Json = new() { MaxDepth = DirectTargetLimits.JsonDepth, AllowDuplicateProperties = false };
 
     /// <summary>No redirects, proxy, cookies or ambient credentials; ordinary TLS verification.</summary>
-    internal static HttpClient CreateClient() => new(new SocketsHttpHandler
+    internal static SocketsHttpHandler CreateHandler() => new()
     {
         AllowAutoRedirect = false,
         UseProxy = false,
@@ -75,7 +75,10 @@ internal static class DirectTargetExchange
         Credentials = null,
         PreAuthenticate = false,
         MaxResponseHeadersLength = DirectTargetLimits.ResponseHeaderKiB
-    }) { Timeout = Timeout.InfiniteTimeSpan };
+    };
+
+    internal static HttpClient CreateClient(SocketsHttpHandler? shared = null) =>
+        new(shared ?? CreateHandler(), disposeHandler: shared is null) { Timeout = Timeout.InfiniteTimeSpan };
 
     /// <summary>A JSON request body with a known Content-Length.</summary>
     internal static HttpContent JsonContent(byte[] body)
