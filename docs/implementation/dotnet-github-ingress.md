@@ -138,7 +138,9 @@ The primary issue body must contain exactly one `<!-- broodling-request:v1 -->`
 line directly beneath an ATX Markdown heading of any name or level. Blank lines
 may separate them. The section runs from that heading to the next heading of the
 same or higher level, or to the body end, and includes nested subsections.
-Headings and markers inside fenced code do not count. The exact section text is
+Only a whole, visible line is a marker, so an inline mention in prose is ignored.
+Lines inside fenced code or HTML comments are never headings, markers or
+declarations. The exact section text is
 retained as the `request` member (`executable_request` source kind), next to the
 exact primary issue response (`primary`):
 
@@ -157,15 +159,16 @@ The optional Available references subsection may contain only
 starting commit) or `https://github.com/OWNER/REPOSITORY/issues/N`, optionally
 with `#issuecomment-ID`. Any other non-blank line, a repeated label or target, a
 declaration of the primary issue, or a second such subsection is an invalid
-declaration. Links anywhere else in the request do not select material.
+declaration. Labels are compared without regard to case. Links anywhere else in the request do not select material.
 
 Traversal is breadth-first in registration order, starting with the
 declarations in their written order. An issue reference captures GitHub's exact
 issue response (title and body, no comments). A comment reference captures that
 exact comment response. Links in captured GitHub reference bodies are followed
-only when they are absolute issue or comment URLs of that form. Pull-request
-URLs, other fragments or paths, shorthand such as `#12`, external links and links
-inside repository files are ordinary text. Reference IDs are normalized
+only when they are absolute issue or comment URLs of that form, not embedded in
+another URL and not continued by a path, query, fragment or file extension.
+Pull-request URLs, shorthand such as `#12`, `.`/`..` repository segments,
+external links and links inside repository files are ordinary text. Reference IDs are normalized
 identities (`repo:PATH`, `github:owner/repository/issues/N[#issuecomment-ID]`),
 so repeats and cycles are captured once. The primary issue itself is never
 re-captured. Each member's selector records its role and its label or the first
@@ -174,21 +177,23 @@ reference that linked to it.
 The retained plan records the convention, the traversal and the limits:
 50 available references, 1 MiB per captured member, and 8 MiB in total,
 including `primary` and `request`. A resumed capture uses the retained limits.
+A repository file's size is read from Git first; a file over the per-member
+limit or the remaining total is refused without being read or captured.
 The following retain a refusal instead of an incomplete bundle:
 
 | Finding code | Cause |
 | --- | --- |
 | `request_section_missing`, `request_section_multiple`, `request_section_ambiguous`, `request_section_unsupported` | No usable v1 section |
 | `invalid_reference_declaration` | A declaration outside the grammar |
-| `reference_unavailable` | GitHub reports 404/410 or a mismatched object (including a pull request), or a repository path is not a file at the starting commit |
+| `reference_unavailable` | GitHub reports 404/410, or the response names another object (including a pull request for an issue), or a repository path is not a file at the starting commit |
 | `reference_limit_exceeded` | Count, per-member or total size |
 
 A refusal seals the bundle as `refused` with its findings and marks the
 submission `rejected`, so Contract association is refused. `GetRequestBundle`
 exposes the state, `Findings` and captured membership, and
 `ReadRequestBundleReference` reads the members captured before refusal. Other
-GitHub failures, including 403, rate limiting, 5xx, timeouts and malformed
-responses, throw `GitHubSourceError` with `Retryable` true. #107 preparation
+GitHub failures, including 403, rate limiting, 5xx, timeouts and malformed or
+incomplete responses, throw `GitHubSourceError` with `Retryable` true. #107 preparation
 errors propagate unchanged. A later call resumes without refetching committed
 members. A completed or refused bundle is returned without acquisition.
 

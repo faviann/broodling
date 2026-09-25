@@ -24,6 +24,10 @@ public sealed class RequestCaptureTests
             # a shell comment, not a heading
             ```
 
+            <!--
+            ## Hidden note, not a heading
+            -->
+
             ### Details
             Conform to `schema`.
 
@@ -33,11 +37,14 @@ public sealed class RequestCaptureTests
             - decision: https://github.com/acme/widget/issues/8#issuecomment-456
 
             """;
-        fixture.SetIssue(12, "# Widget\n\nBackground: https://github.com/acme/widget/issues/13\n\n"
+        fixture.SetIssue(12, "# Widget\n\nBackground: https://github.com/acme/widget/issues/13\n"
+            + "Use `<!-- broodling-request:v1 -->` or `<!-- broodling-request:v9 -->` inline.\n\n"
             + request + "## Discussion\nNot part of the request.\n");
         fixture.SetIssue(7, "Decision https://github.com/acme/widget/issues/8#issuecomment-456, primary "
             + "https://github.com/acme/widget/issues/12, self https://github.com/acme/widget/issues/7, "
             + "PR https://github.com/acme/widget/pull/3, external https://example.com/acme/widget/issues/1, "
+            + "embedded https://example.com/r?u=https://github.com/acme/widget/issues/15, "
+            + "file https://github.com/acme/widget/issues/6.md, dot https://github.com/acme/../issues/5, "
             + "and https://github.com/ACME/widget/issues/9.");
         fixture.SetComment(8, 456, "Back to https://github.com/acme/widget/issues/7 and "
             + "https://github.com/acme/widget/issues/10#issue-1 .");
@@ -135,7 +142,7 @@ public sealed class RequestCaptureTests
             "not-beneath-heading" => "## Request\nIntro\n<!-- broodling-request:v1 -->\nA\n",
             "unsupported-version" => "## Request\n<!-- broodling-request:v2 -->\nA\n",
             "unlabeled-declaration" => Request("- https://github.com/acme/widget/issues/7"),
-            _ => Request("- spec: repo:docs/a.md", "- spec: repo:docs/b.md")
+            _ => Request("- spec: repo:docs/a.md", "- Spec: repo:docs/b.md")
         });
         using var store = fixture.State.Initialize();
         var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
@@ -144,6 +151,15 @@ public sealed class RequestCaptureTests
 
         await AssertRefused(store, bundle, code);
         await Assert.That(string.Join(" ", fixture.ReadGhPaths())).IsEqualTo(PrimaryPath);
+        if (variant != "missing") return;
+
+        // A refused bundle blocks Contract association and keeps its captures readable.
+        var admitted = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()],
+            ContractIngressTests.Propose, [], "caller");
+        await Assert.That(() => store.AssociateIssueSubmission(bundle.SubmissionId, admitted.Revision.ContractRevisionId))
+            .Throws<IssueSubmissionConflict>();
+        await Assert.That(store.ReadRequestBundleReference(bundle.BundleId, "primary").Content
+            .SequenceEqual(File.ReadAllBytes(fixture.Responses + PrimaryPath))).IsTrue();
     }
 
     [Test]
@@ -180,9 +196,11 @@ public sealed class RequestCaptureTests
 
         await AssertRefused(store, bundle, variant is "primary-unavailable" or "reference-unavailable" or "unresolved-path"
             ? "reference_unavailable" : "reference_limit_exceeded");
-        if (variant != "primary-unavailable")
-            await Assert.That(store.ReadRequestBundleReference(bundle.BundleId, "primary").Content
-                .SequenceEqual(File.ReadAllBytes(fixture.Responses + PrimaryPath))).IsTrue();
+        await Assert.That(ApiReads(fixture)).IsEqualTo(variant == "reference-unavailable"
+            ? PrimaryPath + " /repos/acme/widget/issues/7" : PrimaryPath);
+        if (variant is "item-size" or "total-size")
+            await Assert.That(bundle.References.Single(reference => reference.ReferenceId == "repo:docs/large.md").IsCaptured)
+                .IsFalse();
     }
 
     private static async Task AssertRefused(BroodlingStore store, RequestBundle bundle, string code)
@@ -193,10 +211,6 @@ public sealed class RequestCaptureTests
         await Assert.That(retained.State).IsEqualTo("refused");
         await Assert.That(retained.Findings).IsEquivalentTo(bundle.Findings);
         await Assert.That(store.GetIssueSubmission(bundle.SubmissionId).State).IsEqualTo("rejected");
-        var admitted = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()],
-            ContractIngressTests.Propose, [], "caller");
-        await Assert.That(() => store.AssociateIssueSubmission(bundle.SubmissionId, admitted.Revision.ContractRevisionId))
-            .Throws<IssueSubmissionConflict>();
     }
 
     private static string Request(params string[] declarations) =>

@@ -137,13 +137,23 @@ public sealed partial class BroodlingStore
                 var target = queue[index];
                 if (target.Path is not null)
                 {
-                    try { CaptureRequestBundleGitBlob(bundle.BundleId, target.ReferenceId); }
+                    // Git reports the size first, so an oversized file is refused unread and uncaptured.
+                    long size;
+                    try
+                    {
+                        var captured = CaptureRequestBundleGitBlob(bundle.BundleId, target.ReferenceId,
+                            Math.Min(bounds.MaxItemBytes, bounds.MaxTotalBytes - total));
+                        size = GitCustody.BlobSize(captured.GitRepository!, captured.GitBlobOid!);
+                    }
                     catch (UnresolvedRepositoryPath error)
                     {
                         throw new CaptureRefused("reference_unavailable", target.ReferenceId, error.Message);
                     }
-                    Measure(target.ReferenceId,
-                        ReadCapturedBundleReference(bundle.BundleId, target.ReferenceId).Content.LongLength);
+                    catch (GitBlobTooLarge large)
+                    {
+                        size = large.Size;
+                    }
+                    Measure(target.ReferenceId, size);
                     continue;
                 }
                 var content = await Source(target.ReferenceId, async () => target.CommentId is { } comment

@@ -52,7 +52,7 @@ internal static class GitCustody
 
     /// <summary>Read one exact tree entry through a retained direct commit pin.</summary>
     internal static PinnedBlob ReadPinnedBlob(string repository, string commit, string path,
-        string? expectedBlobOid = null)
+        string? expectedBlobOid = null, long? maxBytes = null)
     {
         var reference = "refs/broodling/starting/" + commit;
         if (RetentionOid(repository, reference) != commit)
@@ -90,8 +90,15 @@ internal static class GitCustody
         var blob = fields[2];
         if (expectedBlobOid is not null && blob != expectedBlobOid)
             throw new UnsupportedStartingState("The pinned Git path no longer resolves to its captured blob.");
+        // Check the recorded size before reading, so an oversized file is never buffered.
+        if (maxBytes is { } max && BlobSize(repository, blob) is var size && size > max)
+            throw new GitBlobTooLarge(size);
         return new(blob, Checked(repository, ["cat-file", "blob", blob]));
     }
+
+    internal static long BlobSize(string repository, string blob) =>
+        long.Parse(Encoding.ASCII.GetString(Checked(repository, ["cat-file", "-s", blob])).Trim(),
+            System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture);
 
     internal static string WorkspaceRoot(string root, string repository, StartingState state)
     {
@@ -275,4 +282,10 @@ internal static class GitCustody
             start.ArgumentList.Add(argument);
         return start;
     }
+}
+
+/// <summary>A pinned blob larger than the caller's remaining read bound; its content was not read.</summary>
+internal sealed class GitBlobTooLarge(long size) : Exception("The Git blob exceeds the read bound.")
+{
+    public long Size { get; } = size;
 }

@@ -124,7 +124,11 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>Capture one exact local Git blob after pinning its commit in existing Git custody.</summary>
-    public RequestBundleReference CaptureRequestBundleGitBlob(string bundleId, string referenceId)
+    public RequestBundleReference CaptureRequestBundleGitBlob(string bundleId, string referenceId) =>
+        CaptureRequestBundleGitBlob(bundleId, referenceId, null);
+
+    /// <summary>A bounded capture throws <see cref="GitBlobTooLarge"/> before reading an oversized blob.</summary>
+    internal RequestBundleReference CaptureRequestBundleGitBlob(string bundleId, string referenceId, long? maxBytes)
     {
         string repositoryInput, revisionInput, path;
         using (var transaction = connection.BeginTransaction(deferred: true))
@@ -150,7 +154,7 @@ public sealed partial class BroodlingStore
         // capture until this exact result and membership checkpoint commit.
         var state = GitCustody.ResolvePinned(repositoryInput, revisionInput);
         GitCustody.Retain(state);
-        var blob = GitCustody.ReadPinnedBlob(state.Repository, state.CommitOid, path);
+        var blob = GitCustody.ReadPinnedBlob(state.Repository, state.CommitOid, path, maxBytes: maxBytes);
         var contentSha256 = Digests.Bytes(blob.Content);
 
         using var write = connection.BeginTransaction(deferred: false);

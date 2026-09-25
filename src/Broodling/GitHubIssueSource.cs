@@ -7,8 +7,9 @@ using System.Text.Json;
 namespace Broodling;
 
 /// <summary>
-/// A refused GitHub read. Retryable failures are operational; the others are
-/// deterministic facts about the requested object, such as its absence.
+/// A refused GitHub read. Only absence (404/410) or a response naming another
+/// object, including a pull request for an issue, is deterministic; transport
+/// failures and malformed responses are retryable.
 /// </summary>
 public sealed class GitHubSourceError(string message, bool retryable = true)
     : BroodlingException("github_source_error", message)
@@ -50,11 +51,11 @@ public sealed class GitHubIssueSource(string executable = "gh")
             var comment = document.RootElement;
             if (comment.ValueKind != JsonValueKind.Object)
                 throw new GitHubSourceError("GitHub comment response is not an object.");
-            if (!StringEquals(comment, "html_url", locator) || !StringEquals(comment, "issue_url",
-                    $"https://api.github.com/repos/{issue.Owner}/{issue.Repository}/issues/{issue.IssueNumber.ToString(CultureInfo.InvariantCulture)}"))
-                throw new GitHubSourceError("GitHub comment locator does not match the reference.", retryable: false);
+            RequireLocator(comment, "html_url", locator);
+            RequireLocator(comment, "issue_url",
+                $"https://api.github.com/repos/{issue.Owner}/{issue.Repository}/issues/{issue.IssueNumber.ToString(CultureInfo.InvariantCulture)}");
             if (!comment.TryGetProperty("body", out var body) || body.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
-                throw new GitHubSourceError("GitHub comment response has an invalid body.", retryable: false);
+                throw new GitHubSourceError("GitHub comment response has an invalid body.");
             _ = body.ValueKind == JsonValueKind.String ? body.GetString() : null;
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or DecoderFallbackException)
@@ -157,24 +158,25 @@ public sealed class GitHubIssueSource(string executable = "gh")
             using var document = JsonDocument.Parse(content);
             var issue = document.RootElement;
             if (issue.ValueKind != JsonValueKind.Object)
-                throw new GitHubSourceError("GitHub primary issue response is not an object.");
+                throw new GitHubSourceError("GitHub issue response is not an object.");
             if (issue.TryGetProperty("pull_request", out _))
                 throw new GitHubSourceError("The GitHub reference must be an issue, not a pull request.", retryable: false);
             if (!issue.TryGetProperty("number", out var number) || number.ValueKind != JsonValueKind.Number
-                || !number.TryGetInt64(out var parsedNumber) || parsedNumber != reference.IssueNumber)
+                || !number.TryGetInt64(out var parsedNumber))
+                throw new GitHubSourceError("GitHub issue response has no number.");
+            if (parsedNumber != reference.IssueNumber)
                 throw new GitHubSourceError("GitHub issue number does not match the reference.", retryable: false);
-            var repositoryUrl = $"https://api.github.com/repos/{reference.Owner}/{reference.Repository}";
-            if (!StringEquals(issue, "html_url", reference.IssueLocator) || !StringEquals(issue, "repository_url", repositoryUrl))
-                throw new GitHubSourceError("GitHub issue locator does not match the reference.", retryable: false);
+            RequireLocator(issue, "html_url", reference.IssueLocator);
+            RequireLocator(issue, "repository_url", $"https://api.github.com/repos/{reference.Owner}/{reference.Repository}");
             if (!issue.TryGetProperty("title", out var title) || title.ValueKind != JsonValueKind.String
                 || string.IsNullOrWhiteSpace(title.GetString()))
-                throw new GitHubSourceError("GitHub issue response has no title.", retryable: false);
+                throw new GitHubSourceError("GitHub issue response has no title.");
             if (!issue.TryGetProperty("body", out var body) || body.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
-                throw new GitHubSourceError("GitHub issue response has an invalid body.", retryable: false);
+                throw new GitHubSourceError("GitHub issue response has an invalid body.");
             _ = body.ValueKind == JsonValueKind.String ? body.GetString() : null;
             if (!issue.TryGetProperty("node_id", out var identity) || identity.ValueKind != JsonValueKind.String
                 || string.IsNullOrWhiteSpace(identity.GetString()))
-                throw new GitHubSourceError("GitHub issue response has no stable identity.", retryable: false);
+                throw new GitHubSourceError("GitHub issue response has no stable identity.");
             var nodeId = identity.GetString()!;
             if (reference.IssueIdentity is not null && reference.IssueIdentity != nodeId)
                 throw new GitHubSourceError("GitHub issue identity does not match the reference.", retryable: false);
@@ -190,7 +192,12 @@ public sealed class GitHubIssueSource(string executable = "gh")
         }
     }
 
-    private static bool StringEquals(JsonElement element, string property, string expected) =>
-        element.TryGetProperty(property, out var actual) && actual.ValueKind == JsonValueKind.String
-        && string.Equals(actual.GetString(), expected, StringComparison.OrdinalIgnoreCase);
+    // A missing locator is a malformed response; a different one names another object.
+    private static void RequireLocator(JsonElement element, string property, string expected)
+    {
+        if (!element.TryGetProperty(property, out var actual) || actual.ValueKind != JsonValueKind.String)
+            throw new GitHubSourceError("GitHub response has no " + property + ".");
+        if (!string.Equals(actual.GetString(), expected, StringComparison.OrdinalIgnoreCase))
+            throw new GitHubSourceError("GitHub response locator does not match the reference.", retryable: false);
+    }
 }
