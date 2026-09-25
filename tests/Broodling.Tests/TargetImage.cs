@@ -17,20 +17,10 @@ internal static class TargetImage
 
     private static async Task<string> BuildDirect()
     {
-        var context = Path.Combine(Path.GetTempPath(), "broodling-104-image-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(context);
-        try
-        {
-            var binary = await Run(NativeFixture.Python, "-c", "import pathlib,zeroshot; print(pathlib.Path(zeroshot.__file__).parent / '_bin' / 'zeroshot')");
-            RequireSuccess(binary);
-            File.Copy(binary.Output.Trim(), Path.Combine(context, "zeroshot"));
-            foreach (var name in new[] { "DirectTarget.Dockerfile", "direct-target-entrypoint.sh", "broodling-reference" })
-                File.Copy(Path.Combine(NativeFixture.RepositoryRoot, "deployment", name), Path.Combine(context, name));
-            var tag = "broodling-startup-test:" + Guid.NewGuid().ToString("N");
-            RequireSuccess(await DockerCommand("build", "--tag", tag, "--file", Path.Combine(context, "DirectTarget.Dockerfile"), context));
-            return tag;
-        }
-        finally { Directory.Delete(context, true); }
+        var deployment = Path.Combine(NativeFixture.RepositoryRoot, "deployment");
+        var tag = "broodling-startup-test:" + Guid.NewGuid().ToString("N");
+        RequireSuccess(await DockerCommand("build", "--tag", tag, "--file", Path.Combine(deployment, "DirectTarget.Dockerfile"), deployment));
+        return tag;
     }
 
     private static async Task<string> BuildControlled()
