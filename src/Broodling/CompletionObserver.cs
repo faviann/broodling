@@ -14,7 +14,8 @@ namespace Broodling;
 /// </param>
 /// <param name="unexpectedFailure">
 /// Called once with the Attempt ID when its observation fails in a way no scan can resolve. That
-/// Attempt is not observed again in this process; other observations continue.
+/// Attempt is not observed again in this process; other observations continue. It may be invoked
+/// concurrently from thread-pool threads.
 /// </param>
 public sealed class CompletionObserver(BroodlingApplication application, string storePath, string? directTargetRootCertificate,
     Action<string, Exception> unexpectedFailure)
@@ -61,8 +62,14 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        await Task.WhenAll(observing.Values.Select(active => active.Wait));
-        foreach (var active in observing.Values) active.Detach.Dispose();
+        finally
+        {
+            // Shutdown already detached every wait through the linked token. An unexpected discovery
+            // failure detaches them here, so no wait outlives this call and a restart cannot duplicate one.
+            foreach (var active in observing.Values) active.Detach.Cancel();
+            await Task.WhenAll(observing.Values.Select(active => active.Wait));
+            foreach (var active in observing.Values) active.Detach.Dispose();
+        }
     }
 
     /// <summary>Eligible Attempt IDs, or null when the store is temporarily unreadable.</summary>
