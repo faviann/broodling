@@ -11,7 +11,12 @@ internal abstract record InvocationConfiguration
 {
     private InvocationConfiguration() { }
 
-    internal sealed record Direct(string Target, string DirectOrigin) : InvocationConfiguration;
+    /// <summary>
+    /// <see cref="DirectRootCertificate"/> optionally names the absolute path of the PEM root that HTTPS
+    /// connections trust instead of system trust. Only its shape is checked here; each new DirectTarget
+    /// TLS connection reads the file, so a missing file never prevents startup or retained reads.
+    /// </summary>
+    internal sealed record Direct(string Target, string DirectOrigin, string? DirectRootCertificate = null) : InvocationConfiguration;
 
     internal sealed record Local(string Target, string PythonExecutable, string StateDirectory, string WorkspaceRoot,
         string RealCodex, string ProfileHome, string CodexHome, string Launcher) : InvocationConfiguration;
@@ -42,11 +47,12 @@ internal abstract record InvocationConfiguration
         catch (JsonException) { }
         switch (config)
         {
-            // The installed operator profile is loopback-only. The callable invocation API remains separate.
-            case Direct direct when !Uri.TryCreate(direct.DirectOrigin, UriKind.Absolute, out var endpoint)
-                || endpoint.Port is < 1 or > 65535 || direct.DirectOrigin != $"http://127.0.0.1:{endpoint.Port}":
-                throw new UnsupportedRuntime("The operator DirectTarget must use a canonical loopback HTTP origin with an explicit port.");
-            case Direct or Local:
+            case Direct { DirectRootCertificate: { } root } when !Path.IsPathFullyQualified(root):
+                throw new UnsupportedRuntime("The DirectTarget root certificate must be an absolute path.");
+            case Direct direct:
+                _ = new InvocationTarget.Direct(direct.DirectOrigin); // The one origin rule; it refuses anything else.
+                return config;
+            case Local:
                 return config;
             default:
                 throw new InvalidContractProposal("Invalid invocation configuration.");

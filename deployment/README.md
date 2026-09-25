@@ -189,13 +189,25 @@ invocation over the HTTP DirectTarget:
 ```json
 {
   "target": "direct",
-  "directOrigin": "http://127.0.0.1:18770"
+  "directOrigin": "https://zeroshot.dev.faviann.com",
+  "directRootCertificate": "/NEW/zeroshot-tls/root.crt"
 }
 ```
 
 It needs no Python executable, SDK client state, workspace root or launcher. The
-operator origin must be exactly `http://127.0.0.1:<port>`, with an explicit valid
-port and no extra components. `check-target` uses this same file.
+origin follows the native rule: canonical HTTPS, or literal-loopback HTTP such as
+`http://127.0.0.1:18770`, spelled as scheme and authority only, with a default
+port omitted and never port 0. Anything else refuses.
+
+The optional `directRootCertificate` is the absolute path of a PEM root
+certificate, such as Caddy's `tls internal` root. When it is set, HTTPS and WSS
+connections to the DirectTarget trust exactly that root, not system trust. When
+it is unset, system trust applies. No option disables certificate validation.
+Each new TLS connection rereads the file, so a regenerated root is used without
+restarting Broodling. A missing or unreadable file fails only
+that operation, as a transport failure; a dispatch fails before recording any
+dispatch intent. `check-target` uses this same file, but until #186 it still
+accepts only a loopback HTTP origin, `http://127.0.0.1:<port>`.
 
 The no-effect LocalTarget alternative uses the SDK bridge:
 
@@ -374,8 +386,8 @@ Broodling.Host submit <store> <config.json> <repository> <issue> <checkout> <rev
 Broodling.Host status <store> <contract-revision-id>
 Broodling.Host history <store> <repository> <issue>
 Broodling.Host resume <store> <contract-revision-id> [config.json [checkout [revision]]]
-Broodling.Host wait <store> <attempt-id> [python-executable]
-Broodling.Host stop <store> <attempt-id> <reason> [python-executable]
+Broodling.Host wait <store> <attempt-id> [config.json]
+Broodling.Host stop <store> <attempt-id> <reason> [config.json]
 ```
 
 Here `Broodling.Host` abbreviates `dotnet /RELEASE/host/Broodling.Host.dll`.
@@ -391,8 +403,16 @@ use history/status to find handles before choosing recovery.
 Resume the same revision after interruption; repeating submit reacquires bytes.
 Uncorrelated replay needs the same target configuration and current credentials.
 Correlated resume and retained status/history need neither. `wait` and `stop`
-need the pinned SDK Python executable only for a LocalTarget record; HTTP records
-use their retained binding. Retained completion works offline. Until completion
+take the same optional `config.json`, and the retained record decides what they
+use from it. A LocalTarget record needs a LocalTarget configuration for its
+pinned SDK Python. An HTTP record connects to its retained origin, and uses a
+Direct configuration only for its root certificate. A configuration of the other
+kind, or a Direct origin that differs from the retained one, refuses before any
+target contact or abandonment. For an HTTPS target with a
+private root, pass the Direct `config.json` to `wait` and `stop`. Without it,
+system trust applies and the connection fails. `stop` then records the
+abandonment and reports native stop as not sent (`transport_failed`); running
+`stop` again with the configuration requests it. Retained completion works offline. Until completion
 is retained, the host user also needs Git fetch access to the frozen origin URL,
 because wait fetches and pins the exact accepted commit before recording success. Native failure abandons; transport loss or a
 cancelled wait only detaches. Restore access to the same target and wait again.

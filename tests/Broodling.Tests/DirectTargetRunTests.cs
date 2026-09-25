@@ -23,7 +23,7 @@ public sealed class DirectTargetRunTests
             ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "succeeded", ["output"] = null }
         }));
         var clock = new PollClock();
-        var wait = DirectTargetRun.WaitAsync(Binding(target.Origin), clock, default);
+        var wait = DirectTargetRun.WaitAsync(Binding(target.Origin), null, clock, default);
         for (var pause = 1; pause <= 17; pause++)
         {
             await clock.NextPause();
@@ -51,7 +51,7 @@ public sealed class DirectTargetRunTests
         target.Projections.Enqueue(null);
         var clock = new PollClock();
         using var caller = new CancellationTokenSource();
-        var wait = DirectTargetRun.WaitAsync(Binding(target.Origin), clock, caller.Token);
+        var wait = DirectTargetRun.WaitAsync(Binding(target.Origin), null, clock, caller.Token);
         await clock.NextPause();
         if (end == "cancel-pause")
         {
@@ -101,7 +101,7 @@ public sealed class DirectTargetRunTests
         }
         if (precheck is "foreign" or "malformed") target.Projections.Enqueue(projection);
         target.Projections.Enqueue(Finished("force_stopped")); // What a force would get.
-        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Intended, new FakeTimeProvider(), default);
+        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Intended, null, new FakeTimeProvider(), default);
 
         await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.NotSent, reason));
         await Assert.That(target.Count("run/force")).IsEqualTo(0);
@@ -117,7 +117,7 @@ public sealed class DirectTargetRunTests
         // Even a finished precheck is still followed by the explicit force.
         if (identity == NativeRunIdentity.Intended) target.Projections.Enqueue(Finished("runtime_lost"));
         target.Projections.Enqueue(Finished("force_stopped"));
-        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), identity, new FakeTimeProvider(), default);
+        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), identity, null, new FakeTimeProvider(), default);
 
         await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.Terminal, null));
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
@@ -133,7 +133,7 @@ public sealed class DirectTargetRunTests
         target.Projections.Enqueue(Stopping());
         target.Projections.Enqueue(Finished("force_stopped"));
         var clock = new PollClock();
-        var stop = DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Confirmed, clock, default);
+        var stop = DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Confirmed, null, clock, default);
         for (var pause = 0; pause < 2; pause++)
         {
             await clock.NextPause();
@@ -157,7 +157,7 @@ public sealed class DirectTargetRunTests
         var clock = new PollClock();
         using var caller = new CancellationTokenSource();
         var identity = end == "precheck-deadline" ? NativeRunIdentity.Intended : NativeRunIdentity.Confirmed;
-        var stop = DirectTargetRun.StopAsync(Binding(target.Origin), identity, clock, caller.Token);
+        var stop = DirectTargetRun.StopAsync(Binding(target.Origin), identity, null, clock, caller.Token);
         var elapsed = TimeSpan.Zero;
         if (end != "precheck-deadline")
         {

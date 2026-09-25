@@ -23,7 +23,7 @@ public sealed class DirectTargetSessionTests
         target.Projections.Enqueue(Running());
         target.Projections.Enqueue(Projection(new JsonObject { ["phase"] = "admitted" }));
         using var first = Budget();
-        await using var session = await DirectTargetSession.OpenAsync(Binding(target.Origin), first);
+        await using var session = await DirectTargetSession.OpenAsync(Binding(target.Origin), null, first);
         var running = await session.StatusAsync(first);
         using var later = Budget();
         var admitted = await session.StatusAsync(later);
@@ -194,7 +194,7 @@ public sealed class DirectTargetSessionTests
             : new NativeRunBinding(new NativeLocator(kind, address.Replace("{port}", target.Origin.Port.ToString())), RunId,
                 "Fix the widget", "small", Source);
         using var budget = Budget();
-        await Assert.That(async () => { await DirectTargetSession.OpenAsync(binding, budget); }).Throws<UnsupportedRuntime>();
+        await Assert.That(async () => { await DirectTargetSession.OpenAsync(binding, null, budget); }).Throws<UnsupportedRuntime>();
         await Assert.That(target.Connections).IsEqualTo(0);
     }
 
@@ -210,7 +210,7 @@ public sealed class DirectTargetSessionTests
         using var budget = DirectTargetBudget.Start(DirectTargetLimits.Progress, clock, caller.Token);
         var read = Task.Run(async () =>
         {
-            await using var session = await DirectTargetSession.OpenAsync(Binding(target.Origin), budget);
+            await using var session = await DirectTargetSession.OpenAsync(Binding(target.Origin), null, budget);
             return await session.StatusAsync(budget);
         });
         await target.Stalled.Task.WaitAsync(Patience);
@@ -239,7 +239,7 @@ public sealed class DirectTargetSessionTests
     private static async Task<DirectTargetRunStatus> Read(StockTarget target)
     {
         using var budget = Budget();
-        await using var session = await DirectTargetSession.OpenAsync(Binding(target.Origin), budget);
+        await using var session = await DirectTargetSession.OpenAsync(Binding(target.Origin), null, budget);
         return await session.StatusAsync(budget);
     }
 

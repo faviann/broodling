@@ -19,18 +19,23 @@ public sealed class DirectTargetExchangeTests
     [Test]
     [Arguments("https://example.test", true)]
     [Arguments("https://example.test:8443", true)]
+    [Arguments("https://127.0.0.1:8123", true)]
+    [Arguments("http://127.0.0.1", true)]
     [Arguments("http://127.0.0.1:9", true)]
     [Arguments("http://[::1]:9", true)]
     [Arguments("http://localhost:9", false)]
     [Arguments("http://192.0.2.1:9", false)]
     [Arguments("http://127.0.0.1:9/", false)]
+    [Arguments("http://127.0.0.1:80", false)]
+    [Arguments("http://127.0.0.1:0", false)]
+    [Arguments("https://example.test:0", false)]
     [Arguments("https://example.test/prefix", false)]
     [Arguments("http://127.0.0.1:9?key=secret", false)]
     [Arguments("https://user@example.test", false)]
     [Arguments("http://user:secret@127.0.0.1:9", false)]
     [Arguments("HTTPS://example.test", false)]
     [Arguments("ftp://127.0.0.1:9", false)]
-    public async Task OnlyCanonicalHttpsOrLiteralLoopbackHttpOriginsAreSupported(string address, bool supported)
+    public async Task OnlyCanonicalContactableHttpsOrLiteralLoopbackHttpOriginsAreSupported(string address, bool supported)
     {
         await Assert.That(DirectTargetExchange.CanonicalOrigin(address) is not null).IsEqualTo(supported);
     }

@@ -30,23 +30,27 @@ internal sealed class DirectTargetSession : IAsyncDisposable
          "status":{"phase":"empty","observedGeneration":null,"currentRunId":null,"atCursor":null}}
         """).RootElement.Clone();
 
-    private readonly SocketsHttpHandler handler = DirectTargetExchange.CreateHandler();
+    private readonly SocketsHttpHandler handler;
     private readonly ClientWebSocket socket = new();
     private readonly NativeRunBinding run;
     private readonly NativeSource source;
     private int sequence;
 
-    private DirectTargetSession(NativeRunBinding run, NativeSource source)
+    private DirectTargetSession(NativeRunBinding run, NativeSource source, SocketsHttpHandler handler)
     {
         this.run = run;
         this.source = source;
+        this.handler = handler;
     }
 
-    /// <summary>Discovery, session creation, WebSocket connection and initialization.</summary>
-    internal static async Task<DirectTargetSession> OpenAsync(NativeRunBinding run, DirectTargetBudget budget)
+    /// <summary>
+    /// Discovery, session creation, WebSocket connection and initialization. Every connection is made
+    /// here; later reads reuse the open WebSocket.
+    /// </summary>
+    internal static async Task<DirectTargetSession> OpenAsync(NativeRunBinding run, string? rootCertificate, DirectTargetBudget budget)
     {
         var (origin, source) = Target(run);
-        var session = new DirectTargetSession(run, source);
+        var session = new DirectTargetSession(run, source, DirectTargetExchange.CreateHandler(origin, rootCertificate));
         try
         {
             using (var http = DirectTargetExchange.CreateClient(session.handler))

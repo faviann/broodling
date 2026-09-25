@@ -104,11 +104,13 @@ submit still acquires and proposes; resume and inspection do not.
 The thin host command does not start HTTP:
 
 ```text
-wait <store> <attempt-id> [python-executable]
+wait <store> <attempt-id> [config.json]
 ```
 
-Supply the pinned SDK Python executable only for an unretained LocalTarget
-result. Retained completion needs no executable, dispatch configuration, credentials, origin
+Supply a LocalTarget `config.json` for its pinned SDK Python only for an
+unretained LocalTarget result. An unretained HTTP result waits on its retained
+origin and needs a Direct `config.json` only to trust a configured private root.
+Retained completion needs no executable, dispatch configuration, credentials, origin
 access or working native target. Existing `resume`, `status` and `history`
 commands include completion facts; Ctrl+C from wait returns caller-detached
 handback.

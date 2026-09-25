@@ -233,26 +233,27 @@ The host accepts these commands without starting HTTP:
 ```text
 submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer>
 resume <store> <contract-revision-id> [config.json [checkout [revision]]]
-wait <store> <attempt-id> [python-executable]
-stop <store> <attempt-id> <reason> [python-executable]
+wait <store> <attempt-id> [config.json]
+stop <store> <attempt-id> <reason> [config.json]
 ```
 
 `-` explicitly authorizes no effect. The producer normally is `caller`.
 `ReviewedIssueProposal` requires the complete acquired issue to match the
 operator-reviewed file exactly. The configuration names exactly one target kind:
-`{"target": "direct", "directOrigin": ...}` for authorized PR work, or
+`{"target": "direct", "directOrigin": ...}`, with an optional absolute
+`directRootCertificate`, for authorized PR work, or
 `{"target": "local", "pythonExecutable", "stateDirectory", "workspaceRoot"}` plus
 all four of `realCodex`, `profileHome`, `codexHome` and `launcher` for
 no-effect work. It contains no secrets. A missing or unknown kind, a field of the
-other kind, an unknown field or a credential field is refused. The operator's
-DirectTarget origin must be exactly `http://127.0.0.1:<port>` with an explicit
-port from 1 through 65535, without user information, path, query or fragment.
-This preserves the installed loopback profile; the callable API is not
-restricted to that installation configuration. The `<checkout>` names the source
+other kind, an unknown field or a credential field is refused. The DirectTarget
+origin must pass the same rule as `InvocationTarget.Direct`: canonical HTTPS or
+literal-loopback HTTP, without user information, path, query or fragment, and
+never port 0. The `<checkout>` names the source
 repository whose exact revision becomes B1; it is not an execution checkout.
 The operator command obtains current PR credentials from its environment and
-passes them explicitly to the application. `wait` and `stop` need the pinned SDK
-Python only for a LocalTarget record. The submit, resume and stop handbacks
+passes them explicitly to the application. `wait` and `stop` take the same
+optional configuration: a LocalTarget record uses its pinned SDK Python, and an
+HTTP record uses a Direct configuration's root certificate. The submit, resume and stop handbacks
 report each submission only as its status facts (Attempt, format, phase, intended
 and confirmed run IDs, replay block); `status` and `history` remain the full
 retained-fact inspection surface, including the frozen request. Correlated/rejected/ended resume

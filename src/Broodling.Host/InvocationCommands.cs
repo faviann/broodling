@@ -12,37 +12,80 @@ public static class InvocationCommands
             || args.Length is 3 or 4 && args[0] == "wait"
             || args.Length is 4 or 5 && args[0] == "stop"))
         {
-            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [python-executable] | stop <store> <attempt-id> <reason> [python-executable]");
+            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [config.json] | stop <store> <attempt-id> <reason> [config.json]");
             return 2;
         }
         try
         {
-            using var store = application.OpenStore(args[1]);
+            if (args[0] == "resume")
+            {
+                // Inspection/reconnection handles do not need configuration or old dispatch credentials.
+                using (var inspection = application.OpenStore(args[1]))
+                {
+                    var retained = inspection.Status(args[2]);
+                    if (Invocation.CanResumeWithoutDispatch(retained))
+                    {
+                        Write(retained, output);
+                        return 0;
+                    }
+                }
+                if (args.Length < 4) throw new SubmissionNotReady("Dispatch configuration is required for uncorrelated resume.");
+            }
             if (args[0] == "wait")
             {
-                var completion = store.FindCompletion(args[2]);
-                // Only a LocalTarget bridge record needs the pinned SDK Python; the store routes on the retained record.
-                completion ??= await store.WaitAsync(args[2], transport ?? (args.Length == 4 ? new ZeroshotTransport(args[3]) : null),
-                    cancellationToken);
+                // A retained completion needs no configuration, even a stale one.
+                using var inspection = application.OpenStore(args[1]);
+                if (inspection.FindCompletion(args[2]) is { } retained)
+                {
+                    output.WriteLine(JsonSerializer.Serialize(retained, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                    return 0;
+                }
+            }
+            // wait/stop take the same optional configuration; the retained record decides what applies:
+            // a LocalTarget record its pinned SDK Python, an HTTP record its DirectTarget root certificate.
+            var configPath = args[0] switch
+            {
+                "submit" => args[2],
+                "resume" => args[3],
+                "wait" => args.Length == 4 ? args[3] : null,
+                _ => args.Length == 5 ? args[4] : null
+            };
+            var configuration = configPath is null ? null : InvocationConfiguration.Read(configPath);
+            using var store = application.OpenStore(args[1], (configuration as InvocationConfiguration.Direct)?.DirectRootCertificate);
+            transport ??= configuration is InvocationConfiguration.Local local ? new ZeroshotTransport(local.PythonExecutable) : null;
+            if (args[0] is "wait" or "stop" && configuration is not null)
+            {
+                // A supplied configuration must describe the retained target, refused before contact or
+                // abandonment. The retained binding, not the configuration, still decides where it connects.
+                var retainedKind = store.GetAttempt(args[2]).ResourceKind;
+                var retainedOrigin = store.FindSubmission(args[2])?.Locator.Address;
+                if (configuration is InvocationConfiguration.Direct direct
+                        ? retainedKind != AttemptRecord.Http || retainedOrigin is not null && retainedOrigin != direct.DirectOrigin
+                        : retainedKind != AttemptRecord.Worktree)
+                    throw new SubmissionConflict("The configured target differs from the retained Attempt's target.");
+            }
+            if (args[0] == "wait")
+            {
+                // The store routes on the retained record; only a LocalTarget bridge record uses the transport.
+                var completion = await store.WaitAsync(args[2], transport, cancellationToken);
                 output.WriteLine(JsonSerializer.Serialize(completion, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return 0;
             }
             if (args[0] == "stop")
             {
                 // Without a bridge transport a LocalTarget run could be abandoned but never asked to stop.
-                if (transport is null && args.Length == 4
-                    && store.FindSubmission(args[2]) is { Format: NativeSubmission.Bridge, State: not "prepared" })
+                if (transport is null && store.FindSubmission(args[2]) is { Format: NativeSubmission.Bridge, State: not "prepared" })
                 {
                     error.WriteLine(JsonSerializer.Serialize(new
                     {
                         error = "python_required",
-                        message = "Stopping a dispatched LocalTarget run requires the pinned SDK Python executable argument. The Attempt was not abandoned."
+                        message = "Stopping a dispatched LocalTarget run requires the LocalTarget config.json that names the pinned SDK Python. The Attempt was not abandoned."
                     }));
                     return 1;
                 }
                 string? refusal = null;
                 var exitCode = 0;
-                try { await store.StopAsync(args[2], args[3], transport ?? (args.Length == 5 ? new ZeroshotTransport(args[4]) : null), cancellationToken); }
+                try { await store.StopAsync(args[2], args[3], transport, cancellationToken); }
                 catch (Exception exception)
                 {
                     refusal = exception is BroodlingException known ? known.Code : exception is OperationCanceledException ? "caller_detached" : "stop_failed";
@@ -62,20 +105,8 @@ public static class InvocationCommands
                 }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return exitCode;
             }
-            AdmissionStatus? status = null;
-            if (args[0] == "resume")
-            {
-                status = store.Status(args[2]);
-                // Inspection/reconnection handles do not need configuration or old dispatch credentials.
-                if (Invocation.CanResumeWithoutDispatch(status))
-                {
-                    Write(status, output);
-                    return 0;
-                }
-                if (args.Length < 4) throw new SubmissionNotReady("Dispatch configuration is required for uncorrelated resume.");
-            }
-            var configPath = args[0] == "submit" ? args[2] : args[3];
-            var invocation = new Invocation(store, InvocationConfiguration.Read(configPath).ToTarget(transport));
+            AdmissionStatus status;
+            var invocation = new Invocation(store, configuration!.ToTarget(transport));
             var credentials = new DispatchCredentials(Environment.GetEnvironmentVariable("GH_TOKEN"),
                 Environment.GetEnvironmentVariable("GATEWAY_BASE_URL"), Environment.GetEnvironmentVariable("GATEWAY_API_KEY"));
             if (args[0] == "submit")

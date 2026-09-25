@@ -63,10 +63,10 @@ public sealed partial class BroodlingStore
     /// <summary>
     /// First send or exact acknowledgement-loss replay of a prepared HTTP submission. A correlated
     /// record is handed back with no other prerequisite. Otherwise the send needs current authority,
-    /// no retained replay block, no pause, current credentials and exact retained B1 custody; dispatch
-    /// intent commits before discovery and the writer is released before any network I/O. Only the
-    /// exact acknowledgement correlates; every other outcome leaves the intent unresolved. A
-    /// correlation that arrives after abandonment is retained, then that exact run is stopped.
+    /// no retained replay block, no pause, current credentials, exact retained B1 custody and a readable
+    /// configured root; dispatch intent commits before discovery and the writer is released before any
+    /// network I/O. Only the exact acknowledgement correlates; every other outcome leaves the intent
+    /// unresolved. A correlation that arrives after abandonment is retained, then that exact run is stopped.
     /// </summary>
     public async Task<NativeSubmission> DispatchHttpAsync(string attemptId, DispatchCredentials? credentials,
         CancellationToken cancellationToken = default)
@@ -81,6 +81,10 @@ public sealed partial class BroodlingStore
         // Credential and Git checks may be slow; they never hold the SQLite writer.
         var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).Environment();
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
+        // Checked before intent: a missing root means nothing can be sent, so it records nothing.
+        // Each connection reads the root again.
+        var origin = DirectTargetExchange.CanonicalOrigin(record.Locator.Address)!;
+        if (directTargetRoot is not null && origin.Scheme == Uri.UriSchemeHttps) DirectTargetExchange.ReadRoot(directTargetRoot).Dispose();
 
         var conflict = false;
         // Held from before the intent commits until this caller can no longer send. It is local only:
@@ -102,8 +106,8 @@ public sealed partial class BroodlingStore
             }
             try
             {
-                await DirectTargetSubmission.SubmitAsync(DirectTargetExchange.CanonicalOrigin(record.Locator.Address)!,
-                    record.RequestJson, record.IntendedRunId!, ephemeral, DirectTargetClock, cancellationToken);
+                await DirectTargetSubmission.SubmitAsync(origin, directTargetRoot, record.RequestJson, record.IntendedRunId!, ephemeral,
+                    DirectTargetClock, cancellationToken);
             }
             catch (SubmissionConflict) { conflict = true; }
         }

@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Security;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 
 namespace Broodling;
@@ -80,26 +83,71 @@ internal static class DirectTargetExchange
 {
     private static readonly JsonDocumentOptions Json = new() { MaxDepth = DirectTargetLimits.JsonDepth, AllowDuplicateProperties = false };
 
-    /// <summary>No redirects, proxy, cookies or ambient credentials; ordinary TLS verification.</summary>
-    internal static SocketsHttpHandler CreateHandler() => new()
+    /// <summary>
+    /// No redirects, proxy, cookies or ambient credentials. TLS is always verified: by system trust, or,
+    /// for an HTTPS <paramref name="origin"/> with a <paramref name="rootCertificate"/>, by exactly that
+    /// PEM root, reread for each new TLS connection.
+    /// </summary>
+    internal static SocketsHttpHandler CreateHandler(Uri? origin = null, string? rootCertificate = null)
     {
-        AllowAutoRedirect = false,
-        UseProxy = false,
-        UseCookies = false,
-        Credentials = null,
-        PreAuthenticate = false,
-        MaxResponseHeadersLength = DirectTargetLimits.ResponseHeaderKiB
-    };
+        var handler = new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            UseProxy = false,
+            UseCookies = false,
+            Credentials = null,
+            PreAuthenticate = false,
+            MaxResponseHeadersLength = DirectTargetLimits.ResponseHeaderKiB
+        };
+        if (rootCertificate is not null && origin?.Scheme == Uri.UriSchemeHttps)
+            handler.SslOptions.RemoteCertificateValidationCallback = (_, certificate, presented, errors) =>
+                ChainsToRoot(rootCertificate, certificate, presented, errors);
+        return handler;
+    }
+
+    /// <summary>
+    /// One TLS handshake's validation against the configured root, read now: any failure other than the
+    /// system-trust chain (a host name mismatch, no certificate) refuses, and only a chain from the
+    /// presented certificate and intermediates to exactly that root, for server authentication, accepts.
+    /// The system store plays no part. Revocation is unchecked, as for ordinary TLS. An unreadable root refuses.
+    /// </summary>
+    private static bool ChainsToRoot(string rootCertificate, X509Certificate? certificate, X509Chain? presented, SslPolicyErrors errors)
+    {
+        if ((errors & ~SslPolicyErrors.RemoteCertificateChainErrors) != SslPolicyErrors.None || certificate is not X509Certificate2 leaf)
+            return false;
+        X509Certificate2 root;
+        try { root = ReadRoot(rootCertificate); }
+        catch (NativeTransportError) { return false; }
+        using (root)
+        using (var chain = new X509Chain())
+        {
+            chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+            chain.ChainPolicy.ApplicationPolicy.Add(new Oid("1.3.6.1.5.5.7.3.1"));
+            chain.ChainPolicy.CustomTrustStore.Add(root);
+            if (presented is not null) chain.ChainPolicy.ExtraStore.AddRange(presented.ChainPolicy.ExtraStore);
+            return chain.Build(leaf);
+        }
+    }
+
+    /// <summary>The configured PEM root; missing, unreadable or not a certificate is a transport failure.</summary>
+    internal static X509Certificate2 ReadRoot(string rootCertificate)
+    {
+        try { return X509Certificate2.CreateFromPem(File.ReadAllText(rootCertificate)); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or CryptographicException)
+        { throw new NativeTransportError(); }
+    }
 
     internal static HttpClient CreateClient(SocketsHttpHandler? shared = null) =>
         new(shared ?? CreateHandler(), disposeHandler: shared is null) { Timeout = Timeout.InfiniteTimeSpan };
 
     /// <summary>
-    /// A canonical DirectTarget origin: HTTPS, or literal-loopback HTTP, spelled exactly as its
-    /// scheme and authority, with no userinfo, path, query or fragment. Otherwise null.
+    /// A canonical DirectTarget origin, mirroring the native rule: HTTPS, or literal-loopback HTTP,
+    /// spelled exactly as its scheme and authority (a default port omitted), with no userinfo, path,
+    /// query or fragment, and a contactable port. Otherwise null.
     /// </summary>
     internal static Uri? CanonicalOrigin(string address) =>
-        Uri.TryCreate(address, UriKind.Absolute, out var origin) && origin.UserInfo == ""
+        Uri.TryCreate(address, UriKind.Absolute, out var origin) && origin.UserInfo == "" && origin.Port != 0
         && address == origin.GetLeftPart(UriPartial.Authority)
         && (origin.Scheme == Uri.UriSchemeHttps || origin.Scheme == Uri.UriSchemeHttp
             && IPAddress.TryParse(origin.DnsSafeHost, out var host) && IPAddress.IsLoopback(host))

@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json.Nodes;
 
@@ -14,6 +16,7 @@ namespace Broodling.Tests;
 /// run/status and run/force from <see cref="Projections"/>, where a null entry never replies. Like
 /// the stock target, a submission key names at most one run and a replay returns that run's ID.
 /// It records each stage reached and can stall at one, or halfway through a submission body.
+/// With a server certificate it serves HTTPS and WSS at <c>https://localhost:port</c> instead.
 /// </summary>
 internal sealed class StockTarget : IAsyncDisposable
 {
@@ -45,12 +48,16 @@ internal sealed class StockTarget : IAsyncDisposable
     internal List<string> Heads { get; } = [];
     internal List<JsonObject> Messages { get; } = [];
     internal string? SessionBody { get; private set; }
+    /// <summary>The certificate each new TLS connection presents; replaceable, like a regenerated authority.</summary>
+    internal SslStreamCertificateContext? Certificate { get; set; }
 
-    internal StockTarget()
+    internal StockTarget(SslStreamCertificateContext? certificate = null)
     {
         Submit = body => Task.FromResult(Accept(body));
+        Certificate = certificate;
         listener.Start();
-        Origin = new Uri($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}");
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        Origin = new Uri(certificate is null ? $"http://127.0.0.1:{port}" : $"https://localhost:{port}");
         accepting = Task.Run(async () =>
         {
             var handlers = new List<Task>();
@@ -88,7 +95,13 @@ internal sealed class StockTarget : IAsyncDisposable
         using var _ = client;
         try
         {
-            var stream = client.GetStream();
+            Stream stream = client.GetStream();
+            if (Certificate is { } certificate)
+            {
+                var tls = new SslStream(stream);
+                await tls.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificateContext = certificate }, stop.Token);
+                stream = tls;
+            }
             var head = new StringBuilder();
             var octet = new byte[1];
             while (!head.ToString().EndsWith("\r\n\r\n", StringComparison.Ordinal) && await stream.ReadAsync(octet, stop.Token) == 1)
@@ -132,7 +145,8 @@ internal sealed class StockTarget : IAsyncDisposable
                 await stream.ReadExactlyAsync(body, stop.Token);
                 SessionBody = Encoding.UTF8.GetString(body);
                 await Reached("session");
-                var (status, reply) = Session ?? (200, $$"""{"endpoint":"ws://{{Origin.Authority}}/native-v2/oecp"}""");
+                var socket = Origin.Scheme == Uri.UriSchemeHttps ? "wss" : "ws";
+                var (status, reply) = Session ?? (200, $$"""{"endpoint":"{{socket}}://{{Origin.Authority}}/native-v2/oecp"}""");
                 await Respond(stream, status, reply);
             }
             else if (line.StartsWith("GET /native-v2/oecp ", StringComparison.Ordinal))
@@ -210,4 +224,46 @@ internal sealed class StockTarget : IAsyncDisposable
         await accepting;
         stop.Dispose();
     }
+}
+
+/// <summary>
+/// A private authority shaped like Caddy's <c>tls internal</c>: a root, an intermediate and a leaf for
+/// <paramref name="Host"/>, served with its intermediate. Only <see cref="RootPem"/> is given to the client.
+/// </summary>
+internal sealed record PrivateAuthority(string Host, string RootPem, SslStreamCertificateContext Server)
+{
+    internal static PrivateAuthority Create(string host = "localhost")
+    {
+        var now = DateTimeOffset.UtcNow;
+        using var rootKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var root = Request("CN=Broodling test root", rootKey, authority: true).CreateSelfSigned(now.AddHours(-1), now.AddDays(1));
+        using var intermediateKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var intermediate = Issue(Request("CN=Broodling test intermediate", intermediateKey, authority: true), root, now, TimeSpan.FromHours(20))
+            .CopyWithPrivateKey(intermediateKey);
+        using var leafKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var leafRequest = Request("CN=" + host, leafKey, authority: false);
+        var names = new SubjectAlternativeNameBuilder();
+        names.AddDnsName(host);
+        leafRequest.CertificateExtensions.Add(names.Build());
+        leafRequest.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], false));
+        using var leaf = Issue(leafRequest, intermediate, now, TimeSpan.FromHours(12)).CopyWithPrivateKey(leafKey);
+        // A PKCS#12 round trip gives the server a persisted key, as a loaded certificate would have.
+        var server = X509CertificateLoader.LoadPkcs12(leaf.Export(X509ContentType.Pkcs12), null);
+        var chain = new X509Certificate2Collection(X509CertificateLoader.LoadCertificate(intermediate.RawData));
+        return new(host, root.ExportCertificatePem(), SslStreamCertificateContext.Create(server, chain, offline: true));
+    }
+
+    private static CertificateRequest Request(string subject, ECDsa key, bool authority)
+    {
+        var request = new CertificateRequest(subject, key, HashAlgorithmName.SHA256);
+        request.CertificateExtensions.Add(new X509BasicConstraintsExtension(authority, false, 0, true));
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(authority
+            ? X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign : X509KeyUsageFlags.DigitalSignature, true));
+        request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+        return request;
+    }
+
+    /// <summary>Each issued certificate's validity nests inside its issuer's.</summary>
+    private static X509Certificate2 Issue(CertificateRequest request, X509Certificate2 issuer, DateTimeOffset now, TimeSpan lifetime) =>
+        request.Create(issuer, now.AddMinutes(-30), now + lifetime, RandomNumberGenerator.GetBytes(16));
 }

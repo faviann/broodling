@@ -19,10 +19,11 @@ internal static class DirectTargetRun
     /// Setup and the immediate first read share 30 seconds; each later read has its own 10 seconds.
     /// There is no overall deadline, and the caller may stop observing at any time.
     /// </summary>
-    internal static async Task<NativeResult> WaitAsync(NativeRunBinding run, TimeProvider clock, CancellationToken caller)
+    internal static async Task<NativeResult> WaitAsync(NativeRunBinding run, string? rootCertificate, TimeProvider clock,
+        CancellationToken caller)
     {
         using var setup = DirectTargetBudget.Start(DirectTargetLimits.WaitSetup, clock, caller);
-        await using var session = await DirectTargetSession.OpenAsync(run, setup);
+        await using var session = await DirectTargetSession.OpenAsync(run, rootCertificate, setup);
         var first = await session.StatusAsync(setup);
         using var pacing = setup.Fresh(Timeout.InfiniteTimeSpan);
         return await session.TerminalAsync(first, pacing, DirectTargetLimits.WaitRead);
@@ -34,14 +35,14 @@ internal static class DirectTargetRun
     /// failure before force is <see cref="DirectTargetForce.NotSent"/>; from the force request on it is
     /// <see cref="DirectTargetForce.Uncertain"/>. Caller cancellation propagates.
     /// </summary>
-    internal static async Task<DirectTargetStop> StopAsync(NativeRunBinding run, NativeRunIdentity identity, TimeProvider clock,
-        CancellationToken caller)
+    internal static async Task<DirectTargetStop> StopAsync(NativeRunBinding run, NativeRunIdentity identity, string? rootCertificate,
+        TimeProvider clock, CancellationToken caller)
     {
         using var budget = DirectTargetBudget.Start(DirectTargetLimits.Stop, clock, caller);
         var force = DirectTargetForce.NotSent;
         try
         {
-            await using var session = await DirectTargetSession.OpenAsync(run, budget);
+            await using var session = await DirectTargetSession.OpenAsync(run, rootCertificate, budget);
             if (identity == NativeRunIdentity.Intended) await session.StatusAsync(budget);
             force = DirectTargetForce.Uncertain; // Conservatively, from the attempt to send it.
             var forced = await session.ForceAsync(budget);
