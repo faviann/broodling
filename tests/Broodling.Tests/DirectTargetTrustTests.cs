@@ -54,11 +54,17 @@ public sealed class DirectTargetTrustTests
         var first = PrivateAuthority.Create();
         await using var target = new StockTarget(first.Server);
         using var fixture = new HttpFixture();
-        var run = fixture.PrepareAt(target.Origin, "correlated").Run!;
+        fixture.PrepareAt(target.Origin);
         var root = Path.Combine(fixture.Git.State.Root, "zeroshot-root.crt");
-        // Opening names the root without reading it.
+        // Opening names the root without reading it. A missing root fails dispatch before any intent or contact.
         using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, root);
+        await Assert.That(async () => await store.DispatchHttpAsync(fixture.Attempt.AttemptId, HttpDispatchTests.Credentials()))
+            .Throws<NativeTransportError>();
+        await Assert.That(store.FindSubmission(fixture.Attempt.AttemptId)!.State).IsEqualTo("prepared");
+        await Assert.That(target.Connections).IsEqualTo(0);
+
         File.WriteAllText(root, first.RootPem);
+        var run = (await store.DispatchHttpAsync(fixture.Attempt.AttemptId, HttpDispatchTests.Credentials())).Run!;
         target.Projections.Enqueue(DirectTargetSessionTests.Running(run));
         await Assert.That(await store.ObserveAsync(fixture.Attempt.AttemptId, null)).IsTypeOf<NativeObservation.Available>();
 

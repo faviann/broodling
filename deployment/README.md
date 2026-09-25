@@ -205,8 +205,9 @@ connections to the DirectTarget trust exactly that root, not system trust. When
 it is unset, system trust applies. No option disables certificate validation.
 Each DirectTarget operation reads the file when it starts, so a regenerated root
 is used without restarting Broodling. A missing or unreadable file fails only
-that operation, as a transport failure. `check-target` uses this same file;
-target readiness does not yet use the root.
+that operation, as a transport failure; a dispatch fails before recording any
+dispatch intent. `check-target` uses this same file, but until #186 it still
+accepts only a loopback HTTP origin, `http://127.0.0.1:<port>`.
 
 The no-effect LocalTarget alternative uses the SDK bridge:
 
@@ -405,7 +406,11 @@ Correlated resume and retained status/history need neither. `wait` and `stop`
 take the same optional `config.json`, and the retained record decides what they
 use from it. A LocalTarget record needs a LocalTarget configuration for its
 pinned SDK Python. An HTTP record connects to its retained origin, and uses a
-Direct configuration only for its root certificate. Retained completion works offline. Until completion
+Direct configuration only for its root certificate. For an HTTPS target with a
+private root, pass the Direct `config.json` to `wait` and `stop`. Without it,
+system trust applies and the connection fails. `stop` then records the
+abandonment and reports native stop as not sent (`transport_failed`); running
+`stop` again with the configuration requests it. Retained completion works offline. Until completion
 is retained, the host user also needs Git fetch access to the frozen origin URL,
 because wait fetches and pins the exact accepted commit before recording success. Native failure abandons; transport loss or a
 cancelled wait only detaches. Restore access to the same target and wait again.

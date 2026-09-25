@@ -302,7 +302,8 @@ name. By default it uses system trust. A store session opened with
 root for HTTPS and WSS, with custom root trust that ignores the system store.
 The root file is read at the start of each DirectTarget operation (submit,
 progress, wait and stop), never when the store opens. A missing or unreadable
-file fails that operation as `transport_failed` before any connection. A wait
+file fails that operation as `transport_failed` before any connection. A
+dispatch reads it before its intent commits, so that failure records nothing. A wait
 makes all its connections during setup and then polls over one WebSocket, so a
 root regenerated mid-wait does not affect it. If the TLS proxy restarts, the
 wait detaches with a transport failure, and a new wait reads the new root. It never

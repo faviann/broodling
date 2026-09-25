@@ -82,15 +82,9 @@ internal static class DirectTargetExchange
 {
     private static readonly JsonDocumentOptions Json = new() { MaxDepth = DirectTargetLimits.JsonDepth, AllowDuplicateProperties = false };
 
-    /// <summary>
-    /// No redirects, proxy, cookies or ambient credentials. TLS is always verified: against system trust,
-    /// or, for an HTTPS <paramref name="origin"/> with a <paramref name="rootCertificate"/>, against exactly
-    /// that PEM root and nothing else. Each operation creates its own handler, so the root is read at the
-    /// start of each operation; a missing or unreadable root fails it as a transport failure.
-    /// </summary>
-    internal static SocketsHttpHandler CreateHandler(Uri? origin = null, string? rootCertificate = null)
+    /// <summary>No redirects, proxy, cookies or ambient credentials. TLS is always verified, by system trust unless <paramref name="trust"/> replaces it.</summary>
+    internal static SocketsHttpHandler CreateHandler(X509ChainPolicy? trust = null)
     {
-        var trust = rootCertificate is not null && origin?.Scheme == Uri.UriSchemeHttps ? RootTrust(rootCertificate) : null;
         var handler = new SocketsHttpHandler
         {
             AllowAutoRedirect = false,
@@ -104,11 +98,17 @@ internal static class DirectTargetExchange
         return handler;
     }
 
-    /// <summary>Custom root trust: the system store plays no part. Revocation is unchecked, as for ordinary TLS.</summary>
-    private static X509ChainPolicy RootTrust(string path)
+    /// <summary>
+    /// For an HTTPS <paramref name="origin"/> with a <paramref name="rootCertificate"/>, custom root trust in
+    /// exactly that PEM root: the system store plays no part, and revocation is unchecked as for ordinary
+    /// TLS. Otherwise null, meaning system trust. Each operation reads the root once, before it contacts
+    /// the target; a missing or unreadable root fails that operation as a transport failure.
+    /// </summary>
+    internal static X509ChainPolicy? Trust(Uri origin, string? rootCertificate)
     {
+        if (rootCertificate is null || origin.Scheme != Uri.UriSchemeHttps) return null;
         X509Certificate2 root;
-        try { root = X509Certificate2.CreateFromPem(File.ReadAllText(path)); }
+        try { root = X509Certificate2.CreateFromPem(File.ReadAllText(rootCertificate)); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or CryptographicException)
         { throw new NativeTransportError(); }
         var policy = new X509ChainPolicy { TrustMode = X509ChainTrustMode.CustomRootTrust, RevocationMode = X509RevocationMode.NoCheck };

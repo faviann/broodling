@@ -50,7 +50,7 @@ internal sealed class DirectTargetSession : IAsyncDisposable
     internal static async Task<DirectTargetSession> OpenAsync(NativeRunBinding run, string? rootCertificate, DirectTargetBudget budget)
     {
         var (origin, source) = Target(run);
-        var session = new DirectTargetSession(run, source, DirectTargetExchange.CreateHandler(origin, rootCertificate));
+        var session = new DirectTargetSession(run, source, DirectTargetExchange.CreateHandler(DirectTargetExchange.Trust(origin, rootCertificate)));
         try
         {
             using (var http = DirectTargetExchange.CreateClient(session.handler))

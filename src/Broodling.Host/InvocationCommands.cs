@@ -31,6 +31,16 @@ public static class InvocationCommands
                 }
                 if (args.Length < 4) throw new SubmissionNotReady("Dispatch configuration is required for uncorrelated resume.");
             }
+            if (args[0] == "wait")
+            {
+                // A retained completion needs no configuration, even a stale one.
+                using var inspection = application.OpenStore(args[1]);
+                if (inspection.FindCompletion(args[2]) is { } retained)
+                {
+                    output.WriteLine(JsonSerializer.Serialize(retained, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                    return 0;
+                }
+            }
             // wait/stop take the same optional configuration; the retained record decides what applies:
             // a LocalTarget record its pinned SDK Python, an HTTP record its DirectTarget root certificate.
             var configPath = args[0] switch
@@ -45,9 +55,8 @@ public static class InvocationCommands
             transport ??= configuration is InvocationConfiguration.Local local ? new ZeroshotTransport(local.PythonExecutable) : null;
             if (args[0] == "wait")
             {
-                var completion = store.FindCompletion(args[2]);
                 // The store routes on the retained record; only a LocalTarget bridge record uses the transport.
-                completion ??= await store.WaitAsync(args[2], transport, cancellationToken);
+                var completion = await store.WaitAsync(args[2], transport, cancellationToken);
                 output.WriteLine(JsonSerializer.Serialize(completion, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return 0;
             }
