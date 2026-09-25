@@ -107,12 +107,21 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
         {
             // The last allowed call forbids tools, so the model must answer.
             var final = turn == MaxTurns;
-            var message = await CompleteAsync(client, apiKey, messages, final, cancellationToken);
-            if (!final && message["tool_calls"] is JsonArray { Count: > 0 } calls)
+            var (message, finish) = await CompleteAsync(client, apiKey, messages, final, cancellationToken);
+            // A cut-off, filtered or otherwise incomplete reply is not the model's answer.
+            if (finish == "length")
+                throw new ContractProposerError("The model reply reached its output limit.", retryable: true);
+            var calls = message["tool_calls"] as JsonArray;
+            var calling = calls is { Count: > 0 };
+            if ((message["tool_calls"] is not null && calls is null) || (calling && final)
+                || (finish is not (null or "stop") && !(calling && finish == "tool_calls"))
+                || (message["content"] is { } content && !Text(content, out _)))
+                throw new ContractProposerError("The model gateway returned an unusable response.", retryable: true);
+            if (calling)
             {
                 var replies = new List<JsonNode>();
                 var echoed = new JsonArray();
-                foreach (var call in calls)
+                foreach (var call in calls!)
                 {
                     if (call is not JsonObject { } entry || !Text(entry["id"], out var id)
                         || entry["function"] is not JsonObject function || !Text(function["name"], out var name))
@@ -257,7 +266,7 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
         };
     }
 
-    private static async Task<JsonObject> CompleteAsync(HttpClient client, string apiKey, JsonArray messages,
+    private static async Task<(JsonObject Message, string? Finish)> CompleteAsync(HttpClient client, string apiKey, JsonArray messages,
         bool final, CancellationToken cancellationToken)
     {
         var body = new JsonObject
@@ -304,11 +313,10 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
         try { root = Parse(bytes); }
         catch (JsonException) { root = null; }
         if (root is not JsonObject envelope || envelope["choices"] is not JsonArray { Count: > 0 } choices
-            || choices[0] is not JsonObject choice || choice["message"] is not JsonObject message)
+            || choices[0] is not JsonObject choice || choice["message"] is not JsonObject message
+            || (choice["finish_reason"] is { } reason && !Text(reason, out _)))
             throw new ContractProposerError("The model gateway returned an unusable response.", retryable: true);
-        // A reply cut off at the output limit is not the model's proposal.
-        if (Text(choice["finish_reason"], out var finish) && finish == "length")
-            throw new ContractProposerError("The model reply reached its output limit.", retryable: true);
-        return message;
+        // An absent finish reason is read as "stop".
+        return (message, Text(choice["finish_reason"], out var finish) ? finish : null);
     }
 }

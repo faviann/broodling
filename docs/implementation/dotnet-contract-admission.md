@@ -134,8 +134,11 @@ describes its configuration.
 - Operational failures retain nothing and throw `ContractProposerError`:
   missing or invalid credentials and other gateway refusals (`Retryable` false),
   and transport failure, a 3-minute call timeout, HTTP 408/429/5xx, a reply cut
-  off at the output limit (`finish_reason: length`) or an unusable gateway
-  response or tool call (`Retryable` true). The submission stays
+  off at the output limit (`finish_reason: length`), any other finish reason
+  than `stop` (absent counts as `stop`; `tool_calls` only with tool calls),
+  non-text content, tool calls on the final call, or another unusable gateway
+  response or tool call (`Retryable` true). A text-free `stop` reply remains a
+  retained refusal. The submission stays
   `capturing`, and a later call proposes again from the same frozen inputs. A
   bound or refused submission is never proposed again. Neither the key nor the
   gateway's response text appears in an error or a retained record.
