@@ -17,6 +17,10 @@ jobs:
   images:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
+    # Runs for one publication tag never overlap, so only one can pass the existence check.
+    concurrency:
+      group: images-${{ github.ref_type == 'tag' && github.ref_name || format('sha-{0}', github.event.pull_request.head.sha || github.sha) }}
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write
@@ -48,16 +52,20 @@ jobs:
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           # Published tags are never moved: select images by the recorded digest.
           for image in broodling broodling-target; do
-            if docker buildx imagetools inspect "$registry/$image:$tag" >/dev/null 2>&1; then
+            # Only the registry's own not-found means absent; anything else is not a basis to push.
+            if found="$(docker buildx imagetools inspect "$registry/$image:$tag" 2>&1)"; then
               echo "::error::$registry/$image:$tag is already published; it is never replaced." && exit 1
+            elif [[ $found != *"$registry/$image:$tag: not found"* ]]; then
+              echo "::error::Cannot establish that $registry/$image:$tag is unpublished: $found" && exit 1
             fi
           done
           declare -A published
           for image in broodling broodling-target; do
             docker tag "$image:candidate" "$registry/$image:$tag"
             docker push --quiet "$registry/$image:$tag"
-            digest="sha256:$(docker buildx imagetools inspect --raw "$registry/$image:$tag" | sha256sum | cut -d ' ' -f 1)"
-            published[$image]="$registry/$image@$digest"
+            # The digest this push produced, not whatever the tag names by now.
+            published[$image]="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image:candidate" \
+              | grep --max-count 1 "^$registry/$image@sha256:")"
           done
           jq -n --arg revision "$REVISION" --arg version "$version" --arg tag "$tag" \
             --arg broodling "${published[broodling]}" --arg target "${published[broodling-target]}" \
