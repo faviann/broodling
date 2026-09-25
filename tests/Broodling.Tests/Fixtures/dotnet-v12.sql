@@ -7,14 +7,12 @@ CREATE TABLE admission_decisions (
     policy_version TEXT NOT NULL,
     decided_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "admission_decisions" VALUES('ad-02687293cf3853af2e8f440e33b34a6d2c0dd7c5ad5fecc8f209d071963a973b','cr-42cf6edb76c14bbe913bfd59427c7db207ebb4cad507433e921ba078dda76cd8','admitted','[]','broodling.dotnet.admission.v1/zeroshot-10.3.0','2026-09-22T18:21:06.9856811+00:00');
-INSERT INTO "admission_decisions" VALUES('ad-395728bac7f7ea44e16d2f0e4c2ebae2605bfb9928275f4698cf4681424bd0a6','cr-13e6e6b9fb16d7c05295068f1c6b02586a9d9b241f572def5e625538a40ed510','admitted','[]','broodling.dotnet.admission.v1/zeroshot-10.3.0','2026-09-22T18:21:07.6030751+00:00');
+INSERT INTO "admission_decisions" VALUES('ad-2746acd049a192459c47ebbbac08cff757a0741c1417635a185bc9a00f169550','cr-a988fea8330188d6c3ac235dd1a1f522044567f139c529586eed26fcbf7769be','admitted','[]','broodling.dotnet.admission.v1/zeroshot-10.3.0','2026-09-25T02:14:14.3714417+00:00');
 CREATE TABLE attempt_abandonments (
     attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
     reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
     abandoned_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "attempt_abandonments" VALUES('at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670','Retained schema 6 abandonment','2026-09-22T18:21:07.9876341+00:00');
 CREATE TABLE attempt_completions (
     attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -23,7 +21,6 @@ CREATE TABLE attempt_completions (
     receipt_json TEXT NOT NULL CHECK (json_valid(receipt_json)),
     completed_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "attempt_completions" VALUES('at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','cr-42cf6edb76c14bbe913bfd59427c7db207ebb4cad507433e921ba078dda76cd8','retained-schema6-run-12','{"version":"v1","mode":"pr","outcome":"opened","repository":"acme/widget","targetBranch":"main","headRevision":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","pullRequestId":"0000"}','2026-09-22T18:21:07.5894273+00:00');
 CREATE TABLE attempt_retirements (
     attempt_id TEXT PRIMARY KEY REFERENCES attempt_abandonments(attempt_id),
     basis TEXT NOT NULL CHECK (basis IN ('never_materialized', 'never_dispatched')),
@@ -55,8 +52,6 @@ CREATE TABLE attempts (
     admitted_at TEXT NOT NULL,
     UNIQUE (b1_repository, branch)
 ) STRICT;
-INSERT INTO "attempts" VALUES('at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','cr-42cf6edb76c14bbe913bfd59427c7db207ebb4cad507433e921ba078dda76cd8',0,'/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/source/.git','06566e1f25f7d0932ab987cfc642660af34dc3c1','1258d0e25a6984a5e433338585e89fb0b503a0ba38e6a534f32dde301938f3a1','HEAD','/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/attempts','/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/attempts/at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f','/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/attempts/at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f/worktree','broodling/at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f','2026-09-22T18:21:07.1461265+00:00');
-INSERT INTO "attempts" VALUES('at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','cr-13e6e6b9fb16d7c05295068f1c6b02586a9d9b241f572def5e625538a40ed510',0,'/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/source/.git','06566e1f25f7d0932ab987cfc642660af34dc3c1','5616ce4554f3bc5f9232f095f7b3040608865318b5e9c243a04fdbacf5487996','HEAD','/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/attempts','/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/attempts/at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670','/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/attempts/at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670/worktree','broodling/at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670','2026-09-22T18:21:07.6583349+00:00');
 CREATE TABLE contract_revisions (
     contract_revision_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -69,16 +64,14 @@ CREATE TABLE contract_revisions (
     UNIQUE (work_unit_id, revision_number),
     UNIQUE (work_unit_id, contract_sha256)
 ) STRICT;
-INSERT INTO "contract_revisions" VALUES('cr-42cf6edb76c14bbe913bfd59427c7db207ebb4cad507433e921ba078dda76cd8','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a',1,'42cf6edb76c14bbe913bfd59427c7db207ebb4cad507433e921ba078dda76cd8',X'7B22776F726B556E69744964223A2277752D64623239396566336435316363636431303630666461323262333432646232633332663165356138643236366664313034313939626431363431663638323461222C22736F757263654174747269627574696F6E223A5B7B22736F757263654964223A227372632D65353433323364626163616239623935623364306165373632383134333736613937303835613164663630346230323731396465366338316565336234363932222C22636F6E74656E74536861323536223A2265393438396633376662333035316539656661316463393136303034643732373465376236333937356533323039373038393437323637663233393361396265227D5D2C226372697465726961223A5B7B22637269746572696F6E4964223A22616363657074616E6365222C2273746174656D656E74223A225072657365727665206F726967696E616C20726571756573742E222C2265766964656E6365506F70756C6174696F6E223A6E756C6C2C2276616C69646174696F6E5365616D223A22222C2276616C69646174696F6E416374696F6E223A22222C2266616C73696679696E674F62736572766174696F6E223A22222C2265766964656E6365456666656374446570656E64656E63696573223A5B5D2C226D656368616E6963616C45766964656E6365223A6E756C6C7D5D2C226F626C69676174696F6E73223A5B5D2C2270726572657175697369746573223A5B5D2C22726571756972656445666665637473223A5B7B226566666563744964223A227072222C2273746174656D656E74223A224F70656E205052222C226B696E64223A2270756C6C5F72657175657374222C227461726765744272616E6368223A226D61696E227D5D2C22686F7374417373756D7074696F6E73223A5B5D2C22636F6E73747275637465644279223A226D6F64656C5F65787472616374696F6E222C226E6F746573223A22222C2266696E616C4173737572616E63654D6174657269616C73223A6E756C6C7D','model_extraction',NULL,'2026-09-22T18:21:06.9453100+00:00');
-INSERT INTO "contract_revisions" VALUES('cr-13e6e6b9fb16d7c05295068f1c6b02586a9d9b241f572def5e625538a40ed510','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f',1,'13e6e6b9fb16d7c05295068f1c6b02586a9d9b241f572def5e625538a40ed510',X'7B22776F726B556E69744964223A2277752D34656438633830626461313463623530336131393966386138336536316631646463366233626634373733303364373363393366393530336463663435643766222C22736F757263654174747269627574696F6E223A5B7B22736F757263654964223A227372632D34303366396465643435636362323663343236376433633264343835316165363830643639663230663962306331393738616564356438653664336331313166222C22636F6E74656E74536861323536223A2265393438396633376662333035316539656661316463393136303034643732373465376236333937356533323039373038393437323637663233393361396265227D5D2C226372697465726961223A5B7B22637269746572696F6E4964223A22616363657074616E6365222C2273746174656D656E74223A225072657365727665206F726967696E616C20726571756573742E222C2265766964656E6365506F70756C6174696F6E223A6E756C6C2C2276616C69646174696F6E5365616D223A22222C2276616C69646174696F6E416374696F6E223A22222C2266616C73696679696E674F62736572766174696F6E223A22222C2265766964656E6365456666656374446570656E64656E63696573223A5B5D2C226D656368616E6963616C45766964656E6365223A6E756C6C7D5D2C226F626C69676174696F6E73223A5B5D2C2270726572657175697369746573223A5B5D2C22726571756972656445666665637473223A5B7B226566666563744964223A227072222C2273746174656D656E74223A224F70656E205052222C226B696E64223A2270756C6C5F72657175657374222C227461726765744272616E6368223A226D61696E227D5D2C22686F7374417373756D7074696F6E73223A5B5D2C22636F6E73747275637465644279223A226D6F64656C5F65787472616374696F6E222C226E6F746573223A22222C2266696E616C4173737572616E63654D6174657269616C73223A6E756C6C7D','model_extraction',NULL,'2026-09-22T18:21:07.6001396+00:00');
+INSERT INTO "contract_revisions" VALUES('cr-a988fea8330188d6c3ac235dd1a1f522044567f139c529586eed26fcbf7769be','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a',1,'a988fea8330188d6c3ac235dd1a1f522044567f139c529586eed26fcbf7769be',X'7B22776F726B556E69744964223A2277752D64623239396566336435316363636431303630666461323262333432646232633332663165356138643236366664313034313939626431363431663638323461222C22736F757263654174747269627574696F6E223A5B7B22736F757263654964223A227372632D34333533323762326135653536633736613165343631356264633665393832366533666664313739366663363861363830633336323265386435616338313166222C22636F6E74656E74536861323536223A2236346662323633646566333261323961316562386561333263386433323339643131323730303237633336373633663533633637346237373264373461353432227D5D2C226372697465726961223A5B7B22637269746572696F6E4964223A22616363657074616E6365222C2273746174656D656E74223A2250726573657276652074686520636F6D706C65746520726571756573742E222C2265766964656E6365506F70756C6174696F6E223A6E756C6C2C2276616C69646174696F6E5365616D223A22222C2276616C69646174696F6E416374696F6E223A22222C2266616C73696679696E674F62736572766174696F6E223A22222C2265766964656E6365456666656374446570656E64656E63696573223A5B5D2C226D656368616E6963616C45766964656E6365223A6E756C6C7D5D2C226F626C69676174696F6E73223A5B5D2C2270726572657175697369746573223A5B5D2C22726571756972656445666665637473223A5B5D2C22686F7374417373756D7074696F6E73223A5B5D2C22636F6E73747275637465644279223A2263616C6C6572222C226E6F746573223A22222C2266696E616C4173737572616E63654D6174657269616C73223A6E756C6C7D','caller',NULL,'2026-09-25T02:14:14.3248841+00:00');
 CREATE TABLE contract_sources (
     contract_revision_id TEXT NOT NULL REFERENCES contract_revisions(contract_revision_id),
     source_id TEXT NOT NULL REFERENCES entitled_sources(source_id),
     content_sha256 TEXT NOT NULL,
     PRIMARY KEY (contract_revision_id, source_id)
 ) STRICT;
-INSERT INTO "contract_sources" VALUES('cr-42cf6edb76c14bbe913bfd59427c7db207ebb4cad507433e921ba078dda76cd8','src-e54323dbacab9b95b3d0ae762814376a97085a1df604b02719de6c81ee3b4692','e9489f37fb3051e9efa1dc916004d7274e7b63975e3209708947267f2393a9be');
-INSERT INTO "contract_sources" VALUES('cr-13e6e6b9fb16d7c05295068f1c6b02586a9d9b241f572def5e625538a40ed510','src-403f9ded45ccb26c4267d3c2d4851ae680d69f20f9b0c1978aed5d8e6d3c111f','e9489f37fb3051e9efa1dc916004d7274e7b63975e3209708947267f2393a9be');
+INSERT INTO "contract_sources" VALUES('cr-a988fea8330188d6c3ac235dd1a1f522044567f139c529586eed26fcbf7769be','src-435327b2a5e56c76a1e4615bdc6e9826e3ffd1796fc68a680c3622e8d5ac811f','64fb263def32a29a1eb8ea32c8d3239d11270027c36763f53c674b772d74a542');
 CREATE TABLE entitled_sources (
     source_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -94,8 +87,33 @@ CREATE TABLE entitled_sources (
     recorded_at TEXT NOT NULL,
     UNIQUE (work_unit_id, kind, locator, content_sha256)
 ) STRICT;
-INSERT INTO "entitled_sources" VALUES('src-e54323dbacab9b95b3d0ae762814376a97085a1df604b02719de6c81ee3b4692','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','primary_issue','https://github.com/acme/widget/issues/12',X'00FF0D0A','e9489f37fb3051e9efa1dc916004d7274e7b63975e3209708947267f2393a9be','text/plain; charset=utf-8','caller','caller','Retain exact schema-six bytes','2026-09-22T18:21:06.7753222+00:00','2026-09-22T18:21:06.7753222+00:00');
-INSERT INTO "entitled_sources" VALUES('src-403f9ded45ccb26c4267d3c2d4851ae680d69f20f9b0c1978aed5d8e6d3c111f','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','primary_issue','https://github.com/acme/widget/issues/13',X'00FF0D0A','e9489f37fb3051e9efa1dc916004d7274e7b63975e3209708947267f2393a9be','text/plain; charset=utf-8','caller','caller','Retain exact schema-six bytes','2026-09-22T18:21:07.5971043+00:00','2026-09-22T18:21:07.5971043+00:00');
+INSERT INTO "entitled_sources" VALUES('src-435327b2a5e56c76a1e4615bdc6e9826e3ffd1796fc68a680c3622e8d5ac811f','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','primary_issue','https://github.com/acme/widget/issues/12',X'54686520636F6D706C65746520726576696577656420726571756573742E0A','64fb263def32a29a1eb8ea32c8d3239d11270027c36763f53c674b772d74a542','text/plain; charset=utf-8','caller','caller','Reviewed supplied issue bytes','2026-09-25T02:14:14.2238715+00:00','2026-09-25T02:14:14.2238715+00:00');
+INSERT INTO "entitled_sources" VALUES('src-8454b5ffd81ef89a79c31818d856c02f32d8773ca8377e042177d6d81818eb53','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','primary_issue','https://github.com/acme/widget/issues/12',X'72657461696E6564206973737565','856674dc505945e91107f42bdd71d665ff7ec110d5d91c4fe6f783a91b77fa13','text/plain; charset=utf-8','caller','broodling_policy','primary_authoritative_work_reference','2026-09-25T02:14:14.3972999+00:00','2026-09-25T02:14:14.3972999+00:00');
+CREATE TABLE installation_control (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    admission_dispatch_paused INTEGER NOT NULL CHECK (admission_dispatch_paused IN (0, 1)),
+    changed_at TEXT NOT NULL
+) STRICT;
+INSERT INTO "installation_control" VALUES(1,1,'2026-09-25T02:14:14.4194735+00:00');
+CREATE TABLE issue_submission_cancellations (
+    submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
+    attempt_id TEXT REFERENCES attempts(attempt_id),
+    reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+    cancelled_at TEXT NOT NULL
+) STRICT;
+INSERT INTO "issue_submission_cancellations" VALUES('issue-sub-8404a7bb10224ac8a8748301f3d31c99',NULL,'Operator withdrew the request.','2026-09-25T02:14:14.4181221+00:00');
+CREATE TABLE issue_submissions (
+    submission_id TEXT PRIMARY KEY,
+    work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
+    submission_sequence INTEGER NOT NULL CHECK (submission_sequence > 0),
+    issue_url TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('accepted', 'capturing', 'preparing', 'admitted', 'rejected', 'cancelled', 'interrupted', 'abandoned', 'completed')),
+    contract_revision_id TEXT REFERENCES contract_revisions(contract_revision_id),
+    received_at TEXT NOT NULL,
+    UNIQUE (work_unit_id, submission_sequence)
+) STRICT;
+INSERT INTO "issue_submissions" VALUES('issue-sub-f21756a815684a93b0a7663e10bd284d','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a',1,'https://github.com/acme/widget/issues/12','capturing',NULL,'2026-09-25T02:14:14.3859224+00:00');
+INSERT INTO "issue_submissions" VALUES('issue-sub-8404a7bb10224ac8a8748301f3d31c99','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f',1,'https://github.com/acme/widget/issues/13','cancelled',NULL,'2026-09-25T02:14:14.4155018+00:00');
 CREATE TABLE native_submissions (
     attempt_id TEXT PRIMARY KEY REFERENCES worktree_provisions(attempt_id),
     submission_key TEXT NOT NULL UNIQUE,
@@ -105,8 +123,55 @@ CREATE TABLE native_submissions (
     CHECK ((state = 'correlated' AND run_id IS NOT NULL AND length(trim(run_id)) > 0)
         OR (state <> 'correlated' AND run_id IS NULL))
 ) STRICT;
-INSERT INTO "native_submissions" VALUES('at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f','broodling:dotnet:v1:at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f','{"submissionKey":"broodling:dotnet:v1:at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f","title":"Broodling Attempt at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f","task":"Complete this admitted software-development Work Unit. The frozen Contract and entitled source material below govern scope and acceptance. Candidate edits cannot amend that authority. Implement the criteria and run declared/relevant checks; independently verify the actual outcome. The sole authorized external effect is native pull-request delivery. Do not publish, push, create or update a PR, merge, change issues, deploy, or perform other authoritative effects yourself; the native delivery node alone owns the authorized PR effect.\n\n{\u0022contract\u0022:{\u0022workUnitId\u0022:\u0022wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a\u0022,\u0022sourceAttribution\u0022:[{\u0022sourceId\u0022:\u0022src-e54323dbacab9b95b3d0ae762814376a97085a1df604b02719de6c81ee3b4692\u0022,\u0022contentSha256\u0022:\u0022e9489f37fb3051e9efa1dc916004d7274e7b63975e3209708947267f2393a9be\u0022}],\u0022criteria\u0022:[{\u0022criterionId\u0022:\u0022acceptance\u0022,\u0022statement\u0022:\u0022Preserve original request.\u0022,\u0022evidencePopulation\u0022:null,\u0022validationSeam\u0022:\u0022\u0022,\u0022validationAction\u0022:\u0022\u0022,\u0022falsifyingObservation\u0022:\u0022\u0022,\u0022evidenceEffectDependencies\u0022:[],\u0022mechanicalEvidence\u0022:null}],\u0022obligations\u0022:[],\u0022prerequisites\u0022:[],\u0022requiredEffects\u0022:[{\u0022effectId\u0022:\u0022pr\u0022,\u0022statement\u0022:\u0022Open PR\u0022,\u0022kind\u0022:\u0022pull_request\u0022,\u0022targetBranch\u0022:\u0022main\u0022}],\u0022hostAssumptions\u0022:[],\u0022constructedBy\u0022:\u0022model_extraction\u0022,\u0022notes\u0022:\u0022\u0022,\u0022finalAssuranceMaterials\u0022:null},\u0022admittedInstructions\u0022:[{\u0022sourceId\u0022:\u0022src-e54323dbacab9b95b3d0ae762814376a97085a1df604b02719de6c81ee3b4692\u0022,\u0022kind\u0022:\u0022primary_issue\u0022,\u0022locator\u0022:\u0022https://github.com/acme/widget/issues/12\u0022,\u0022mediaType\u0022:\u0022text/plain; charset=utf-8\u0022,\u0022contentSha256\u0022:\u0022e9489f37fb3051e9efa1dc916004d7274e7b63975e3209708947267f2393a9be\u0022,\u0022encoding\u0022:\u0022base64\u0022,\u0022content\u0022:\u0022AP8NCg==\u0022}],\u0022comparisonBase\u0022:\u002206566e1f25f7d0932ab987cfc642660af34dc3c1\u0022}","preset":{"name":"software-change","delivery":"pull_request"},"runtime":{"harness":"codex","provider":"gateway","model":"gpt-5.6-sol","effort":"medium","size":"small","session_scope":"execution"},"workspace":"/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/attempts/at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f/worktree","repository":"/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/source/.git","branch":"broodling/at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f","startingCommit":"06566e1f25f7d0932ab987cfc642660af34dc3c1","materialSha256":"1258d0e25a6984a5e433338585e89fb0b503a0ba38e6a534f32dde301938f3a1","originUrl":"https://github.com/acme/widget.git","target":{"locator":{"kind":"direct","address":"http://127.0.0.1:8123","sdkVersion":"10.3.0.post1"},"stateDirectory":"/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/native","environment":{"HOME":"","CODEX_HOME":"","LANG":"","LC_ALL":"","SYSTEMROOT":"","TEMP":"","TMP":"","TMPDIR":"","USERPROFILE":"","XDG_CACHE_HOME":"","XDG_CONFIG_HOME":"","PATH":"/home/faviann/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-path:/home/faviann/.local/bin:/home/faviann/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/faviann/.local/bin:/home/faviann/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/faviann/.local/bin:/home/faviann/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/faviann/.local/bin:/home/faviann/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"},"codexProfile":null},"source":{"repository":"acme/widget","branch":"main","revision":"06566e1f25f7d0932ab987cfc642660af34dc3c1"}}','correlated','retained-schema6-run-12');
-INSERT INTO "native_submissions" VALUES('at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670','broodling:dotnet:v1:at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670','{"submissionKey":"broodling:dotnet:v1:at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670","title":"Broodling Attempt at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670","task":"Complete this admitted software-development Work Unit. The frozen Contract and entitled source material below govern scope and acceptance. Candidate edits cannot amend that authority. Implement the criteria and run declared/relevant checks; independently verify the actual outcome. The sole authorized external effect is native pull-request delivery. Do not publish, push, create or update a PR, merge, change issues, deploy, or perform other authoritative effects yourself; the native delivery node alone owns the authorized PR effect.\n\n{\u0022contract\u0022:{\u0022workUnitId\u0022:\u0022wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f\u0022,\u0022sourceAttribution\u0022:[{\u0022sourceId\u0022:\u0022src-403f9ded45ccb26c4267d3c2d4851ae680d69f20f9b0c1978aed5d8e6d3c111f\u0022,\u0022contentSha256\u0022:\u0022e9489f37fb3051e9efa1dc916004d7274e7b63975e3209708947267f2393a9be\u0022}],\u0022criteria\u0022:[{\u0022criterionId\u0022:\u0022acceptance\u0022,\u0022statement\u0022:\u0022Preserve original request.\u0022,\u0022evidencePopulation\u0022:null,\u0022validationSeam\u0022:\u0022\u0022,\u0022validationAction\u0022:\u0022\u0022,\u0022falsifyingObservation\u0022:\u0022\u0022,\u0022evidenceEffectDependencies\u0022:[],\u0022mechanicalEvidence\u0022:null}],\u0022obligations\u0022:[],\u0022prerequisites\u0022:[],\u0022requiredEffects\u0022:[{\u0022effectId\u0022:\u0022pr\u0022,\u0022statement\u0022:\u0022Open PR\u0022,\u0022kind\u0022:\u0022pull_request\u0022,\u0022targetBranch\u0022:\u0022main\u0022}],\u0022hostAssumptions\u0022:[],\u0022constructedBy\u0022:\u0022model_extraction\u0022,\u0022notes\u0022:\u0022\u0022,\u0022finalAssuranceMaterials\u0022:null},\u0022admittedInstructions\u0022:[{\u0022sourceId\u0022:\u0022src-403f9ded45ccb26c4267d3c2d4851ae680d69f20f9b0c1978aed5d8e6d3c111f\u0022,\u0022kind\u0022:\u0022primary_issue\u0022,\u0022locator\u0022:\u0022https://github.com/acme/widget/issues/13\u0022,\u0022mediaType\u0022:\u0022text/plain; charset=utf-8\u0022,\u0022contentSha256\u0022:\u0022e9489f37fb3051e9efa1dc916004d7274e7b63975e3209708947267f2393a9be\u0022,\u0022encoding\u0022:\u0022base64\u0022,\u0022content\u0022:\u0022AP8NCg==\u0022}],\u0022comparisonBase\u0022:\u002206566e1f25f7d0932ab987cfc642660af34dc3c1\u0022}","preset":{"name":"software-change","delivery":"pull_request"},"runtime":{"harness":"codex","provider":"gateway","model":"gpt-5.6-sol","effort":"medium","size":"small","session_scope":"execution"},"workspace":"/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/attempts/at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670/worktree","repository":"/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/source/.git","branch":"broodling/at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670","startingCommit":"06566e1f25f7d0932ab987cfc642660af34dc3c1","materialSha256":"5616ce4554f3bc5f9232f095f7b3040608865318b5e9c243a04fdbacf5487996","originUrl":"https://github.com/acme/widget.git","target":{"locator":{"kind":"direct","address":"http://127.0.0.1:8123","sdkVersion":"10.3.0.post1"},"stateDirectory":"/home/faviann/.cache/broodling-tests/139-schema6.ne0ivT/native","environment":{"HOME":"","CODEX_HOME":"","LANG":"","LC_ALL":"","SYSTEMROOT":"","TEMP":"","TMP":"","TMPDIR":"","USERPROFILE":"","XDG_CACHE_HOME":"","XDG_CONFIG_HOME":"","PATH":"/home/faviann/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-path:/home/faviann/.local/bin:/home/faviann/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/faviann/.local/bin:/home/faviann/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/faviann/.local/bin:/home/faviann/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/faviann/.local/bin:/home/faviann/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"},"codexProfile":null},"source":{"repository":"acme/widget","branch":"main","revision":"06566e1f25f7d0932ab987cfc642660af34dc3c1"}}','correlated','retained-schema6-run-13');
+CREATE TABLE request_bundle_references (
+    bundle_id TEXT NOT NULL REFERENCES request_bundles(bundle_id),
+    reference_id TEXT NOT NULL,
+    ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+    capture_kind TEXT NOT NULL CHECK (capture_kind IN ('source', 'git_blob')),
+    selector BLOB NOT NULL,
+    source_id TEXT REFERENCES entitled_sources(source_id),
+    content_sha256 TEXT CHECK (content_sha256 IS NULL OR length(content_sha256) = 64),
+    git_repository_input TEXT,
+    git_revision_input TEXT,
+    git_path TEXT,
+    git_repository TEXT,
+    git_commit_oid TEXT,
+    git_blob_oid TEXT,
+    PRIMARY KEY (bundle_id, reference_id),
+    UNIQUE (bundle_id, ordinal),
+    CHECK ((capture_kind = 'source' AND git_repository_input IS NULL AND git_revision_input IS NULL
+            AND git_path IS NULL AND git_repository IS NULL AND git_commit_oid IS NULL AND git_blob_oid IS NULL
+            AND ((source_id IS NULL AND content_sha256 IS NULL) OR (source_id IS NOT NULL AND content_sha256 IS NOT NULL)))
+        OR (capture_kind = 'git_blob' AND source_id IS NULL AND git_repository_input IS NOT NULL
+            AND git_revision_input IS NOT NULL AND git_path IS NOT NULL
+            AND ((git_repository IS NULL AND git_commit_oid IS NULL AND git_blob_oid IS NULL AND content_sha256 IS NULL)
+                OR (git_repository IS NOT NULL AND git_commit_oid IS NOT NULL AND git_blob_oid IS NOT NULL AND content_sha256 IS NOT NULL))))
+) STRICT;
+INSERT INTO "request_bundle_references" VALUES('bundle-8fc0ab54afee22f2db949512ea0c133a5096426d39aff37d954ca3d7c17dfbe4','issue',0,'source',X'69737375652073656C6563746F72','src-8454b5ffd81ef89a79c31818d856c02f32d8773ca8377e042177d6d81818eb53','856674dc505945e91107f42bdd71d665ff7ec110d5d91c4fe6f783a91b77fa13',NULL,NULL,NULL,NULL,NULL,NULL);
+CREATE TABLE request_bundle_repositories (
+    bundle_id TEXT PRIMARY KEY REFERENCES request_bundles(bundle_id),
+    repository TEXT NOT NULL,
+    default_branch TEXT NOT NULL,
+    starting_revision TEXT NOT NULL,
+    starting_commit_oid TEXT NOT NULL CHECK (length(starting_commit_oid) = 40
+        AND starting_commit_oid NOT GLOB '*[^0-9a-f]*'),
+    prepared_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE request_bundles (
+    bundle_id TEXT PRIMARY KEY,
+    submission_id TEXT NOT NULL UNIQUE REFERENCES issue_submissions(submission_id),
+    acquisition_inputs BLOB NOT NULL,
+    acquisition_policy BLOB NOT NULL,
+    acquisition_limits BLOB NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('capturing', 'complete')),
+    manifest_json TEXT,
+    manifest_sha256 TEXT CHECK (manifest_sha256 IS NULL OR length(manifest_sha256) = 64),
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    CHECK ((state = 'capturing' AND manifest_json IS NULL AND manifest_sha256 IS NULL AND completed_at IS NULL)
+        OR (state = 'complete' AND manifest_json IS NOT NULL AND manifest_sha256 IS NOT NULL AND completed_at IS NOT NULL))
+) STRICT;
+INSERT INTO "request_bundles" VALUES('bundle-8fc0ab54afee22f2db949512ea0c133a5096426d39aff37d954ca3d7c17dfbe4','issue-sub-f21756a815684a93b0a7663e10bd284d',X'696E707574732D7631',X'706F6C6963792D7631',X'6C696D6974732D7631','complete','{"version":"v1","bundleId":"bundle-8fc0ab54afee22f2db949512ea0c133a5096426d39aff37d954ca3d7c17dfbe4","submissionId":"issue-sub-f21756a815684a93b0a7663e10bd284d","workUnitId":"wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a","acquisitionInputs":"aW5wdXRzLXYx","acquisitionPolicy":"cG9saWN5LXYx","acquisitionLimits":"bGltaXRzLXYx","repository":null,"references":[{"referenceId":"issue","ordinal":0,"captureKind":"source","selector":"aXNzdWUgc2VsZWN0b3I=","sourceId":"src-8454b5ffd81ef89a79c31818d856c02f32d8773ca8377e042177d6d81818eb53","contentSha256":"856674dc505945e91107f42bdd71d665ff7ec110d5d91c4fe6f783a91b77fa13","gitCommitOid":null,"gitPath":null,"gitBlobOid":null}]}','a75469a5b2b5858f1c5497a420ad1102ac71537a8cba0ae87d18104cbdb58e6f','2026-09-25T02:14:14.3895924+00:00','2026-09-25T02:14:14.4143748+00:00');
 CREATE TABLE store_metadata (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
     format TEXT NOT NULL,
@@ -115,7 +180,7 @@ CREATE TABLE store_metadata (
     manifest_hash TEXT NOT NULL,
     initialized_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "store_metadata" VALUES(1,'broodling.dotnet',7,'1f56d5fa659afe8f91c8bc559b9de248cc1f9f85ced68cf674a27c85002302c6','84bfb92ddf4305e45e4543eb280ba4f36ad6eebc466f1a897ccce63c3ad56fe9','2026-09-22T18:21:06.6804719+00:00');
+INSERT INTO "store_metadata" VALUES(1,'broodling.dotnet',12,'b4f859fcb7847afc686bb46a72af1c6b1f80fedfd6f6fc76909fe1274f371a95','06e016bef175105c38b3329629e46cdc1aabca4c44ab94abbf143c53e9178f5e','2026-09-25T02:14:14.1338703+00:00');
 CREATE TABLE work_submissions (
     submission_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -123,8 +188,9 @@ CREATE TABLE work_submissions (
     submitted_issue TEXT NOT NULL,
     received_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "work_submissions" VALUES('sub-4f4347255b76459c8707bb26a5a285ac','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','acme/widget','12','2026-09-22T18:21:06.7648300+00:00');
-INSERT INTO "work_submissions" VALUES('sub-6dc5bffe4426450a8b0f6df9bd531baf','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','acme/widget','13','2026-09-22T18:21:07.5947465+00:00');
+INSERT INTO "work_submissions" VALUES('sub-533f962ac5174cc3840f0e6500cbe09d','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','acme/widget','12','2026-09-25T02:14:14.2212088+00:00');
+INSERT INTO "work_submissions" VALUES('sub-df1e6ef4d84248a290a37efff5794d66','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','acme/widget','https://github.com/acme/widget/issues/12','2026-09-25T02:14:14.3859224+00:00');
+INSERT INTO "work_submissions" VALUES('sub-8acfcf4a67d54a519c31154202d40c13','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','acme/widget','https://github.com/acme/widget/issues/13','2026-09-25T02:14:14.4155018+00:00');
 CREATE TABLE work_units (
     work_unit_id TEXT PRIMARY KEY,
     reference_key TEXT NOT NULL UNIQUE,
@@ -138,14 +204,12 @@ CREATE TABLE work_units (
     first_seen_at TEXT NOT NULL,
     UNIQUE (host, owner, repository, issue_number)
 ) STRICT;
-INSERT INTO "work_units" VALUES('wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','github.com/acme/widget#12','github.com','acme','widget',12,'https://github.com/acme/widget/issues/12',NULL,NULL,'2026-09-22T18:21:06.7618995+00:00');
-INSERT INTO "work_units" VALUES('wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','github.com/acme/widget#13','github.com','acme','widget',13,'https://github.com/acme/widget/issues/13',NULL,NULL,'2026-09-22T18:21:07.5946212+00:00');
+INSERT INTO "work_units" VALUES('wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','github.com/acme/widget#12','github.com','acme','widget',12,'https://github.com/acme/widget/issues/12',NULL,NULL,'2026-09-25T02:14:14.2190470+00:00');
+INSERT INTO "work_units" VALUES('wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','github.com/acme/widget#13','github.com','acme','widget',13,'https://github.com/acme/widget/issues/13',NULL,NULL,'2026-09-25T02:14:14.4153441+00:00');
 CREATE TABLE worktree_provisions (
     attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
     provisioned_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "worktree_provisions" VALUES('at-e91ea13ddf5efbfa39742e83616e1bc90aebdf6e4ac0ddb941c917bea2d9860f','2026-09-22T18:21:07.3186732+00:00');
-INSERT INTO "worktree_provisions" VALUES('at-a42519171d07397d3df9df6e6815e3aa2dc9e43998a43acabd67211d06d5b670','2026-09-22T18:21:07.7469902+00:00');
 CREATE INDEX submissions_by_work ON work_submissions(work_unit_id);
 CREATE INDEX sources_by_work ON entitled_sources(work_unit_id);
 CREATE TRIGGER work_identity_stable BEFORE UPDATE ON work_units
@@ -366,4 +430,115 @@ CREATE TRIGGER retry_submission_target BEFORE INSERT ON native_submissions
 WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id
     AND json(target_json) IS NOT json_extract(NEW.request_json, '$.target'))
 BEGIN SELECT RAISE(ABORT, 'replacement must preserve its chosen target'); END;
+CREATE TRIGGER issue_submission_binding BEFORE INSERT ON issue_submissions
+WHEN NEW.contract_revision_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM contract_revisions
+    WHERE contract_revision_id = NEW.contract_revision_id AND work_unit_id = NEW.work_unit_id
+)
+BEGIN SELECT RAISE(ABORT, 'Issue submission Contract must belong to its Work Unit'); END;
+CREATE TRIGGER issue_submission_update BEFORE UPDATE ON issue_submissions
+WHEN OLD.submission_id <> NEW.submission_id OR OLD.work_unit_id <> NEW.work_unit_id
+  OR OLD.submission_sequence <> NEW.submission_sequence
+  OR OLD.issue_url <> NEW.issue_url OR OLD.received_at <> NEW.received_at
+  OR (OLD.contract_revision_id IS NOT NULL AND OLD.contract_revision_id IS NOT NEW.contract_revision_id)
+  OR (NEW.contract_revision_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM contract_revisions
+      WHERE contract_revision_id = NEW.contract_revision_id AND work_unit_id = NEW.work_unit_id
+  ))
+BEGIN SELECT RAISE(ABORT, 'Issue submission identity and Contract binding are immutable'); END;
+CREATE TRIGGER issue_submissions_no_delete BEFORE DELETE ON issue_submissions
+BEGIN SELECT RAISE(ABORT, 'Issue submission history is immutable'); END;
+CREATE TRIGGER request_bundle_binding BEFORE INSERT ON request_bundles
+WHEN NOT EXISTS (
+    SELECT 1 FROM issue_submissions
+    WHERE submission_id = NEW.submission_id AND contract_revision_id IS NULL
+      AND state IN ('accepted', 'capturing')
+)
+BEGIN SELECT RAISE(ABORT, 'RequestBundle requires an unprepared Issue submission'); END;
+CREATE TRIGGER request_bundle_update BEFORE UPDATE ON request_bundles
+WHEN OLD.bundle_id <> NEW.bundle_id OR OLD.submission_id <> NEW.submission_id
+  OR OLD.acquisition_inputs <> NEW.acquisition_inputs
+  OR OLD.acquisition_policy <> NEW.acquisition_policy
+  OR OLD.acquisition_limits <> NEW.acquisition_limits
+  OR OLD.created_at <> NEW.created_at OR OLD.state <> 'capturing' OR NEW.state <> 'complete'
+  OR NEW.manifest_json IS NULL OR NEW.manifest_sha256 IS NULL OR NEW.completed_at IS NULL
+  OR EXISTS (SELECT 1 FROM request_bundle_references AS r
+      WHERE (r.bundle_id = OLD.bundle_id OR r.bundle_id = NEW.bundle_id)
+        AND (r.content_sha256 IS NULL OR (r.capture_kind = 'source' AND r.source_id IS NULL)
+            OR (r.capture_kind = 'git_blob' AND (r.git_repository IS NULL OR r.git_commit_oid IS NULL OR r.git_blob_oid IS NULL))))
+BEGIN SELECT RAISE(ABORT, 'RequestBundle identity and completed manifest are immutable'); END;
+CREATE TRIGGER request_bundles_no_delete BEFORE DELETE ON request_bundles
+BEGIN SELECT RAISE(ABORT, 'RequestBundle history is immutable'); END;
+CREATE TRIGGER request_bundle_reference_insert BEFORE INSERT ON request_bundle_references
+WHEN NOT EXISTS (SELECT 1 FROM request_bundles WHERE bundle_id = NEW.bundle_id AND state = 'capturing')
+BEGIN SELECT RAISE(ABORT, 'RequestBundle membership is sealed after completion'); END;
+CREATE TRIGGER request_bundle_reference_update BEFORE UPDATE ON request_bundle_references
+WHEN OLD.bundle_id IS NOT NEW.bundle_id OR OLD.reference_id IS NOT NEW.reference_id
+  OR OLD.ordinal IS NOT NEW.ordinal OR OLD.capture_kind IS NOT NEW.capture_kind
+  OR OLD.selector IS NOT NEW.selector OR OLD.git_repository_input IS NOT NEW.git_repository_input
+  OR OLD.git_revision_input IS NOT NEW.git_revision_input OR OLD.git_path IS NOT NEW.git_path
+  OR NOT EXISTS (SELECT 1 FROM request_bundles WHERE bundle_id = OLD.bundle_id AND state = 'capturing')
+  OR OLD.content_sha256 IS NOT NULL OR NEW.content_sha256 IS NULL
+  OR (OLD.capture_kind = 'source' AND (NEW.source_id IS NULL OR NEW.git_repository IS NOT OLD.git_repository
+      OR NEW.git_commit_oid IS NOT OLD.git_commit_oid OR NEW.git_blob_oid IS NOT OLD.git_blob_oid
+      OR NOT EXISTS (SELECT 1 FROM entitled_sources AS s JOIN issue_submissions AS i
+          ON i.work_unit_id = s.work_unit_id
+          WHERE i.submission_id = (SELECT submission_id FROM request_bundles WHERE bundle_id = NEW.bundle_id)
+            AND s.source_id = NEW.source_id AND s.content_sha256 = NEW.content_sha256)))
+  OR (OLD.capture_kind = 'git_blob' AND (NEW.source_id IS NOT OLD.source_id
+      OR NEW.git_repository IS NULL OR NEW.git_commit_oid IS NULL OR NEW.git_blob_oid IS NULL))
+BEGIN SELECT RAISE(ABORT, 'RequestBundle reference identity and first capture are immutable'); END;
+CREATE TRIGGER request_bundle_references_no_delete BEFORE DELETE ON request_bundle_references
+BEGIN SELECT RAISE(ABORT, 'RequestBundle membership is immutable'); END;
+CREATE TRIGGER issue_submission_cancellation_bound BEFORE INSERT ON issue_submission_cancellations
+WHEN NOT EXISTS (
+    SELECT 1 FROM issue_submissions
+    WHERE submission_id = NEW.submission_id AND state NOT IN ('cancelled', 'completed')
+) OR (NEW.attempt_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM attempts AS a
+    JOIN issue_submissions AS s ON s.submission_id = NEW.submission_id
+    WHERE a.attempt_id = NEW.attempt_id
+      AND a.work_unit_id = s.work_unit_id
+      AND a.contract_revision_id IS s.contract_revision_id
+))
+BEGIN SELECT RAISE(ABORT, 'Issue submission cancellation must bind its exact retained Attempt'); END;
+CREATE TRIGGER issue_submission_cancellation_no_update BEFORE UPDATE ON issue_submission_cancellations
+BEGIN SELECT RAISE(ABORT, 'Issue submission cancellation is immutable'); END;
+CREATE TRIGGER issue_submission_cancellation_no_delete BEFORE DELETE ON issue_submission_cancellations
+BEGIN SELECT RAISE(ABORT, 'Issue submission cancellation is durable'); END;
+CREATE TRIGGER cancelled_submission_no_admission BEFORE INSERT ON admission_decisions
+WHEN EXISTS (
+    SELECT 1 FROM issue_submissions
+    WHERE contract_revision_id = NEW.contract_revision_id AND state = 'cancelled'
+) AND NOT EXISTS (
+    SELECT 1 FROM issue_submissions
+    WHERE contract_revision_id = NEW.contract_revision_id AND state <> 'cancelled'
+)
+BEGIN SELECT RAISE(ABORT, 'cancelled Issue submission cannot acquire Contract admission'); END;
+CREATE TRIGGER cancelled_submission_no_attempt BEFORE INSERT ON attempts
+WHEN EXISTS (
+    SELECT 1 FROM issue_submissions
+    WHERE contract_revision_id = NEW.contract_revision_id AND state = 'cancelled'
+) AND NOT EXISTS (
+    SELECT 1 FROM issue_submissions
+    WHERE contract_revision_id = NEW.contract_revision_id AND state <> 'cancelled'
+) AND NOT EXISTS (
+    SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id
+)
+BEGIN SELECT RAISE(ABORT, 'cancelled Issue submission cannot acquire ordinary Attempt authority'); END;
+CREATE TRIGGER issue_submission_cancel_state BEFORE UPDATE OF state ON issue_submissions
+WHEN (NEW.state = 'cancelled' AND NOT EXISTS (
+    SELECT 1 FROM issue_submission_cancellations WHERE submission_id = NEW.submission_id
+)) OR (OLD.state = 'cancelled' AND NEW.state <> 'cancelled')
+BEGIN SELECT RAISE(ABORT, 'Issue submission cancellation requires an immutable cancellation fact'); END;
+CREATE TRIGGER request_bundle_repository_insert BEFORE INSERT ON request_bundle_repositories
+WHEN NOT EXISTS (SELECT 1 FROM request_bundles WHERE bundle_id = NEW.bundle_id AND state = 'capturing')
+BEGIN SELECT RAISE(ABORT, 'Repository preparation requires an open RequestBundle capture'); END;
+CREATE TRIGGER request_bundle_repository_update BEFORE UPDATE ON request_bundle_repositories
+WHEN OLD.bundle_id <> NEW.bundle_id OR OLD.repository <> NEW.repository
+  OR OLD.default_branch <> NEW.default_branch OR OLD.starting_revision <> NEW.starting_revision
+  OR OLD.starting_commit_oid <> NEW.starting_commit_oid OR OLD.prepared_at <> NEW.prepared_at
+BEGIN SELECT RAISE(ABORT, 'Repository preparation is immutable'); END;
+CREATE TRIGGER request_bundle_repository_no_delete BEFORE DELETE ON request_bundle_repositories
+BEGIN SELECT RAISE(ABORT, 'Repository preparation history is immutable'); END;
 COMMIT;

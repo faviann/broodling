@@ -5,29 +5,15 @@ namespace Broodling;
 
 internal static class StoreSchema
 {
-    internal const string Format = "broodling.dotnet";
-    internal const int Version = 12;
+    // Fresh-state identity for the HTTP integration. Pre-transition `broodling.dotnet`
+    // schemas are refused unchanged, never upgraded.
+    internal const string Format = "broodling.application";
+    internal const int Version = 1;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
-    internal static string VersionOneDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionOneSql));
+    internal const string Sql = IdentitySql + "\n" + AdmissionSql + "\n" + AttemptSql + "\n" + ProvisioningSql
+        + "\n" + DispatchSql + "\n" + CompletionSql + "\n" + RetirementSql + "\n" + IssueSubmissionSql
+        + "\n" + InstallationSql + "\n" + RequestBundleSql + "\n" + CancellationSql + "\n" + RepositoryPreparationSql;
 
-    internal static string VersionTwoDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionTwoSql));
-    internal const string VersionTwoSql = VersionOneSql + "\n" + AdmissionSql;
-    internal static string VersionThreeDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionThreeSql));
-    internal const string VersionThreeSql = VersionTwoSql + "\n" + AttemptSql;
-    internal static string VersionFourDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionFourSql));
-    internal const string VersionFourSql = VersionThreeSql + "\n" + ProvisioningSql;
-    internal static string VersionFiveDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionFiveSql));
-    internal const string VersionFiveSql = VersionFourSql + "\n" + DispatchSql;
-    internal static string VersionSixDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionSixSql));
-    internal const string VersionSixSql = VersionFiveSql + "\n" + CompletionSql;
-    internal static string VersionSevenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionSevenSql));
-    internal const string VersionSevenSql = VersionSixSql + "\n" + RetirementSql;
-    internal static string VersionEightDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionEightSql));
-    internal const string VersionEightSql = VersionSevenSql + "\n" + IssueSubmissionSql;
-    internal const string VersionNineSql = VersionEightSql + "\n" + InstallationSql;
-    internal static string VersionNineDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionNineSql));
-    internal const string VersionTenSql = VersionNineSql + "\n" + RequestBundleSql;
-    internal static string VersionTenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionTenSql));
     internal const string CancellationSql = """
         CREATE TABLE issue_submission_cancellations (
             submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
@@ -77,12 +63,6 @@ internal static class StoreSchema
         )) OR (OLD.state = 'cancelled' AND NEW.state <> 'cancelled')
         BEGIN SELECT RAISE(ABORT, 'Issue submission cancellation requires an immutable cancellation fact'); END;
         """;
-    internal const string VersionElevenSql = VersionTenSql + "\n" + CancellationSql;
-    internal static string VersionElevenDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionElevenSql));
-    internal const string VersionTwelveSql = VersionElevenSql + "\n" + RepositoryPreparationSql;
-    internal static string VersionTwelveDefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(VersionTwelveSql));
-    internal const string Sql = VersionTwelveSql;
-
     internal const string IssueSubmissionSql = """
         CREATE TABLE issue_submissions (
             submission_id TEXT PRIMARY KEY,
@@ -421,8 +401,7 @@ internal static class StoreSchema
         BEGIN SELECT RAISE(ABORT, 'provisioning history is immutable'); END;
         """;
 
-    // Separate format and version space from the Python executable reference.
-    internal const string VersionOneSql = """
+    internal const string IdentitySql = """
         CREATE TABLE store_metadata (
             singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
             format TEXT NOT NULL,
