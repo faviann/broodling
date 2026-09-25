@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using TUnit.Assertions;
 using TUnit.Core;
 
@@ -175,6 +176,85 @@ public sealed class DispatchProcessTests
         await Assert.That(correlated.RequestJson).IsEqualTo(prepared.RequestJson);
         await Assert.That(target.Runs.Values.Single()).IsEqualTo(prepared.IntendedRunId);
         hold.TrySetResult();
+    }
+
+    [Test]
+    public async Task BufferedHttpRequestCanCreateTheRunAfterCallerDeathDrainageAndUnknownRunStop()
+    {
+        await using var target = new DirectTargetSessionTests.StockTarget();
+        using var fixture = new HttpFixture();
+        var prepared = fixture.PrepareAt(target.Origin);
+        var run = prepared.Frozen.Run(prepared.IntendedRunId!);
+        fixture.Store.Dispose();
+        var buffered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var accepted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        // The target holds the complete request bytes and accepts them only when released.
+        target.Submit = async body =>
+        {
+            buffered.TrySetResult();
+            await release.Task;
+            accepted.TrySetResult();
+            return (200, new JsonObject { ["runId"] = (string)body["runId"]! }.ToJsonString());
+        };
+        target.Reply = (request, id) => accepted.Task.IsCompleted || (string)request["method"]! != "run/status" ? null
+            : new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["error"] = new JsonObject
+                { ["code"] = -32000, ["message"] = "run was not found", ["data"] = new JsonObject { ["code"] = "NOT_FOUND" } } }.ToJsonString();
+
+        var start = new ProcessStartInfo("dotnet") { RedirectStandardError = true };
+        foreach (var argument in new[] { Path.Combine(AppContext.BaseDirectory, "Broodling.ProcessWitness.dll"),
+            "http-dispatch", fixture.Git.State.Path, prepared.AttemptId })
+            start.ArgumentList.Add(argument);
+        using var caller = Process.Start(start)!;
+        var error = caller.StandardError.ReadToEndAsync();
+        try
+        {
+            if (await Task.WhenAny(buffered.Task, caller.WaitForExitAsync(), Task.Delay(TimeSpan.FromSeconds(40))) != buffered.Task)
+                throw new Exception($"HTTP caller did not deliver its request; exited={caller.HasExited}, diagnostic={(caller.HasExited ? await error : "")}");
+        }
+        finally
+        {
+            if (!caller.HasExited) caller.Kill(entireProcessTree: false);
+            await caller.WaitForExitAsync();
+        }
+
+        using var store = fixture.Git.State.Open();
+        await Assert.That((await InstallationPauseTests.SettledStatus(store)).InFlightInitiationDrained).IsTrue();
+        var unknown = await Assert.That(async () => await store.StopAsync(prepared.AttemptId, "maintenance", null))
+            .Throws<CessationUnconfirmed>();
+        await Assert.That(unknown!.NativeStopRequested).IsFalse();
+        await Assert.That(target.Count("run/force")).IsEqualTo(0);
+
+        // Only the bytes already buffered are released; nothing is replayed.
+        release.SetResult();
+        await accepted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        target.Projections.Enqueue(DirectTargetSessionTests.Running(run));
+        var progress = await store.ObserveAsync(prepared.AttemptId, null);
+        await Assert.That(progress).IsTypeOf<NativeObservation.Available>();
+        await Assert.That(progress!.Identity).IsEqualTo(NativeRunIdentity.Intended);
+        target.Projections.Enqueue(DirectTargetSessionTests.Running(run));
+        target.Projections.Enqueue(DirectTargetSessionTests.Projection(new JsonObject
+        {
+            ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "failed", ["reason"] = "force_stopped" }
+        }, run));
+        var stopped = await Assert.That(async () => await store.StopAsync(prepared.AttemptId, "maintenance", null))
+            .Throws<CessationUnconfirmed>();
+        await Assert.That(stopped!.NativeStopRequested).IsTrue();
+        await Assert.That((string)target.Messages.Last(message => (string)message["method"]! == "run/force")["params"]!["runId"]!)
+            .IsEqualTo(prepared.IntendedRunId);
+
+        // Uncertainty and quarantine remain: no correlation, replay, retirement or replacement.
+        var retained = store.FindSubmission(prepared.AttemptId)!;
+        await Assert.That(retained.State).IsEqualTo("dispatched");
+        await Assert.That(retained.RunId).IsNull();
+        await Assert.That(store.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(1);
+        await Assert.That(target.Stages.Count(stage => stage == "run")).IsEqualTo(1);
+        await Assert.That(store.FindRetirement(prepared.AttemptId)).IsNull();
+        await Assert.That(() => store.RetireAttempt(prepared.AttemptId)).Throws<CessationUnconfirmed>();
+        await Assert.That(() => store.AdmitRetry(prepared.AttemptId, "replace")).Throws<AttemptAdmissionError>();
+        await Assert.That(async () => await store.DispatchHttpAsync(prepared.AttemptId, HttpDispatchTests.Credentials()))
+            .Throws<StaleAttempt>();
+        await Assert.That(target.Stages.Count(stage => stage == "run")).IsEqualTo(1);
     }
 
     [Test]

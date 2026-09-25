@@ -122,9 +122,7 @@ internal sealed class DirectTargetSession : IAsyncDisposable
         { Content = DirectTargetExchange.JsonContent(JsonSerializer.SerializeToUtf8Bytes(new { runId = run.RunId })) };
         var (status, body) = await DirectTargetExchange.SendJsonAsync(http, request, budget);
         if (status != HttpStatusCode.OK)
-            throw new NativeTransportError(Shape(body, ["code", "message"], ["details"])
-                && body.GetProperty("code").ValueKind == JsonValueKind.String
-                && body.GetProperty("message").ValueKind == JsonValueKind.String ? "TargetError" : "invalid_response");
+            throw new NativeTransportError(DirectTargetExchange.ProblemCode(body) is null ? "invalid_response" : "TargetError");
         var expected = (origin.Scheme == Uri.UriSchemeHttps ? "wss://" : "ws://") + origin.Authority + OecpPath;
         if (!Shape(body, ["endpoint"], ["bearerToken"]) || Text(body, "endpoint") != expected
             || body.TryGetProperty("bearerToken", out var bearer) && bearer.ValueKind != JsonValueKind.Null)

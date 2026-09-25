@@ -66,14 +66,11 @@ public sealed partial class BroodlingStore
     /// record is handed back with no other prerequisite. Otherwise the send needs current authority,
     /// no retained replay block, no pause, current credentials and exact retained B1 custody; dispatch
     /// intent commits before discovery and the writer is released before any network I/O. Only the
-    /// exact acknowledgement correlates; every other outcome leaves the intent unresolved.
+    /// exact acknowledgement correlates; every other outcome leaves the intent unresolved. A
+    /// correlation that arrives after abandonment is retained, then that exact run is stopped.
     /// </summary>
-    public Task<NativeSubmission> DispatchHttpAsync(string attemptId, DispatchCredentials? credentials,
-        CancellationToken cancellationToken = default) =>
-        DispatchHttpAsync(attemptId, credentials, TimeProvider.System, cancellationToken);
-
-    internal async Task<NativeSubmission> DispatchHttpAsync(string attemptId, DispatchCredentials? credentials, TimeProvider clock,
-        CancellationToken cancellationToken)
+    public async Task<NativeSubmission> DispatchHttpAsync(string attemptId, DispatchCredentials? credentials,
+        CancellationToken cancellationToken = default)
     {
         var record = FindSubmission(attemptId);
         if (record is { Format: NativeSubmission.Http, State: "correlated" }) return record;
@@ -107,7 +104,7 @@ public sealed partial class BroodlingStore
             try
             {
                 await DirectTargetSubmission.SubmitAsync(DirectTargetExchange.CanonicalOrigin(record.Locator.Address)!,
-                    record.RequestJson, record.IntendedRunId!, ephemeral, clock, cancellationToken);
+                    record.RequestJson, record.IntendedRunId!, ephemeral, DirectTargetClock, cancellationToken);
             }
             catch (SubmissionConflict) { conflict = true; }
         }
@@ -134,7 +131,18 @@ public sealed partial class BroodlingStore
         }
         if (record.State != "correlated") throw ReplayBlocked();
         if (stale)
-            throw new StaleAttempt("Authority was lost while the acknowledgement was in flight; factual correlation is retained.");
+        {
+            // Correlation is committed first. The ordinary stop path then forces exactly the confirmed
+            // run; it never replays, restores authority or proves cessation.
+            var nativeStopRequested = false;
+            try { await StopAsync(attemptId, "Native acknowledgement arrived after Attempt abandonment.", null, cancellationToken); }
+            catch (CessationUnconfirmed cessation) { nativeStopRequested = cessation.NativeStopRequested; }
+            catch (NativeTransportError) { nativeStopRequested = true; } // Force was sent; its outcome is uncertain.
+            throw new StaleAttempt("Authority was lost while the acknowledgement was in flight; factual correlation is retained and "
+                + (nativeStopRequested
+                    ? "native stop of that exact run was requested, but physical cessation remains unconfirmed."
+                    : "native stop was not sent; an explicit stop may address the run later."), nativeStopRequested);
+        }
         return record;
     }
 

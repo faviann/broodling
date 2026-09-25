@@ -346,6 +346,8 @@ public sealed class DirectTargetSessionTests
         internal List<string> Heads { get; } = [];
         internal List<JsonObject> Messages { get; } = [];
         internal string? SessionBody { get; private set; }
+        /// <summary>The reply to a complete full-run submission body; without it the route is unknown.</summary>
+        internal Func<JsonObject, Task<(int Status, string Body)>>? Submit { get; set; }
 
         internal StockTarget()
         {
@@ -415,6 +417,14 @@ public sealed class DirectTargetSessionTests
                         $"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n"), stop.Token);
                     using var socket = WebSocket.CreateFromStream(stream, new WebSocketCreationOptions { IsServer = true });
                     await Serve(socket);
+                }
+                else if (Submit is { } submit && line.StartsWith("POST /native-v2/run ", StringComparison.Ordinal))
+                {
+                    var body = new byte[int.Parse(Header(text, "Content-Length")!)];
+                    await stream.ReadExactlyAsync(body, stop.Token);
+                    await Reached("run");
+                    var (status, reply) = await submit(JsonNode.Parse(body)!.AsObject()).WaitAsync(stop.Token);
+                    await Respond(stream, status, reply);
                 }
                 else await Respond(stream, 404, """{"code":"request.not_found","message":"target route was not found"}""");
             }

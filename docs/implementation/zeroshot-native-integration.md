@@ -177,10 +177,16 @@ conflict records `replay_blocked_reason = submission_conflict` once, in either
 phase. It blocks every later send but does not settle dispatch, so an
 acknowledgement for a request already in flight still correlates. Both orderings
 converge on the same correlation and conflict fact. A caller whose conflict
-arrives after correlation gets the correlated record back. A correlation that
-arrives after abandonment raises `StaleAttempt` without restoring authority. A
-duplicate acknowledgement after another caller completed the Attempt returns the
-retained record. Abandoned or replay-blocked work is never sent again to
+arrives after correlation gets the correlated record back. When a correlation
+arrives after abandonment, it is committed first. The ordinary
+`StopAsync(attemptId, reason, null)` then forces exactly the confirmed run, and
+the call raises `StaleAttempt` without restoring authority.
+`NativeStopRequested` is true when force was sent, whether it reached a terminal
+result or an uncertain outcome. It is false when setup failed before force; an
+explicit stop can address the run later. Caller cancellation propagates after
+correlation is retained. A duplicate acknowledgement after another caller
+completed the Attempt returns the retained record without abandoning or
+stopping it. Abandoned or replay-blocked work is never sent again to
 discover its run.
 
 ## Dispatch, recovery and completion

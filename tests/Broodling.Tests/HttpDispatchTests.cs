@@ -334,7 +334,8 @@ public sealed class HttpDispatchTests
         var never = Signal();
         target.Submit = async _ => { arrived.TrySetResult(); await never.Task; return (500, ""); };
         var clock = new FakeTimeProvider();
-        var expiring = fixture.Store.DispatchHttpAsync(prepared.AttemptId, Credentials(), clock, CancellationToken.None);
+        fixture.Store.DirectTargetClock = clock;
+        var expiring = fixture.Store.DispatchHttpAsync(prepared.AttemptId, Credentials());
         await arrived.Task.WaitAsync(TimeSpan.FromSeconds(10));
         clock.Advance(DirectTargetLimits.Submit);
         var timeout = await Assert.That(async () => await expiring).Throws<NativeTransportError>();
@@ -342,7 +343,7 @@ public sealed class HttpDispatchTests
 
         arrived = Signal();
         using var caller = new CancellationTokenSource();
-        var cancelled = fixture.Store.DispatchHttpAsync(prepared.AttemptId, Credentials(), TimeProvider.System, caller.Token);
+        var cancelled = fixture.Store.DispatchHttpAsync(prepared.AttemptId, Credentials(), caller.Token);
         await arrived.Task.WaitAsync(TimeSpan.FromSeconds(10));
         caller.Cancel();
         await Assert.That(async () => await cancelled).Throws<OperationCanceledException>();
@@ -425,19 +426,32 @@ public sealed class HttpDispatchTests
     }
 
     [Test]
-    public async Task LateAcknowledgementAfterPauseAbandonmentAndCustodyLossRetainsCorrelationWithoutRestoringAuthority()
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task LateAcknowledgementAfterAbandonmentRetainsCorrelationThenStopsThatExactRun(bool stopReachable)
     {
-        await using var target = new RunTarget();
+        await using var target = new DirectTargetSessionTests.StockTarget();
         using var fixture = new HttpFixture();
         var attempt = fixture.Attempt;
-        var prepared = fixture.Prepare(target: target.Origin);
+        var prepared = fixture.PrepareAt(target.Origin);
         var arrived = Signal();
         var release = Signal();
-        target.Submit = async body => { arrived.TrySetResult(); await release.Task; return target.Accept(body); };
+        target.Submit = async body =>
+        {
+            arrived.TrySetResult();
+            await release.Task;
+            return (200, new JsonObject { ["runId"] = (string)body["runId"]! }.ToJsonString());
+        };
+        target.Projections.Enqueue(DirectTargetSessionTests.Projection(new JsonObject
+        {
+            ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "failed", ["reason"] = "force_stopped" }
+        }, prepared.Frozen.Run(prepared.IntendedRunId!)));
+        if (!stopReachable) target.Session = (503, """{"code":"target.unavailable","message":"unavailable"}""");
         var pending = fixture.Store.DispatchHttpAsync(attempt.AttemptId, Credentials());
         try
         {
-            await arrived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await arrived.Task.WaitAsync(DirectTargetSessionTests.Patience);
+            // Pause, abandonment and custody loss race the acknowledgement already in flight.
             using var observer = fixture.Git.State.Open();
             observer.PauseInstallation();
             observer.AbandonAttempt(attempt.AttemptId, "operator ended");
@@ -445,14 +459,21 @@ public sealed class HttpDispatchTests
         }
         finally { release.TrySetResult(); }
 
-        await Assert.That(async () => await pending).Throws<StaleAttempt>();
+        var stale = await Assert.That(async () => await pending).Throws<StaleAttempt>();
+        await Assert.That(stale!.NativeStopRequested).IsEqualTo(stopReachable);
         var correlated = fixture.Store.FindSubmission(attempt.AttemptId)!;
         await Assert.That(correlated.State).IsEqualTo("correlated");
         await Assert.That(correlated.RunId).IsEqualTo(prepared.IntendedRunId);
+        // The confirmed run is forced once, without precheck or another submission.
+        await Assert.That(target.Count("run/status")).IsEqualTo(0);
+        await Assert.That(target.Count("run/force")).IsEqualTo(stopReachable ? 1 : 0);
+        if (stopReachable) await Assert.That((string)target.Messages.Last()["params"]!["runId"]!).IsEqualTo(prepared.IntendedRunId);
+        await Assert.That(target.Stages.Count(stage => stage == "run")).IsEqualTo(1);
         var ended = fixture.Store.GetAttempt(attempt.AttemptId);
         await Assert.That(ended.IsCurrent).IsFalse();
-        await Assert.That(ended.Abandonment).IsNotNull();
+        await Assert.That(ended.Abandonment!.Reason).IsEqualTo("operator ended");
         await Assert.That(fixture.Store.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(0);
+        await Assert.That(() => fixture.Store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
 
         // Correlated handback needs no authority, pause release, custody, credentials or target.
         var contacted = target.Connections;

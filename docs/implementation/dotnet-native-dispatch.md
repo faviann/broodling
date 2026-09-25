@@ -111,7 +111,9 @@ abandonment facts inspectable.
 native `StopAsync` transport. A missing or ambiguous enclosure, or an unresolved
 run, produces `CessationUnconfirmed` before transport and therefore false. A
 native transport failure or caller cancellation propagates; physical cessation
-remains unconfirmed in every dispatched case.
+remains unconfirmed in every dispatched case. The HTTP late-acknowledgement
+handoff is described in
+[HTTP dispatch](zeroshot-native-integration.md#http-dispatch-and-acknowledgement).
 An empty/blank identity, empty stdout, malformed JSON/envelope, transport loss,
 cancellation or caller death leaves durable unresolved dispatch. A genuine
 typed conflict with a nonblank run identity becomes `blocked`. A conflict
