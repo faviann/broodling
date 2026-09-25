@@ -26,14 +26,14 @@ public sealed class DirectTargetRunTests
         var wait = DirectTargetRun.WaitAsync(Binding(target.Origin), clock, default);
         for (var pause = 1; pause <= 17; pause++)
         {
-            await clock.Paused.WaitAsync(TimeSpan.FromSeconds(10));
+            await clock.NextPause();
             await Assert.That(target.Count("run/status")).IsEqualTo(pause);
             clock.Advance(DirectTargetLimits.PollDelay - TimeSpan.FromMilliseconds(1));
             await Task.Delay(20);
             await Assert.That(target.Count("run/status")).IsEqualTo(pause);
             clock.Advance(TimeSpan.FromMilliseconds(1));
         }
-        var result = await wait.WaitAsync(TimeSpan.FromSeconds(10));
+        var result = await wait.WaitAsync(Patience);
 
         await Assert.That(result.Succeeded).IsTrue();
         await Assert.That(target.Count("run/status")).IsEqualTo(18);
@@ -52,7 +52,7 @@ public sealed class DirectTargetRunTests
         var clock = new PollClock();
         using var caller = new CancellationTokenSource();
         var wait = DirectTargetRun.WaitAsync(Binding(target.Origin), clock, caller.Token);
-        await clock.Paused.WaitAsync(TimeSpan.FromSeconds(10));
+        await clock.NextPause();
         if (end == "cancel-pause")
         {
             caller.Cancel();
@@ -61,7 +61,7 @@ public sealed class DirectTargetRunTests
             return;
         }
         clock.Advance(DirectTargetLimits.PollDelay);
-        await target.Stalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await target.Stalled.Task.WaitAsync(Patience);
         clock.Advance(DirectTargetLimits.WaitRead - TimeSpan.FromMilliseconds(1));
         await Task.Delay(20);
         await Assert.That(wait.IsCompleted).IsFalse();
@@ -137,11 +137,11 @@ public sealed class DirectTargetRunTests
         var stop = DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Confirmed, clock, default);
         for (var pause = 0; pause < 2; pause++)
         {
-            await clock.Paused.WaitAsync(TimeSpan.FromSeconds(10));
+            await clock.NextPause();
             clock.Advance(DirectTargetLimits.PollDelay);
         }
 
-        await Assert.That((await stop.WaitAsync(TimeSpan.FromSeconds(10))).Result!.Failure).IsEqualTo("force_stopped");
+        await Assert.That((await stop.WaitAsync(Patience)).Result!.Failure).IsEqualTo("force_stopped");
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
         await Assert.That(target.Count("run/status")).IsEqualTo(2);
     }
@@ -162,11 +162,11 @@ public sealed class DirectTargetRunTests
         var elapsed = TimeSpan.Zero;
         if (end != "precheck-deadline")
         {
-            await clock.Paused.WaitAsync(TimeSpan.FromSeconds(10));
+            await clock.NextPause();
             clock.Advance(DirectTargetLimits.PollDelay);
             elapsed = DirectTargetLimits.PollDelay;
         }
-        await target.Stalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await target.Stalled.Task.WaitAsync(Patience);
         // A stop read has no fresh per-read budget; only the shared total remains.
         clock.Advance(DirectTargetLimits.Stop - elapsed - TimeSpan.FromMilliseconds(1));
         await Task.Delay(20);
@@ -179,7 +179,7 @@ public sealed class DirectTargetRunTests
         else
         {
             clock.Advance(TimeSpan.FromMilliseconds(1));
-            await Assert.That(await stop.WaitAsync(TimeSpan.FromSeconds(10))).IsEqualTo(new DirectTargetStop(
+            await Assert.That(await stop.WaitAsync(Patience)).IsEqualTo(new DirectTargetStop(
                 end == "precheck-deadline" ? DirectTargetForce.NotSent : DirectTargetForce.Uncertain, null, "TimeoutError"));
         }
         await Assert.That(target.Count("run/force")).IsEqualTo(end == "precheck-deadline" ? 0 : 1);
@@ -196,12 +196,17 @@ public sealed class DirectTargetRunTests
     /// <summary>A controlled clock that signals each two-second poll pause as it starts.</summary>
     private sealed class PollClock : FakeTimeProvider
     {
-        internal SemaphoreSlim Paused { get; } = new(0);
+        private readonly SemaphoreSlim paused = new(0);
+
+        internal async Task NextPause()
+        {
+            if (!await paused.WaitAsync(Patience)) throw new TimeoutException("No poll pause started.");
+        }
 
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {
             var timer = base.CreateTimer(callback, state, dueTime, period);
-            if (dueTime == DirectTargetLimits.PollDelay) Paused.Release();
+            if (dueTime == DirectTargetLimits.PollDelay) paused.Release();
             return timer;
         }
     }

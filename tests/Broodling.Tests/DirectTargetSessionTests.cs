@@ -17,6 +17,8 @@ namespace Broodling.Tests;
 /// </summary>
 public sealed class DirectTargetSessionTests
 {
+    /// <summary>Real-time guard for loopback progress; generous because the whole suite shares the thread pool.</summary>
+    internal static readonly TimeSpan Patience = TimeSpan.FromSeconds(60);
     internal const string RunId = "01996f2e-7a4b-7c3d-8e5f-0123456789ab";
     private static readonly NativeSource Source = new("owner/widget", "broodling/fix-widget", new string('b', 40));
 
@@ -260,7 +262,7 @@ public sealed class DirectTargetSessionTests
             await using var session = await DirectTargetSession.OpenAsync(Binding(target.Origin), budget);
             return await session.StatusAsync(budget);
         });
-        await target.Stalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await target.Stalled.Task.WaitAsync(Patience);
         clock.Advance(DirectTargetLimits.Progress - TimeSpan.FromMilliseconds(1));
         await Task.Delay(50);
         await Assert.That(read.IsCompleted).IsFalse();
