@@ -64,15 +64,21 @@ public sealed class ContractImmutabilityError(string message)
 public sealed class StoreStateException(string code, string message)
     : BroodlingException(code, message);
 
-public sealed class UnsupportedStartingState(string message)
+public class UnsupportedStartingState(string message)
     : BroodlingException("unsupported_starting_state", message);
+
+/// <summary>A retention pin that can never be created as asked: the object is not a commit, or the ref names something else.</summary>
+public sealed class RetentionRefused(string message) : UnsupportedStartingState(message);
 
 /// <summary>A selected repository path that is absent or not a file at its pinned commit.</summary>
 public sealed class UnresolvedRepositoryPath(string message)
     : BroodlingException("unresolved_repository_path", message);
 
-public sealed class ResultRetentionError(string message)
+public class ResultRetentionError(string message)
     : BroodlingException("result_retention_error", message);
+
+/// <summary>The receipt's accepted revision can never be pinned; fetching or reading the run again cannot change that.</summary>
+public sealed class AcceptedRevisionRefused(string message) : ResultRetentionError(message);
 
 public sealed class UnsupportedWorkspaceRoot(string message)
     : BroodlingException("unsupported_workspace_root", message);

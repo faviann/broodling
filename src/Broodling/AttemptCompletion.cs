@@ -14,9 +14,10 @@ public sealed record AttemptCompletion(string AttemptId, string WorkUnitId, stri
 }
 
 /// <summary>
-/// The correlated run's terminal result can never complete this Attempt: it names another run or its
-/// receipt does not match frozen PR authority, and reading the same run returns the same result. It ends
-/// automatic observation only; the Attempt keeps its authority and disposition.
+/// The correlated run's terminal result can never complete this Attempt: it names another run, its
+/// receipt does not match frozen PR authority, or its accepted revision can never be pinned. Reading the
+/// same run returns the same result. It ends automatic observation only; the Attempt keeps its authority
+/// and disposition.
 /// </summary>
 public sealed record CompletionRefusal(string AttemptId, string Reason, string RefusedAt);
 
@@ -100,6 +101,7 @@ public sealed partial class BroodlingStore
             await GitCustody.RetainAcceptedAsync(frozen.Repository, frozen.OriginUrl,
                 result.Output.GetProperty("headRevision").GetString()!, cancellationToken);
         }
+        catch (RetentionRefused error) { throw new AcceptedRevisionRefused(error.Message); }
         catch (UnsupportedStartingState error) { throw new ResultRetentionError(error.Message); }
         using (var transaction = connection.BeginTransaction(deferred: false))
         {

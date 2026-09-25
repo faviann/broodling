@@ -74,7 +74,9 @@ the result readable after the origin branch or repository, the Attempt worktree
 and branch are gone and `git gc --prune=now` has run.
 
 A failed fetch, a still-missing object or a conflicting pin raises
-`ResultRetentionError` (`result_retention_error`) without a completion row. The
+`ResultRetentionError` (`result_retention_error`) without a completion row. A
+pin that can never succeed (a non-commit object, or a symbolic or conflicting
+accepted ref) raises its `AcceptedRevisionRefused` subtype. The
 Attempt stays current and the next wait consumes the same native result again.
 A pin alone is not success; a later retry converges on the unchanged pin.
 Cancelling the wait during the fetch kills and reaps that Git process tree and
@@ -122,8 +124,14 @@ handback.
 waiting:
 
 ```csharp
-await new CompletionObserver(new BroodlingApplication(), databasePath).RunAsync(processLifetime);
+await new CompletionObserver(new BroodlingApplication(), databasePath, directTargetRootCertificate)
+    .RunAsync(processLifetime);
 ```
+
+The third argument is the DirectTarget root certificate that explicit waits
+use. Every observer session opens with it, so HTTPS automatic completion trusts
+the same private root. A caller passes null only to choose system trust
+deliberately.
 
 It scans at startup and then every 15 seconds for Attempts whose retained
 `http.v1` submission is correlated, that still hold current authority and that
@@ -134,28 +142,38 @@ It never prepares, dispatches or stops, and it continues while the installation
 is paused. LocalTarget bridge records need a Python transport and cannot produce
 a successful disposition, so the observer ignores them.
 
-A wait ends in one of four ways:
+A wait ends in one of five ways:
 
 - Success retains the completion as above.
 - Native failure records abandonment as above. Its reason is the inspectable
   outcome.
-- A `ReceiptRefused` conflict is raised only after the run's terminal result is
-  read: the result names another run, or its receipt is incomplete or does not
-  match frozen PR authority. A finished run returns that same result on every
-  read. The observer retains a `completion_refusals` row (Attempt, fixed reason, time),
-  read as `AttemptRecord.CompletionRefusal` through `Status`, `History` and the
+- A refusal of the run's terminal result, which every later read of the same run
+  returns again. `ReceiptRefused` covers a result that names another run and a
+  receipt that is incomplete or does not match frozen PR authority.
+  `AcceptedRevisionRefused` (a `ResultRetentionError`) covers an accepted
+  revision that can never be pinned: the object is not a commit, or its accepted
+  ref is symbolic or names another commit. The observer retains a
+  `completion_refusals` row (Attempt, fixed reason, time), read as
+  `AttemptRecord.CompletionRefusal` through `Status`, `History` and the
   read-only Attempt route. The refusal leaves authority and disposition
   unchanged: the Attempt stays current and unabandoned, and an explicit wait can
   still consume it. No observer retries it, including after a restart.
-- Every other failure leaves the Attempt eligible, and the next scan retries it.
-  This covers transport loss, an unsupported target reply, a failed accepted-commit
-  fetch or pin, and storage errors. It also covers a retained submission that no
-  longer matches this release's native or asset pins, which refuses before target
-  contact: a release rollback lets observation continue. Retries therefore happen
-  at most once per scan interval, and an operator can repair target
-  configuration without a restart. The library has no logging, so these
-  failures are not reported; #120 owns reporting observer failures when it
-  attaches the observer to the host.
+- A known temporary failure leaves the Attempt eligible, and the next scan
+  retries it. These are transport failures including an unreadable root
+  (`NativeTransportError`), an unsupported target reply (`UnsupportedRuntime`),
+  an accepted commit that cannot yet be fetched or read (`ResultRetentionError`),
+  and storage errors (`StoreStateException`, `SqliteException`). They also
+  include a retained submission that no longer matches this release's native or
+  asset pins, which refuses before target contact (`SubmissionConflict`); a
+  release rollback lets observation continue. `StaleAttempt` and
+  `SubmissionNotReady` mean authority has ended, so the next scan no longer
+  selects the Attempt. Retries happen at most once per scan interval, and an
+  operator can repair target configuration without a restart.
+- Any other exception is an unexpected service failure, not a retry. It faults
+  only that Attempt's observation, which stays attached and is not retried in
+  this process, while other observations continue. When `RunAsync` stops, its
+  task faults with every such failure. The library has no logging, so #120 owns
+  reporting these when it attaches the observer to the host.
 
 Each successful scan also detaches any wait whose Attempt has left that set,
 for example after an independent stop or abandonment ends its authority. Such a

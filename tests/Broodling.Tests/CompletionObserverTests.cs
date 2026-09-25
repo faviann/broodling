@@ -149,6 +149,25 @@ public sealed class CompletionObserverTests
     }
 
     [Test]
+    public async Task ConflictingAcceptedPinIsRefusedInsteadOfPolledForever()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, "correlated");
+        var accepted = fixture.Git.Deliver();
+        fixture.Git.Git("update-ref", "refs/broodling/accepted/" + accepted, fixture.Git.Head);
+        target.Reply = Status(() => Finished(submission, accepted));
+
+        await using var observer = new Observer(fixture);
+        await Until(() => fixture.Store.GetAttempt(fixture.Attempt.AttemptId).CompletionRefusal is not null);
+        for (var scan = 0; scan < 3; scan++) await observer.Scan();
+        var attempt = fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
+        await Assert.That(attempt.CompletionRefusal!.Reason).IsEqualTo("The retention pin conflicts with the selected commit.");
+        await Assert.That(fixture.Store.FindCompletion(attempt.AttemptId)).IsNull();
+        await Assert.That(target.Count("run/status")).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task ObservationDetachesOnceItsAttemptLosesAuthority()
     {
         await using var target = new StockTarget();
@@ -218,7 +237,7 @@ public sealed class CompletionObserverTests
 
         internal Observer(HttpFixture fixture)
         {
-            observer = new CompletionObserver(new BroodlingApplication(), fixture.Git.State.Path) { Clock = clock };
+            observer = new CompletionObserver(new BroodlingApplication(), fixture.Git.State.Path, null) { Clock = clock };
             running = observer.RunAsync(cancellation.Token);
         }
 
