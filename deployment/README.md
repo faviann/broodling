@@ -59,8 +59,9 @@ include .NET 10 / ASP.NET Core 10, Git, Python 3.13+ only for the no-effect
 LocalTarget bridge, and ordinary
 non-PID-1 child ownership as described by
 [materialization](../docs/implementation/dotnet-worktree-materialization.md).
-Run Broodling as an unprivileged dedicated account with access to the local
-rootful Docker socket for the selected DirectTarget. In an LXC, the host
+Run Broodling as an unprivileged dedicated account. Only the host-side
+`check-target` command needs access to the local rootful Docker socket; the
+[Broodling image](#images) never mounts one. In an LXC, the host
 operator must enable Docker nesting and the UID/GID operations rootful Docker
 needs. No installer checks these host prerequisites; the operator owns them.
 
@@ -106,41 +107,98 @@ different SDK/native versions. There is no Python Broodling package, installer
 or importable proposer. Protect and retain the selected release and dependency
 environment for replay; do not relocate a launcher already frozen in an invocation.
 
-### Image packaging handoff (#121)
+## Images
 
-[Build and publish the Broodling and native-target images](https://github.com/faviann/broodling/issues/121)
-receives these inputs; this repository builds and publishes neither image:
+This repository builds, checks and publishes two images; `zeroshot-tls` runs
+the upstream pinned Caddy image unchanged.
 
-- The execution asset, its
-  [approval manifest](../src/Broodling/execution-assets/approval.json) and the
-  [generation recipe](../src/Broodling/execution-assets/generate.sh). Before
-  packaging, run `src/Broodling/execution-assets/generate.sh
-  /PATH/TO/pinned/zeroshot` with the SDK-bundled 10.3.0 executable. It requires
-  executable SHA-256 `afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06`,
-  regenerates the asset offline, verifies SHA-256
-  `10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8` and checks
-  native admission. It needs `python3` but no credentials, target or provider. See
-  [execution asset](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset).
-  The TUnit suite checks build output only. The image build owns the regression
-  that published Broodling output carries `execution-assets/` with the approved
-  SHA-256; without it, HTTP preparation refuses.
-- The native pins: `zeroshot 10.3.0`, source
-  `054ad3fd6c763b98d12f5b2e90830b97116561ad`, from the SDK 10.3.0.post1 wheel in
-  [bridge/requirements.txt](../src/Broodling/bridge/requirements.txt), and the
-  target dependencies in the [DirectTarget Dockerfile](DirectTarget.Dockerfile)
-  (Codex 0.153.4, gh 2.101.0).
-- `zeroshot-tls`: the pinned Caddy reference, the package-defined user
-  `10443:10443` and [`zeroshot-tls.Caddyfile`](zeroshot-tls.Caddyfile), as
-  described under [readiness](#existing-target-readiness).
-- The Broodling image needs no Python or SDK for authorized PR work; Python
-  remains only for a no-effect LocalTarget profile.
-- Frozen-reference access (#114): the DirectTarget image installs
+| Service | Recipe and build context | Published repository | User |
+| --- | --- | --- | --- |
+| `broodling` | [`Broodling.Dockerfile`](Broodling.Dockerfile), repository root | `ghcr.io/faviann/broodling` | `1654:1654` |
+| `zeroshot` | [`DirectTarget.Dockerfile`](DirectTarget.Dockerfile), `deployment/` | `ghcr.io/faviann/broodling-target` | container root |
+| `zeroshot-tls` | not built | `caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b` | `10443:10443` |
+
+To build and check them locally from the repository root:
+
+```bash
+docker build -f deployment/Broodling.Dockerfile -t broodling:REVIEWED_REVISION .
+docker build -f deployment/DirectTarget.Dockerfile -t broodling-target:REVIEWED_REVISION deployment
+tests/images/demonstrate.sh broodling:REVIEWED_REVISION broodling-target:REVIEWED_REVISION
+```
+
+Both builds fetch the official SDK 10.3.0.post1 wheel by its pinned SHA-256
+(the [bridge/requirements.txt](../src/Broodling/bridge/requirements.txt) pin)
+and use only its native `zeroshot 10.3.0` executable, source
+`054ad3fd6c763b98d12f5b2e90830b97116561ad`, SHA-256
+`afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06`. Neither
+image contains the SDK. Base images are pinned by digest; apt packages come from
+the base distribution at build time, so select a published image by digest, not
+by rebuilding.
+
+### Broodling image
+
+The runtime stage is ASP.NET Core 10.0.12 on Ubuntu 24.04. The build stage uses
+the matching SDK 10.0.401 image, so `libbroodling_git.so` links against the
+runtime's libc. The image holds the published host output at `/app`, including
+`execution-assets/`, plus Git, curl and tini. It runs
+`dotnet /app/Broodling.Host.dll` under tini as the image's non-root `app` user,
+`1654:1654`. Administrative Git refuses a PID-1 process, so the host never runs
+as PID 1.
+
+- With no arguments it serves the read-only reader on port **8080** over
+  `Broodling__Store=/var/lib/broodling/state.sqlite3`. The DirectTarget image's
+  reference helper reads from `http://broodling:8080`, so keep that port and
+  service name.
+- Arguments select a host command instead, with the same routing as the release
+  artifact. For example, a new installation initializes its store once with
+  `docker compose run --rm --no-deps broodling initialize-store /var/lib/broodling/state.sqlite3`.
+  The store and inspection commands (`status`, `history`, the installation
+  pause commands, `retire-attempt`) work the same way.
+- The operator provides the state directory, mounted read/write at
+  `/var/lib/broodling` and owned by `1654:1654` (for example mode `0700`). The
+  image never changes mounted ownership. Mount the public root directory
+  read-only at `/tls-root`; a Direct configuration used inside the container
+  names `/tls-root/root.crt` as its `directRootCertificate`.
+- The image health check runs `GET http://127.0.0.1:8080/health` with no
+  credentials. It fails while the store is unavailable.
+- It mounts no Docker socket. `check-target` inspects containers on the Docker
+  host, so run it there: from the release artifact, or from the image's own
+  output copied out with `docker cp` and a host .NET 10 ASP.NET runtime, with a
+  configuration that names the host path of `root.crt`.
+
+The image contains no Python, SDK, native client, Codex CLI or C# Codex
+launcher. HTTP DirectTarget submission, observation and control need none of
+them and no client helper process. The no-effect LocalTarget profile needs all
+of them, so it remains available only from the [release artifact](#build-a-release-artifact).
+Like the release, the image initializes and opens only the current store
+format, `broodling.application` schema 1. Under
+[#169's fresh-state decision](https://github.com/faviann/broodling/issues/169#issuecomment-5824930913)
+there is no legacy invocation state to carry, and pre-transition stores refuse
+unchanged.
+
+The build regenerates the approved execution asset with
+[`generate.sh`](../src/Broodling/execution-assets/generate.sh) and the pinned
+native, then fails unless the published `execution-assets/` asset equals the
+generated bytes and the [approval manifest](../src/Broodling/execution-assets/approval.json)
+equals the reviewed file. `generate.sh` verifies SHA-256
+`10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8` and native
+admission offline, without credentials, target or provider. See
+[execution asset](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset).
+Without the asset, HTTP preparation refuses.
+
+### DirectTarget image
+
+The [target recipe](#existing-target-readiness) pins Node 22.23.2, Codex
+0.153.4, gh 2.101.0 and the native binary hash. It runs rootful with Docker's
+default capabilities, and its entrypoint requires explicitly initialized state.
+Zeroshot materializes its own execution checkout, separate from Broodling's
+source and Git custody; the `zeroshot` and `broodling` services share only the
+read-only public root.
+
+- Frozen-reference access (#114): the image installs
   `/usr/local/bin/broodling-reference`, which native agents run to read one
   RequestBundle reference from the read-only HTTP reader. Its reader origin is
-  the image file `/etc/broodling/reader-origin`, `http://broodling:8080`. The
-  Broodling image must serve the reader on port 8080 (the ASP.NET Core container
-  default) as the `broodling` service on the Compose project network, reachable
-  from the `zeroshot` service; homelab-iac#353 wires and proves that path. Native
+  the image file `/etc/broodling/reader-origin`, `http://broodling:8080`. Native
   clears agent environments, so a different address means replacing that file
   (for example with a read-only mount), not setting an environment variable. See
   [frozen-reference access](../docs/implementation/zeroshot-native-integration.md#frozen-reference-access).
@@ -151,13 +209,56 @@ receives these inputs; this repository builds and publishes neither image:
   covers exact B1 after branch movement, no client checkout, failure rather than
   fallback for an unavailable B1, same-run replay, restart retention and offline
   completion replay, and an agent reading frozen references through the installed
-  helper from a real reader. It is not image publication, production topology
-  (#155, homelab-iac#353), a real GitHub PR or provider quality evidence.
+  helper from a real reader. It is not production topology (homelab-iac#353), a
+  real GitHub PR or provider quality evidence.
 - Submit timing: the target acknowledges a run only after its own checkout. In
   the witness, with a local forge, acknowledgement took about 0.4 s and the
   unavailable-B1 refusal about 2.5–2.9 s. A slow real fetch can exceed
   Broodling's fixed 60-second submit budget; the send then stays unresolved
   until an exact replay, which converges on the same run.
+
+### Publication and release records
+
+The [images workflow](../.github/workflows/images.yml) runs for every push. It
+builds both images, runs the [image demonstration](../tests/README.md#image-demonstration)
+on them and then publishes exactly those images to GHCR:
+
+- A branch push publishes `sha-<full commit>` candidates, so a pull request's
+  head is published before merge.
+- A `v*` tag publishes that tag name and attaches the release record to a
+  GitHub release of the same name.
+- Pull requests from forks only build and demonstrate.
+
+Published tags are never moved: a run refuses to publish over an existing tag,
+and a re-run of a published commit therefore fails at publication. Select images
+by digest.
+
+Each publishing run uploads a `release-record` artifact, `release-record.json`
+(kind `broodling.image-release/v1`), which records:
+
+- the source revision, and the version or `sha-` tag;
+- `images.broodling` and `images.zeroshot` as `repository@sha256:DIGEST`, and
+  `images["zeroshot-tls"]`, the pinned Caddy reference;
+- `zeroshotTls`: the user and the Caddyfile to mount (path, SHA-256 and content);
+- `application`: the store format and schema version the Broodling image
+  initializes, which is the application schema it supports;
+- `executionAsset`: the approved asset SHA-256 and its native pins from the
+  approval manifest;
+- `targetDependencies` and `demonstration`: the native, Codex, Node and gh
+  versions and other facts that `check-target` observed during the
+  demonstration.
+
+A record states that these two images passed the demonstration together at that
+revision. It is not a compatibility registry, and the two images need not share
+a version. It establishes neither upgrade compatibility with existing state
+(#125) nor supported-profile readiness (#126). An operator records a deployed
+target's image ID from `docker inspect` of the running container in the
+readiness inventory.
+
+GHCR creates the `broodling` and `broodling-target` packages as private on
+their first publication. Making them public, or granting the installation host
+read access, is a one-time operator step in the package settings; the workflow
+never changes visibility.
 
 ## State and operator commands
 
@@ -291,13 +392,13 @@ select the same origin, and the configuration's `directRootCertificate` must be
 `root.crt` in the recorded `rootCertificateMount`. It creates no target/state and
 dispatches zero provider tasks.
 
-The retained [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
+The [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
 target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
-**2.101.0** and the native **10.3.0** binary hash. Its build context requires the
-official wheel's `zeroshot/_bin/zeroshot` as `zeroshot`, plus
-`DirectTarget.Dockerfile`, `direct-target-entrypoint.sh` and `broodling-reference`. Target provisioning is
-operator-owned and separately authorized; the .NET release process does not
-build or deploy this image.
+**2.101.0** and the native **10.3.0** binary hash. Its build context is
+`deployment/`; it fetches the native binary from the pinned SDK wheel itself.
+The [images workflow](#publication-and-release-records) builds and publishes
+it. Target provisioning is operator-owned and separately authorized; nothing
+here deploys it.
 
 The supported topology is ADR 0001's single Compose project on rootful Docker on
 one trusted host:
@@ -330,11 +431,11 @@ storage.
 The target image entrypoint is `/usr/local/bin/broodling-target`. It keeps the
 native paths `/state`, `/home/node` and `CODEX_HOME=/home/node/.codex` and the
 listener `0.0.0.0:18770` fixed. `ZEROSHOT_CONFIG_DIR` and `XDG_CONFIG_HOME`
-overrides are refused. Build the image from a directory containing the three
-build inputs described above:
+overrides are refused. Select a published image by digest, or build it from the
+repository root:
 
 ```bash
-docker build -f DirectTarget.Dockerfile -t broodling-target:REVIEWED_REVISION .
+docker build -f deployment/DirectTarget.Dockerfile -t broodling-target:REVIEWED_REVISION deployment
 ```
 
 For an authorized **new installation only**, first provision four empty durable

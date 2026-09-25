@@ -146,8 +146,12 @@ operator PR invocation through it, with the bridge DirectTarget path removed. A
 controlled witness runs the unmodified stock native boundary. #186 packages
 [ADR 0001](../adr/0001-directtarget-https-origin-and-compose-topology.md)'s
 target side: a once-created TLS root, `zeroshot-tls`'s Caddyfile, native
-initialization through the HTTPS origin and readiness of that stack. The Compose
-installation (homelab-iac) and image publication (#121) remain open. #113 serves retained
+initialization through the HTTPS origin and readiness of that stack. #121 builds
+the non-root Broodling image and the DirectTarget image, demonstrates them
+together in a disposable instance of that topology and publishes them to GHCR
+with a release record of digests, pins and the supported store schema
+([images](../../deployment/README.md#images)). The Compose installation
+(homelab-iac#353) remains open. #113 serves retained
 work and frozen references over read-only HTTP from the ASP.NET host, opening
 existing state only. #118 adds a callable completion observer that retains
 correlated HTTP results with no caller waiting; attaching it to the host process

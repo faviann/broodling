@@ -32,7 +32,8 @@ deployment claim. There is no Python Broodling package or pytest acceptance gate
 ## Application and operator use
 
 The [release and operations guide](deployment/README.md) gives ordinary
-`dotnet publish` commands, the complete host/launcher package, explicit store
+`dotnet publish` commands, the complete host/launcher package, the published
+Broodling and DirectTarget images, explicit store
 initialization, invocation configuration and existing-target readiness checks.
 Source/release support is distinct from a validated live .NET deployment.
 The [#77 deployment record](deployment/validation.md) describes historical Python
