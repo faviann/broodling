@@ -13,6 +13,10 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
 
     internal TimeProvider Clock { get; init; } = TimeProvider.System;
 
+    private int scans;
+    /// <summary>Completed discovery passes, so tests can tell a scan has happened.</summary>
+    internal int Scans => Volatile.Read(ref scans);
+
     /// <summary>Observe until cancelled. Cancellation detaches every wait; no run is stopped or abandoned.</summary>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -26,6 +30,7 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
                 foreach (var attemptId in Discover())
                     if (!observing.ContainsKey(attemptId))
                         observing[attemptId] = Task.Run(() => ObserveAsync(attemptId, cancellationToken));
+                Interlocked.Increment(ref scans);
                 await Task.Delay(Cadence, Clock, cancellationToken);
             }
         }
@@ -49,11 +54,13 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
         {
             using var store = application.OpenStore(storePath);
             try { await store.WaitAsync(attemptId, null, cancellationToken); }
-            // The same retained run always returns the same receipt and binding, so retrying cannot help.
-            catch (SubmissionConflict refusal) { store.RefuseCompletion(attemptId, refusal.Message); }
+            // Only a terminal result read from the run is refused: reading it again returns the same result.
+            // A retained-submission conflict before contact, such as a changed release pin, is retried.
+            catch (ReceiptRefused refusal) { store.RefuseCompletion(attemptId, refusal.Message); }
         }
         // Native failure has already recorded abandonment. Any other failure leaves the Attempt
         // eligible, so the next scan retries it; configuration can be fixed without a restart.
+        // Reporting these failures belongs to the host that attaches the observer (#120).
         catch (Exception) { }
     }
 }

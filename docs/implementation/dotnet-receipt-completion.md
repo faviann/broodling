@@ -139,18 +139,23 @@ A wait ends in one of four ways:
 - Success retains the completion as above.
 - Native failure records abandonment as above. Its reason is the inspectable
   outcome.
-- A `SubmissionConflict` (a receipt or binding that does not match frozen
-  authority) cannot change on a later read of the same retained run. The
-  observer retains a `completion_refusals` row (Attempt, fixed reason, time),
+- A `ReceiptRefused` conflict is raised only after the run's terminal result is
+  read: the result names another run, or its receipt is incomplete or does not
+  match frozen PR authority. A finished run returns that same result on every
+  read. The observer retains a `completion_refusals` row (Attempt, fixed reason, time),
   read as `AttemptRecord.CompletionRefusal` through `Status`, `History` and the
   read-only Attempt route. The refusal leaves authority and disposition
   unchanged: the Attempt stays current and unabandoned, and an explicit wait can
   still consume it. No observer retries it, including after a restart.
 - Every other failure leaves the Attempt eligible, and the next scan retries it.
   This covers transport loss, an unsupported target reply, a failed accepted-commit
-  fetch or pin, and storage errors. Retries therefore happen at most once per
-  scan interval, and an operator can repair target configuration without a
-  restart.
+  fetch or pin, and storage errors. It also covers a retained submission that no
+  longer matches this release's native or asset pins, which refuses before target
+  contact: a release rollback lets observation continue. Retries therefore happen
+  at most once per scan interval, and an operator can repair target
+  configuration without a restart. The library has no logging, so these
+  failures are not reported; #120 owns reporting observer failures when it
+  attaches the observer to the host.
 
 Cancelling `RunAsync` detaches every wait without stopping or abandoning the
 run. The next process rediscovers the same correlated records and reconnects

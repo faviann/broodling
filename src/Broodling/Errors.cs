@@ -13,10 +13,12 @@ public sealed class InstallationPaused(string message = "Installation admission 
     : BroodlingException("installation_paused", message);
 /// <summary>The pause, drainage or stopped-target check required for maintenance retirement does not hold.</summary>
 public sealed class MaintenanceUnverified(string message) : BroodlingException("maintenance_unverified", message);
-public sealed class SubmissionConflict(string message, string? existingRunId = null) : BroodlingException("submission_conflict", message)
+public class SubmissionConflict(string message, string? existingRunId = null) : BroodlingException("submission_conflict", message)
 {
     public string? ExistingRunId { get; } = existingRunId;
 }
+/// <summary>A terminal native result that cannot complete this Attempt; the same run always returns it again.</summary>
+public sealed class ReceiptRefused(string message) : SubmissionConflict(message);
 public sealed class UnsupportedRuntime(string message) : BroodlingException("unsupported_runtime", message);
 public sealed class NativeTransportError(string kind = "transport_failed") : BroodlingException("native_transport_error", "Native transport did not return a usable response.")
 {

@@ -14,9 +14,9 @@ public sealed record AttemptCompletion(string AttemptId, string WorkUnitId, stri
 }
 
 /// <summary>
-/// The correlated run's result can never complete: its receipt or binding refused, and re-reading the
-/// same retained run cannot change that. It ends automatic observation only; the Attempt keeps its
-/// authority and disposition.
+/// The correlated run's terminal result can never complete this Attempt: it names another run or its
+/// receipt does not match frozen PR authority, and reading the same run returns the same result. It ends
+/// automatic observation only; the Attempt keeps its authority and disposition.
 /// </summary>
 public sealed record CompletionRefusal(string AttemptId, string Reason, string RefusedAt);
 
@@ -44,7 +44,7 @@ public sealed partial class BroodlingStore
     internal void RefuseCompletion(string attemptId, string reason)
     {
         using var transaction = connection.BeginTransaction(deferred: false);
-        if (ReadAttempt(attemptId, transaction) is { IsCurrent: true, Abandonment: null })
+        if (ReadAttempt(attemptId, transaction).IsCurrent)
             Execute("INSERT INTO completion_refusals VALUES ($p0, $p1, $p2) ON CONFLICT (attempt_id) DO NOTHING",
                 transaction, attemptId, reason, Now());
         transaction.Commit();
@@ -85,7 +85,7 @@ public sealed partial class BroodlingStore
             ? await DirectTargetRun.WaitAsync(submitted.Run!, directTargetRoot, DirectTargetClock, cancellationToken)
             : await (transport ?? throw new SubmissionNotReady("Waiting on a bridge run requires native transport."))
                 .WaitAsync(submitted.Run!, cancellationToken);
-        if (result.RunId != submitted.RunId) throw new SubmissionConflict("The result belongs to another native run.");
+        if (result.RunId != submitted.RunId) throw new ReceiptRefused("The result belongs to another native run.");
         if (!result.Succeeded)
         {
             var reason = "Zeroshot run failed: " + result.Failure;
@@ -123,7 +123,7 @@ public sealed partial class BroodlingStore
         string[] fields = ["version", "mode", "outcome", "repository", "targetBranch", "headRevision", "pullRequestId"];
         if (output.ValueKind != JsonValueKind.Object || output.EnumerateObject().Count() != fields.Length
             || fields.Any(field => !output.TryGetProperty(field, out var value) || value.ValueKind != JsonValueKind.String))
-            throw new SubmissionConflict("The successful run returned no complete authorized delivery receipt.");
+            throw new ReceiptRefused("The successful run returned no complete authorized delivery receipt.");
         var head = output.GetProperty("headRevision").GetString()!;
         var pr = output.GetProperty("pullRequestId").GetString()!;
         var source = frozen.Source;
@@ -135,7 +135,7 @@ public sealed partial class BroodlingStore
             || output.GetProperty("targetBranch").GetString() != source.Branch
             || head.Length != 40 || head.Any(character => !"0123456789abcdef".Contains(character))
             || head == source.Revision || pr.Length == 0 || pr.Any(character => character is < '0' or > '9'))
-            throw new SubmissionConflict("The delivery receipt does not match frozen PR authority.");
+            throw new ReceiptRefused("The delivery receipt does not match frozen PR authority.");
         return output.GetRawText();
     }
 }

@@ -83,7 +83,6 @@ public sealed class CompletionObserverTests
         // The accepted commit is not yet fetchable from the origin, so the pin fails.
         target.Reply = Status(() => Finished(submission, unpublished));
         await observer.ScanUntil(() => target.Count("run/status") > 0);
-        await Task.Delay(200);
         var attempt = fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
         await Assert.That(attempt.CompletionRefusal).IsNull();
         await Assert.That(fixture.Store.FindCompletion(attempt.AttemptId)).IsNull();
@@ -91,7 +90,7 @@ public sealed class CompletionObserverTests
         fixture.Git.Push();
         await observer.ScanUntil(() => fixture.Store.FindCompletion(attempt.AttemptId) is not null);
         await Assert.That(fixture.Store.FindCompletion(attempt.AttemptId)!.AcceptedRevision).IsEqualTo(unpublished);
-        await Assert.That(Reached(target, "session")).IsLessThanOrEqualTo(observer.Scans + 1);
+        await Assert.That(Reached(target, "session")).IsLessThanOrEqualTo(observer.Scans);
     }
 
     [Test]
@@ -121,10 +120,21 @@ public sealed class CompletionObserverTests
         var id = fixture.Attempt.AttemptId;
         CompletionRefusal? Refusal() => fixture.Store.Status(fixture.Attempt.ContractRevisionId)
             .Attempts.Single(attempt => attempt.AttemptId == id).CompletionRefusal;
+        // A release whose native pin differs from the retained binding refuses before contact. That
+        // conflict is retried, never retained: rolling back the release lets observation continue.
+        var trigger = fixture.Scalar("SELECT sql FROM sqlite_schema WHERE name = 'submission_binding_stable'");
+        var version = fixture.Scalar("SELECT json_extract(binding_json, '$.native.version') FROM native_submissions");
+        void Pin(string pinned) => fixture.Git.State.Execute(
+            $"DROP TRIGGER submission_binding_stable; UPDATE native_submissions SET binding_json = json_set(binding_json, '$.native.version', '{pinned}'); {trigger}");
+        Pin("0.0.0");
 
         await using (var observer = new Observer(fixture))
         {
-            await Until(() => Refusal() is not null);
+            for (var scan = 0; scan < 3; scan++) await observer.Scan();
+            await Assert.That(Refusal()).IsNull();
+            await Assert.That(target.Connections).IsEqualTo(0);
+            Pin(version);
+            await observer.ScanUntil(() => Refusal() is not null);
             for (var scan = 0; scan < 3; scan++) await observer.Scan();
         }
         await using (var restarted = new Observer(fixture))
@@ -186,18 +196,26 @@ public sealed class CompletionObserverTests
     {
         private readonly FakeTimeProvider clock = new();
         private readonly CancellationTokenSource cancellation = new();
+        private readonly CompletionObserver observer;
         private readonly Task running;
-        internal int Scans { get; private set; }
+        internal int Scans => observer.Scans;
 
-        internal Observer(HttpFixture fixture) =>
-            running = new CompletionObserver(new BroodlingApplication(), fixture.Git.State.Path) { Clock = clock }
-                .RunAsync(cancellation.Token);
-
-        internal async Task Scan()
+        internal Observer(HttpFixture fixture)
         {
-            clock.Advance(CompletionObserver.Cadence);
-            Scans++;
-            await Task.Delay(50);
+            observer = new CompletionObserver(new BroodlingApplication(), fixture.Git.State.Path) { Clock = clock };
+            running = observer.RunAsync(cancellation.Token);
+        }
+
+        /// <summary>Return once another discovery pass has run, re-advancing if the loop was not yet parked.</summary>
+        internal Task Scan()
+        {
+            var before = Scans;
+            return Until(() =>
+            {
+                if (Scans > before) return true;
+                clock.Advance(CompletionObserver.Cadence);
+                return false;
+            });
         }
 
         internal async Task ScanUntil(Func<bool> condition)
