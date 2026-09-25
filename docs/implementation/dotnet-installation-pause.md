@@ -25,8 +25,10 @@ and `inFlightInitiationDrained`. The last two are independent facts:
   uncertainty about whether a native run exists. Pause and status never rewrite
   it; only exact correlation settles a submission. An HTTP submission's retained
   conflict does not settle it, and neither do abandonment, stop, a terminal or
-  unknown-run observation, or local drainage. A LocalTarget bridge conflict
-  (`blocked`) is not counted.
+  unknown-run observation, local drainage or verified maintenance retirement.
+  A LocalTarget bridge conflict (`blocked`) is not counted. A counted entry whose
+  Attempt has a `stopped_target` retirement is not executing: the target was
+  verified stopped, and restart over the same ledger ends any such run.
 - `inFlightInitiationDrained` is true when no local process holds the
   installation initiation lock at the moment of the reading. It is a local fact
   only; it does not prove that no external submission can still create a run.

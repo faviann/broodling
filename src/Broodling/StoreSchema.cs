@@ -283,24 +283,35 @@ internal static class StoreSchema
         BEGIN SELECT RAISE(ABORT, 'Attempt identity and allocation cannot be replaced'); END;
         """;
 
+    // `stopped_target` is the only dispatched basis: a non-current HTTP Attempt (abandoned or
+    // completed) retired while paused, with the host's stopped-target check recorded.
     internal const string RetirementSql = """
         CREATE TABLE attempt_retirements (
-            attempt_id TEXT PRIMARY KEY REFERENCES attempt_abandonments(attempt_id),
-            basis TEXT NOT NULL CHECK (basis IN ('never_materialized', 'never_dispatched', 'no_dispatch_intent')),
+            attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
+            basis TEXT NOT NULL CHECK (basis IN ('never_materialized', 'never_dispatched', 'no_dispatch_intent', 'stopped_target')),
             ceased_at TEXT NOT NULL,
-            retired_at TEXT
+            retired_at TEXT,
+            stopped_target_json TEXT CHECK (json_valid(stopped_target_json) AND json_type(stopped_target_json) = 'object'),
+            CHECK ((basis = 'stopped_target') = (stopped_target_json IS NOT NULL))
         ) STRICT;
         CREATE TRIGGER retirement_requires_safe_history BEFORE INSERT ON attempt_retirements
         WHEN NEW.retired_at IS NOT NULL
           OR EXISTS (SELECT 1 FROM attempt_retirements WHERE attempt_id = NEW.attempt_id)
-          OR EXISTS (SELECT 1 FROM native_submissions WHERE attempt_id = NEW.attempt_id AND state <> 'prepared')
+          OR (NEW.basis <> 'stopped_target' AND (
+            NOT EXISTS (SELECT 1 FROM attempt_abandonments WHERE attempt_id = NEW.attempt_id)
+            OR EXISTS (SELECT 1 FROM native_submissions WHERE attempt_id = NEW.attempt_id AND state <> 'prepared')))
+          OR (NEW.basis = 'stopped_target' AND NOT EXISTS (
+            SELECT 1 FROM attempts AS a JOIN native_submissions AS s USING (attempt_id)
+            WHERE a.attempt_id = NEW.attempt_id AND a.is_current = 0 AND s.state <> 'prepared'
+              AND (SELECT admission_dispatch_paused FROM installation_control WHERE singleton = 1) = 1))
           OR (NEW.basis = 'never_materialized' AND EXISTS (SELECT 1 FROM worktree_provisions WHERE attempt_id = NEW.attempt_id))
           OR (NEW.basis = 'never_dispatched' AND NOT EXISTS (SELECT 1 FROM worktree_provisions WHERE attempt_id = NEW.attempt_id))
           OR NOT EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id
-            AND (resource_kind = 'http') = (NEW.basis = 'no_dispatch_intent'))
-        BEGIN SELECT RAISE(ABORT, 'retirement requires abandoned never-dispatched history'); END;
+            AND (resource_kind = 'http') = (NEW.basis IN ('no_dispatch_intent', 'stopped_target')))
+        BEGIN SELECT RAISE(ABORT, 'retirement requires abandoned never-dispatched history or verified maintenance'); END;
         CREATE TRIGGER retirement_stable BEFORE UPDATE ON attempt_retirements
         WHEN OLD.attempt_id <> NEW.attempt_id OR OLD.basis <> NEW.basis OR OLD.ceased_at <> NEW.ceased_at
+          OR OLD.stopped_target_json IS NOT NEW.stopped_target_json
           OR OLD.retired_at IS NOT NULL OR NEW.retired_at IS NULL
         BEGIN SELECT RAISE(ABORT, 'cessation proof and retirement acknowledgment are immutable'); END;
         CREATE TRIGGER retirement_no_delete BEFORE DELETE ON attempt_retirements

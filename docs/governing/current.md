@@ -149,7 +149,11 @@ host is not authority to add them.
 
 Every dispatched Attempt remains ineligible for automatic deletion or
 replacement, including after native success or stop. Terminal labels are not
-physical-cessation receipts. An HTTP DirectTarget Attempt owns no local
+physical-cessation receipts. Only explicit maintenance retirement (#122) retires
+dispatched DirectTarget work: under the persisted pause, with drained local
+initiation and a current host check that the correct target and its state mounts
+are stopped. It records the check, deletes nothing, keeps completed results
+unabandoned and does not itself authorize replacement. An HTTP DirectTarget Attempt owns no local
 directory; its safe retirement rests on abandonment with no committed dispatch
 intent and deletes nothing. Its prepared submission retains the complete request,
 approved asset bytes and an intended run identity; that is neither dispatch intent
