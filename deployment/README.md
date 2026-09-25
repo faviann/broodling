@@ -55,7 +55,8 @@ Build from a reviewed full source revision on a compatible Linux x86-64 host.
 Use a .NET 10 SDK (tested with 10.0.401), Git, `cc` and libc development
 headers. The native shim uses the build host's libc; this is not a portable
 glibc/musl or arbitrary-host binary qualification. Runtime host requirements
-include .NET 10 / ASP.NET Core 10, Git, Python 3.13+ only for the no-effect
+include .NET 10 / ASP.NET Core 10, Git, the GitHub CLI `gh` for issue and
+repository acquisition by `submit`, Python 3.13+ only for the no-effect
 LocalTarget bridge, and ordinary
 non-PID-1 child ownership as described by
 [materialization](../docs/implementation/dotnet-worktree-materialization.md).
@@ -149,16 +150,22 @@ as PID 1.
   `Broodling__Store=/var/lib/broodling/state.sqlite3`. The DirectTarget image's
   reference helper reads from `http://broodling:8080`, so keep that port and
   service name.
-- Arguments select a host command instead, with the same routing as the release
-  artifact. For example, a new installation initializes its store once with
+- Arguments select a store, inspection or maintenance command instead. For
+  example, a new installation initializes its store once with
   `docker compose run --rm --no-deps broodling initialize-store /var/lib/broodling/state.sqlite3`.
-  The store and inspection commands (`status`, `history`, the installation
-  pause commands, `retire-attempt`) work the same way.
+  `upgrade-store`, `status`, `history`, the installation pause commands and
+  `retire-attempt` work the same way.
+- The invocation commands (`submit`, `resume`, `wait`, `stop`) are not
+  supported in the image in this revision; run them from the release artifact.
+  `submit` acquires the issue and repository through `gh`, which the image
+  lacks, so it refuses with `github_source_error`. An Attempt's source custody
+  is the common Git directory of the caller checkout named to `submit`, at its
+  host path, which the image does not mount; resuming or waiting on the Attempt
+  needs it.
 - The operator provides the state directory, mounted read/write at
   `/var/lib/broodling` and owned by `1654:1654` (for example mode `0700`). The
   image never changes mounted ownership. Mount the public root directory
-  read-only at `/tls-root`; a Direct configuration used inside the container
-  names `/tls-root/root.crt` as its `directRootCertificate`.
+  read-only at `/tls-root`.
 - The image health check runs `GET http://127.0.0.1:8080/health` with no
   credentials. It fails while the store is unavailable.
 - It mounts no Docker socket. `check-target` inspects containers on the Docker
@@ -168,8 +175,9 @@ as PID 1.
 
 The image contains no Python, SDK, native client, Codex CLI or C# Codex
 launcher. HTTP DirectTarget submission, observation and control need none of
-them and no client helper process. The no-effect LocalTarget profile needs all
-of them, so it remains available only from the [release artifact](#build-a-release-artifact).
+them and no client helper process, but in this revision they run from the
+release artifact as described above. The no-effect LocalTarget profile needs
+all of them, so it remains available only from the [release artifact](#build-a-release-artifact).
 Like the release, the image initializes and opens only the current store
 format, `broodling.application` schema 1. Under
 [#169's fresh-state decision](https://github.com/faviann/broodling/issues/169#issuecomment-5824930913)
@@ -231,7 +239,9 @@ on them and then publishes exactly those images to GHCR:
 
 Published tags are never moved: a run refuses to publish over an existing tag,
 and a re-run of a published commit therefore fails at publication. Select images
-by digest.
+by digest. If publication fails after only one image was pushed, a re-run refuses
+too; that half-published tag is not a release and has no record. Publish again
+from a new commit or a new version tag.
 
 Each publishing run uploads a `release-record` artifact, `release-record.json`
 (kind `broodling.image-release/v1`), which records:
