@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
 
 namespace Broodling;
@@ -38,7 +37,7 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>Wait without a writer reservation; pin the accepted commit, then retain receipt, disposition and authority loss atomically.</summary>
-    public async Task<AttemptCompletion> WaitAsync(string attemptId, INativeTransport transport, CancellationToken cancellationToken = default)
+    public async Task<AttemptCompletion> WaitAsync(string attemptId, INativeReader transport, CancellationToken cancellationToken = default)
     {
         if (FindCompletion(attemptId) is { } existing) return existing;
         NativeSubmission submitted;
@@ -49,7 +48,7 @@ public sealed partial class BroodlingStore
             transaction.Commit();
         }
         // Cancellation and transport errors detach the caller; neither abandons nor requests stop.
-        var result = await transport.WaitAsync(submitted.Locator, submitted.RunId!, cancellationToken);
+        var result = await transport.WaitAsync(submitted.Run!, cancellationToken);
         if (result.RunId != submitted.RunId) throw new SubmissionConflict("The result belongs to another native run.");
         if (!result.Succeeded)
         {
@@ -59,10 +58,10 @@ public sealed partial class BroodlingStore
         }
         var receipt = AcceptedReceipt(submitted, result.Output);
         // Outside any writer: a failed pin or write leaves the Attempt current to consume this result again.
-        var request = JsonNode.Parse(submitted.RequestJson)!;
+        var frozen = submitted.Frozen;
         try
         {
-            await GitCustody.RetainAcceptedAsync((string)request["repository"]!, (string)request["originUrl"]!,
+            await GitCustody.RetainAcceptedAsync(frozen.Repository, frozen.OriginUrl,
                 result.Output.GetProperty("headRevision").GetString()!, cancellationToken);
         }
         catch (UnsupportedStartingState error) { throw new ResultRetentionError(error.Message); }
@@ -82,8 +81,8 @@ public sealed partial class BroodlingStore
 
     private static string AcceptedReceipt(NativeSubmission submitted, JsonElement output)
     {
-        var request = JsonNode.Parse(submitted.RequestJson)!;
-        if ((string?)request["preset"]!["delivery"] == "none")
+        var frozen = submitted.Frozen;
+        if (frozen.Delivery == "none")
             throw new SubmissionNotReady("Zeroshot 10.3 no-effect runs provide no stable accepted result; local result handoff is an upstream capability gap.");
         string[] fields = ["version", "mode", "outcome", "repository", "targetBranch", "headRevision", "pullRequestId"];
         if (output.ValueKind != JsonValueKind.Object || output.EnumerateObject().Count() != fields.Length
@@ -91,15 +90,15 @@ public sealed partial class BroodlingStore
             throw new SubmissionConflict("The successful run returned no complete authorized delivery receipt.");
         var head = output.GetProperty("headRevision").GetString()!;
         var pr = output.GetProperty("pullRequestId").GetString()!;
-        var source = request["source"]!;
-        if ((string?)request["preset"]!["delivery"] != "pull_request"
+        var source = frozen.Source;
+        if (frozen.Delivery != "pull_request" || source is null
             || output.GetProperty("version").GetString() != "v1"
             || output.GetProperty("mode").GetString() != "pr"
             || output.GetProperty("outcome").GetString() != "opened"
-            || output.GetProperty("repository").GetString() != (string?)source["repository"]
-            || output.GetProperty("targetBranch").GetString() != (string?)source["branch"]
+            || output.GetProperty("repository").GetString() != source.Repository
+            || output.GetProperty("targetBranch").GetString() != source.Branch
             || head.Length != 40 || head.Any(character => !"0123456789abcdef".Contains(character))
-            || head == (string?)source["revision"] || pr.Length == 0 || pr.Any(character => character is < '0' or > '9'))
+            || head == source.Revision || pr.Length == 0 || pr.Any(character => character is < '0' or > '9'))
             throw new SubmissionConflict("The delivery receipt does not match frozen PR authority.");
         return output.GetRawText();
     }

@@ -29,7 +29,7 @@ public sealed class NativeObservationTests
         await Assert.That(running!.Progress.Phase).IsEqualTo("running");
 
         // Native completion alone is observed as progress, not consumed as a result.
-        await transport.WaitAsync(submission.Locator, submission.RunId!);
+        await transport.WaitAsync(submission.Run!);
         var readStartedAt = DateTimeOffset.UtcNow;
         var finished = await store.ObserveAsync(attempt.AttemptId, transport) as NativeObservation.Available;
         var readEndedAt = DateTimeOffset.UtcNow;

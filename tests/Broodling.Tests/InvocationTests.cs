@@ -20,7 +20,7 @@ public sealed class InvocationTests
         var attempt = submitted.Attempts.Single();
         var output = new StringWriter();
         var error = new StringWriter();
-        var stopTransport = new StopTransport((_, _) => throw new NativeTransportError());
+        var stopTransport = new ControlledTransport { Stop = (_, _, _) => throw new NativeTransportError() };
         var code = await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop", "/unavailable-python"],
             fixture.Git.State.Application, output, error, transport: stopTransport);
         await Assert.That(code).IsEqualTo(1);

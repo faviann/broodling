@@ -6,7 +6,10 @@ namespace Broodling;
 
 public sealed record NativeSubmission(string AttemptId, string SubmissionKey, string RequestJson, string State, string? RunId)
 {
-    public NativeLocator Locator => NativeLocator.Read(JsonNode.Parse(RequestJson)!["target"]!["locator"]!);
+    public NativeLocator Locator => Frozen.Locator;
+    internal FrozenSubmission Frozen => FrozenSubmission.Read(RequestJson);
+    /// <summary>The retained binding for read/stop; null until correlation.</summary>
+    internal NativeRunBinding? Run => RunId is null ? null : Frozen.Run(RunId);
 }
 
 public sealed partial class BroodlingStore
@@ -53,9 +56,9 @@ public sealed partial class BroodlingStore
         if (record.State == "correlated") return record; // No old workspace/profile/credential dependency.
         if (record.State == "blocked") throw new SubmissionConflict("The native submission has a retained conflict.");
         RequireUnpaused();
-        var request = JsonNode.Parse(record.RequestJson)!.AsObject();
+        var frozen = record.Frozen;
         // Version/executable/credential checks may be slow. Never hold the SQLite writer for them.
-        var ephemeral = profile.ValidateDispatch(request, attempt, credentials);
+        var ephemeral = profile.ValidateDispatch(record, attempt, credentials);
         // Held from before the dispatched intent until the transport can no longer submit.
         using var initiation = HoldInitiation();
         using (var held = DispatchLock(attempt))
@@ -68,10 +71,10 @@ public sealed partial class BroodlingStore
             // Replaying a dispatched intent can still create the run, so it is a dispatch too.
             RequireUnpaused(transaction);
             ValidateFrozenInvocation(attempt, record, transaction);
-            if (!JsonNode.DeepEquals(request["target"], profile.Target((string)request["preset"]!["delivery"]!)))
+            if (!JsonNode.DeepEquals(JsonNode.Parse(record.RequestJson)!["target"], profile.Target(frozen.Delivery)))
                 throw new SubmissionConflict("The configured execution target changed.");
             ValidateDispatchSource(attempt, requireB1: record.State == "prepared");
-            RequireOrigin(attempt, request);
+            RequireOrigin(attempt, frozen);
             if (record.State == "prepared")
                 Execute("UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = $p0", transaction, attemptId);
             transaction.Commit();
@@ -110,7 +113,7 @@ public sealed partial class BroodlingStore
             {
                 if (settled.State != "dispatched") throw new SubmissionConflict("The native submission has a retained conflict.");
                 var drifted = ValidateDispatchSource(attempt, requireB1: false);
-                RequireOrigin(attempt, request);
+                RequireOrigin(attempt, frozen);
                 if (conflict is not null && drifted && !string.IsNullOrWhiteSpace(conflict.ExistingRunId))
                 {
                     runId = conflict.ExistingRunId;
@@ -183,9 +186,9 @@ public sealed partial class BroodlingStore
         return Encoding.UTF8.GetString(value.Output).Trim();
     }
 
-    private static void RequireOrigin(AttemptRecord attempt, JsonObject request)
+    private static void RequireOrigin(AttemptRecord attempt, FrozenSubmission frozen)
     {
-        if (Origin(attempt) != (string?)request["originUrl"])
+        if (Origin(attempt) != frozen.OriginUrl)
             throw new SubmissionConflict("The source origin changed.");
     }
 

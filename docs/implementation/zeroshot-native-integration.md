@@ -98,8 +98,10 @@ replayed to discover execution.
 
 PR dispatch/replay requires current `GH_TOKEN`, `GATEWAY_API_KEY` and the exact
 gateway URL. Values travel separately from the persisted request. After durable
-correlation, wait/stop use only the frozen locator and run identity with an empty
-explicit SDK environment; they need no old workspace or dispatch credentials.
+correlation, wait/stop receive the retained run binding (locator, run ID, frozen
+title, size and PR source) through separate read and stop roles; the bridge uses
+only the frozen locator and run identity with an empty explicit SDK environment.
+They need no old workspace or dispatch credentials.
 Cancelling/killing a bridge waiter detaches that caller rather than stopping native
 execution. Completed receipt replay needs no target.
 

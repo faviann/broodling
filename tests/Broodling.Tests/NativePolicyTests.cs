@@ -252,12 +252,12 @@ public sealed class NativePolicyTests
         foreach (var forbidden in new[] { "GH_TOKEN", "GATEWAY_API_KEY", "OPENAI_API_KEY", "CODEX_API_KEY", "OPENROUTER_API_KEY", "AWS_BEARER_TOKEN_BEDROCK", "GITHUB_TOKEN" })
         {
             requestNode["target"]!["environment"]![forbidden] = "";
-            await Assert.That(() => profile.ValidateDispatch(requestNode.AsObject(), attempt,
+            await Assert.That(() => profile.ValidateDispatch(prepared with { RequestJson = requestNode.ToJsonString() }, attempt,
                 new("GH_CANARY", NativeProfile.GatewayBaseUrl, "KEY_TWO_CANARY"))).Throws<SubmissionConflict>();
             requestNode["target"]!["environment"]!.AsObject().Remove(forbidden);
         }
         requestNode["runtime"]!["model"] = "caller-choice";
-        await Assert.That(() => profile.ValidateDispatch(requestNode.AsObject(), attempt, null)).Throws<SubmissionConflict>();
+        await Assert.That(() => profile.ValidateDispatch(prepared with { RequestJson = requestNode.ToJsonString() }, attempt, null)).Throws<SubmissionConflict>();
         var durable = JsonSerializer.Serialize(store.Status(attempt.ContractRevisionId));
         foreach (var canary in new[] { "KEY_ONE_CANARY", "KEY_TWO_CANARY", "GH_CANARY", NativeProfile.GatewayBaseUrl })
         {
@@ -287,10 +287,10 @@ public sealed class NativePolicyTests
             foreach (var name in values.Keys.Except(NativeProfile.OperatingVariables)) await Assert.That(environment.ContainsKey(name)).IsFalse();
             // A real bridge version/unknown-run call ignores PYTHONPATH and ambient secrets.
             var error = await Assert.ThrowsAsync<NativeTransportError>(async () => await NativeFixture.Transport().WaitAsync(
-                new("local", fixture.NativeState), "01a00000-0000-7000-8000-000000000000"));
+                NativeFixture.Run(new("local", fixture.NativeState), "01a00000-0000-7000-8000-000000000000")));
             await Assert.That(error!.Kind).IsEqualTo("RunNotFoundError");
             Environment.SetEnvironmentVariable("ZEROSHOT_PYTHON_NATIVE_BINARY", "/unapproved-native");
-            await Assert.That(async () => await NativeFixture.Transport().WaitAsync(new("local", fixture.NativeState), "run")).Throws<UnsupportedRuntime>();
+            await Assert.That(async () => await NativeFixture.Transport().WaitAsync(NativeFixture.Run(new("local", fixture.NativeState), "run"))).Throws<UnsupportedRuntime>();
         }
         finally { foreach (var pair in before) Environment.SetEnvironmentVariable(pair.Key, pair.Value); }
     }

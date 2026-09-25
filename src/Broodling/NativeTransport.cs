@@ -12,14 +12,27 @@ public sealed record NativeResult(string RunId, bool Succeeded, JsonElement Outp
 /// <summary>The SDK's current run phase and the nodes of its active executions.</summary>
 public sealed record NativeProgress(string Phase, IReadOnlyList<string> ActiveNodes);
 
-/// <summary>The SDK boundary only. G/H decide what a result/stop means to the application.</summary>
-public interface INativeTransport
+/// <summary>Submits one frozen request with separate current credentials; returns the acknowledged run ID.</summary>
+public interface INativeSubmitter
 {
     Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default);
-    Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default);
-    Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default);
-    Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound, CancellationToken cancellationToken = default);
 }
+
+/// <summary>Reads a retained run's terminal result or bounded progress, without credentials.</summary>
+public interface INativeReader
+{
+    Task<NativeResult> WaitAsync(NativeRunBinding run, CancellationToken cancellationToken = default);
+    Task<NativeProgress> StatusAsync(NativeRunBinding run, TimeSpan bound, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Requests explicit native stop of a retained run, without credentials.</summary>
+public interface INativeStopper
+{
+    Task<NativeResult> StopAsync(NativeRunBinding run, CancellationToken cancellationToken = default);
+}
+
+/// <summary>The native boundary only. G/H decide what a result/stop means to the application.</summary>
+public interface INativeTransport : INativeSubmitter, INativeReader, INativeStopper;
 
 /// <summary>Internal transport seam for the one bridge that must inherit the initiation lock.</summary>
 internal interface IInitiationAwareNativeTransport
@@ -55,16 +68,17 @@ public sealed class ZeroshotTransport : INativeTransport, IInitiationAwareNative
         return RequiredString(response, "runId");
     }
 
-    public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => Observe("wait", locator, runId, cancellationToken);
-    public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => Observe("stop", locator, runId, cancellationToken);
+    // The bridge reaches the retained run by frozen locator and run ID alone.
+    public Task<NativeResult> WaitAsync(NativeRunBinding run, CancellationToken cancellationToken = default) => Observe("wait", run.Locator, run.RunId, cancellationToken);
+    public Task<NativeResult> StopAsync(NativeRunBinding run, CancellationToken cancellationToken = default) => Observe("stop", run.Locator, run.RunId, cancellationToken);
 
     /// <summary>
     /// Bound the version preflight and give the SDK status read only the remaining time.
     /// After preflight, cancellation detaches the caller so the SDK can stop its own command.
     /// </summary>
-    public async Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound,
-        CancellationToken cancellationToken = default)
+    public async Task<NativeProgress> StatusAsync(NativeRunBinding run, TimeSpan bound, CancellationToken cancellationToken = default)
     {
+        var (locator, runId) = (run.Locator, run.RunId);
         ValidateRun(locator, runId);
         if (bound <= TimeSpan.Zero) throw new NativeTransportError("TimeoutError");
         var clock = Stopwatch.StartNew();

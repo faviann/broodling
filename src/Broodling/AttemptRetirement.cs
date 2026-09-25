@@ -16,7 +16,7 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>Abandon before requesting native stop. A native result never grants retirement authority.</summary>
-    public async Task<AttemptRetirement> StopAsync(string attemptId, string reason, INativeTransport? transport,
+    public async Task<AttemptRetirement> StopAsync(string attemptId, string reason, INativeStopper? transport,
         CancellationToken cancellationToken = default)
     {
         AbandonAttempt(attemptId, reason); // Its own committed transaction, before any external call or host inspection.
@@ -31,12 +31,12 @@ public sealed partial class BroodlingStore
             throw new CessationUnconfirmed("The dispatched or acknowledged enclosure is missing or ambiguous; Attempt abandoned, containment remains with the operator.");
         if (submitted is { State: not "prepared" })
         {
-            if (submitted.RunId is null)
+            if (submitted.Run is not { } run)
                 throw new CessationUnconfirmed("Dispatched run identity is unresolved. Attempt abandoned and quarantined; dispatch will not be replayed to discover it.");
-            // Reconnect only from retained locator/run, with no dispatch credentials or live workspace dependency.
+            // Reconnect only from the retained run binding, with no dispatch credentials or live workspace dependency.
             if (transport is null)
                 throw new SubmissionNotReady("Stopping a known native run requires native stop transport.");
-            await transport.StopAsync(submitted.Locator, submitted.RunId, cancellationToken);
+            await transport.StopAsync(run, cancellationToken);
             throw new CessationUnconfirmed("Native stop supplies no physical cessation proof. Attempt abandoned and quarantined; checkout retained.", nativeStopRequested: true);
         }
 

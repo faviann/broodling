@@ -183,7 +183,7 @@ internal sealed class CrashTransport(INativeTransport inner, string mode) : INat
         if (mode == "after-accept") Gate(id);
         return id;
     }
-    public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => inner.WaitAsync(locator, runId, cancellationToken);
-    public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => inner.StopAsync(locator, runId, cancellationToken);
-    public Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound, CancellationToken cancellationToken = default) => inner.StatusAsync(locator, runId, bound, cancellationToken);
+    public Task<NativeResult> WaitAsync(NativeRunBinding run, CancellationToken cancellationToken = default) => inner.WaitAsync(run, cancellationToken);
+    public Task<NativeResult> StopAsync(NativeRunBinding run, CancellationToken cancellationToken = default) => inner.StopAsync(run, cancellationToken);
+    public Task<NativeProgress> StatusAsync(NativeRunBinding run, TimeSpan bound, CancellationToken cancellationToken = default) => inner.StatusAsync(run, bound, cancellationToken);
 }

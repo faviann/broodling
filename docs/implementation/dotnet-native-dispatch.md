@@ -179,11 +179,19 @@ with `dotnet publish src/Broodling.Codex --configuration Release`; the
 [release guide](../../deployment/README.md#build-a-release-artifact) packages
 both complete outputs without installing or deploying them.
 
-`INativeTransport` exposes `SubmitAsync(requestJson, credentials)`,
-`WaitAsync(locator, runId)`, `StopAsync(locator, runId)` and
-`StatusAsync(locator, runId, bound)` for G/H and progress observation. The Python
-bridge only translates supplied fields to `Client`, targets, `Preset` and
-`UniformRuntime`, calls the SDK, and returns its public fields/errors. It owns no
+The native boundary has three independent roles. `INativeSubmitter.SubmitAsync(requestJson,
+credentials)` serves dispatch. `INativeReader` provides `WaitAsync(run)` and
+`StatusAsync(run, bound)` for completion and progress. `INativeStopper.StopAsync(run)`
+serves stop and cancellation. Each application operation depends only on the role
+it uses; `INativeTransport` combines all three for dispatch and `Invocation`.
+Read and stop receive a `NativeRunBinding`: the retained locator, correlated run
+ID, frozen title, runtime size and, for PR delivery, the frozen repository,
+authorized branch and B1 selectors. It carries no credentials, workspace or
+adapter settings such as the Python executable, bridge script or Codex launcher.
+One internal reader of the retained request supplies that binding and the
+delivery, source and custody facts used by dispatch and receipt validation; it
+never rewrites the saved bytes. The Python bridge only translates supplied fields
+to `Client`, targets, `Preset` and `UniformRuntime`, calls the SDK, and returns its public fields/errors. It owns no
 Broodling policy or durable state. Reconnect uses only the frozen SDK version,
 canonical local state directory or direct origin, and run identity, with empty
 explicit SDK environment. It needs no usable old workspace/profile/credentials.
@@ -270,7 +278,8 @@ operator review requirements remain.
 | --- | --- |
 | `src/Broodling/NativeDispatch.cs` | Frozen request, exact task bytes, durable intent, conflict recovery, current authority and correlation |
 | `src/Broodling/NativeProfile.cs` | Fixed runtime/target, local profile identity, credential policy and locator validation |
-| `src/Broodling/NativeTransport.cs`, `src/Broodling/bridge/zeroshot_bridge.py` | Pinned SDK bridge and locator/run-only result transport for G/H |
+| `src/Broodling/NativeTransport.cs`, `src/Broodling/bridge/zeroshot_bridge.py` | Native submit/read/stop roles, pinned SDK bridge and locator/run-only result transport for G/H |
+| `src/Broodling/NativeBinding.cs` | Retained run binding and the single interpretation of frozen request facts |
 | `src/Broodling/CodexLauncher.cs`, `src/Broodling.Codex/{Program.cs,Broodling.Codex.csproj}` | C# launcher policy, same-PID exec and self-contained packaging |
 | `src/Broodling/Invocation.cs`, `src/Broodling.Host/{InvocationCommands.cs,Program.cs}` | Callable and thin operator submit/resume |
 | `src/Broodling/{StoreSchema.cs,BroodlingStore.cs,ContractAdmission.cs,WorktreeProvisioning.cs,Errors.cs}` | Schema 5/upgrades, retained inspection, materialization guard and typed errors |

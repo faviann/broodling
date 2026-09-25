@@ -48,13 +48,11 @@ public sealed class AttemptCompletionTests
         using var fixture = new CompletionFixture();
         var submitted = await fixture.Dispatch();
         Directory.Move(fixture.Attempt.Allocation.WorktreePath, fixture.Attempt.Allocation.WorktreePath + "-unavailable");
-        fixture.Transport.Wait = async (locator, run, _) =>
-        {
-            await Assert.That(locator).IsEqualTo(submitted.Locator);
-            await Assert.That(run).IsEqualTo(submitted.RunId);
-            return new(run, true, CompletionFixture.Receipt(pr, fixture.Accepted), null);
-        };
+        fixture.Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(pr, fixture.Accepted), null));
         var completed = await fixture.Wait();
+        // The reader receives the exact retained binding, including the frozen PR source selectors.
+        await Assert.That(fixture.Transport.Bindings.Single()).IsEqualTo(new NativeRunBinding(submitted.Locator, submitted.RunId!,
+            "Broodling Attempt " + fixture.Attempt.AttemptId, "small", new("acme/widget", "main", fixture.Attempt.B1.CommitOid)));
         await Assert.That(completed.Outcome).IsEqualTo("SUCCEEDED");
         await Assert.That(completed.AcceptedRevision).IsEqualTo(fixture.Accepted);
         await Assert.That(completed.DeliveryReceipt.GetProperty("pullRequestId").GetString()).IsEqualTo(pr);

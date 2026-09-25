@@ -120,7 +120,7 @@ public sealed class NativeTransportTests
             throw new NativeTransportError();
         } };
         await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, lostAck)).Throws<NativeTransportError>();
-        var result = await transport.WaitAsync(prepared.Locator, acceptedId!);
+        var result = await transport.WaitAsync(prepared.Frozen.Run(acceptedId!));
         await Assert.That(result.Succeeded).IsTrue();
         await Assert.That(result.Output.ValueKind).IsEqualTo(JsonValueKind.Null);
         await Assert.That(result.Failure).IsNull();
@@ -142,12 +142,12 @@ public sealed class NativeTransportTests
         Directory.Delete(fixture.Home, true);
         Directory.Delete(fixture.CodexHome, true);
         File.Delete(fixture.Codex.RealCodex);
-        var repeated = await transport.WaitAsync(correlated.Locator, acceptedId!);
+        var repeated = await transport.WaitAsync(correlated.Run!);
         await Assert.That(repeated.RunId).IsEqualTo(result.RunId);
         await Assert.That(repeated.Output.GetRawText()).IsEqualTo(result.Output.GetRawText());
-        await Assert.That((await transport.StopAsync(correlated.Locator, acceptedId!)).RunId).IsEqualTo(acceptedId);
+        await Assert.That((await transport.StopAsync(correlated.Run!)).RunId).IsEqualTo(acceptedId);
         await Assert.That((await store.DispatchAsync(attempt.AttemptId, new NativeProfile("/missing"), transport)).RunId).IsEqualTo(acceptedId);
-        var unknown = await Assert.ThrowsAsync<NativeTransportError>(async () => await transport.WaitAsync(correlated.Locator, "01a00000-0000-7000-8000-000000000000"));
+        var unknown = await Assert.ThrowsAsync<NativeTransportError>(async () => await transport.WaitAsync(correlated.Frozen.Run("01a00000-0000-7000-8000-000000000000")));
         await Assert.That(unknown!.Kind).IsEqualTo("RunNotFoundError");
     }
 
@@ -172,10 +172,10 @@ public sealed class NativeTransportTests
         else
         {
             using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-            await Assert.That(async () => await transport.WaitAsync(submission.Locator, submission.RunId!, cancellation.Token)).Throws<OperationCanceledException>();
+            await Assert.That(async () => await transport.WaitAsync(submission.Run!, cancellation.Token)).Throws<OperationCanceledException>();
         }
         var clock = Stopwatch.StartNew();
-        var result = await transport.WaitAsync(submission.Locator, submission.RunId!);
+        var result = await transport.WaitAsync(submission.Run!);
         await Assert.That(clock.Elapsed).IsGreaterThan(TimeSpan.FromSeconds(3));
         await Assert.That(result.RunId).IsEqualTo(submission.RunId);
         await Assert.That(result.Succeeded).IsTrue();
@@ -191,8 +191,8 @@ public sealed class NativeTransportTests
         var transport = NativeFixture.Transport();
         var submission = await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
         await Task.Delay(1000);
-        var stopped = await transport.StopAsync(submission.Locator, submission.RunId!);
-        var replay = await transport.WaitAsync(submission.Locator, submission.RunId!);
+        var stopped = await transport.StopAsync(submission.Run!);
+        var replay = await transport.WaitAsync(submission.Run!);
         await Assert.That(stopped.Succeeded).IsFalse();
         await Assert.That(stopped.Failure).IsEqualTo("force_stopped");
         await Assert.That(replay.Failure).IsEqualTo(stopped.Failure);
@@ -213,14 +213,14 @@ public sealed class NativeTransportTests
         var submission = await store.DispatchAsync(attempt.AttemptId, profile, transport,
             new("SYNTHETIC_GH_SECRET", NativeProfile.GatewayBaseUrl, "SYNTHETIC_GATEWAY_SECRET"));
         Directory.Delete(attempt.Allocation.WorktreePath, true);
-        var result = await transport.WaitAsync(submission.Locator, submission.RunId!);
+        var result = await transport.WaitAsync(submission.Run!);
         await Assert.That(result.Output.GetProperty("headRevision").GetString()).IsEqualTo(new string('b', 40));
         await Assert.That(result.Output.GetProperty("pullRequestId").GetString()).IsEqualTo("50");
         await Assert.That(result.Output.EnumerateObject().Count()).IsEqualTo(7);
-        await Assert.That((await transport.StopAsync(submission.Locator, submission.RunId!)).Failure).IsEqualTo("force_stopped");
+        await Assert.That((await transport.StopAsync(submission.Run!)).Failure).IsEqualTo("force_stopped");
         foreach (var kind in new[] { "null", "false", "number", "string", "array" })
         {
-            var value = await transport.WaitAsync(new("direct", "http://stub-target.invalid/" + kind), submission.RunId!);
+            var value = await transport.WaitAsync(submission.Run! with { Locator = new("direct", "http://stub-target.invalid/" + kind) });
             await Assert.That(value.Output.GetRawText()).IsEqualTo(kind switch
             {
                 "null" => "null", "false" => "false", "number" => "12.5", "string" => "\"unchanged\"", _ => "[false, null, 7]"
@@ -238,7 +238,7 @@ public sealed class NativeTransportTests
         Directory.CreateSymbolicLink(fixture.NativeState, fixture.Root);
         try
         {
-            await Assert.That(async () => await NativeFixture.Transport().WaitAsync(locator, "unknown")).Throws<UnsupportedRuntime>();
+            await Assert.That(async () => await NativeFixture.Transport().WaitAsync(NativeFixture.Run(locator, "unknown"))).Throws<UnsupportedRuntime>();
         }
         finally { Directory.Delete(fixture.NativeState); }
         // Reserve an unavailable local endpoint; no forge/provider target is contacted.
@@ -247,7 +247,7 @@ public sealed class NativeTransportTests
         var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
         var error = await Assert.ThrowsAsync<NativeTransportError>(async () => await NativeFixture.Transport().WaitAsync(
-            new("direct", "http://127.0.0.1:" + port), "01a00000-0000-7000-8000-000000000000"));
+            NativeFixture.Run(new("direct", "http://127.0.0.1:" + port), "01a00000-0000-7000-8000-000000000000")));
         await Assert.That(error!.Kind).IsEqualTo("TargetError");
     }
 }

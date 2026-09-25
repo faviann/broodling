@@ -97,9 +97,11 @@ public sealed class NativeProfile
         return runtime;
     }
 
-    internal IReadOnlyDictionary<string, string> ValidateDispatch(JsonObject request, AttemptRecord attempt, DispatchCredentials? credentials)
+    internal IReadOnlyDictionary<string, string> ValidateDispatch(NativeSubmission record, AttemptRecord attempt, DispatchCredentials? credentials)
     {
-        var delivery = (string)request["preset"]!["delivery"]!;
+        var request = JsonNode.Parse(record.RequestJson)!;
+        var frozen = record.Frozen;
+        var delivery = frozen.Delivery;
         if (!JsonNode.DeepEquals(request["target"], Target(delivery))
             || !JsonNode.DeepEquals(request["runtime"], Runtime(delivery))
             || (string?)request["preset"]!["name"] != "software-change")
@@ -113,12 +115,12 @@ public sealed class NativeProfile
             codex!.Validate(attempt.Allocation.WorktreePath, toolPath);
             return new Dictionary<string, string>();
         }
-        var source = request["source"]!;
-        var branch = (string)source["branch"]!;
+        var source = frozen.Source!;
+        var branch = source.Branch;
         if (GitCustody.Run(attempt.Allocation.WorktreePath, ["check-ref-format", "--branch", branch]).ExitCode != 0
             || branch.StartsWith("-", StringComparison.Ordinal))
             throw new UnsupportedRuntime("The authorized target branch is invalid.");
-        if (GitHubOriginRepository((string)request["originUrl"]!) != (string)source["repository"]!)
+        if (GitHubOriginRepository(frozen.OriginUrl) != source.Repository)
             throw new UnsupportedRuntime("The source origin must match the authorized GitHub repository.");
         return credentials?.Environment() ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.");
     }

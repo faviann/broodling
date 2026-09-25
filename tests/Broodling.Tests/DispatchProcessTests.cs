@@ -165,7 +165,7 @@ public sealed class DispatchProcessTests
             await Assert.That(correlated.SubmissionKey).IsEqualTo(retained.SubmissionKey);
         }
         if (mode is "after-accept" or "after-correlation") await Assert.That(correlated.RunId).IsEqualTo(observed);
-        var terminal = await NativeFixture.Transport().WaitAsync(correlated.Locator, correlated.RunId!);
+        var terminal = await NativeFixture.Transport().WaitAsync(correlated.Run!);
         await Assert.That(terminal.Succeeded).IsTrue();
         using var again = fixture.Git.State.Open();
         await Assert.That(again.FindSubmission(attempt.AttemptId)).IsEqualTo(correlated);

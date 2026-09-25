@@ -79,13 +79,15 @@ public sealed class RetirementTests
         Directory.Delete(fixture.Home);
         Directory.Move(fixture.Git.Repository, fixture.Git.Repository + "-offline");
         var stops = 0;
-        var transport = new StopTransport(async (locator, id) =>
+        var transport = new StopTransport(async run =>
         {
+            var id = run.RunId;
             using var observer = fixture.Git.State.Open();
             await Assert.That(observer.GetAttempt(attempt.AttemptId).Abandonment!.Reason).IsEqualTo("operator stop");
             await Assert.That(observer.CurrentAttempt(attempt.WorkUnitId)).IsNull();
-            await Assert.That(locator).IsEqualTo(submission.Locator);
-            await Assert.That(id).IsEqualTo(submission.RunId);
+            // The exact retained binding, including frozen title/size, not adapter configuration.
+            await Assert.That(run).IsEqualTo(new NativeRunBinding(submission.Locator, submission.RunId!,
+                "Broodling Attempt " + attempt.AttemptId, "small", null));
             stops++;
             if (outcome == "unavailable") throw new NativeTransportError();
             if (outcome == "cancelled") throw new OperationCanceledException();
@@ -233,10 +235,8 @@ public sealed class RetirementTests
     [DllImport("libc")] private static extern int close(int fd);
 }
 
-internal sealed class StopTransport(Func<NativeLocator, string, Task<NativeResult>> stop) : INativeTransport
+/// <summary>Stop needs only the stopper: it can never redispatch, wait or read status.</summary>
+internal sealed class StopTransport(Func<NativeRunBinding, Task<NativeResult>> stop) : INativeStopper
 {
-    public Task<string> SubmitAsync(string requestJson, IReadOnlyDictionary<string, string> credentials, CancellationToken cancellationToken = default) => throw new Exception("Stop must never redispatch");
-    public Task<NativeResult> WaitAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => throw new Exception("Unexpected wait");
-    public Task<NativeResult> StopAsync(NativeLocator locator, string runId, CancellationToken cancellationToken = default) => stop(locator, runId);
-    public Task<NativeProgress> StatusAsync(NativeLocator locator, string runId, TimeSpan bound, CancellationToken cancellationToken = default) => throw new Exception("Unexpected status");
+    public Task<NativeResult> StopAsync(NativeRunBinding run, CancellationToken cancellationToken = default) => stop(run);
 }
