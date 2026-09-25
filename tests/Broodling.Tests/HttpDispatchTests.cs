@@ -262,7 +262,7 @@ public sealed class HttpDispatchTests
         {
             ["GH_TOKEN"] = "github-token", ["GATEWAY_BASE_URL"] = NativeProfile.GatewayBaseUrl, ["GATEWAY_API_KEY"] = "gateway-key"
         };
-        var error = await Assert.That(async () => await DirectTargetSubmission.SubmitAsync(target.Origin, request, runId,
+        var error = await Assert.That(async () => await DirectTargetSubmission.SubmitAsync(target.Origin, null, request, runId,
             credentials, TimeProvider.System, CancellationToken.None)).Throws<NativeTransportError>();
         await Assert.That(error!.Kind).IsEqualTo("request_too_large");
         await Assert.That(target.Connections).IsEqualTo(0);

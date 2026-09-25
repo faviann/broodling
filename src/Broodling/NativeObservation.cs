@@ -48,7 +48,7 @@ public sealed partial class BroodlingStore
             if (submission!.Format == NativeSubmission.Http)
             {
                 using var budget = DirectTargetBudget.Start(bound, DirectTargetClock, cancellationToken);
-                await using var session = await DirectTargetSession.OpenAsync(run, budget);
+                await using var session = await DirectTargetSession.OpenAsync(run, directTargetRoot, budget);
                 progress = (await session.StatusAsync(budget)).Progress;
             }
             else

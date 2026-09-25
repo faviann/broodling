@@ -15,7 +15,7 @@ internal static class DirectTargetSubmission
     /// on HTTP 200 carrying exactly the intended run ID; no other identity is ever returned or adopted.
     /// A valid stock <c>request.conflict</c> is <see cref="SubmissionConflict"/> without a run ID.
     /// </summary>
-    internal static async Task SubmitAsync(Uri origin, string requestJson, string intendedRunId,
+    internal static async Task SubmitAsync(Uri origin, string? rootCertificate, string requestJson, string intendedRunId,
         IReadOnlyDictionary<string, string> credentials, TimeProvider clock, CancellationToken caller)
     {
         // Current credentials enter only this in-memory body, never the frozen request or a diagnostic.
@@ -34,7 +34,8 @@ internal static class DirectTargetSubmission
         { Content = DirectTargetExchange.JsonContent(JsonSerializer.SerializeToUtf8Bytes(request)) };
 
         using var budget = DirectTargetBudget.Start(DirectTargetLimits.Submit, clock, caller);
-        using var http = DirectTargetExchange.CreateClient();
+        using var handler = DirectTargetExchange.CreateHandler(origin, rootCertificate);
+        using var http = DirectTargetExchange.CreateClient(handler);
         await DirectTargetDiscovery.RequireAsync(http, origin, budget);
         var (status, reply) = await DirectTargetExchange.SendJsonAsync(http, message, budget);
         if (status == HttpStatusCode.OK)

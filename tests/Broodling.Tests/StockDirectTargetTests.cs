@@ -113,7 +113,7 @@ public sealed class StockDirectTargetTests
     private static async Task<JsonElement> TerminalAsync(NativeRunBinding run)
     {
         using var budget = DirectTargetBudget.Start(DirectTargetLimits.Progress, TimeProvider.System, default);
-        await using var session = await DirectTargetSession.OpenAsync(run, budget);
+        await using var session = await DirectTargetSession.OpenAsync(run, null, budget);
         return (await session.StatusAsync(budget)).Result!.Output;
     }
 }

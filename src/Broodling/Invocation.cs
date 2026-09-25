@@ -11,8 +11,21 @@ public abstract record InvocationTarget
     /// <summary>No-effect work in an owned local worktree, submitted through the pinned SDK bridge and launcher.</summary>
     public sealed record Local(string WorkspaceRoot, NativeProfile Profile, INativeTransport Transport) : InvocationTarget;
 
-    /// <summary>Authorized PR work over HTTP/OECP; no Python, SDK client state, workspace root or launcher.</summary>
-    public sealed record Direct(string Origin) : InvocationTarget;
+    /// <summary>
+    /// Authorized PR work over HTTP/OECP; no Python, SDK client state, workspace root or launcher. The
+    /// origin must be canonical HTTPS or literal-loopback HTTP, the rule the native target applies.
+    /// </summary>
+    public sealed record Direct : InvocationTarget
+    {
+        public Direct(string origin)
+        {
+            if (DirectTargetExchange.CanonicalOrigin(origin) is null)
+                throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or literal-loopback HTTP.");
+            Origin = origin;
+        }
+
+        public string Origin { get; }
+    }
 }
 
 /// <summary>One explicit work reference. Ended authority is handed back without automatic replacement.</summary>

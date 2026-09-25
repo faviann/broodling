@@ -62,7 +62,10 @@ still create a run.
 
 After durable correlation, resume needs no dispatch configuration or credentials.
 Wait/stop reconnect using the retained run binding; an HTTP record needs no bridge
-transport or Python. A retained completion
+transport or Python. An HTTPS target whose certificate chains to a private root
+needs a store session opened with `OpenStore(path, directTargetRootCertificate)`.
+That root is operator configuration and is never retained, and the retained origin
+still decides where each operation connects. A retained completion
 returns without native access. Errors do not undo earlier durable steps: inspect
 history after an interrupted submit to recover exact handles. Rejected,
 abandoned or completed work is handed back without automatic replacement.

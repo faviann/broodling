@@ -50,7 +50,7 @@ public sealed partial class BroodlingStore
         }
         // Cancellation and transport errors detach the caller; neither abandons nor requests stop.
         var result = submitted.Format == NativeSubmission.Http
-            ? await DirectTargetRun.WaitAsync(submitted.Run!, DirectTargetClock, cancellationToken)
+            ? await DirectTargetRun.WaitAsync(submitted.Run!, directTargetRoot, DirectTargetClock, cancellationToken)
             : await (transport ?? throw new SubmissionNotReady("Waiting on a bridge run requires native transport."))
                 .WaitAsync(submitted.Run!, cancellationToken);
         if (result.RunId != submitted.RunId) throw new SubmissionConflict("The result belongs to another native run.");

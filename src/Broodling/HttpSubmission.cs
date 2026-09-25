@@ -103,7 +103,7 @@ public sealed partial class BroodlingStore
             try
             {
                 await DirectTargetSubmission.SubmitAsync(DirectTargetExchange.CanonicalOrigin(record.Locator.Address)!,
-                    record.RequestJson, record.IntendedRunId!, ephemeral, DirectTargetClock, cancellationToken);
+                    directTargetRoot, record.RequestJson, record.IntendedRunId!, ephemeral, DirectTargetClock, cancellationToken);
             }
             catch (SubmissionConflict) { conflict = true; }
         }

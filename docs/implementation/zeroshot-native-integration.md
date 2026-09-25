@@ -211,11 +211,14 @@ Attempt is handed back from retained state without configuration, credentials or
 target contact. `WaitAsync` routes on the retained record and passes the bridge
 transport only to a LocalTarget record.
 
-The operator configuration names `"target": "direct"` with only a canonical
-loopback `directOrigin`, or `"target": "local"` with only the bridge, state,
+`InvocationTarget.Direct` refuses an origin that is not canonical HTTPS or
+literal-loopback HTTP. The operator configuration names `"target": "direct"` with
+a `directOrigin` that passes that rule and an optional absolute
+`directRootCertificate`, or `"target": "local"` with only the bridge, state,
 workspace and all four Codex-profile paths. Mixed, unknown or secret fields
-refuse. Operator `wait` and `stop` need the pinned SDK Python only for a
-LocalTarget record. See the [release guide](../../deployment/README.md#invocation-configuration).
+refuse. Operator `wait` and `stop` take the same optional configuration: a
+LocalTarget record uses its pinned SDK Python, and an HTTP record uses a Direct
+configuration's root certificate. See the [release guide](../../deployment/README.md#invocation-configuration).
 
 ## Dispatch, recovery and completion
 
@@ -293,7 +296,16 @@ message assembly and parsing. After caller cancellation or expiry, no further
 exchange starts. Caller cancellation propagates as cancellation. Expiry, by
 contrast, becomes the fixed `TimeoutError` kind. The budgets limit only client
 operations, never native execution. The HTTP client disables redirects, proxying,
-cookies and ambient credentials and keeps ordinary TLS verification. It never
+cookies and ambient credentials. It always verifies TLS, including the host
+name. By default it uses system trust. A store session opened with
+`OpenStore(path, directTargetRootCertificate)` instead trusts exactly that PEM
+root for HTTPS and WSS, with custom root trust that ignores the system store.
+The root file is read at the start of each DirectTarget operation (submit,
+progress, wait and stop), never when the store opens. A missing or unreadable
+file fails that operation as `transport_failed` before any connection. A wait
+makes all its connections during setup and then polls over one WebSocket, so a
+root regenerated mid-wait does not affect it. If the TLS proxy restarts, the
+wait detaches with a transport failure, and a new wait reads the new root. It never
 retries. Failures are fixed `NativeTransportError` kinds (`TimeoutError`,
 `transport_failed`, `invalid_response`, `request_too_large`) and never include
 response bytes. Discovery accepts only the stock

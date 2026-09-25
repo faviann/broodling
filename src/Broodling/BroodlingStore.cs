@@ -11,12 +11,15 @@ public sealed partial class BroodlingStore : IDisposable
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly SqliteConnection connection;
+    /// <summary>Operator configuration, never retained: see <see cref="BroodlingApplication.OpenStore"/>.</summary>
+    private readonly string? directTargetRoot;
     public string Path { get; }
     public StoreInformation Information { get; private set; } = null!;
 
-    private BroodlingStore(string path)
+    private BroodlingStore(string path, string? directTargetRoot = null)
     {
         Path = path;
+        this.directTargetRoot = directTargetRoot;
         connection = new(new SqliteConnectionStringBuilder
         {
             DataSource = path,
@@ -67,12 +70,12 @@ public sealed partial class BroodlingStore : IDisposable
         }
     }
 
-    internal static BroodlingStore Open(string path)
+    internal static BroodlingStore Open(string path, string? directTargetRoot = null)
     {
         var target = StorePath(path);
         if (!File.Exists(target))
             throw new StoreStateException("store_missing", "The store does not exist; initialize a new installation explicitly or restore existing state.");
-        var store = new BroodlingStore(target);
+        var store = new BroodlingStore(target, directTargetRoot);
         try
         {
             RequireSupportedIdentity(target);

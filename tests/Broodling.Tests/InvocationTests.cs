@@ -22,7 +22,7 @@ public sealed class InvocationTests
         var output = new StringWriter();
         var error = new StringWriter();
         var stopTransport = new ControlledTransport { Stop = (_, _, _) => throw new NativeTransportError() };
-        var code = await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop", "/unavailable-python"],
+        var code = await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop"],
             fixture.Git.State.Application, output, error, transport: stopTransport);
         await Assert.That(code).IsEqualTo(1);
         using var handback = JsonDocument.Parse(output.ToString());
@@ -243,9 +243,8 @@ public sealed class InvocationTests
     [Arguments("no-codex")]
     [Arguments("http://user:CONFIG_SECRET@127.0.0.1:8123")]
     [Arguments("http://127.0.0.1:8123?token=CONFIG_SECRET")]
+    [Arguments("relative-root")]
     [Arguments("http://remote.example:8123")]
-    [Arguments("https://127.0.0.1:8123")]
-    [Arguments("http://127.0.0.1")]
     [Arguments("http://127.0.0.1:8123/")]
     [Arguments("http://127.0.0.1:0")]
     public async Task OperatorRejectsCredentialFieldsMixedKindsAndUnsupportedOriginsBeforeAllocating(string invalid)
@@ -266,6 +265,7 @@ public sealed class InvocationTests
             "local-with-origin" => With(local, "directOrigin", "http://127.0.0.1:8123"),
             "partial-codex" => Without(local, "launcher"),
             "no-codex" => Without(Without(Without(Without(local, "realCodex"), "profileHome"), "codexHome"), "launcher"),
+            "relative-root" => With(direct, "directRootCertificate", "root.crt"),
             _ => With(direct, "directOrigin", invalid)
         };
         var path = Path.Combine(fixture.Root, "invalid-config.json");
@@ -298,16 +298,30 @@ public sealed class InvocationTests
         return changed;
     }
 
+    /// <summary>
+    /// Over HTTPS, the configured private root alone authenticates the target for dispatch (discovery and
+    /// the run request) and for stop (session, WSS and OECP); the retained origin decides where stop connects.
+    /// </summary>
     [Test]
     [NotInParallel]
-    public async Task DirectOperatorPullRequestNeedsNoPythonHelperWorkspaceOrLauncher()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task DirectOperatorPullRequestNeedsNoPythonHelperWorkspaceOrLauncher(bool https)
     {
-        await using var target = new StockTarget();
+        var authority = https ? PrivateAuthority.Create() : null;
+        await using var target = new StockTarget(authority?.Server);
         using var fixture = new NativeFixture();
         string revision;
         using (var store = fixture.Git.State.Open()) revision = AttemptFixture.PullRequestRevision(store);
         var config = Path.Combine(fixture.Root, "direct.json");
-        File.WriteAllText(config, new JsonObject { ["target"] = "direct", ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority) }.ToJsonString());
+        var direct = new JsonObject { ["target"] = "direct", ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority) };
+        if (authority is not null)
+        {
+            var root = Path.Combine(fixture.Root, "zeroshot-root.crt");
+            File.WriteAllText(root, authority.RootPem);
+            direct["directRootCertificate"] = root;
+        }
+        File.WriteAllText(config, direct.ToJsonString());
         var local = fixture.Git.LocalResources();
         var output = new StringWriter();
         var error = new StringWriter();
@@ -340,10 +354,10 @@ public sealed class InvocationTests
         using var store2 = fixture.Git.State.Open();
         var attempt = store2.Status(revision).Attempts.Single();
         var submission = store2.FindSubmission(attempt.AttemptId)!;
-        // Explicit stop forces the confirmed run with no Python executable argument.
+        // Explicit stop forces the confirmed run; a Direct configuration supplies no Python, only the root.
         target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "failed", "force_stopped"));
         output.GetStringBuilder().Clear();
-        await Assert.That(await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop"],
+        await Assert.That(await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop", config],
             fixture.Git.State.Application, output, error)).IsEqualTo(1);
         using (var handback = JsonDocument.Parse(output.ToString()))
         {
@@ -381,9 +395,22 @@ public sealed class InvocationTests
         using var refusal = JsonDocument.Parse(error.ToString());
         await Assert.That(refusal.RootElement.GetProperty("error").GetString()).IsEqualTo("python_required");
         await Assert.That(output.ToString()).IsEqualTo("");
-        // Nothing was abandoned, so a later stop with the Python argument can still request native stop.
+        // Nothing was abandoned, so a later stop with the LocalTarget configuration can still request native stop.
         await Assert.That(store.GetAttempt(attempt.AttemptId).Abandonment).IsNull();
         store.RequireCurrentAttempt(attempt.AttemptId);
+
+        // The configuration's pinned SDK Python is the bridge the retained LocalTarget record uses.
+        var config = Path.Combine(fixture.Root, "local.json");
+        File.WriteAllText(config, JsonSerializer.Serialize(new
+        {
+            target = "local", pythonExecutable = NativeFixture.Python, stateDirectory = fixture.NativeState, workspaceRoot = fixture.Git.Workspaces,
+            realCodex = fixture.Codex.RealCodex, profileHome = fixture.Home, codexHome = fixture.CodexHome, launcher = NativeFixture.Launcher
+        }));
+        error.GetStringBuilder().Clear();
+        await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop", config],
+            fixture.Git.State.Application, output, error);
+        await Assert.That(error.ToString()).DoesNotContain("python_required");
+        await Assert.That(store.GetAttempt(attempt.AttemptId).Abandonment!.Reason).IsEqualTo("operator requested stop");
     }
 
     [Test]
