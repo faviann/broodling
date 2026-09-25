@@ -11,7 +11,9 @@ public sealed class BootstrapTests
     [Test]
     public async Task HostComposesBroodlingApplication()
     {
-        await using var host = Broodling.Host.BroodlingHost.Build([]);
+        using var fixture = new StoreFixture();
+        using (fixture.Initialize()) { }
+        await using var host = Broodling.Host.BroodlingHost.Build(["--Broodling:Store=" + fixture.Path]);
 
         var application = host.Services.GetService<BroodlingApplication>();
         var meterProvider = host.Services.GetService<MeterProvider>();

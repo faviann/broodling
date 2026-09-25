@@ -13,7 +13,8 @@ composes these facts into supplied-source Contract admission. See the
 HTTP or dependency injection. Its `InitializeStore(path)`, `OpenStore(path)` and
 `UpgradeStore(path)` return a disposable `BroodlingStore` session. Use one session
 per caller; do not share it across threads. Separate sessions/processes serialize
-writes through SQLite. Opening a host does not create or open a store.
+writes through SQLite. The HTTP host only opens its configured existing store and
+opens a separate session per request.
 
 ```csharp
 var application = new BroodlingApplication();
@@ -172,7 +173,8 @@ dotnet test --solution Broodling.sln
 
 The two commands compose the application API, emit JSON on success, and return
 nonzero with a stable safe error code on failure. They do not start HTTP or
-install/deploy anything. Ordinary host startup exposes no new HTTP endpoints.
+install/deploy anything. Ordinary host startup serves only read-only HTTP; see the
+[release guide](../../deployment/README.md).
 
 TUnit tests use real SQLite for canonical replay/reopen, per-component
 non-aliasing, concurrent identity/source convergence, competing pins, atomic
