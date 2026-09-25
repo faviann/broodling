@@ -1,0 +1,35 @@
+#!/usr/local/bin/node
+// Print one captured reference of a sealed RequestBundle, read from Broodling's read-only HTTP
+// reader. The reader enforces bundle membership; this helper only issues that one GET.
+"use strict";
+const { readFileSync } = require("node:fs");
+
+const ORIGIN_FILE = "/etc/broodling/reader-origin";
+const args = process.argv.slice(2);
+if (args.length !== 2 || !args[0] || !args[1]) {
+  process.stderr.write("usage: broodling-reference <bundleId> <referenceId>\n");
+  process.exit(2);
+}
+const [bundleId, referenceId] = args;
+
+function fail(message) {
+  process.stderr.write(`broodling-reference: ${message}\n`);
+  process.exit(1);
+}
+
+(async () => {
+  const origin = readFileSync(ORIGIN_FILE, "utf8").trim();
+  const url = new URL(`/bundles/${encodeURIComponent(bundleId)}/reference`, origin);
+  url.searchParams.set("id", referenceId);
+  let response, body;
+  try {
+    response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(30000) });
+    body = await response.json();
+  } catch (error) {
+    fail(`cannot read from ${origin}: ${error.message}`);
+  }
+  if (!response.ok) fail(`read refused (${response.status} ${body.error})`);
+  if (body.bundleId !== bundleId || body.referenceId !== referenceId || typeof body.content !== "string")
+    fail("the reader returned another or malformed reference");
+  process.stdout.write(Buffer.from(body.content, "base64"));
+})();

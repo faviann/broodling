@@ -148,7 +148,11 @@ topology (#155) and image publication (#121) remain open. #113 serves retained
 work and frozen references over read-only HTTP from the ASP.NET host, opening
 existing state only. #118 adds a callable completion observer that retains
 correlated HTTP results with no caller waiting; attaching it to the host process
-belongs to #120. Remaining #100 intent includes public HTTP submission intake, a
+belongs to #120. #114 gives a new bundle-bound native task the RequestBundle's
+compact manifest instead of reference bodies; native agents read references on
+demand through a read-only helper in the DirectTarget image that calls the
+existing reader as the `broodling` service. Earlier prepared records keep their
+exact bytes. Remaining #100 intent includes public HTTP submission intake, a
 bundled proposer, automatic progression, that host attachment, Compose,
 maintenance and backup/restore; those remain unimplemented. The ASP.NET host is
 not authority to add them.

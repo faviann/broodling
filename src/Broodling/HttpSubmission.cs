@@ -159,6 +159,8 @@ public sealed partial class BroodlingStore
     /// The retained record must still be exactly what preparation froze from admitted authority,
     /// the approved asset retained in this store and a binding this release supports. Missing or
     /// corrupt content refuses; nothing is regenerated from today's installed files or rebound.
+    /// A bundle-bound record prepared before reference access (#114) keeps its exact bytes: it
+    /// matches the projection earlier releases froze from the same authority.
     /// </summary>
     private void RequireRetainedHttpSubmission(AttemptRecord attempt, NativeSubmission record, SqliteTransaction transaction)
     {
@@ -173,7 +175,8 @@ public sealed partial class BroodlingStore
             || record.IntendedRunId is null || record.SubmissionKey != HttpSubmissionKey(attempt.AttemptId)
             || DirectTargetExchange.CanonicalOrigin(origin) is null || !ValidResultOrigin(resultOrigin, work)
             || !JsonNode.DeepEquals(binding, HttpBinding(attempt, origin, resultOrigin))
-            || HttpRequest(attempt, transaction, record.IntendedRunId, asset) != record.RequestJson)
+            || (HttpRequest(attempt, transaction, record.IntendedRunId, asset) != record.RequestJson
+                && HttpRequest(attempt, transaction, record.IntendedRunId, asset, referenceAccess: false) != record.RequestJson))
             throw RetainedDiffers();
     }
 
@@ -189,9 +192,10 @@ public sealed partial class BroodlingStore
     private static string HttpSubmissionKey(string attemptId) => "broodling:http:v1:" + attemptId;
 
     /// <summary>The stock <c>TargetRunRequest</c> without its ephemeral <c>connections</c> and <c>githubToken</c>.</summary>
-    private string HttpRequest(AttemptRecord attempt, SqliteTransaction transaction, string intendedRunId, ExecutionAsset asset)
+    private string HttpRequest(AttemptRecord attempt, SqliteTransaction transaction, string intendedRunId, ExecutionAsset asset,
+        bool referenceAccess = true)
     {
-        var (task, work, authorization) = AdmittedTask(attempt, transaction);
+        var (task, work, authorization) = AdmittedTask(attempt, transaction, referenceAccess);
         return new JsonObject
         {
             ["runId"] = intendedRunId,

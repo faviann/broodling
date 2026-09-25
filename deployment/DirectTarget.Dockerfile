@@ -19,4 +19,8 @@ ENV HOME=/home/node
 ENV CODEX_HOME=/home/node/.codex
 WORKDIR /home/node
 COPY --chmod=755 direct-target-entrypoint.sh /usr/local/bin/broodling-target
+# Native agents read frozen references on demand from Broodling's read-only HTTP reader, which
+# the single Compose project serves as the `broodling` service (ADR 0001).
+COPY --chmod=755 broodling-reference /usr/local/bin/broodling-reference
+RUN mkdir -p /etc/broodling && echo 'http://broodling:8080' > /etc/broodling/reader-origin
 ENTRYPOINT ["/usr/local/bin/broodling-target"]

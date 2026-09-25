@@ -131,14 +131,25 @@ receives these inputs; this repository builds and publishes neither image:
   (Codex 0.153.4, gh 2.101.0).
 - The Broodling image needs no Python or SDK for authorized PR work; Python
   remains only for a no-effect LocalTarget profile.
+- Frozen-reference access (#114): the DirectTarget image installs
+  `/usr/local/bin/broodling-reference`, which native agents run to read one
+  RequestBundle reference from the read-only HTTP reader. Its reader origin is
+  the image file `/etc/broodling/reader-origin`, `http://broodling:8080`. The
+  Broodling image must serve the reader on port 8080 (the ASP.NET Core container
+  default) as the `broodling` service on the Compose project network, reachable
+  from the `zeroshot` service; homelab-iac#353 wires and proves that path. Native
+  clears agent environments, so a different address means replacing that file
+  (for example with a read-only mount), not setting an environment variable. See
+  [frozen-reference access](../docs/implementation/zeroshot-native-integration.md#frozen-reference-access).
 - Evidence: the [controlled stock DirectTarget witness](../tests/README.md#controlled-stock-directtarget-witness)
   runs that unmodified native as `zeroshot target serve` in the actual
   DirectTarget image with the approved asset. Its test-only layer replaces the
   Codex provider and the `git`/`gh` forge, so its PR receipt is controlled. It
   covers exact B1 after branch movement, no client checkout, failure rather than
   fallback for an unavailable B1, same-run replay, restart retention and offline
-  completion replay. It is not image publication, production topology (#155), a
-  real GitHub PR or provider quality evidence.
+  completion replay, and an agent reading frozen references through the installed
+  helper from a real reader. It is not image publication, production topology
+  (#155, homelab-iac#353), a real GitHub PR or provider quality evidence.
 - Submit timing: the target acknowledges a run only after its own checkout. In
   the witness, with a local forge, acknowledgement took about 0.4 s and the
   unavailable-B1 refusal about 2.5–2.9 s. A slow real fetch can exceed
@@ -266,7 +277,7 @@ The retained [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
 target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
 **2.101.0** and the native **10.3.0** binary hash. Its build context requires the
 official wheel's `zeroshot/_bin/zeroshot` as `zeroshot`, plus
-`DirectTarget.Dockerfile` and `direct-target-entrypoint.sh`. Target provisioning is
+`DirectTarget.Dockerfile`, `direct-target-entrypoint.sh` and `broodling-reference`. Target provisioning is
 operator-owned and separately authorized; the .NET release process does not
 build or deploy this image.
 

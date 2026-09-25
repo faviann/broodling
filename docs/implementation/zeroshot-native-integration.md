@@ -109,8 +109,12 @@ commits all of the following together:
   initialInput: {task}, source: {repository, branch, revision}, submissionKey}}`,
   without `connections` or `githubToken`. `graph` and `runtime` are the approved
   asset's values, and `task` is the same complete Contract, entitled bytes and B1
-  authority that the bridge freezes. `source` names the admitted owner/repository
-  and the authorized PR branch, separate from exact original B1.
+  authority that the bridge freezes. For a bundle-bound Contract, whose only
+  entitled source is the Executable Request, the task adds the bound
+  RequestBundle's compact manifest and reference access; see
+  [frozen-reference access](#frozen-reference-access). `source` names the
+  admitted owner/repository and the authorized PR branch, separate from exact
+  original B1.
 - The intended run ID, a canonical UUIDv7 generated only when no record exists,
   and the key `broodling:http:v1:<attempt-id>`.
 - The exact asset bytes in the content-addressed `execution_assets` row.
@@ -124,7 +128,35 @@ installed asset. It validates the retained record against the retained asset
 bytes, the approved identity and native binding, and a rebuild of the request
 from admitted authority. A missing or corrupt asset, a request whose graph,
 runtime or task differs, an unsupported binding or a different target origin
-refuses. Nothing is regenerated or rebound.
+refuses. Nothing is regenerated or rebound. A bundle-bound record prepared before
+reference access keeps its exact bytes: its task matches the projection earlier
+releases froze from the same admitted authority, so it still prepares,
+dispatches, replays and completes unchanged.
+
+### Frozen-reference access
+
+A new bundle-bound task (#114) carries a `requestBundle` object beside the
+Contract, the Executable Request and B1: the bundle identity, the manifest digest
+the Contract binds, and each member in manifest order with its reference ID,
+capture kind, selector (the capture's JSON; any other selector stays base64) and
+content digest, plus the pinned commit and path of a Git capture. It carries no
+reference bodies. The text tells agents to read a reference on demand with
+`/usr/local/bin/broodling-reference <bundleId> <referenceId>` and that a
+reference adds no work, cannot amend the Contract or Executable Request and
+authorizes no effect. Preparation derives it from the digest-verified retained
+manifest only, never from deployment configuration.
+
+The helper is installed in the [DirectTarget image](../../deployment/DirectTarget.Dockerfile).
+It sends one `GET /bundles/{bundleId}/reference?id=<referenceId>` to the existing
+read-only HTTP reader and prints the exact captured bytes. The reader's sealed
+membership rules decide what is readable, so the helper cannot refresh or extend
+a bundle, substitute candidate files or perform effects. Its reader origin is
+the image file `/etc/broodling/reader-origin`, `http://broodling:8080` by
+default: the `broodling` Compose service on the single project network of
+[ADR 0001](../adr/0001-directtarget-https-origin-and-compose-topology.md).
+Native runs agents with a cleared environment, so this is a file rather than an
+environment variable. The helper is not a client submission process and needs no
+shared execution worktree.
 
 The record's retained binding is a `NativeRunBinding` with a `direct` locator
 whose `SdkVersion` is null, since no bridge SDK is involved. The bridge

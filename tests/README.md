@@ -33,7 +33,8 @@ build needs access to the pinned image/package sources. Each run owns and remove
 its test images, containers and disposable volumes. Startup tests publish no port and
 use `--network none`. The [stock target](fixtures/README.md#controlled-stock-directtarget)
 serves on a bridge network because Docker cannot publish a port otherwise; it publishes
-only on host loopback and its fixtures make no outbound call. No existing target is
+only on host loopback. Its fixtures' only outbound call is the reference read from
+the test's reader, bound to the host's bridge gateway. No existing target is
 accessed. No real credentials, networked provider or opt-in live campaign is required.
 
 Durable Git/SQLite fixtures use unique owned children of
@@ -53,8 +54,8 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Original B1 custody, worktree and no-directory HTTP allocation, owned materialization and surviving Git children | `AttemptAdmissionTests`, `GitCustodyTests`, `WorktreeProvisioningTests`, `ProvisioningProcessTests`: [materialization](../docs/implementation/dotnet-worktree-materialization.md) |
 | Controlled GitHub issue and service-owned repository acquisition; v1 request grammar, bounded reference closure and retained capture refusals | `GitHubAdmissionTests`, `RepositoryPreparationTests`, `RequestCaptureTests`, [retained issue fixtures](fixtures/ingress/README.md): [ingress](../docs/implementation/dotnet-github-ingress.md) |
 | LocalTarget bridge: frozen dispatch, caller death, launcher policy, released SDK/native transport and refusal of a direct locator | `NativeDispatchTests`, `DispatchProcessTests`, `NativePolicyTests`, `NativeTransportTests`: [dispatch](../docs/implementation/dotnet-native-dispatch.md) |
-| Offline HTTP preparation, retained asset/request reopen, corrupt-content refusal and HTTP submission SQL guards | `HttpSubmissionTests`: [HTTP preparation](../docs/implementation/zeroshot-native-integration.md#http-submission-preparation) |
-| HTTP send gates, intent before discovery, exact acknowledgement, retained conflict, concurrent replies, late acknowledgement stop, killed HTTP callers and a buffered request accepted after caller death | `HttpDispatchTests`, `DispatchProcessTests`: loopback stock-target stand-in, [HTTP dispatch](../docs/implementation/zeroshot-native-integration.md#http-dispatch-and-acknowledgement) |
+| Offline HTTP preparation, retained asset/request reopen, a bundle-bound task's compact manifest without reference bodies, corrupt-content refusal and HTTP submission SQL guards | `HttpSubmissionTests`: [HTTP preparation](../docs/implementation/zeroshot-native-integration.md#http-submission-preparation) |
+| HTTP send gates, intent before discovery, exact acknowledgement, retained conflict, concurrent replies, late acknowledgement stop, killed HTTP callers, a buffered request accepted after caller death and exact replay of a bundle-bound request frozen before reference access | `HttpDispatchTests`, `DispatchProcessTests`: loopback stock-target stand-in, [HTTP dispatch](../docs/implementation/zeroshot-native-integration.md#http-dispatch-and-acknowledgement) |
 | Approved execution asset: build-output inclusion, loader refusals, pinned-tool regeneration and native admission | `ExecutionAssetTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset) |
 | Bounded native progress observation, unavailable/timeout mapping and unchanged retained facts | `NativeObservationTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#dispatch-recovery-and-completion) |
 | Receipt validation, atomic exact-Attempt completion, late results (correlated HTTP Attempts over the loopback stand-in) | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
@@ -68,7 +69,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | HTTPS/WSS DirectTarget trust in exactly the configured private root, refusal of another root, system trust or a mismatched host name, root re-read per TLS connection within one operation, a missing root failing only its operation with no dispatch intent, and HTTPS completion wait | `DirectTargetTrustTests`: the loopback stand-in serving TLS from an in-process private authority, [transport limits](../docs/implementation/zeroshot-native-integration.md#directtarget-http-transport-limits) |
 | DirectTarget session setup, JSON-RPC envelope and run status projection validation | `DirectTargetSessionTests`: loopback stock-target stand-in, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
 | DirectTarget wait polling cadence, per-read deadlines and cancellation; stop precheck, single force and shared deadline | `DirectTargetRunTests`: the same loopback stand-in with a controlled clock, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
-| Unmodified native HTTP/OECP boundary with the approved asset, through the application: controlled PR delivery from exact B1 without a client checkout, receipt consumption, restart and offline replay, unavailable-B1 failure and same-run replay | `StockDirectTargetTests`: [witness](#controlled-stock-directtarget-witness) |
+| Unmodified native HTTP/OECP boundary with the approved asset, through the application: controlled PR delivery from exact B1 without a client checkout, receipt consumption, restart and offline replay, unavailable-B1 failure and same-run replay, and on-demand frozen-reference reads through the installed helper | `StockDirectTargetTests`: [witness](#controlled-stock-directtarget-witness) |
 
 `Broodling.ProcessWitness` is a test-only caller for real process-death and
 Git-lock boundaries. Ordinary build/test/publish copies the C administrative
@@ -104,6 +105,14 @@ The application alone submits, observes and consumes:
   target records the failed checkout but replies `503 target.unavailable`. An
   exact replay with rotated credentials correlates the same single run, whose
   failure abandons the Attempt with no delivery branch.
+- A bundle-bound Attempt's controlled agent reads every reference listed in its
+  task through the image's `broodling-reference` helper, using only the bundle
+  and reference IDs. A real application reader over the retained store serves
+  them. It binds only to the host's default-bridge gateway, which the target
+  resolves as `broodling`; a mounted file replaces only the image's reader
+  origin. The delivered commit carries the exact retained bytes. This proves the
+  native execution environment's read, not Compose service-name networking
+  (homelab-iac#353).
 
 On the development host, the first Resume through acknowledgement took about
 0.4 s with the checkout from the local forge, and about 2.5–2.9 s to the 503 for

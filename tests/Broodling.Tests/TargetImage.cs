@@ -21,7 +21,7 @@ internal static class TargetImage
             var binary = await Run(NativeFixture.Python, "-c", "import pathlib,zeroshot; print(pathlib.Path(zeroshot.__file__).parent / '_bin' / 'zeroshot')");
             RequireSuccess(binary);
             File.Copy(binary.Output.Trim(), Path.Combine(context, "zeroshot"));
-            foreach (var name in new[] { "DirectTarget.Dockerfile", "direct-target-entrypoint.sh" })
+            foreach (var name in new[] { "DirectTarget.Dockerfile", "direct-target-entrypoint.sh", "broodling-reference" })
                 File.Copy(Path.Combine(NativeFixture.RepositoryRoot, "deployment", name), Path.Combine(context, name));
             var tag = "broodling-startup-test:" + Guid.NewGuid().ToString("N");
             RequireSuccess(await DockerCommand("build", "--tag", tag, "--file", Path.Combine(context, "DirectTarget.Dockerfile"), context));

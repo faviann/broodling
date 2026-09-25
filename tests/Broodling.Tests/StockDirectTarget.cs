@@ -10,30 +10,37 @@ namespace Broodling.Tests;
 /// Codex provider and a controlled forge: shimmed <c>git</c>/<c>gh</c> backed by a host bare
 /// repository for <c>acme/widget</c>. State volumes are disposable and credentials are fake.
 /// Unlike the startup tests' <c>--network none</c>, serving needs a bridge network so the port
-/// can be published, on host loopback only; no fixture makes an outbound call.
+/// can be published, on host loopback only. The only outbound call a fixture makes is to an optional
+/// Broodling reader, bound to the bridge gateway on the host and named <c>broodling</c> inside the
+/// target; a mounted file replaces only the helper's image-level reader origin.
 /// </summary>
 internal sealed class StockDirectTarget : IAsyncDisposable
 {
     private readonly string id = "broodling-180-" + Guid.NewGuid().ToString("N");
     private readonly string image;
     private readonly string root;
+    private readonly Uri? reader;
     private readonly int port = FreePort();
     internal string Origin => $"http://127.0.0.1:{port}";
     /// <summary>The forge's bare repository; the target reaches it as <c>https://github.com/acme/widget.git</c>.</summary>
     internal string Forge => Path.Combine(root, "widget.git");
 
-    private StockDirectTarget(string image, string root) { this.image = image; this.root = root; }
+    private StockDirectTarget(string image, string root, Uri? reader) { this.image = image; this.root = root; this.reader = reader; }
 
-    /// <summary>A freshly initialized target serving over an empty forge under <paramref name="parent"/>.</summary>
-    internal static async Task<StockDirectTarget> StartAsync(string parent)
+    /// <summary>
+    /// A freshly initialized target serving over an empty forge under <paramref name="parent"/>, whose
+    /// agents reach <paramref name="reader"/>, if given, as <c>broodling</c>.
+    /// </summary>
+    internal static async Task<StockDirectTarget> StartAsync(string parent, Uri? reader = null)
     {
-        var target = new StockDirectTarget(await Controlled.Value, Path.Combine(parent, "forge"));
+        var target = new StockDirectTarget(await Controlled.Value, Path.Combine(parent, "forge"), reader);
         try
         {
             Directory.CreateDirectory(target.root);
             AttemptFixture.RunGit(target.root, "init", "--quiet", "--bare", target.Forge);
             // Native writes as root and fetches as its isolated writer identity.
             AttemptFixture.RunGit(target.Forge, "config", "core.sharedRepository", "0666");
+            if (reader is not null) File.WriteAllText(target.ReaderOrigin, $"http://broodling:{reader.Port}\n");
             RequireSuccess(await DockerCommand("volume", "create", target.id + "-state"));
             RequireSuccess(await DockerCommand("volume", "create", target.id + "-home"));
             RequireSuccess(await DockerCommand(["run", "--rm", "--network", "none", .. target.Volumes, target.image, "initialize", .. target.Arguments]));
@@ -73,11 +80,22 @@ internal sealed class StockDirectTarget : IAsyncDisposable
         "--mount", $"type=volume,src={id}-home,dst=/home/node,volume-nocopy"];
     private string[] Arguments => ["--listen", $"0.0.0.0:{port}", "--public-origin", Origin, "--storage", "/state"];
     private string[] ForgeMount => ["--mount", $"type=bind,src={root},dst=/forge"];
+    private string ReaderOrigin => Path.Combine(root, "reader-origin");
+    private string[] Reader => reader is null ? [] : ["--add-host", $"broodling:{reader.Host}",
+        "--mount", $"type=bind,src={ReaderOrigin},dst=/etc/broodling/reader-origin,readonly"];
+
+    /// <summary>The host's address on the default bridge network, where a reader for the target can bind narrowly.</summary>
+    internal static async Task<string> BridgeGatewayAsync()
+    {
+        var inspected = await DockerCommand("network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}");
+        RequireSuccess(inspected);
+        return inspected.Output.Trim();
+    }
 
     private async Task ServeAsync()
     {
         RequireSuccess(await DockerCommand(["run", "--detach", "--name", id, "--publish", $"127.0.0.1:{port}:{port}",
-            .. Volumes, .. ForgeMount, image, .. Arguments]));
+            .. Volumes, .. ForgeMount, .. Reader, image, .. Arguments]));
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
         for (var retry = 0; retry < 300; retry++)
         {
