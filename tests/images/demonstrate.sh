@@ -30,7 +30,7 @@ bind() { printf 'type=bind,src=%s,dst=%s' "$1" "$2"; }
 
 cleanup() {
     compose down --volumes --remove-orphans --timeout 5 >/dev/null 2>&1 || :
-    if [[ -d $root ]]; then
+    if [[ ${created_root-} == true ]]; then
         # Root- and service-owned files: remove them as root before deleting the owned directory.
         docker run --rm --network none --mount "$(bind "$root" /owned)" --entrypoint find "$target_image" \
             /owned -mindepth 1 -delete || :
@@ -45,6 +45,7 @@ docker image inspect "$tls_image" >/dev/null 2>&1 || pulled_tls=true
 
 step "Disposable host directories with production ownership ($root)"
 mkdir -- "$root"
+created_root=true
 # As the explicit first initialization may: a one-off root helper sets ownership and modes.
 docker run --rm --network none --mount "$(bind "$root" /owned)" --workdir /owned --entrypoint /bin/sh "$target_image" -ec \
     "mkdir -m 0700 target-state target-home broodling && mkdir tls-root-key tls-root && chown $broodling_user broodling"
