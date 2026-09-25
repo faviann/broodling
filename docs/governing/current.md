@@ -141,10 +141,12 @@ approved execution asset, offline preparation, exact durable acknowledgement,
 retained-binding progress, wait and stop, and (#180) routing of callable and
 operator PR invocation through it, with the bridge DirectTarget path removed. A
 controlled witness runs the unmodified stock native boundary; production
-topology (#155) and image publication (#121) remain open. Remaining #100 intent
-includes public HTTP intake, a bundled proposer, automatic progression/completion,
-Compose, maintenance and backup/restore; those remain unimplemented. The ASP.NET
-host is not authority to add them.
+topology (#155) and image publication (#121) remain open. #113 serves retained
+work and frozen references over read-only HTTP from the ASP.NET host, opening
+existing state only. Remaining #100 intent includes public HTTP submission
+intake, a bundled proposer, automatic progression/completion, Compose,
+maintenance and backup/restore; those remain unimplemented. The ASP.NET host is
+not authority to add them.
 
 ## Lifecycle and retention limits
 
