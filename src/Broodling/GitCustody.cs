@@ -129,14 +129,25 @@ internal static class GitCustody
     /// </summary>
     internal static void RequireRetained(string repository, string oid)
     {
+        if (!IsPinned(repository, oid, "refs/broodling/starting/" + oid))
+            throw new SubmissionNotReady("Exact B1 custody is unavailable in the retained common Git directory.");
+    }
+
+    /// <summary>The exact accepted-revision pin and its snapshot objects, checked the same way.</summary>
+    internal static void RequireAcceptedRetained(string repository, string oid)
+    {
+        if (!IsPinned(repository, oid, "refs/broodling/accepted/" + oid))
+            throw new ResultRetentionError("The exact accepted revision is not retained in the common Git directory.");
+    }
+
+    private static bool IsPinned(string repository, string oid, string reference)
+    {
         try
         {
-            if (RetentionOid(repository, "refs/broodling/starting/" + oid) == oid
-                && Run(repository, ["rev-list", "--objects", "--no-walk", "--missing=error", oid]).ExitCode == 0)
-                return;
+            return RetentionOid(repository, reference) == oid
+                && Run(repository, ["rev-list", "--objects", "--no-walk", "--missing=error", oid]).ExitCode == 0;
         }
-        catch (UnsupportedStartingState) { }
-        throw new SubmissionNotReady("Exact B1 custody is unavailable in the retained common Git directory.");
+        catch (UnsupportedStartingState) { return false; }
     }
 
     /// <summary>Delivery happens in the native target, so the accepted commit is fetched by exact ID when absent locally.</summary>

@@ -162,7 +162,10 @@ Initialization exclusively creates a new path. Current format is
 stores (schemas 1–12) are unsupported and `upgrade-store` refuses them without
 change; leave them and their associated resources in place. Use the
 persisted installation pause/status/release commands for operator maintenance;
-they do not stop native execution or prove container cessation.
+they do not stop native execution or prove container cessation. During verified
+stopped-target maintenance the host procedure passes its current check to
+`retire-attempt <path> <attempt-id> <stopped-target-check-json>`; see
+[verified maintenance retirement](../docs/implementation/dotnet-retirement-replacement.md#verified-maintenance-retirement).
 See [state lifecycle](../docs/implementation/dotnet-identity-custody.md).
 
 The host routes commands before HTTP startup. Running it without a command starts
@@ -419,7 +422,8 @@ Restore within the same host boundary; do not run a restored authority copy
 alongside the original. Live coordinated backup, takeover and lost-target
 reconstruction are not provided.
 
-All dispatched Attempts remain permanently ineligible for automatic deletion or
-replacement. Terminal success/failure/stop and external containment create no
+All dispatched Attempts remain ineligible for automatic deletion or
+replacement; only explicit verified maintenance retirement lifts a DirectTarget
+Attempt's quarantine. Terminal success/failure/stop and external containment create no
 product cleanup override. Plan capacity for indefinite quarantine. There is no
 automatic merge, execution supervisor, maintenance or retention service.

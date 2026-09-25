@@ -70,8 +70,8 @@ abandoned or completed work is handed back without automatic replacement.
 Cancellation/transport loss detaches a waiter. Native failure records abandonment;
 invalid receipts or no-effect stable-result gaps refuse completion. Stop records
 abandonment before requesting native stop. Every dispatched Attempt remains
-quarantined, including unknown-run and terminal cases; stop does not prove
-physical cessation. See the owning seams for detailed refusal codes and witnesses.
+quarantined, including unknown-run and terminal cases, until verified maintenance
+retirement; stop does not prove physical cessation. See the owning seams for detailed refusal codes and witnesses.
 
 The [P5 human-review requirement](../../evaluation/p5/README.md) applies to every
 accepted revision. No automatic progression, merge, deployment, execution

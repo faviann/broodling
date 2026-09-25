@@ -1,3 +1,4 @@
+using Broodling.Host;
 using Microsoft.Extensions.Time.Testing;
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
@@ -62,7 +63,7 @@ public sealed class RetirementTests
         await Assert.That(store.GetAttempt(attempt.AttemptId).IsCurrent).IsFalse();
         // A vanished local directory never reinterprets the record as a no-directory HTTP Attempt.
         await Assert.That(store.GetAttempt(attempt.AttemptId).ResourceKind).IsEqualTo(AttemptRecord.Worktree);
-        await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retirements VALUES ('{attempt.AttemptId}', 'no_dispatch_intent', 'now', NULL)"))
+        await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ('{attempt.AttemptId}', 'no_dispatch_intent', 'now')"))
             .Throws<SqliteException>();
         await Assert.That(store.FindRetirement(attempt.AttemptId)).IsNull();
         await Assert.That(() => store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
@@ -81,7 +82,7 @@ public sealed class RetirementTests
             await Assert.That(() => store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
             store.AbandonAttempt(attempt.AttemptId, "first reason");
             // A worktree basis cannot describe an Attempt that never owned local material.
-            await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retirements VALUES ('{attempt.AttemptId}', 'never_materialized', 'now', NULL)"))
+            await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ('{attempt.AttemptId}', 'never_materialized', 'now')"))
                 .Throws<SqliteException>();
             proof = await store.StopAsync(attempt.AttemptId, "later reason", transport: null);
             await Assert.That(proof.Basis).IsEqualTo("no_dispatch_intent");
@@ -265,8 +266,12 @@ public sealed class RetirementTests
         store.ProvisionAttempt(successor.AttemptId);
         await store.DispatchAsync(successor.AttemptId, fixture.Profile, new ControlledTransport());
         store.AbandonAttempt(successor.AttemptId, "dispatched");
-        await Assert.That(() => fixture.Git.State.Execute($"INSERT INTO attempt_retirements VALUES ('{successor.AttemptId}', 'never_dispatched', 'now', NULL)"))
+        await Assert.That(() => fixture.Git.State.Execute($"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ('{successor.AttemptId}', 'never_dispatched', 'now')"))
             .Throws<SqliteException>();
+        // Verified maintenance is DirectTarget-only; dispatched LocalTarget work keeps its policy.
+        store.PauseInstallation();
+        await Assert.That(() => store.RetireStoppedTargetAttempt(successor.AttemptId, Check(HttpFixture.Target))).Throws<CessationUnconfirmed>();
+        await Assert.That(() => fixture.Git.State.Execute(StoppedTargetInsert(successor.AttemptId))).Throws<SqliteException>();
     }
 
     [DllImport("libc")] private static extern int open(string path, int flags);
@@ -373,6 +378,165 @@ public sealed class RetirementTests
         await Assert.That(cancelled.Cancellation!.AttemptId).IsEqualTo(fixture.Attempt.AttemptId);
         await HttpQuarantined(fixture, "dispatched", "requester withdrew");
     }
+
+    [Test]
+    [Arguments("dispatched")]
+    [Arguments("correlated")]
+    public async Task VerifiedStoppedTargetRetiresAbandonedDispatchedHttpWorkWithoutResolvingOrReplacingIt(string state)
+    {
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(new Uri(HttpFixture.Target), state);
+        var id = fixture.Attempt.AttemptId;
+        fixture.Store.AbandonAttempt(id, "operator stop");
+        var local = fixture.Git.LocalResources();
+        await Assert.That(() => fixture.Git.State.Execute(StoppedTargetInsert(id))).Throws<SqliteException>(); // SQL requires the pause.
+        fixture.Store.PauseInstallation();
+        var check = Check(submission.Locator.Address);
+        check = check with { VerifiedAt = check.VerifiedAt.ToOffset(TimeSpan.FromHours(-4)) };
+
+        var retired = fixture.Store.RetireStoppedTargetAttempt(id, check);
+        await Assert.That(retired.Basis).IsEqualTo("stopped_target");
+        await Assert.That(retired.StoppedTarget).IsEqualTo(check);
+        await Assert.That(retired.CeasedAt).IsEqualTo(check.VerifiedAt.ToUniversalTime().ToString("O")); // The same UTC form as other retained times.
+        await Assert.That(retired.RetiredAt).IsNotNull();
+        using var reopened = fixture.Git.State.Open();
+        // The retained retirement is returned as recorded; a later check is neither needed nor recorded.
+        await Assert.That(reopened.RetireStoppedTargetAttempt(id, Check(submission.Locator.Address))).IsEqualTo(retired);
+        await Assert.That(await reopened.StopAsync(id, "later stop", null)).IsEqualTo(retired);
+        var status = reopened.Status(fixture.Attempt.ContractRevisionId);
+        await Assert.That(status.Attempts.Single().Retirement).IsEqualTo(retired);
+        await Assert.That(status.Attempts.Single().Abandonment!.Reason).IsEqualTo("operator stop");
+        await Assert.That(status.QuarantinedAttemptIds.Count).IsEqualTo(0);
+        // Retirement resolves no acceptance uncertainty and grants no replacement.
+        await Assert.That(reopened.FindSubmission(id)).IsEqualTo(submission);
+        await Assert.That(reopened.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(state == "dispatched" ? 1 : 0);
+        await Assert.That(() => reopened.AdmitRetry(id, "replacement")).Throws<CessationUnconfirmed>();
+        await Assert.That(fixture.Git.LocalResources()).IsEqualTo(local);
+        await Assert.That(fixture.Git.Git("rev-parse", fixture.Attempt.B1.RetentionRef).Trim()).IsEqualTo(fixture.Attempt.B1.CommitOid);
+    }
+
+    [Test]
+    public async Task VerifiedMaintenanceRetiresASuccessfulHttpAttemptWithoutAbandoningItsResult()
+    {
+        var target = new StockTarget();
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(target.Origin, "correlated");
+        var accepted = fixture.Git.Deliver();
+        target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "succeeded", CompletionFixture.Receipt(head: accepted)));
+        var completion = await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null);
+        await target.DisposeAsync();
+        fixture.Store.PauseInstallation();
+        // A successful result whose accepted pin is gone is an unresolved retention condition.
+        fixture.Git.Git("update-ref", "-d", "refs/broodling/accepted/" + accepted);
+        await Assert.That(() => fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission.Locator.Address)))
+            .Throws<ResultRetentionError>();
+        fixture.Git.Git("update-ref", "refs/broodling/accepted/" + accepted, accepted);
+
+        var retired = fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission.Locator.Address));
+        await Assert.That(retired.Basis).IsEqualTo("stopped_target");
+        // A later operator stop hands back the retirement without abandoning the completed Attempt.
+        var output = new StringWriter();
+        await Assert.That(await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, fixture.Attempt.AttemptId, "later stop"],
+            fixture.Git.State.Application, output, new StringWriter())).IsEqualTo(0);
+        var stop = JsonNode.Parse(output.ToString())!;
+        await Assert.That(stop["attempt"]!["retirement"].Deserialize<AttemptRetirement>(new JsonSerializerOptions(JsonSerializerDefaults.Web)))
+            .IsEqualTo(retired);
+        await Assert.That((bool)stop["quarantined"]!).IsFalse();
+        await Assert.That((string)stop["message"]!).IsEqualTo("Attempt retired under verified stopped-target maintenance.");
+        var status = fixture.Store.Status(fixture.Attempt.ContractRevisionId);
+        await Assert.That(status.Attempts.Single().Retirement).IsEqualTo(retired);
+        await Assert.That(status.Attempts.Single().Abandonment).IsNull();
+        await Assert.That(status.Completions.Single()).IsEqualTo(completion);
+        await Assert.That(await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null)).IsEqualTo(completion);
+        await Assert.That(fixture.Git.Git("rev-parse", "refs/broodling/accepted/" + accepted).Trim()).IsEqualTo(accepted);
+    }
+
+    [Test]
+    [Arguments("unpaused")]
+    [Arguments("check-before-pause")]
+    [Arguments("future-check")]
+    [Arguments("foreign-target")]
+    [Arguments("initiating")]
+    [Arguments("current")]
+    [Arguments("missing-b1")]
+    public async Task MaintenanceRetirementRefusesUnlessEveryCurrentConditionHolds(string condition)
+    {
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(new Uri(HttpFixture.Target), "correlated");
+        var id = fixture.Attempt.AttemptId;
+        // A current Attempt stays refused whatever its native label; the others are abandoned.
+        if (condition != "current") fixture.Store.AbandonAttempt(id, "operator stop");
+        fixture.Store.PauseInstallation();
+        var check = Check(submission.Locator.Address);
+        // A check made before a release and re-pause belongs to the earlier pause epoch.
+        if (condition == "check-before-pause") { fixture.Store.ReleaseInstallation(); fixture.Store.PauseInstallation(); }
+        if (condition == "unpaused") fixture.Store.ReleaseInstallation();
+        // A future check would otherwise also satisfy any later pause.
+        if (condition == "future-check") check = check with { VerifiedAt = DateTimeOffset.UtcNow.AddMinutes(5) };
+        if (condition == "foreign-target") check = check with { DirectOrigin = "http://127.0.0.1:10" };
+        if (condition == "missing-b1") fixture.Git.Git("update-ref", "-d", fixture.Attempt.B1.RetentionRef);
+        using var initiating = condition == "initiating"
+            ? AdministrativeGitProcess.EnclosureLock.AcquireExisting(fixture.Git.State.Path, shared: true) : null;
+
+        BroodlingException? refusal = null;
+        try { fixture.Store.RetireStoppedTargetAttempt(id, check); }
+        catch (BroodlingException error) { refusal = error; }
+        await Assert.That(refusal?.Code).IsEqualTo(condition switch
+        {
+            "current" => "cessation_unconfirmed", "missing-b1" => "submission_not_ready", _ => "maintenance_unverified"
+        });
+        await Assert.That(fixture.Store.FindRetirement(id)).IsNull();
+        await Assert.That(fixture.Store.Status(fixture.Attempt.ContractRevisionId).QuarantinedAttemptIds.Single()).IsEqualTo(id);
+    }
+
+    [Test]
+    public async Task RepeatedPauseRefusesAnInterruptedInvocationsCheck()
+    {
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(new Uri(HttpFixture.Target), "dispatched");
+        var id = fixture.Attempt.AttemptId;
+        fixture.Store.AbandonAttempt(id, "operator stop");
+        fixture.Store.PauseInstallation();
+        var interrupted = Check(submission.Locator.Address);
+        // The next invocation starts by pausing again; the installation was never released.
+        fixture.Store.PauseInstallation();
+
+        await Assert.That(() => fixture.Store.RetireStoppedTargetAttempt(id, interrupted)).Throws<MaintenanceUnverified>();
+        await Assert.That(fixture.Store.FindRetirement(id)).IsNull();
+        var fresh = Check(submission.Locator.Address);
+        await Assert.That(fixture.Store.RetireStoppedTargetAttempt(id, fresh).StoppedTarget).IsEqualTo(fresh);
+    }
+
+    [Test]
+    public async Task RetireAttemptCommandRefusesAnIncompleteCheckThenPrintsTheRecordedRetirement()
+    {
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(new Uri(HttpFixture.Target), "dispatched");
+        var id = fixture.Attempt.AttemptId;
+        fixture.Store.AbandonAttempt(id, "operator stop");
+        fixture.Store.PauseInstallation();
+        var check = Check(submission.Locator.Address);
+        var json = JsonSerializer.SerializeToNode(check, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
+        var incomplete = json.DeepClone().AsObject();
+        incomplete["homeMount"] = " ";
+        var (path, application) = (fixture.Git.State.Path, fixture.Git.State.Application);
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        // A blank member reaches the operation's own completeness guard.
+        await Assert.That(StoreCommands.Run(["retire-attempt", path, id, incomplete.ToJsonString()], application, output, error)).IsEqualTo(1);
+        await Assert.That((string)JsonNode.Parse(error.ToString())!["error"]!).IsEqualTo("maintenance_unverified");
+        await Assert.That(fixture.Store.FindRetirement(id)).IsNull();
+        await Assert.That(StoreCommands.Run(["retire-attempt", path, id, json.ToJsonString()], application, output, error)).IsEqualTo(0);
+        await Assert.That((string)JsonNode.Parse(output.ToString())!["basis"]!).IsEqualTo("stopped_target");
+        await Assert.That(fixture.Store.FindRetirement(id)!.StoppedTarget).IsEqualTo(check);
+    }
+
+    private static StoppedTargetCheck Check(string origin) =>
+        new(origin, "broodling-target", "/srv/broodling/target-state", "/srv/broodling/target-home", DateTimeOffset.UtcNow);
+
+    private static string StoppedTargetInsert(string attemptId) =>
+        $"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at, stopped_target_json) VALUES ('{attemptId}', 'stopped_target', 'now', '{{}}')";
 
     private static string? NotFound(JsonObject request, string id) => (string)request["method"]! != "run/status" ? null
         : new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["error"] = new JsonObject

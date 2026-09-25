@@ -1,26 +1,42 @@
+using System.Globalization;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
 namespace Broodling;
 
-public sealed record AttemptRetirement(string AttemptId, string Basis, string CeasedAt, string? RetiredAt);
+/// <summary><see cref="StoppedTarget"/> is present only for the <c>stopped_target</c> maintenance basis.</summary>
+public sealed record AttemptRetirement(string AttemptId, string Basis, string CeasedAt, string? RetiredAt,
+    StoppedTargetCheck? StoppedTarget = null);
+
+/// <summary>
+/// The host procedure's current stopped-target facts, recorded as supplied: the app can verify none
+/// of them except that the origin is this Attempt's retained target and the check follows the pause.
+/// </summary>
+public sealed record StoppedTargetCheck(string DirectOrigin, string ContainerName, string StateMount, string HomeMount,
+    DateTimeOffset VerifiedAt);
 
 public sealed partial class BroodlingStore
 {
+    private static readonly JsonSerializerOptions CheckJson = new(JsonSerializerDefaults.Web);
+
     public AttemptRetirement? FindRetirement(string attemptId) => ReadRetirement(attemptId);
 
     private AttemptRetirement? ReadRetirement(string attemptId, SqliteTransaction? transaction = null)
     {
-        using var command = Command("SELECT attempt_id, basis, ceased_at, retired_at FROM attempt_retirements WHERE attempt_id = $p0", transaction, attemptId);
+        using var command = Command("SELECT attempt_id, basis, ceased_at, retired_at, stopped_target_json FROM attempt_retirements WHERE attempt_id = $p0", transaction, attemptId);
         using var row = command.ExecuteReader();
-        return row.Read() ? new(row.GetString(0), row.GetString(1), row.GetString(2), row.IsDBNull(3) ? null : row.GetString(3)) : null;
+        return row.Read() ? new(row.GetString(0), row.GetString(1), row.GetString(2), row.IsDBNull(3) ? null : row.GetString(3),
+            row.IsDBNull(4) ? null : JsonSerializer.Deserialize<StoppedTargetCheck>(row.GetString(4), CheckJson)) : null;
     }
 
     /// <summary>Abandon before requesting native stop. A native result never grants retirement authority.</summary>
     public async Task<AttemptRetirement> StopAsync(string attemptId, string reason, INativeStopper? transport,
         CancellationToken cancellationToken = default)
     {
-        AbandonAttempt(attemptId, reason); // Its own committed transaction, before any external call or host inspection.
+        // A retired Attempt ended its lifecycle already: an abandoned one keeps its first reason, and a
+        // completed one retired under verified maintenance is never abandoned.
         if (FindRetirement(attemptId) is { } existing) return existing;
+        AbandonAttempt(attemptId, reason); // Its own committed transaction, before any external call or host inspection.
         var submitted = FindSubmission(attemptId);
         var allocation = GetAttempt(attemptId);
         // Retained physical allocation/enclosure ownership still matters. A missing checkout
@@ -56,7 +72,7 @@ public sealed partial class BroodlingStore
             throw new CessationUnconfirmed("Dispatched Attempts remain quarantined.");
         // Abandonment has committed, so this writer serializes the proof against any dispatch intent.
         var basis = attempt.ResourceKind == AttemptRecord.Http ? "no_dispatch_intent" : WorktreeRetirementBasis(attempt);
-        Execute("INSERT INTO attempt_retirements VALUES ($p0, $p1, $p2, NULL)", transaction, attemptId, basis, Now());
+        Execute("INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ($p0, $p1, $p2)", transaction, attemptId, basis, Now());
         var result = ReadRetirement(attemptId, transaction)!;
         transaction.Commit();
         return result;
@@ -142,6 +158,52 @@ public sealed partial class BroodlingStore
         WorktreeMaterialization.RequireMarker(attempt);
         WorktreeMaterialization.RemoveOwned(attempt, held);
         return AcknowledgeRetirement(attemptId, write);
+    }
+
+    /// <summary>
+    /// Retire a dispatched HTTP Attempt during verified maintenance. Each host maintenance invocation
+    /// pauses, stops and verifies the target, then supplies its check; this records it with the retirement
+    /// and deletes nothing. It requires the pause, a complete check made no earlier than the latest pause
+    /// call and no later than now, naming this Attempt's target, no local dispatch still initiating, a non-current (abandoned or completed) Attempt with dispatch
+    /// intent, and its retained B1 and accepted pins. Drainage is required, never authority by itself.
+    /// A submission without correlation stays <c>dispatched</c>. Replacement remains a separate operation.
+    /// An already acknowledged retirement is returned unchanged, whatever its basis; an unacknowledged
+    /// proof goes through the normal checks.
+    /// </summary>
+    public AttemptRetirement RetireStoppedTargetAttempt(string attemptId, StoppedTargetCheck check)
+    {
+        if (FindRetirement(attemptId) is { RetiredAt: not null } retired) return retired;
+        if (new[] { check.DirectOrigin, check.ContainerName, check.StateMount, check.HomeMount }.Any(string.IsNullOrWhiteSpace))
+            throw new MaintenanceUnverified("The stopped-target check is incomplete.");
+        using var transaction = connection.BeginTransaction(deferred: false);
+        if (ReadRetirement(attemptId, transaction) is { RetiredAt: not null } retained) { transaction.Commit(); return retained; }
+        var control = ReadInstallationControl(transaction);
+        if (!control.IsPaused)
+            throw new MaintenanceUnverified("Maintenance retirement requires the installation pause.");
+        // Every pause call starts a new epoch, so an earlier invocation's check is refused. Host and
+        // application share a clock; a future check would otherwise outlive later pauses.
+        if (check.VerifiedAt < DateTimeOffset.Parse(control.ChangedAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+            || check.VerifiedAt > DateTimeOffset.UtcNow)
+            throw new MaintenanceUnverified("The stopped-target check was not made during the current pause; verify the target again.");
+        // A sender that committed intent before the stop holds this lock until its send returns.
+        if (!AdministrativeGitProcess.EnclosureLock.IsFree(Path))
+            throw new MaintenanceUnverified("A local dispatch is still initiating.");
+        var attempt = ReadAttempt(attemptId, transaction);
+        if (attempt.ResourceKind != AttemptRecord.Http || attempt.IsCurrent
+            || ReadSubmission(attemptId, transaction) is not { Format: NativeSubmission.Http, State: not "prepared" } submission)
+            throw new CessationUnconfirmed("Maintenance retirement requires a non-current DirectTarget Attempt with dispatch intent.");
+        if (check.DirectOrigin != submission.Locator.Address)
+            throw new MaintenanceUnverified("The stopped-target check names another target.");
+        // Short local ref reads under the writer, against the Attempt and completion read here.
+        GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
+        if (ReadCompletion(attemptId, transaction) is { } completion)
+            GitCustody.RequireAcceptedRetained(attempt.B1.Repository, completion.AcceptedRevision);
+        Execute("""
+            INSERT INTO attempt_retirements (attempt_id, basis, ceased_at, stopped_target_json)
+            VALUES ($p0, 'stopped_target', $p1, $p2)
+            """, transaction, attemptId, check.VerifiedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
+            JsonSerializer.Serialize(check, CheckJson));
+        return AcknowledgeRetirement(attemptId, transaction);
     }
 
     private void RequireRetirementSafety(AttemptRecord attempt, SqliteTransaction transaction)

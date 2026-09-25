@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Broodling.Host;
 
@@ -12,12 +13,12 @@ public static class StoreCommands
             2 => args[0] is "initialize-store" or "upgrade-store"
                 or "pause-installation" or "installation-status" or "release-installation",
             3 => args[0] == "status",
-            4 => args[0] == "history",
+            4 => args[0] is "history" or "retire-attempt",
             _ => false
         };
         if (!valid)
         {
-            error.WriteLine("Usage: initialize-store <new-path> | upgrade-store <existing-path> | pause-installation <path> | installation-status <path> | release-installation <path> | status <path> <revision-id> | history <path> <repository> <issue>");
+            error.WriteLine("Usage: initialize-store <new-path> | upgrade-store <existing-path> | pause-installation <path> | installation-status <path> | release-installation <path> | status <path> <revision-id> | history <path> <repository> <issue> | retire-attempt <path> <attempt-id> <stopped-target-check-json>");
             return 2;
         }
         try
@@ -35,6 +36,7 @@ public static class StoreCommands
                 "pause-installation" => store.PauseInstallation(),
                 "installation-status" => store.GetInstallationStatus(),
                 "release-installation" => store.ReleaseInstallation(),
+                "retire-attempt" => store.RetireStoppedTargetAttempt(args[2], ParseStoppedTargetCheck(args[3])),
                 _ => new { operation = args[0], store = store.Path, schema = store.Information }
             };
             // System.Text.Json writes byte arrays as base64, preserving binary source and canonical Contract bytes.
@@ -52,6 +54,24 @@ public static class StoreCommands
                 message = "Store operation refused. Existing state was not replaced. Inspect the path and retained state before retrying."
             }));
             return 1;
+        }
+    }
+
+    /// <summary>Every member is required and non-null, and nothing else is accepted, as for <c>check-target</c>.</summary>
+    private static StoppedTargetCheck ParseStoppedTargetCheck(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<StoppedTargetCheck>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            {
+                UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+                RespectRequiredConstructorParameters = true,
+                RespectNullableAnnotations = true
+            }) ?? throw new JsonException();
+        }
+        catch (JsonException)
+        {
+            throw new MaintenanceUnverified("The stopped-target check is incomplete or malformed.");
         }
     }
 }

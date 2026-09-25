@@ -391,18 +391,20 @@ effect-capable MCP or extension configuration.** An empty managed
 arbitrary managed settings or prove their enforcement. Shell network restrictions
 are not a universal no-effect guarantee.
 
-**Every dispatched Attempt is permanently ineligible for automatic cleanup or
+**Every dispatched Attempt is ineligible for automatic cleanup or
 replacement**, even after native success or force-stop. `StopAsync` commits
 abandonment and requests native stop when known; a terminal result still provides
 no physical-cessation receipt. Operators retain emergency containment
 responsibility. There is no override turning incomplete proof into cleanup
 authority. An exactly owned, proven never-dispatched Attempt can be explicitly
-retired and replaced from original B1 under the lifecycle seam.
+retired and replaced from original B1 under the lifecycle seam. Dispatched HTTP
+DirectTarget work is retired only by the explicit
+[verified maintenance retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement).
 
 ## Resource model for maintenance consumers
 
-[Retire dispatched DirectTarget Attempts under verified maintenance](https://github.com/faviann/broodling/issues/122)
-consumes these retained facts; it must not invent a client worktree to reclaim:
+[Verified maintenance retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement)
+(#122) consumes these retained facts and invents no client worktree to reclaim:
 
 - The Attempt's `resource_kind` (`http` owns no local directory, branch or
   worktree; `worktree` keeps its owned enclosure) and its admission, abandonment,
@@ -415,10 +417,12 @@ consumes these retained facts; it must not invent a client worktree to reclaim:
   retained asset identity and the binding (target origin, protocol, native
   release pins, frozen result-fetch origin).
 - Dispatch uncertainty: any phase after `prepared` is dispatch intent and keeps
-  the Attempt quarantined. Correlation resolves acceptance uncertainty only.
+  the Attempt quarantined until verified maintenance retirement. Correlation
+  resolves acceptance uncertainty only; retirement resolves neither.
 
 Native checkout paths and runtime state belong to the target. Host
-stopped-target and storage verification remain with #122.
+stopped-target and mount verification belong to the host procedure
+(homelab-iac#356); Broodling records the check it supplies.
 
 ## Evidence and history
 

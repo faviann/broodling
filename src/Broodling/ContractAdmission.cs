@@ -75,8 +75,10 @@ public sealed class AdmissionStatus(WorkUnit workUnit, IEnumerable<EntitledSourc
     public IReadOnlyList<AttemptRecord> Attempts { get; } = Array.AsReadOnly((attempts ?? []).ToArray());
     public IReadOnlyList<NativeSubmission> Submissions { get; } = Array.AsReadOnly((submissions ?? []).ToArray());
     public IReadOnlyList<AttemptCompletion> Completions { get; } = Array.AsReadOnly((completions ?? []).ToArray());
-    // Dispatch is irreversible. This is a cleanup limit even while native execution is current.
-    public IReadOnlyList<string> QuarantinedAttemptIds => Submissions.Where(submission => submission.State != "prepared")
+    // Dispatch is irreversible. This is a cleanup limit even while native execution is current;
+    // only a retirement recorded under verified maintenance lifts it.
+    public IReadOnlyList<string> QuarantinedAttemptIds => Submissions.Where(submission => submission.State != "prepared"
+            && Attempts.FirstOrDefault(attempt => attempt.AttemptId == submission.AttemptId)?.Retirement is null)
         .Select(submission => submission.AttemptId).ToArray();
 }
 

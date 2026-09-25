@@ -57,7 +57,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Approved execution asset: build-output inclusion, loader refusals, pinned-tool regeneration and native admission | `ExecutionAssetTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset) |
 | Bounded native progress observation, unavailable/timeout mapping and unchanged retained facts | `NativeObservationTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#dispatch-recovery-and-completion) |
 | Receipt validation, atomic exact-Attempt completion, late results (correlated HTTP Attempts over the loopback stand-in) | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
-| Stop/quarantine, safe undispatched retirement (including HTTP Attempts), original-B1 replacement | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
+| Stop/quarantine, safe undispatched retirement (including HTTP Attempts), verified stopped-target maintenance retirement, original-B1 replacement | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
 | Read-only HTTP server: existing-state startup refusal and session release, retained reads mapped to application operations without external services or writes, reads while another session holds the writer | `HttpReadTests` |
 | Composed application/operator recovery and handback; explicit Local/Direct target configuration, retained-kind routing and mismatch refusal; PR operations without a Python helper | `InvocationTests`: [invocation](../docs/implementation/invocation.md) |
 | Native explicit initialization, refusal before serving, restart and mixed UID preservation | `NativeTargetStartupTests`: actual target image with disposable state, [startup](../deployment/README.md#explicit-native-initialization-and-guarded-startup) |
@@ -115,7 +115,8 @@ PR, semantic-quality result, image publication or production topology check.
 ## Evidence limits and history
 
 No-effect native success still refuses stable completion. Terminal labels do
-not prove physical cessation; every dispatched Attempt remains quarantined.
+not prove physical cessation; every dispatched Attempt remains quarantined
+until verified maintenance retirement, whose actual target stop is host-owned.
 The suite does not prove hostile sandbox containment, the trusted-host MCP
 precondition, model reliability or authority for automatic merge/deployment.
 [P5 remains scoped FAIL](../evaluation/p5/README.md).

@@ -12,6 +12,8 @@ from the future owner-approved operational switch.
 using var store = new BroodlingApplication().OpenStore(storePath);
 await store.StopAsync(attemptId, "Operator ended this Attempt", transport);
 var retirement = store.RetireAttempt(attemptId);
+// Dispatched DirectTarget work, only during verified stopped-target maintenance.
+var maintained = store.RetireStoppedTargetAttempt(attemptId, stoppedTargetCheck);
 // A no-effect worktree predecessor keeps its kind and the SDK bridge.
 var successor = store.AdmitRetry(attemptId, retryKey, workspaceRoot, profile);
 var prepared = store.PrepareRetry(attemptId, retryKey, workspaceRoot, profile);
@@ -55,8 +57,9 @@ dispatched LocalTarget record is refused before abandonment with
 `python_required`, because its native stop could not be requested.
 Submit still reacquires/proposes its explicit issue, then hands back abandonment;
 resume/status/history inspect retained facts without automatic replacement.
-`QuarantinedAttemptIds` identifies every dispatched Attempt, even if current.
-It describes a permanent cleanup limitation, not native execution status.
+`QuarantinedAttemptIds` identifies every dispatched Attempt, even if current,
+until a verified maintenance retirement below lifts that cleanup limitation. It
+is not native execution status. The stop command's `quarantined` flag follows it.
 
 ## Stop and retirement authority
 
@@ -88,7 +91,8 @@ surface:
 
 Force is never reissued automatically. A later explicit Stop may address an
 intended run that was unknown earlier, for example after delayed acceptance.
-Every outcome leaves dispatch intent quarantined.
+Every outcome leaves dispatch intent quarantined; only the verified maintenance
+retirement below can end that.
 `StopAsync(attemptId, reason, transport: null)` is also the late-acknowledgement
 stop path for abandoned HTTP work: abandonment is idempotent, and routing follows
 the retained record. The thin host `stop` command still selects the bridge;
@@ -126,6 +130,63 @@ There is no execution supervisor or native cleanup mechanism. Retiring an HTTP
 Attempt only acknowledges its retained proof under the writer: no filesystem or
 Git mutation, and B1/accepted pins, source and history remain.
 
+## Verified maintenance retirement
+
+[#122](https://github.com/faviann/broodling/issues/122) adds the only path that
+retires dispatched work, for HTTP DirectTarget Attempts during host maintenance.
+The host procedure ([homelab-iac#356](https://github.com/faviann/homelab-iac/issues/356))
+pauses the installation, drains and quiesces Broodling, stops the target, verifies
+the correct target and its state mounts are stopped and keeps them stopped. It then
+runs the image command once per Attempt with a check it made during this pause:
+
+```bash
+dotnet /RELEASE/host/Broodling.Host.dll retire-attempt /EXISTING/DOTNET/state.sqlite3 ATTEMPT_ID \
+  '{"directOrigin":"http://127.0.0.1:18770","containerName":"broodling-target","stateMount":"/NEW/target-state","homeMount":"/NEW/target-home","verifiedAt":"2026-09-25T12:00:00Z"}'
+```
+
+`RetireStoppedTargetAttempt(attemptId, StoppedTargetCheck)` records every member
+as supplied and refuses a blank one; like `check-target`, the command parser
+requires every member, refuses nulls and accepts nothing else. Under one SQLite writer it
+requires the persisted pause, `verifiedAt` no earlier than the latest pause call
+and no later than now (host and application share a clock), the check's origin
+equal to the Attempt's retained binding origin, a drained initiation lock, a
+non-current HTTP Attempt (abandoned or completed) with dispatch intent, and its
+B1 pin and any accepted pin, read from Git while the writer is held. Drainage is an additional condition, never authorization: a sender that
+committed intent before the stop holds that lock until its send returns.
+Every `PauseInstallation` call, even while already paused, refreshes the pause
+time that `verifiedAt` is compared with. The host contract is therefore: each maintenance invocation starts by calling
+pause, then verifies the target, then retires. A check from an earlier invocation,
+interrupted or not, or from before a release and re-pause, is then refused.
+This epoch rests on the host clock, which the host and application share, not
+stepping backwards across maintenance invocations.
+Pause/check/drainage refusals are `maintenance_unverified`; ineligible Attempts
+are `cessation_unconfirmed`. A native terminal label, a stop result, local
+drainage or a missing directory grants nothing on its own.
+
+Success inserts basis `stopped_target`, `ceased_at` (`verifiedAt` in UTC), the check JSON
+and `retired_at` in one transaction. SQL ties that basis to a non-current HTTP
+Attempt with dispatch intent while paused. Nothing is deleted: an HTTP Attempt
+owns no Broodling worktree, and Zeroshot's checkout and ledger are native state.
+Frozen request/asset, B1 and accepted pins, receipt and completion stay; a
+completed Attempt is retired without abandonment; a later `stop` of any retired
+Attempt returns its retirement without abandoning it or contacting the target. An uncorrelated submission
+stays `dispatched` and counted in `unresolvedDispatches`. An already
+acknowledged retirement (`retired_at` set) is returned unchanged on repeat,
+whatever its basis, so the host procedure must check the returned `basis` rather
+than treat exit 0 as its own verified retirement. An unacknowledged safe proof
+goes through the normal checks, which refuse it. Replacement still refuses dispatched
+predecessors; widening it belongs to #123. LocalTarget worktree Attempts keep the
+policy above.
+
+This is safe because the pinned Zeroshot ends every non-terminal run as
+`runtime_lost` before serving anything when restarted over the same ledger,
+never reallocating it, and has no queue of accepted-but-unstarted runs
+(`zeroshot/src/native_v2_cloud.rs:136`, `:148-170`, `:206-245` at
+[`054ad3f`](https://github.com/the-open-engine/zeroshot/tree/054ad3fd6c763b98d12f5b2e90830b97116561ad)).
+That holds only if the restarted target mounts the same ledger, which #356 checks.
+The drainage condition covers local senders only; the single-host loopback
+sender assumption depends on the unresolved topology in #155.
+
 ## Explicit replacement and schema
 
 New retry requires abandonment, completed safe retirement and no competing
@@ -158,7 +219,8 @@ schema **11** adds immutable Issue submission cancellation facts, and schema
 replacement allocation and preparation remain permitted while paused, but
 replacement dispatch still requires explicit release.
 Retirement/retry facts resist update, delete and `INSERT OR REPLACE`; SQL refuses
-dispatched cleanup authority and missing/changed retry submission targets.
+dispatched cleanup authority outside the `stopped_target` conditions and
+missing/changed retry submission targets.
 No Python database/import compatibility was added. G's
 completed-Work-Unit refusal remains in admission/retry/API/SQL, with completed-Attempt
 abandonment refusal, factual current-authority-loss guard and Attempt
@@ -168,7 +230,10 @@ the ordinary abandoned-work insertion guard with the safe-retry exception.
 ## Evidence and limits
 
 `RetirementTests` owns safe/ambiguous proof, stop ordering and all dispatched
-outcomes, ownership refusals, dirty deletion, lock inode and lifecycle SQL.
+outcomes, ownership refusals, dirty deletion, lock inode and lifecycle SQL, plus
+verified maintenance retirement: abandoned unresolved/correlated and successful
+HTTP Attempts, each pause/check/drainage/currentness/retention refusal, the
+LocalTarget refusal and the `retire-attempt` command.
 `ReplacementTests` owns original material, atomic allocation, same-key
 concurrency, historical replay, target enforcement and SQL binding refusals.
 `ReplacementCompletionTests` checks the integrated completed-Work-Unit refusal

@@ -18,15 +18,21 @@ dotnet /RELEASE/host/Broodling.Host.dll release-installation /EXISTING/DOTNET/st
 ```
 
 The commands emit JSON with `isPaused`, `changedAt`, `unresolvedDispatches`
-and `inFlightInitiationDrained`. The last two are independent facts:
+and `inFlightInitiationDrained`. `changedAt` is refreshed by every pause call,
+even while already paused, and by a release that unpauses; it starts the
+maintenance epoch that
+[verified maintenance retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement)
+binds its host check to. The last two are independent facts:
 
 - `unresolvedDispatches` counts `native_submissions` in `dispatched` state:
   committed dispatch intent without retained correlation. It is durable
   uncertainty about whether a native run exists. Pause and status never rewrite
   it; only exact correlation settles a submission. An HTTP submission's retained
   conflict does not settle it, and neither do abandonment, stop, a terminal or
-  unknown-run observation, or local drainage. A LocalTarget bridge conflict
-  (`blocked`) is not counted.
+  unknown-run observation, local drainage or verified maintenance retirement.
+  A LocalTarget bridge conflict (`blocked`) is not counted. A counted entry whose
+  Attempt has a `stopped_target` retirement is one the host procedure recorded as
+  stopped with its target; restart over the same ledger ends any such run.
 - `inFlightInitiationDrained` is true when no local process holds the
   installation initiation lock at the moment of the reading. It is a local fact
   only; it does not prove that no external submission can still create a run.

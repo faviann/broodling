@@ -257,7 +257,7 @@ public sealed class HttpSubmissionTests
         await Assert.That(async () => await fixture.Store.StopAsync(attempt.AttemptId, "ended", transport: null))
             .Throws<CessationUnconfirmed>();
         await Assert.That(() => fixture.Git.State.Execute(
-            $"INSERT INTO attempt_retirements VALUES ('{attempt.AttemptId}', 'no_dispatch_intent', 'now', NULL)")).Throws<SqliteException>();
+            $"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ('{attempt.AttemptId}', 'no_dispatch_intent', 'now')")).Throws<SqliteException>();
         await Assert.That(fixture.Store.Status(attempt.ContractRevisionId).QuarantinedAttemptIds.Single()).IsEqualTo(attempt.AttemptId);
         await Assert.That(() => fixture.Store.AdmitRetry(attempt.AttemptId, "replace")).Throws<AttemptAdmissionError>();
     }

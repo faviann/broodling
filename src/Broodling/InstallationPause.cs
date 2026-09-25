@@ -34,7 +34,9 @@ public sealed partial class BroodlingStore
     {
         using var transaction = connection.BeginTransaction(deferred: false);
         var current = ReadInstallationControl(transaction);
-        if (current.IsPaused != paused)
+        // Every pause starts a new maintenance epoch, even when already paused, so a stopped-target
+        // check from an earlier (possibly interrupted) invocation no longer qualifies. Release is idempotent.
+        if (paused || current.IsPaused)
             Execute("UPDATE installation_control SET admission_dispatch_paused = $p0, changed_at = $p1 WHERE singleton = 1",
                 transaction, paused ? 1 : 0, Now());
         var result = ReadInstallationStatus(transaction);
