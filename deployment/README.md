@@ -44,9 +44,9 @@ needs a fresh store; see [state and operator commands](#state-and-operator-comma
 The owner decision is a future operational gate, not a prerequisite for finishing
 source retirement. This guide and #140 authorize no deployment, state switch,
 silent replacement, deletion, target creation or new live-provider campaign.
-Remaining #100 product intent is unchanged; public URL-only HTTP intake, bundled
-proposer, reference capture, automatic execution/completion, Compose,
-maintenance and retention work remain separate. Callable pre-Contract Issue
+Remaining #100 product intent is unchanged; public URL-only HTTP intake,
+automatic execution/completion, Compose, maintenance and retention work remain
+separate. Callable pre-Contract Issue
 submission identity is documented in the state API.
 
 ## Build a release artifact

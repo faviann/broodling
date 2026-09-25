@@ -144,6 +144,11 @@ describes its configuration.
   bound or refused submission is never proposed again. Neither the key nor the
   gateway's response text appears in an error or a retained record.
 
+A frozen-state integrity or custody failure during a proposal, such as a failed
+compact-manifest check or an on-demand read that fails for a reason other than an
+unknown member, throws a conflict that needs attention. It is neither a retained
+refusal nor a `ContractProposerError`, and it retains nothing.
+
 The proposer runs only after capture completes and cannot add bundle members.
 Controlled tests do not establish model interpretation quality; the supervised
 review limitation applies to every admitted Contract.
