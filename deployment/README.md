@@ -244,9 +244,8 @@ Each publishing run uploads a `release-record` artifact, `release-record.json`
   initializes, which is the application schema it supports;
 - `executionAsset`: the approved asset SHA-256 and its native pins from the
   approval manifest;
-- `targetDependencies` and `demonstration`: the native, Codex, Node and gh
-  versions and other facts that `check-target` observed during the
-  demonstration.
+- `demonstration`: the native, Codex, Node and gh versions and the other
+  dependency facts that `check-target` observed in the demonstration.
 
 A record states that these two images passed the demonstration together at that
 revision. It is not a compatibility registry, and the two images need not share
@@ -255,10 +254,10 @@ a version. It establishes neither upgrade compatibility with existing state
 target's image ID from `docker inspect` of the running container in the
 readiness inventory.
 
-GHCR creates the `broodling` and `broodling-target` packages as private on
-their first publication. Making them public, or granting the installation host
-read access, is a one-time operator step in the package settings; the workflow
-never changes visibility.
+The first publication created the `broodling` and `broodling-target` packages
+linked to this repository and, like it, public: anonymous pulls by digest work.
+Visibility is an operator setting in each package's settings; the workflow
+never changes it. Keep both packages readable by the installation host.
 
 ## State and operator commands
 

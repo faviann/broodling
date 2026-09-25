@@ -73,7 +73,6 @@ jobs:
               images: {broodling: $broodling, zeroshot: $target, "zeroshot-tls": $facts.zeroshotTlsImage},
               application: {storeFormat: $facts.storeFormat, storeSchemaVersion: $facts.storeSchemaVersion},
               executionAsset: {sha256: $approval.asset.sha256, native: $approval.native},
-              targetDependencies: $facts.readiness.versions,
               zeroshotTls: {user: "10443:10443", caddyfile: {path: "deployment/zeroshot-tls.Caddyfile", sha256: $caddyfileSha256, content: $caddyfile}},
               demonstration: $facts.readiness
             }' > release-record.json
