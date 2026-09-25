@@ -157,6 +157,8 @@ Every `PauseInstallation` call, even while already paused, refreshes the pause
 time that `verifiedAt` is compared with. The host contract is therefore: each maintenance invocation starts by calling
 pause, then verifies the target, then retires. A check from an earlier invocation,
 interrupted or not, or from before a release and re-pause, is then refused.
+This epoch rests on the host clock, which the host and application share, not
+stepping backwards across maintenance invocations.
 Pause/check/drainage refusals are `maintenance_unverified`; ineligible Attempts
 are `cessation_unconfirmed`. A native terminal label, a stop result, local
 drainage or a missing directory grants nothing on its own.
