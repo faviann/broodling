@@ -1,4 +1,6 @@
+using System.Text;
 using System.Text.Json;
+using Broodling.Host;
 using TUnit.Assertions;
 using TUnit.Core;
 
@@ -87,6 +89,32 @@ public sealed class StockDirectTargetTests
         await Assert.That(store.FindCompletion(attempt.AttemptId)).IsNull();
         // No delivery branch: the target never substituted the branch tip.
         await Assert.That(AttemptFixture.RunGit(target.Forge, "for-each-ref", "--format=%(refname)").Trim()).IsEqualTo("refs/heads/main");
+    }
+
+    [Test]
+    public async Task NativeAgentReadsBundleReferencesOnDemandThroughTheInstalledHelper()
+    {
+        using var fixture = await BundleHttpFixture.CreateAsync();
+        var (store, bundle, attempt) = (fixture.Store, fixture.Bundle, fixture.Attempt);
+        // The real read-only HTTP reader over the same retained state, bound only where the target reaches the host.
+        await using var reader = BroodlingHost.Build([$"--urls=http://{await StockDirectTarget.BridgeGatewayAsync()}:0",
+            "--Broodling:Store=" + fixture.Git.State.Path]);
+        await reader.StartAsync();
+        await using var target = await StockDirectTarget.StartAsync(fixture.Git.State.Root, new Uri(reader.Urls.Single()));
+        var repository = attempt.B1.Repository;
+        AttemptFixture.RunGit(repository, "config", "url." + target.Forge + ".insteadOf", "https://github.com/acme/widget.git");
+        await target.PushAsync(repository, attempt.B1.CommitOid + ":refs/heads/main");
+
+        await new Invocation(store, new InvocationTarget.Direct(target.Origin)).ResumeAsync(attempt.ContractRevisionId, credentials: Credentials);
+        var completion = await store.WaitAsync(attempt.AttemptId, null);
+
+        // The controlled agent committed what the helper printed for each listed reference: the exact retained bytes.
+        var accepted = completion.AcceptedRevision;
+        await Assert.That(AttemptFixture.RunGit(repository, "ls-tree", "--name-only", accepted + ":references").Split('\n',
+            StringSplitOptions.RemoveEmptyEntries).Length).IsEqualTo(bundle.References.Count);
+        foreach (var (reference, index) in bundle.References.Select((reference, index) => (reference, index)))
+            await Assert.That(AttemptFixture.RunGit(repository, "show", $"{accepted}:references/{index}")).IsEqualTo(
+                Encoding.UTF8.GetString(store.ReadRequestBundleReference(bundle.BundleId, reference.ReferenceId).Content));
     }
 
     /// <summary>An authorized-PR revision whose result fetch resolves only to the controlled forge.</summary>
