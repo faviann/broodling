@@ -61,9 +61,13 @@ public sealed partial class BroodlingStore
         }
         RequireIncompleteWorkUnit(predecessor.WorkUnitId, transaction);
         RequireBundleAuthority(contract, transaction);
-        if (predecessor.Abandonment is null || ReadRetirement(predecessorId, transaction)?.RetiredAt is null)
-            throw new AttemptAdmissionError("Replacement requires abandonment and completed safe retirement.");
-        RequireRetirementSafety(predecessor, transaction);
+        if (predecessor.Abandonment is null || ReadRetirement(predecessorId, transaction) is not { RetiredAt: not null } retirement)
+            throw new AttemptAdmissionError("Replacement requires abandonment and completed retirement.");
+        // Verified stopped-target maintenance is the only retirement of dispatched (DirectTarget) work, and
+        // its successor is admitted only within a maintenance pause. Every other predecessor must still
+        // prove it never dispatched.
+        if (retirement.Basis == "stopped_target") RequireMaintenancePause(transaction);
+        else RequireRetirementSafety(predecessor, transaction);
         if (ReadRetry("predecessor_id", predecessorId, transaction) is not null)
             throw new AttemptConflict("This predecessor already has an explicit successor.");
         if (ReadAttempts("work_unit_id = $p0 AND is_current = 1", predecessor.WorkUnitId, transaction).Count != 0)
@@ -93,6 +97,20 @@ public sealed partial class BroodlingStore
         var result = ReadAttempt(id, transaction);
         transaction.Commit();
         return result;
+    }
+
+    /// <summary>
+    /// Admit and prepare one explicit HTTP successor, never dispatching it. It targets the predecessor's
+    /// retained DirectTarget origin; for a <c>stopped_target</c> predecessor that is the origin its
+    /// maintenance check named. Repeating it returns the successor's existing submission unchanged.
+    /// </summary>
+    public NativeSubmission PrepareRetry(string predecessorId, string retryKey)
+    {
+        // Resolved first, so a predecessor without a retained origin leaves no successor behind.
+        var origin = FindSubmission(predecessorId)?.Locator.Address
+            ?? throw new SubmissionNotReady("The predecessor has no retained DirectTarget origin.");
+        var attempt = AdmitRetry(predecessorId, retryKey);
+        return FindSubmission(attempt.AttemptId) ?? PrepareHttpSubmission(attempt.AttemptId, origin);
     }
 
     public NativeSubmission PrepareRetry(string predecessorId, string retryKey, string workspaceRoot, NativeProfile profile)

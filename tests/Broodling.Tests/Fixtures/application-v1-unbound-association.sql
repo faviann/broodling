@@ -213,7 +213,7 @@ CREATE TABLE store_metadata (
     manifest_hash TEXT NOT NULL,
     initialized_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'dd6895ba373a28777d12008f80e4ef1f8858e8bb8cde57f13adea2a8d8fbd853','fa5ce4fd0fe07dfdb2e992f0a39debb89d3b70fca5804d39c51192e3800c00b0','2026-09-25T18:54:16.6525981+00:00');
+INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'4b64e2c4fd607657311af55e19ee528be25904b127e564594caff69ea6e1ba01','3b1c6fa693cb4f4d01fea75f520bf26b56e052d88e685abf6c8a4fe8c56bc89f','2026-09-25T18:54:16.6525981+00:00');
 CREATE TABLE work_submissions (
     submission_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -477,7 +477,8 @@ WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE retry_key = NEW.retry_key
     JOIN attempts AS a USING (attempt_id)
     WHERE r.attempt_id = NEW.predecessor_id AND r.retired_at IS NOT NULL AND a.is_current = 0
       AND NOT EXISTS (SELECT 1 FROM attempts AS current WHERE current.work_unit_id = a.work_unit_id AND current.is_current = 1)
-      AND NOT EXISTS (SELECT 1 FROM native_submissions AS s WHERE s.attempt_id = a.attempt_id AND s.state <> 'prepared')
+      AND (r.basis = 'stopped_target'
+        OR NOT EXISTS (SELECT 1 FROM native_submissions AS s WHERE s.attempt_id = a.attempt_id AND s.state <> 'prepared'))
 ) OR EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id)
 BEGIN SELECT RAISE(ABORT, 'retry requires safely retired predecessor and a new successor'); END;
 CREATE TRIGGER retries_no_update BEFORE UPDATE ON attempt_retries

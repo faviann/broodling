@@ -46,6 +46,9 @@ public sealed partial class BroodlingStore
             transaction.Commit();
             return previous; // A losing concurrent preparer adopts the first identity; it never invents another.
         }
+        // A successor of work retired under verified maintenance is first prepared only within a maintenance pause.
+        if (attempt.Retry is { } retry && ReadRetirement(retry.PredecessorId, transaction)?.Basis == "stopped_target")
+            RequireMaintenancePause(transaction);
         var intended = Guid.CreateVersion7().ToString();
         Execute("INSERT OR IGNORE INTO execution_assets VALUES ($p0, $p1)", transaction, asset!.Sha256, asset.Content());
         // A row retained by an earlier preparation is reused, so it must still be the approved content.

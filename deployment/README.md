@@ -157,14 +157,15 @@ as PID 1.
   `docker compose run --rm --no-deps broodling initialize-store /var/lib/broodling/state.sqlite3`.
   The store-only commands `upgrade-store`, `status`, `history` and the
   installation pause commands work the same way.
-- The invocation commands (`submit`, `resume`, `wait`, `stop`) and
-  `retire-attempt` are not supported in the image in this revision; run them
-  from the release artifact. `submit` acquires the issue and repository through
+- The invocation commands (`submit`, `resume`, `wait`, `stop`),
+  `retire-attempt` and `replace-attempt` are not supported in the image in this
+  revision; run them from the release artifact. `submit` acquires the issue and repository through
   `gh`, which the image lacks, so it refuses with `github_source_error`. An
   Attempt's source custody is the common Git directory of the caller checkout
   named to `submit`, at its host path, which the image does not mount.
-  Resuming or waiting on the Attempt needs it, and `retire-attempt` checks the
-  Attempt's B1 and accepted-revision pins there.
+  Resuming or waiting on the Attempt needs it, `retire-attempt` checks the
+  Attempt's B1 and accepted-revision pins there, and `replace-attempt` pins B1
+  and reads the result origin there.
 - The operator provides the state directory, mounted read/write at
   `/var/lib/broodling` and owned by `1654:1654` (for example mode `0700`). The
   image never changes mounted ownership. Mount the public root directory
@@ -301,7 +302,10 @@ change; leave them and their associated resources in place. Use the
 persisted installation pause/status/release commands for operator maintenance;
 they do not stop native execution or prove container cessation. During verified
 stopped-target maintenance the host procedure passes its current check to
-`retire-attempt <path> <attempt-id> <stopped-target-check-json>`; see
+`retire-attempt <path> <attempt-id> <stopped-target-check-json>`, then, still
+paused, may replace an abandoned retired Attempt with
+`replace-attempt <path> <predecessor-attempt-id> <retry-key>`, which prepares but
+never dispatches the successor; see
 [verified maintenance retirement](../docs/implementation/dotnet-retirement-replacement.md#verified-maintenance-retirement).
 See [state lifecycle](../docs/implementation/dotnet-identity-custody.md).
 
@@ -655,8 +659,11 @@ cancelled wait only detaches. Restore access to the same target and wait again.
 Stop records abandonment first, then requests native stop when the run is known.
 A dispatched Attempt returns cessation refusal/quarantine even after terminal
 stop. Unknown correlation is never redispatched to discover a run. Explicit
-never-dispatched retirement/retry remain [callable operations](../docs/implementation/dotnet-retirement-replacement.md),
-not an automatic CLI recovery sequence.
+never-dispatched retirement and replacement remain
+[callable operations](../docs/implementation/dotnet-retirement-replacement.md),
+not an automatic CLI recovery sequence. `replace-attempt` replaces an abandoned,
+retired HTTP predecessor at its retained origin; only a `stopped_target`
+predecessor requires the pause.
 
 ### Bundled Contract proposer
 

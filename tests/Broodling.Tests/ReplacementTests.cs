@@ -1,3 +1,4 @@
+using Broodling.Host;
 using Microsoft.Data.Sqlite;
 using System.Reflection;
 using System.Text.Json.Nodes;
@@ -244,6 +245,9 @@ public sealed class ReplacementTests
             fixture.Commit("today's HEAD must not become B1\n");
             local = fixture.LocalResources();
             store.PauseInstallation(); // Explicit safe replacement allocation remains permitted while paused.
+            // Without a retained origin the one-call operation refuses before admitting anything.
+            await Assert.That(() => store.PrepareRetry(original.AttemptId, "replace")).Throws<SubmissionNotReady>();
+            await Assert.That(store.FindRetry("replace")).IsNull();
             successor = Retry();
             await Assert.That(successor.AttemptId == original.AttemptId).IsFalse();
             await Assert.That(successor.ResourceKind).IsEqualTo(AttemptRecord.Http);
@@ -259,6 +263,103 @@ public sealed class ReplacementTests
         await Assert.That(reopened.Status(original.ContractRevisionId).Attempts.Count).IsEqualTo(2);
         await Assert.That(fixture.Git("rev-parse", original.B1.RetentionRef).Trim()).IsEqualTo(original.B1.CommitOid);
         await Assert.That(fixture.LocalResources()).IsEqualTo(local);
+    }
+
+    [Test]
+    public async Task StoppedTargetRetiredDirectTargetWorkIsReplacedWithinThePauseFromItsFrozenAuthorityAndDispatchedOnlyAfterRelease()
+    {
+        await using var target = new StockTarget();
+        using var fixture = await BundleHttpFixture.CreateAsync();
+        var store = fixture.Store;
+        var original = fixture.Attempt;
+        var origin = target.Origin.GetLeftPart(UriPartial.Authority);
+        // The predecessor's send is left unresolved: the target may hold its run until maintenance stops it.
+        var sent = store.PrepareHttpSubmission(original.AttemptId, origin);
+        target.Submit = _ => Task.FromResult((503, """{"code":"target.unavailable","message":"unavailable"}"""));
+        await Assert.That(async () => await store.DispatchHttpAsync(original.AttemptId, HttpDispatchTests.Credentials()))
+            .Throws<NativeTransportError>();
+        target.Submit = body => Task.FromResult(target.Accept(body));
+        var unresolved = store.FindSubmission(original.AttemptId)!;
+        store.AbandonAttempt(original.AttemptId, "target lost");
+        store.PauseInstallation();
+        var retired = store.RetireStoppedTargetAttempt(original.AttemptId, new StoppedTargetCheck(origin, "broodling-target",
+            "/srv/broodling/target-state", "/srv/broodling/target-home", DateTimeOffset.UtcNow));
+
+        // Replacement happens only within a maintenance pause: neither admission nor first preparation outside it.
+        var resume = new Invocation(store, new InvocationTarget.Direct(origin));
+        store.ReleaseInstallation();
+        await Assert.That(() => store.PrepareRetry(original.AttemptId, "after-maintenance")).Throws<MaintenanceUnverified>();
+        await Assert.That(store.FindRetry("after-maintenance")).IsNull();
+        store.PauseInstallation();
+        var successor = store.AdmitRetry(original.AttemptId, "after-maintenance");
+        store.ReleaseInstallation();
+        await Assert.That(() => store.PrepareRetry(original.AttemptId, "after-maintenance")).Throws<MaintenanceUnverified>();
+        await Assert.That(async () => await resume.ResumeAsync(original.ContractRevisionId, credentials: HttpDispatchTests.Credentials()))
+            .Throws<MaintenanceUnverified>();
+        await Assert.That(store.FindSubmission(successor.AttemptId)).IsNull();
+
+        store.PauseInstallation();
+        var prepared = store.PrepareRetry(original.AttemptId, "after-maintenance");
+        await Assert.That(prepared.AttemptId).IsEqualTo(successor.AttemptId);
+        await Assert.That(successor.ContractRevisionId).IsEqualTo(original.ContractRevisionId);
+        await Assert.That(successor.B1).IsEqualTo(original.B1);
+        await Assert.That(successor.ResourceKind).IsEqualTo(AttemptRecord.Http);
+        await Assert.That(store.PrepareRetry(original.AttemptId, "after-maintenance")).IsEqualTo(prepared);
+        await Assert.That(() => store.AdmitRetry(original.AttemptId, "second")).Throws<AttemptConflict>();
+        // The predecessor's verified origin, the same bundle-bound task and exact B1 source; only the Attempt's own identities differ.
+        await Assert.That(prepared.Locator.Address).IsEqualTo(origin);
+        await Assert.That(prepared.IntendedRunId == sent.IntendedRunId).IsFalse();
+        JsonNode Submission(NativeSubmission record) => JsonNode.Parse(record.RequestJson)!["submission"]!;
+        await Assert.That(JsonNode.DeepEquals(Submission(prepared)["initialInput"], Submission(sent)["initialInput"])).IsTrue();
+        await Assert.That(JsonNode.DeepEquals(Submission(prepared)["source"], Submission(sent)["source"])).IsTrue();
+        await Assert.That(async () => await store.DispatchHttpAsync(successor.AttemptId, HttpDispatchTests.Credentials()))
+            .Throws<InstallationPaused>();
+        await Assert.That(target.Bodies.Count).IsEqualTo(1);
+
+        store.ReleaseInstallation();
+        var resumed = await resume.ResumeAsync(original.ContractRevisionId, credentials: HttpDispatchTests.Credentials());
+        var correlated = resumed.Submissions.Single(record => record.AttemptId == successor.AttemptId);
+        await Assert.That(correlated.RunId).IsEqualTo(prepared.IntendedRunId);
+        await Assert.That((string)target.Bodies.Last()["runId"]!).IsEqualTo(prepared.IntendedRunId);
+        // Repeating the operation hands back the retained submission and prepares nothing new.
+        await Assert.That(store.PrepareRetry(original.AttemptId, "after-maintenance")).IsEqualTo(correlated);
+
+        // The predecessor's history stays exactly as retained; only the successor is quarantined now.
+        await Assert.That(store.FindSubmission(original.AttemptId)).IsEqualTo(unresolved);
+        await Assert.That(store.FindRetirement(original.AttemptId)).IsEqualTo(retired);
+        var lineage = original.AttemptId + "," + successor.AttemptId;
+        await Assert.That(string.Join(",", resumed.Attempts.Select(attempt => attempt.AttemptId))).IsEqualTo(lineage);
+        await Assert.That(resumed.Attempts[0].Abandonment!.Reason).IsEqualTo("target lost");
+        await Assert.That(resumed.QuarantinedAttemptIds.Single()).IsEqualTo(successor.AttemptId);
+        await Assert.That(store.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(1);
+        await Assert.That(string.Join(",", store.GetIssueSubmission(fixture.Bundle.SubmissionId).AttemptIds)).IsEqualTo(lineage);
+    }
+
+    [Test]
+    public async Task ReplaceAttemptCommandRefusesOutsideThePauseThenPrintsThePreparedSuccessor()
+    {
+        using var fixture = new HttpFixture();
+        var sent = fixture.PrepareAt(new Uri(HttpFixture.Target), "dispatched");
+        var id = fixture.Attempt.AttemptId;
+        fixture.Store.AbandonAttempt(id, "operator stop");
+        fixture.Store.PauseInstallation();
+        fixture.Store.RetireStoppedTargetAttempt(id, new StoppedTargetCheck(sent.Locator.Address, "broodling-target",
+            "/srv/broodling/target-state", "/srv/broodling/target-home", DateTimeOffset.UtcNow));
+        fixture.Store.ReleaseInstallation();
+        var (path, application) = (fixture.Git.State.Path, fixture.Git.State.Application);
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        await Assert.That(StoreCommands.Run(["replace-attempt", path, id, "after-maintenance"], application, output, error)).IsEqualTo(1);
+        await Assert.That((string)JsonNode.Parse(error.ToString())!["error"]!).IsEqualTo("maintenance_unverified");
+        await Assert.That(fixture.Store.FindRetry("after-maintenance")).IsNull();
+        fixture.Store.PauseInstallation();
+        await Assert.That(StoreCommands.Run(["replace-attempt", path, id, "after-maintenance"], application, output, error)).IsEqualTo(0);
+        var printed = JsonNode.Parse(output.ToString())!;
+        var successor = fixture.Store.FindRetry("after-maintenance")!.AttemptId;
+        await Assert.That((string)printed["attemptId"]!).IsEqualTo(successor);
+        await Assert.That((string)printed["state"]!).IsEqualTo("prepared");
+        await Assert.That((string)printed["intendedRunId"]!).IsEqualTo(fixture.Store.FindSubmission(successor)!.IntendedRunId);
     }
 
     internal static async Task SafeRetire(BroodlingStore store, AttemptRecord attempt)
