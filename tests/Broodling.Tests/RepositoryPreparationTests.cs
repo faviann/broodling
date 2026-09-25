@@ -111,9 +111,10 @@ public sealed class RepositoryPreparationTests
         var secondBundle = store.BeginRequestBundleCapture(second.SubmissionId,
             new RequestBundlePlan("inputs-2"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
 
-        await Assert.That(async () => await store.PrepareRequestBundleRepositoryAsync(secondBundle.BundleId,
+        var refused = await Assert.That(async () => await store.PrepareRequestBundleRepositoryAsync(secondBundle.BundleId,
             fixture.RepositoryRoot, new GitHubRepositoryCredentials("configured-token"), fixture.Source))
             .Throws<GitHubRepositoryError>();
+        await Assert.That(refused!.Retryable).IsFalse();
         await Assert.That(RunGit(serviceRepository, "show-ref")).IsEqualTo(before);
         var gitCallsAfter = File.ReadAllText(fixture.GitCalls);
         await Assert.That(gitCallsAfter[ callsBefore.Length..].Contains("Authorization: Basic ")).IsFalse();
@@ -201,13 +202,16 @@ public sealed class RepositoryPreparationTests
         using var fixture = new RepositoryPreparationFixture();
         var reference = WorkReference.Parse("acme/widget", 12, repositoryIdentity: "R_expected");
         fixture.SetMetadata(cloneUrl: "https://github.com:444/acme/widget.git", repositoryIdentity: "R_expected");
-        await Assert.That(async () => await fixture.Source.AcquireAsync(reference,
+        var cloneUrl = await Assert.That(async () => await fixture.Source.AcquireAsync(reference,
             new GitHubRepositoryCredentials("configured-token"), fixture.RepositoryRoot))
             .Throws<GitHubRepositoryError>();
         fixture.SetMetadata(cloneUrl: "https://github.com/acme/widget.git", repositoryIdentity: "R_other");
-        await Assert.That(async () => await fixture.Source.AcquireAsync(reference,
+        var pin = await Assert.That(async () => await fixture.Source.AcquireAsync(reference,
             new GitHubRepositoryCredentials("configured-token"), fixture.RepositoryRoot))
             .Throws<GitHubRepositoryError>();
+        // Retrying cannot resolve either mismatch.
+        await Assert.That(cloneUrl!.Retryable).IsFalse();
+        await Assert.That(pin!.Retryable).IsFalse();
         await Assert.That(File.Exists(fixture.GitCalls)).IsFalse();
     }
 
@@ -222,14 +226,33 @@ public sealed class RepositoryPreparationTests
         var bundle = store.BeginRequestBundleCapture(submission.SubmissionId,
             new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
 
-        await Assert.That(async () => await store.PrepareRequestBundleRepositoryAsync(bundle.BundleId,
+        var changed = await Assert.That(async () => await store.PrepareRequestBundleRepositoryAsync(bundle.BundleId,
             fixture.RepositoryRoot, new GitHubRepositoryCredentials("configured-token"), fixture.Source))
             .Throws<GitHubRepositoryError>();
+        await Assert.That(changed!.Retryable).IsTrue();
 
         await Assert.That(store.GetRequestBundle(submission.SubmissionId).Repository).IsNull();
         await Assert.That(store.GetWorkUnit(submission.WorkUnitId).RepositoryIdentity).IsNull();
         await Assert.That(Directory.Exists(Path.Combine(fixture.ServiceRepository, "refs", "broodling", "starting")))
             .IsFalse();
+    }
+
+    [Test]
+    public async Task StalledMetadataReadEndsAsARetryableFailureAndKillsItsProcess()
+    {
+        using var fixture = new RepositoryPreparationFixture();
+        var pid = Path.Combine(fixture.State.Root, "stalled-gh-pid");
+        var stalled = Path.Combine(fixture.State.Root, "stalled-gh");
+        ExecutableFile.Write(stalled, "#!/bin/sh\nprintf '%s\\n' \"$$\" > '" + pid + "'\nexec sleep 300\n");
+        if (OperatingSystem.IsLinux())
+            File.SetUnixFileMode(stalled, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var source = new GitHubRepositorySource(stalled, fixture.Git) { MetadataDeadline = TimeSpan.FromSeconds(2) };
+
+        var error = await Assert.That(async () => await source.AcquireAsync(WorkReference.Parse("acme/widget", 12),
+            new GitHubRepositoryCredentials("configured-token"), fixture.RepositoryRoot)).Throws<GitHubRepositoryError>();
+
+        await Assert.That(error!.Retryable).IsTrue();
+        await Assert.That(Directory.Exists("/proc/" + File.ReadAllText(pid).Trim())).IsFalse();
     }
 
     [Test]

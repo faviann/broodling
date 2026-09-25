@@ -177,6 +177,54 @@ replace an Attempt from it refuses with `IssueSubmissionConflict`, and nothing i
 converted into bundle authority. Revisions with no bundled submission, including
 supplied-source Contracts, use the revision-based APIs unchanged.
 
+## Issue submission preparation
+
+`IssueSubmissionPreparer.PrepareAsync(submissionId, githubCredentials, gatewayCredentials, cancellationToken)`
+([#116](https://github.com/faviann/broodling/issues/116)) takes one exact accepted
+Issue submission through [capture](dotnet-github-ingress.md#executable-request-capture),
+which includes repository selection, and then `AdmitRequestBundleAsync`. It adds
+no record or schema: progress and findings stay in the capture, refusal and
+admission records above. The preparer is constructed with the application, the
+store path, the service repository root and a lifetime token that is cancelled at
+shutdown.
+
+- It returns an `IssueSubmissionPreparation`: `Decided` with the admission status
+  (admitted, or rejected with its findings), `CaptureRefused` with the refused
+  bundle, `ProposalRefused` with the retained refusal, `Cancelled`, or `Failed`
+  with a safe code and message and `Retryable`. Retryable failures are
+  retryable GitHub, repository and gateway failures, the installation pause, and
+  a busy or locked SQLite store (`store_busy`). Other failures need attention:
+  identity or bundle conflicts, a missing gateway key or a `gh` that cannot be
+  started, an earlier unbound association, a store that is missing or
+  incompatible, and any other SQLite error, such as a guard abort
+  (`store_error`, with SQLite's error code and message). The preparer has no retry cadence; its caller decides when to call
+  again.
+- Every result except `Failed` is retained, so a later call returns it again
+  without acquisition or a model call. A cancellation or refusal that commits
+  while preparation runs is returned instead of the failure it causes.
+- A later call continues from committed checkpoints. Capture resumes without
+  refetching committed members. A proposal interrupted before its Contract
+  commits repeats against the frozen bundle. Once a Contract is associated, the
+  submission is never captured or proposed again, and a later call only decides
+  it.
+- The existing checks apply unchanged. Capture stops at a committed
+  cancellation. Proposal and decision refuse a cancelled submission. While the
+  installation is paused, a new proposal and an undecided Contract's decision
+  return the retryable `installation_paused` failure. Capture itself does not
+  check the pause.
+- One process holds one preparer. Concurrent callers for the same submission
+  share its single in-flight preparation, and different submissions prepare
+  independently. The caller that starts a preparation supplies its credentials.
+  Only the lifetime token stops a preparation. A caller's token ends only its
+  own wait, so a disconnecting caller neither cancels the shared work nor wastes
+  its model call. Each preparation runs on the thread pool in its own store
+  session. As in capture and admission, no SQLite writer transaction is open
+  during acquisition or the model call.
+- There is no cross-process lease. If another process prepares the same
+  submission, the store's guards keep the first committed result, but the other
+  preparation can report a conflict that needs attention even though a later
+  call continues from what was committed.
+
 ## Persistence, recovery and observation
 
 `RecordContractRevision(contract)` atomically records the canonical Contract and

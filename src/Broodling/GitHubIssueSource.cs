@@ -9,13 +9,17 @@ namespace Broodling;
 /// <summary>
 /// A refused GitHub read. Only 410, a 404 inside a repository the credentials
 /// can read, or a response naming another object (including a pull request for
-/// an issue) is deterministic; everything else, including an unexplained 404,
-/// is retryable.
+/// an issue) makes the object <see cref="Unavailable"/>, which capture retains as a
+/// refusal. A <c>gh</c> that cannot be started needs attention; everything else,
+/// including an unexplained 404, is retryable.
 /// </summary>
-public sealed class GitHubSourceError(string message, bool retryable = true)
+public sealed class GitHubSourceError(string message, bool retryable = true, bool unavailable = false)
     : BroodlingException("github_source_error", message)
 {
-    public bool Retryable { get; } = retryable;
+    public bool Retryable { get; } = retryable && !unavailable;
+
+    /// <summary>The requested object is deterministically not available.</summary>
+    public bool Unavailable { get; } = unavailable;
 }
 
 public sealed record AcquiredIssue(WorkReference Reference, SourceSubmission Source);
@@ -83,7 +87,7 @@ public sealed class GitHubIssueSource(string executable = "gh")
         var status = Status(output);
         if (status == "410" || status == "404"
             && (await RunAsync($"/repos/{reference.Owner}/{reference.Repository}", credentials, cancellationToken)).ExitCode == 0)
-            throw new GitHubSourceError("The GitHub object is not available.", retryable: false);
+            throw new GitHubSourceError("The GitHub object is not available.", unavailable: true);
         throw new GitHubSourceError("GitHub acquisition failed.");
     }
 
@@ -132,7 +136,8 @@ public sealed class GitHubIssueSource(string executable = "gh")
         {
             StopRead(process);
             // CLI errors can contain credentials and private response details. Never retain them as an inner exception.
-            throw new GitHubSourceError("GitHub acquisition failed.");
+            // A gh that cannot be started is local configuration.
+            throw new GitHubSourceError("GitHub acquisition failed.", retryable: exception is not Win32Exception);
         }
     }
 
@@ -169,12 +174,12 @@ public sealed class GitHubIssueSource(string executable = "gh")
             if (issue.ValueKind != JsonValueKind.Object)
                 throw new GitHubSourceError("GitHub issue response is not an object.");
             if (issue.TryGetProperty("pull_request", out _))
-                throw new GitHubSourceError("The GitHub reference must be an issue, not a pull request.", retryable: false);
+                throw new GitHubSourceError("The GitHub reference must be an issue, not a pull request.", unavailable: true);
             if (!issue.TryGetProperty("number", out var number) || number.ValueKind != JsonValueKind.Number
                 || !number.TryGetInt64(out var parsedNumber))
                 throw new GitHubSourceError("GitHub issue response has no number.");
             if (parsedNumber != reference.IssueNumber)
-                throw new GitHubSourceError("GitHub issue number does not match the reference.", retryable: false);
+                throw new GitHubSourceError("GitHub issue number does not match the reference.", unavailable: true);
             RequireLocator(issue, "html_url", reference.IssueLocator);
             RequireLocator(issue, "repository_url", $"https://api.github.com/repos/{reference.Owner}/{reference.Repository}");
             if (!issue.TryGetProperty("title", out var title) || title.ValueKind != JsonValueKind.String
@@ -188,7 +193,7 @@ public sealed class GitHubIssueSource(string executable = "gh")
                 throw new GitHubSourceError("GitHub issue response has no stable identity.");
             var nodeId = identity.GetString()!;
             if (reference.IssueIdentity is not null && reference.IssueIdentity != nodeId)
-                throw new GitHubSourceError("GitHub issue identity does not match the reference.", retryable: false);
+                throw new GitHubSourceError("GitHub issue identity does not match the reference.", unavailable: true);
             var acquiredReference = WorkReference.Parse(reference.SubmittedRepository, reference.SubmittedIssue,
                 reference.RepositoryIdentity, nodeId);
             return new(acquiredReference, new(kind, reference.IssueLocator, content,
@@ -207,6 +212,6 @@ public sealed class GitHubIssueSource(string executable = "gh")
         if (!element.TryGetProperty(property, out var actual) || actual.ValueKind != JsonValueKind.String)
             throw new GitHubSourceError("GitHub response has no " + property + ".");
         if (!string.Equals(actual.GetString(), expected, StringComparison.OrdinalIgnoreCase))
-            throw new GitHubSourceError("GitHub response locator does not match the reference.", retryable: false);
+            throw new GitHubSourceError("GitHub response locator does not match the reference.", unavailable: true);
     }
 }

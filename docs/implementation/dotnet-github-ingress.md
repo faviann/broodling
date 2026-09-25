@@ -72,11 +72,22 @@ Metadata is read again after repository initialization/fetch and before Git
 custody retention. A
 changed repository identity, default branch or canonical endpoint refuses the
 acquisition, so the fetched content cannot be retained under stale metadata.
+`GitHubRepositoryError.Retryable` is false for a mismatched identity, pin or clone
+URL and an unsupported default branch. It is also false for local configuration:
+a misconfigured or unwritable root, a `git` or `gh` that cannot be started, and a
+conflicting local repository path or origin. Those need attention. Failed or
+changing acquisition is retryable.
 Caller cancellation is preserved; an active acquisition process and its owned
 process tree are terminated, and the root plus inherited output pipes are
 reaped before the operation returns. Git and `gh` acquisition helpers are
 synchronously owned by those commands, so no general process-group supervisor
-is introduced. There is no arbitrary acquisition wall-clock timeout.
+is introduced. Each `gh` metadata read has a 30-second deadline, as issue reads
+do. The fetch has no total time limit, so a large transfer is not cut off, but
+Git fails it once no data arrives for two minutes (`http.lowSpeedLimit=1`,
+`http.lowSpeedTime=120`). An expired metadata read kills its process, and both
+end as retryable errors. Acquisitions into the same local repository run one at
+a time within the process, so concurrent fetches cannot contend for its ref
+locks.
 
 The resulting immutable `RepositoryPreparation` separately retains the default
 branch, requested branch ref and exact starting commit. `RegisterRequestBundleRepositoryFile`
@@ -203,7 +214,8 @@ same credentials. The absence is deterministic only when that repository is
 readable. Any failure of that read leaves the 404 retryable, with no finding and
 no rejection. Other GitHub failures, including 403, rate limiting, 5xx, timeouts
 and malformed or incomplete responses, throw `GitHubSourceError` with `Retryable`
-true. #107 preparation
+true. A `gh` that cannot be started throws it with `Retryable` false: that local
+configuration needs attention and is not a refusal. #107 preparation
 errors propagate unchanged. A later call resumes without refetching committed
 members. A completed or refused bundle is returned without acquisition.
 
