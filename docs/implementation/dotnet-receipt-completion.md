@@ -205,7 +205,8 @@ key and delivery selectors against the receipt. The application additionally
 reconstructs the entire invocation. SQL independently refuses unjustified
 currentness loss, abandonment of a completed Attempt, and admission of any new
 Attempt for a completed Work Unit. Ordinary admission has the same Work Unit
-guard. H's explicit replacement preserves these guards; result
+guard. Only a [revision's](invocation.md#revised-work) Contract disregards the
+completions of the Contracts preceding it. H's explicit replacement preserves these guards; result
 cardinality is not permission to reopen completed work.
 
 The schema-6 upgrade also repairs a baseline parity gap found by an independent

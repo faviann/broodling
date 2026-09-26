@@ -186,9 +186,14 @@ run one preparer, the progression service and the completion observer for its
 lifetime. Its submission and Attempt reads add one bounded native observation
 beside the retained facts. Disconnects and ordinary shutdown detach without
 stopping or abandoning work; the server stops if either service fails.
-Unconfigured, it stays a reader. Remaining #100 intent includes predecessor-
-linked revised submission, Compose, maintenance and backup/restore; those remain
-unimplemented. The ASP.NET host is not authority to add them.
+Unconfigured, it stays a reader. #124 adds an explicit revision: a new Issue
+submission that names the Work Unit's latest, ended submission as its
+predecessor, created at most once and returned exactly on replay. Progression
+captures and prepares it afresh; if its frozen request environment equals an
+already-admitted submission's, it ends with a retained explanation linking that
+authority instead of being proposed or executed. Remaining #100 intent includes
+Compose, maintenance and backup/restore; those remain unimplemented. The
+ASP.NET host is not authority to add them.
 
 ## Lifecycle and retention limits
 
@@ -204,7 +209,10 @@ mounts are stopped. It records that check and leaves a completed Attempt
 unabandoned. An abandoned Attempt retired this way can then be explicitly replaced
 (#123) from the same Contract, RequestBundle binding and original B1; the
 successor is admitted and prepared only under the pause and dispatches only after
-release.
+release. A revision (#124) likewise requires every dispatched Attempt of its Work
+Unit, successful or not, to be retired this way and none to be current; its
+Contract's own Attempts then disregard the earlier Contracts' ended and completed
+work, so one current execution authority remains and earlier results stay intact.
 An HTTP Attempt's prepared submission retains the complete request,
 approved asset bytes and an intended run identity; that is neither dispatch intent
 nor native acceptance. Broodling records abandonment and requests native

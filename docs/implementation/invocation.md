@@ -21,6 +21,7 @@ commands. The retired Python API is preserved at the
 | Prepare and admit that Contract with the bundled proposer | `BroodlingStore.AdmitRequestBundleAsync`: [bundled proposer](dotnet-contract-admission.md#bundled-proposer) |
 | Submit an explicit GitHub reference with typed proposer and exact effect authority | `Invocation.SubmitAsync`: [target selection](zeroshot-native-integration.md#composed-invocation-and-target-selection) |
 | Resume the exact recorded revision | `Invocation.ResumeAsync`: [HTTP dispatch](zeroshot-native-integration.md#http-dispatch-and-acknowledgement), [bridge dispatch](dotnet-native-dispatch.md) |
+| Request revised work from one named, ended predecessor submission | `BroodlingStore.ReviseIssueSubmission`: [revised work](#revised-work) |
 | Resume one Issue submission's admitted Contract from its retained B1 | `Invocation.ResumeSubmissionAsync`: [automatic progression](#automatic-progression) |
 | Progress unfinished Issue submissions with no caller connected, for one process lifetime; continue one exact submission at the next scan | `SubmissionProgressor.RunAsync/Resume`: [automatic progression](#automatic-progression) |
 | Inspect retained revision/lineage without external calls | `BroodlingStore.Status/History`: [admission and observation](dotnet-contract-admission.md#persistence-recovery-and-observation) |
@@ -100,7 +101,9 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   one bound to the submission's RequestBundle, by the same rule that governs
   admission) and admitted ones whose Work Unit has no Attempt, or only its
   current HTTP Attempt for that Contract with no submission record or one that
-  is `prepared` or `dispatched` without a replay block. Rejected, cancelled,
+  is `prepared` or `dispatched` without a replay block. For a
+  [revision](#revised-work), ended Attempts of the Contracts preceding it do not
+  count. Rejected, cancelled, unchanged,
   completed, abandoned and non-current work, Replacement Attempts, earlier
   unbound associations, and worktree or bridge records are never selected. The store is the only queue. Each submission has
   at most one operation in flight, and different submissions run independently,
@@ -160,6 +163,47 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   unresolved dispatch stays unresolved for exact replay by the next process;
   local drainage does not resolve it.
 
+## Revised work
+
+[#124](https://github.com/faviann/broodling/issues/124) adds
+`ReviseIssueSubmission(predecessorSubmissionId)`. Ordinary submission of an issue
+URL keeps returning its latest submission; revised work names its predecessor.
+
+- **Transition.** In one SQLite writer transaction it returns the predecessor's
+  existing successor, whatever later history exists. Otherwise it creates a new
+  `accepted` submission for the same Work Unit, with the next sequence and an
+  immutable link to the predecessor. Concurrent calls converge on that one
+  successor. Earlier submissions are never amended; their exact reads gain only
+  `successorSubmissionId`.
+- **Eligibility.** The predecessor must be the Work Unit's latest submission and
+  must have ended: no longer unfinished under the discovery rule above (for
+  example rejected, cancelled, unchanged, or admitted with every Attempt ended
+  by failure, stop or success). The Work Unit must have no current Attempt, and
+  every Attempt with dispatch intent, successful or not, must have its
+  `stopped_target` [maintenance retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement).
+  Otherwise it refuses with `issue_submission_conflict` and creates nothing.
+- **Processing.** Progression captures the successor afresh through the
+  ordinary preparer. Before any proposal, its completed bundle's manifest is
+  compared byte for byte with that of each earlier submission whose
+  bundle-bound Contract was admitted, with only the bundle and submission IDs
+  blanked (the manifest records no capture time). Everything else is compared:
+  acquisition inputs, policy and limits, the repository, PR target branch,
+  starting revision and commit, and each reference's selection, source,
+  content digest and pinned blob. On a match the successor ends `unchanged`
+  with a retained explanation linking the latest matching submission and its
+  Contract, whose Attempts carry the existing outcome; another execution of
+  that authority uses explicit replacement. Material that never gained an
+  admitted Contract, or any changed input, is proposed and decided as usual.
+- **Authority.** The successor's Contract takes an ordinary first Attempt from
+  its own retained B1; no Replacement Attempt is allocated. For that Contract
+  alone, admission and explicit replacement disregard the completions, and the
+  retired or never-dispatched ended Attempts, of the Contracts preceding it.
+  SQL enforces the same rule, and one current Attempt per Work Unit still
+  holds. Ordinary Work Units keep every completed- and ended-work guard.
+- **Stops.** A cancellation stays bound to its first Attempt, and an Attempt
+  stop to its exact Attempt, so replaying the predecessor's stops never reaches
+  the successor.
+
 ## HTTP service
 
 [#120](https://github.com/faviann/broodling/issues/120) attaches these services
@@ -179,6 +223,9 @@ LocalTarget configuration, a missing root or missing credentials, refuses startu
 - **Submit** (`POST /submissions`) calls `SubmitIssue` and answers `202` with the
   retained submission and its `Location` once that commits. It contacts no
   GitHub, model or target: the progressor takes the submission at its next scan.
+- **Revise** (`POST /submissions/{id}/revisions`) calls `ReviseIssueSubmission`
+  and answers `202` with the successor and its `Location`, on creation and on
+  replay, before any GitHub, model or target contact.
 - **Resume** (`POST /submissions/{id}/resume`) calls `SubmissionProgressor.Resume`,
   so the process's one progression owner continues that exact submission; it
   never creates a Replacement Attempt. Ended or correlated work is handed back.
