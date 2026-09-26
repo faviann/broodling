@@ -403,12 +403,14 @@ before it pushes any image:
   upgrade listed in `UpgradesFrom` or a refusal in `Refused` whose reason is
   documented here.
 - On a `v*` tag, the image's reported identity must be in the list, and the
-  list must freeze each version at most once. The records attached to earlier
-  `v*` releases, not the editable list, are the authority for what was
-  released: the list must still contain each of their `application`
-  identities, and none of them may have the image's format and version with
-  another definition. A failure to list those releases or download a record
-  also refuses publication.
+  list must freeze each version at most once. It is checked against the
+  records attached to earlier `v*` releases: the list must still contain each
+  of their `application` identities, and none of them may have the image's
+  format and version with another definition. A failure to list those
+  releases or download a record also refuses publication. The gate relies on
+  those records staying attached: do not delete or replace them. A `v*`
+  release without a record refuses every later tag until its run's
+  `release-record` artifact is attached with `gh release upload`.
 
 `sha-` candidates may carry an unfrozen identity. No version is frozen yet, so
 no refusal reason exists.

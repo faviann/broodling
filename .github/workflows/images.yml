@@ -46,7 +46,7 @@ jobs:
 
       # A version publishes only an application schema frozen in deployment/application-schemas.json,
       # identified by the image's own initialize-store output; branch candidates may carry an unfrozen one.
-      # The records on earlier v* releases are the immutable authority: the list must keep every released
+      # Checked against the records attached to earlier v* releases: the list must keep every released
       # identity, and a released version's definition never changes.
       - name: Require a frozen application schema for a version
         if: github.ref_type == 'tag'
