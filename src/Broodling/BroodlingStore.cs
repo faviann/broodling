@@ -107,22 +107,26 @@ public sealed partial class BroodlingStore : IDisposable
     {
         // Without locks, a read can overlap a checkpoint that is rewriting main-file pages, so a
         // current store can read as malformed or without its row for a moment. The row itself
-        // never changes: foreign or pre-transition state fails every attempt, while a read
-        // torn by a checkpoint passes on a later one.
-        for (var attempt = 1; ; attempt++)
+        // never changes: foreign or pre-transition state fails every read, while a read torn by
+        // a checkpoint passes on a later one. Under load a torn state can outlast 100 ms, so the
+        // reads continue for about two seconds; only a refusal waits that long.
+        var waited = TimeSpan.Zero;
+        for (var delay = IdentityFirstDelay; ; delay = TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, IdentityMaximumDelay.Ticks)))
         {
             try
             {
                 if (HasSupportedIdentity(target)) return;
-                if (attempt == IdentityAttempts) throw new StoreStateException("incompatible_store", UnsupportedStore);
             }
-            catch (SqliteException) when (attempt < IdentityAttempts) { }
-            Thread.Sleep(IdentityRetryDelay);
+            catch (SqliteException) when (waited < IdentityWindow) { }
+            if (waited >= IdentityWindow) throw new StoreStateException("incompatible_store", UnsupportedStore);
+            Thread.Sleep(delay);
+            waited += delay;
         }
     }
 
-    private const int IdentityAttempts = 10;
-    private static readonly TimeSpan IdentityRetryDelay = TimeSpan.FromMilliseconds(10);
+    private static readonly TimeSpan IdentityFirstDelay = TimeSpan.FromMilliseconds(10);
+    private static readonly TimeSpan IdentityMaximumDelay = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan IdentityWindow = TimeSpan.FromSeconds(2);
 
     private static bool HasSupportedIdentity(string target)
     {
