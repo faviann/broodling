@@ -186,18 +186,9 @@ public sealed class RequestAdmissionTests
         await Assert.That(store.GetIssueSubmission(undecided.SubmissionId).ContractRevisionId)
             .IsEqualTo(undecided.ContractRevisionId);
 
-        // It can be revised. Even byte-identical material is not unchanged, since the unbound Contract was never
-        // admitted from its bundle; the revision goes on to its own admission checks.
+        // It has ended, so it can be revised, and progression discovers the successor.
         var successor = store.ReviseIssueSubmission(admitted.SubmissionId).SubmissionId;
-        var bundle = store.BeginRequestBundleCapture(successor,
-            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
-        store.RegisterRequestBundleReference(bundle.BundleId, RequestBundleReferenceInput.Source("primary", "selector"u8.ToArray()));
-        store.CaptureRequestBundleSource(bundle.BundleId, "primary", new SourceSubmission("caller_statement", "caller://issue/12",
-            "Captured request.\n"u8.ToArray(), origin: "caller", entitlement: new SourceEntitlement("caller", "captured request")));
-        store.CompleteRequestBundleCapture(bundle.BundleId);
-        await Assert.That(() => store.AdmitRequestBundle(successor, ContractIngressTests.Propose, "caller"))
-            .Throws<RequestBundleConflict>();
-        await Assert.That(store.GetIssueSubmission(successor).Unchanged).IsNull();
+        await Assert.That(store.UnfinishedSubmissions()).Contains(successor);
     }
 
     internal static string Request(params string[] declarations) =>

@@ -202,8 +202,8 @@ public sealed partial class BroodlingStore
         var bundle = GetRequestBundle(submissionId);
         if (bundle.State != "complete")
             throw new RequestBundleConflict("Contract admission requires a completed RequestBundle.");
-        RefuseUnchangedInputs(submission, bundle);
         var (request, targetBranch) = ManifestAuthority(bundle, submission);
+        RefuseUnchangedInputs(submission, bundle);
         var work = GetWorkUnit(submission.WorkUnitId);
         var effect = new RequiredEffect("pull_request",
             $"Deliver one proposal as a pull request to branch '{targetBranch}' of {work.Owner}/{work.Repository}, including its commit and push.",
