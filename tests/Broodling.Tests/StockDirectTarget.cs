@@ -18,7 +18,7 @@ namespace Broodling.Tests;
 internal sealed class StockDirectTarget : IAsyncDisposable
 {
     private readonly string id = "broodling-180-" + Guid.NewGuid().ToString("N");
-    private readonly string image;
+    private string image;
     private readonly string root;
     private readonly Uri? reader;
     private readonly int port = FreePort();
@@ -30,11 +30,12 @@ internal sealed class StockDirectTarget : IAsyncDisposable
 
     /// <summary>
     /// A freshly initialized target serving over an empty forge under <paramref name="parent"/>, whose
-    /// agents reach <paramref name="reader"/>, if given, as <c>broodling</c>.
+    /// agents reach <paramref name="reader"/>, if given, as <c>broodling</c>. It runs the controlled layer
+    /// over this revision's DirectTarget image unless another controlled <paramref name="image"/> is given.
     /// </summary>
-    internal static async Task<StockDirectTarget> StartAsync(string parent, Uri? reader = null)
+    internal static async Task<StockDirectTarget> StartAsync(string parent, Uri? reader = null, string? image = null)
     {
-        var target = new StockDirectTarget(await Controlled.Value, Path.Combine(parent, "forge"), reader);
+        var target = new StockDirectTarget(image ?? await Controlled.Value, Path.Combine(parent, "forge"), reader);
         try
         {
             Directory.CreateDirectory(target.root);
@@ -63,10 +64,14 @@ internal sealed class StockDirectTarget : IAsyncDisposable
         await Shell("chmod -R a+rwX /forge");
     }
 
-    /// <summary>Stop and start the same native state, as an operator restart does.</summary>
-    internal async Task RestartAsync()
+    /// <summary>
+    /// Stop the target and serve the same native state, mounts and origin through the entrypoint's ordinary
+    /// startup again: an operator restart, or an image update to <paramref name="replacement"/> when given.
+    /// </summary>
+    internal async Task RestartAsync(string? replacement = null)
     {
         RequireSuccess(await DockerCommand("rm", "--force", id));
+        image = replacement ?? image;
         await ServeAsync();
     }
 

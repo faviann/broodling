@@ -13,7 +13,7 @@ namespace Broodling.Tests;
 /// </summary>
 public sealed class StockDirectTargetTests
 {
-    private static readonly DispatchCredentials Credentials =
+    internal static readonly DispatchCredentials Credentials =
         new("fixture-github-token", NativeProfile.GatewayBaseUrl, "fixture-gateway-key");
 
     [Test]
@@ -118,7 +118,7 @@ public sealed class StockDirectTargetTests
     }
 
     /// <summary>An authorized-PR revision whose result fetch resolves only to the controlled forge.</summary>
-    private static (BroodlingStore Store, string Revision) Admit(AttemptFixture git, StockDirectTarget target)
+    internal static (BroodlingStore Store, string Revision) Admit(AttemptFixture git, StockDirectTarget target)
     {
         git.Git("remote", "add", "origin", "https://github.com/acme/widget.git");
         git.Git("config", "url." + target.Forge + ".insteadOf", "https://github.com/acme/widget.git");
@@ -127,7 +127,7 @@ public sealed class StockDirectTargetTests
     }
 
     /// <summary>Observation only: progress never correlates or consumes the result.</summary>
-    private static async Task Finished(BroodlingStore store, string attemptId)
+    internal static async Task Finished(BroodlingStore store, string attemptId)
     {
         for (var poll = 0; poll < 90; poll++)
         {
@@ -138,7 +138,7 @@ public sealed class StockDirectTargetTests
     }
 
     /// <summary>The target's own terminal output, read once as the reference before anything is consumed.</summary>
-    private static async Task<JsonElement> TerminalAsync(NativeRunBinding run)
+    internal static async Task<JsonElement> TerminalAsync(NativeRunBinding run)
     {
         using var budget = DirectTargetBudget.Start(DirectTargetLimits.Progress, TimeProvider.System, default);
         await using var session = await DirectTargetSession.OpenAsync(run, null, budget);
