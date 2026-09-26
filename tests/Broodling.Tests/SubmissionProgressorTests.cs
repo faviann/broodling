@@ -245,6 +245,55 @@ public sealed class SubmissionProgressorTests
     }
 
     [Test]
+    public async Task WorkAbandonedDuringItsSendLeavesWithoutAStop()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new PreparationFixture();
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
+        var submissionId = Submit(fixture, 12).Single();
+        using var sent = new SemaphoreSlim(0);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        target.Submit = async body =>
+        {
+            sent.Release();
+            await release.Task;
+            return target.Accept(body);
+        };
+        await using var service = new Service(fixture, target, Proposing());
+        await Assert.That(await sent.WaitAsync(Bound)).IsTrue();
+
+        using var store = fixture.State.Open();
+        var attemptId = store.GetIssueSubmission(submissionId).AttemptIds.Single();
+        store.AbandonAttempt(attemptId, "Ended while its send was held.");
+        release.SetResult();
+
+        // The late acknowledgement fails the operation as stale; the abandonment it lost to stands instead.
+        await Until(() => store.FindSubmission(attemptId) is { State: "correlated" } && service.Progressor.Progress().Count == 0);
+        for (var scan = 0; scan < 3; scan++) await service.Scan();
+        await Assert.That(service.Stops).IsEmpty();
+        await Assert.That(store.GetAttempt(attemptId).Abandonment!.Reason).IsEqualTo("Ended while its send was held.");
+    }
+
+    [Test]
+    public async Task ACredentialProviderThatFailsStopsTheSubmissionForAttention()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new PreparationFixture();
+        var submissionId = Submit(fixture, 12).Single();
+        var failure = new OperationCanceledException("The secret source timed out.");
+
+        await using var service = new Service(fixture, target, Proposing(), provider: () => throw failure);
+        await Until(() => !service.Stops.IsEmpty);
+        var reads = service.CredentialReads;
+        for (var scan = 0; scan < 3; scan++) await service.Scan();
+
+        await Assert.That(service.Stops.Single()).IsEqualTo((new SubmissionProgress(submissionId, SubmissionProgress.Stopped,
+            SubmissionProgress.Preparation, "unexpected_failure", "Progression failed unexpectedly.", false, 1), (Exception?)failure));
+        await Assert.That(service.CredentialReads).IsEqualTo(reads);
+        await Assert.That(fixture.ReadGhPaths()).IsEmpty();
+    }
+
+    [Test]
     public async Task EarlierUnboundAssociationsAreNeverDiscovered()
     {
         // Authentic pre-#111 state: completed bundles associated with an admitted and an undecided unbound Contract.
@@ -302,7 +351,7 @@ public sealed class SubmissionProgressorTests
         internal int CredentialReads => Volatile.Read(ref credentialReads);
 
         internal Service(PreparationFixture fixture, StockTarget target, HttpMessageHandler gateway, string credentials = "current",
-            CancellationToken? lifetime = null, FakeTimeProvider? clock = null)
+            CancellationToken? lifetime = null, FakeTimeProvider? clock = null, Func<ProgressionCredentials>? provider = null)
         {
             this.clock = clock ?? new FakeTimeProvider();
             var preparer = new IssueSubmissionPreparer(fixture.State.Application, fixture.State.Path, fixture.RepositoryRoot,
@@ -314,7 +363,7 @@ public sealed class SubmissionProgressorTests
                 new InvocationTarget.Direct(target.Origin.GetLeftPart(UriPartial.Authority)), preparer, () =>
                 {
                     Interlocked.Increment(ref credentialReads);
-                    return new(GitHub, new GatewayCredentials(NativeProfile.GatewayBaseUrl, "gateway-key"),
+                    return provider?.Invoke() ?? new(GitHub, new GatewayCredentials(NativeProfile.GatewayBaseUrl, "gateway-key"),
                         HttpDispatchTests.Credentials(credentials));
                 }, (progress, failure) => Stops.Enqueue((progress, failure))) { Clock = this.clock };
             Running = Progressor.RunAsync(lifetime ?? cancellation.Token);

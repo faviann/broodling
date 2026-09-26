@@ -120,9 +120,10 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   GitHub, gateway or target call.
 - **Credentials.** The provider is called at the start of each operation and
   again before continuation, so a rotation applies to the next replay. Nothing
-  is retained.
-- **Retry.** Retryable preparation failures, `NativeTransportError` and a busy
-  or locked store are temporary. The first retry follows after 15 seconds, and
+  is retained. A provider that throws stops the submission for attention.
+- **Retry.** Retryable preparation failures, `NativeTransportError` other than
+  `request_too_large` (the frozen request's size never changes) and a busy or
+  locked store are temporary. The first retry follows after 15 seconds, and
   the delay doubles after each consecutive failure up to one hour. After 10
   consecutive temporary failures in one stage, about two hours, the submission
   stops. That window outlasts a routine target or gateway maintenance outage,

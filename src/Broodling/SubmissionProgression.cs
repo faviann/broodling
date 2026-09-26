@@ -45,7 +45,7 @@ public sealed record SubmissionProgress(string SubmissionId, string State, strin
 /// </param>
 /// <param name="credentials">Read at the start of each operation and again before continuation, so rotation applies to a replay.</param>
 /// <param name="stopped">
-/// Called once when a submission stops needing attention, with the exception only for an unexpected failure.
+/// Called once when a submission stops and needs attention, with the exception only for an unexpected failure.
 /// A callback that throws is ignored. It may be invoked concurrently from thread-pool threads.
 /// </param>
 public sealed class SubmissionProgressor(BroodlingApplication application, string storePath, string? directTargetRootCertificate,
@@ -148,7 +148,10 @@ public sealed class SubmissionProgressor(BroodlingApplication application, strin
         try
         {
             var current = credentials();
-            var prepared = await preparer.PrepareAsync(submissionId, current.Repository, current.Gateway, cancellationToken);
+            IssueSubmissionPreparation prepared;
+            try { prepared = await preparer.PrepareAsync(submissionId, current.Repository, current.Gateway, cancellationToken); }
+            // The preparer's lifetime ends only at shutdown, possibly before this service's token: detach.
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return; }
             if (prepared is IssueSubmissionPreparation.Failed failed) failure = failed;
             // A rejection, refused capture or proposal, or cancellation is retained and ends progression.
             else if (prepared is IssueSubmissionPreparation.Decided { Admission.Decision.Admitted: true })
@@ -160,14 +163,14 @@ public sealed class SubmissionProgressor(BroodlingApplication application, strin
                 await new Invocation(store, target).ResumeSubmissionAsync(submissionId, credentials().Dispatch, cancellationToken);
             }
         }
-        // Shutdown, whether this service's token or the preparer's lifetime ends first: nothing is reported.
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || stage == SubmissionProgress.Preparation)
-        {
-            return;
-        }
+        // Shutdown detaches and reports nothing. Any other cancellation, such as from the credential
+        // provider, is unexpected.
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return; }
         catch (NativeTransportError transport)
         {
-            failure = new(submissionId, transport.Code, $"{transport.Message} ({transport.Kind})", true);
+            // The frozen request's size never changes; every other transport failure may pass.
+            failure = new(submissionId, transport.Code, $"{transport.Message} ({transport.Kind})",
+                transport.Kind != "request_too_large");
         }
         catch (Exception error) when (error is BroodlingException or SqliteException)
         {
