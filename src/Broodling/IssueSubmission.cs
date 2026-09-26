@@ -172,6 +172,9 @@ public sealed partial class BroodlingStore
     public IssueSubmission AssociateIssueSubmission(string submissionId, string contractRevisionId)
     {
         using var transaction = connection.BeginTransaction(deferred: false);
+        // Its Contract is what exempts a revision from earlier ended work, so only its own bundle's admission binds it.
+        if (ReadRevisionLink("predecessor_submission_id", "successor_submission_id", submissionId, transaction) is not null)
+            throw new IssueSubmissionConflict("A revision acquires its Contract only through its own RequestBundle's admission.");
         var result = AssociateIssueSubmission(submissionId, contractRevisionId, transaction);
         transaction.Commit();
         return result;

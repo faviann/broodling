@@ -12,7 +12,7 @@ public sealed partial class BroodlingStore
     /// predecessor is the Work Unit's latest submission and has ended: rejected, cancelled, unchanged, or
     /// admitted with every Attempt ended. The Work Unit must have no current Attempt, and every dispatched
     /// Attempt must be retired under verified maintenance. A repeated or concurrent call returns the
-    /// predecessor's exact successor, even after later revisions. Earlier submissions are never amended.
+    /// predecessor's exact successor, even after later revisions. Revision never amends the predecessor.
     /// </summary>
     public IssueSubmission ReviseIssueSubmission(string predecessorSubmissionId)
     {
@@ -99,7 +99,7 @@ public sealed partial class BroodlingStore
                     submission.SubmissionId, admitted.SubmissionId, admitted.ContractRevisionId,
                     $"This submission's frozen request, references, starting commit and PR target are identical to already-admitted "
                     + $"Issue submission {admitted.SubmissionId} (Contract revision {admitted.ContractRevisionId}), so it is neither "
-                    + "proposed nor executed again; that submission's Attempts carry the existing outcome. Another execution of "
+                    + "proposed nor executed again; that Contract and any Attempts of it carry the existing outcome. Another execution of "
                     + "unchanged authority uses the explicit replacement operation.", Now());
                 Execute("UPDATE issue_submissions SET state = 'unchanged' WHERE submission_id = $p0 AND state = 'capturing'",
                     transaction, submission.SubmissionId);
