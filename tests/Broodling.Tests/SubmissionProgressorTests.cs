@@ -30,7 +30,6 @@ public sealed class SubmissionProgressorTests
         using var fixture = new PreparationFixture();
         fixture.SetIssue(12, RequestAdmissionTests.Request());
         var submissionId = Submit(fixture, 12).Single();
-        // One session for the test's own reads: every open while others write risks a spurious refusal.
         using var store = fixture.State.Open();
         var gateway = Proposing();
         using var sent = new SemaphoreSlim(0);
@@ -71,7 +70,7 @@ public sealed class SubmissionProgressorTests
         await restarted.ScanUntil(() => restarted.Progressor.Progress() is [{ State: SubmissionProgress.Waiting, Code: "installation_paused" }]);
         await Assert.That(target.Bodies.Count).IsEqualTo(1);
         store.ReleaseInstallation();
-        await restarted.ScanUntil(() => Correlated(store, submissionId));
+        await restarted.ScanUntil(() => Correlated(fixture, submissionId));
         var credentialReads = restarted.CredentialReads;
         for (var scan = 0; scan < 3; scan++) await restarted.Scan();
 
@@ -97,7 +96,7 @@ public sealed class SubmissionProgressorTests
     }
 
     [Test]
-    public async Task SubmissionsAcceptedWhileRunningProgressPastOneWaitingOnItsModelCall()
+    public async Task SubmissionsAcceptedWhileRunningProgressPastOneWaitingOnItsModelCallAndShutdownDetachesIt()
     {
         await using var target = new StockTarget();
         using var fixture = new PreparationFixture();
@@ -107,12 +106,14 @@ public sealed class SubmissionProgressorTests
         using var store = fixture.State.Open();
         using var entered = new SemaphoreSlim(0);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var interrupted = false;
         var gateway = new Gateway(async (context, cancellationToken) =>
         {
             if (context.Contains("CSV"))
             {
                 entered.Release();
-                await release.Task.WaitAsync(cancellationToken);
+                try { await release.Task.WaitAsync(cancellationToken); }
+                catch (OperationCanceledException) { Volatile.Write(ref interrupted, true); throw; }
             }
             return ControlledGateway.Final(Proposal);
         });
@@ -120,15 +121,23 @@ public sealed class SubmissionProgressorTests
         await Assert.That(await entered.WaitAsync(Bound)).IsTrue();
 
         var later = store.SubmitIssue("https://github.com/acme/widget/issues/13").SubmissionId;
-        await service.ScanUntil(() => Correlated(store, later));
+        await service.ScanUntil(() => Correlated(fixture, later));
         await Assert.That(store.GetIssueSubmission(blocked).ContractRevisionId).IsNull();
         // Only the blocked submission is still in progress once the other's operation has returned.
         await Until(() => service.Progressor.Progress().Select(entry => entry.SubmissionId).SequenceEqual([blocked]));
 
-        release.SetResult();
-        await Until(() => Correlated(store, blocked));
-        await Assert.That(target.Runs.Count).IsEqualTo(2);
+        // The host ends the preparer's lifetime before the service's token: the interrupted proposal only detaches.
+        service.StopPreparer();
+        await Until(() => Volatile.Read(ref interrupted));
+        for (var scan = 0; scan < 3; scan++) await service.Scan();
         await Assert.That(service.Stops).IsEmpty();
+        await service.DisposeAsync();
+
+        release.SetResult();
+        await using var restarted = new Service(fixture, target, gateway);
+        await Until(() => Correlated(fixture, blocked));
+        await Assert.That(target.Runs.Count).IsEqualTo(2);
+        await Assert.That(restarted.Stops).IsEmpty();
     }
 
     [Test]
@@ -173,7 +182,7 @@ public sealed class SubmissionProgressorTests
 
             var stopped = Entry()!;
             await Assert.That(stopped).IsEqualTo(new SubmissionProgress(submissionId, SubmissionProgress.Stopped,
-                "contract_proposer_error", waiting.Message, true, SubmissionProgressor.RetryLimit));
+                SubmissionProgress.Preparation, "contract_proposer_error", waiting.Message, true, SubmissionProgressor.RetryLimit));
             await Assert.That(service.Stops.Single()).IsEqualTo((stopped, (Exception?)null));
             var times = calls.ToArray();
             await Assert.That(times.Length).IsEqualTo(SubmissionProgressor.RetryLimit);
@@ -186,7 +195,7 @@ public sealed class SubmissionProgressorTests
         // The stop belongs to that process; a restart discovers the unchanged submission again.
         Volatile.Write(ref available, true);
         await using var restarted = new Service(fixture, target, gateway);
-        await Until(() => Correlated(store, submissionId));
+        await Until(() => Correlated(fixture, submissionId));
     }
 
     [Test]
@@ -204,32 +213,54 @@ public sealed class SubmissionProgressorTests
         store.AdmitRequestBundle(abandoned, ContractIngressTests.Propose, "caller");
         store.AbandonAttempt(store.AdmitHttpAttempt(abandoned).AttemptId, "Ended by its operator.");
         await store.CancelIssueSubmissionAsync(cancelled, "No longer wanted.");
-        var gateway = Proposing();
+        var proposals = 0;
+        var gateway = new Gateway((_, _) => Task.FromResult(Interlocked.Increment(ref proposals) == 1
+            ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("overloaded") }
+            : ControlledGateway.Final(Proposal)));
 
         await using var service = new Service(fixture, target, gateway);
-        await Until(() => !service.Stops.IsEmpty);
+        await service.ScanUntil(() => !service.Stops.IsEmpty);
         var credentialReads = service.CredentialReads;
         for (var scan = 0; scan < 3; scan++) await service.Scan();
 
         var (stop, failure) = service.Stops.Single();
         await Assert.That(stop.SubmissionId).IsEqualTo(conflicting);
         await Assert.That(stop.State).IsEqualTo(SubmissionProgress.Stopped);
+        await Assert.That(stop.Stage).IsEqualTo(SubmissionProgress.Continuation);
         await Assert.That(stop.Code).IsEqualTo("submission_conflict");
         await Assert.That(stop.Retryable).IsFalse();
         await Assert.That(stop.Failures).IsEqualTo(1);
         await Assert.That(failure).IsNull();
-        // Nothing runs again: no send, no operation, and the retained replay block now carries the reason.
+        // Nothing runs again and nothing is replaced: no send, no operation and the Attempt keeps its authority.
         await Assert.That(target.Bodies.Count).IsEqualTo(1);
         await Assert.That(service.CredentialReads).IsEqualTo(credentialReads);
         await Assert.That(service.Progressor.Progress()).IsEmpty();
-        var attempt = store.RequireCurrentAttempt(store.GetIssueSubmission(conflicting).AttemptIds.Single());
-        await Assert.That(store.FindSubmission(attempt.AttemptId)!.ReplayBlockedReason).IsEqualTo("submission_conflict");
+        await Assert.That(store.RequireCurrentAttempt(store.GetIssueSubmission(conflicting).AttemptIds.Single()).Retry).IsNull();
         var ended = store.GetAttempt(store.GetIssueSubmission(abandoned).AttemptIds.Single());
         await Assert.That(ended.Abandonment).IsNotNull();
         await Assert.That(store.FindSubmission(ended.AttemptId)).IsNull();
         await Assert.That(store.GetIssueSubmission(cancelled).State).IsEqualTo("cancelled");
         await Assert.That(fixture.ReadGhPaths().Any(path => path.EndsWith("/issues/14", StringComparison.Ordinal))).IsFalse();
-        await Assert.That(gateway.Contexts.Count).IsEqualTo(1);
+        await Assert.That(gateway.Contexts.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task EarlierUnboundAssociationsAreNeverDiscovered()
+    {
+        // Authentic pre-#111 state: completed bundles associated with an admitted and an undecided unbound Contract.
+        await using var target = new StockTarget();
+        using var fixture = new PreparationFixture();
+        StoreLifecycleTests.Restore(fixture.State.Path, "application-v1-unbound-association.sql");
+        var gateway = Proposing();
+
+        await using var service = new Service(fixture, target, gateway);
+        for (var scan = 0; scan < 3; scan++) await service.Scan();
+
+        await Assert.That(service.CredentialReads).IsEqualTo(0);
+        await Assert.That(service.Progressor.Progress()).IsEmpty();
+        await Assert.That(service.Stops).IsEmpty();
+        await Assert.That(gateway.Contexts).IsEmpty();
+        await Assert.That(target.Connections).IsEqualTo(0);
     }
 
     private static string[] Submit(PreparationFixture fixture, params long[] issues)
@@ -240,9 +271,12 @@ public sealed class SubmissionProgressorTests
 
     private static Gateway Proposing() => new((_, _) => Task.FromResult(ControlledGateway.Final(Proposal)));
 
-    private static bool Correlated(BroodlingStore store, string submissionId) =>
-        store.GetIssueSubmission(submissionId).AttemptIds is [var attemptId]
+    private static bool Correlated(PreparationFixture fixture, string submissionId)
+    {
+        using var store = fixture.State.Open();
+        return store.GetIssueSubmission(submissionId).AttemptIds is [var attemptId]
             && store.FindSubmission(attemptId) is { State: "correlated" };
+    }
 
     /// <summary>A sent body without its ephemeral credentials.</summary>
     private static JsonObject Frozen(JsonObject body)
@@ -260,6 +294,7 @@ public sealed class SubmissionProgressorTests
     {
         private readonly FakeTimeProvider clock;
         private readonly CancellationTokenSource cancellation = new();
+        private readonly CancellationTokenSource preparerLifetime = new();
         private int credentialReads;
         internal SubmissionProgressor Progressor { get; }
         internal Task Running { get; }
@@ -270,8 +305,8 @@ public sealed class SubmissionProgressorTests
             CancellationToken? lifetime = null, FakeTimeProvider? clock = null)
         {
             this.clock = clock ?? new FakeTimeProvider();
-            var token = lifetime ?? cancellation.Token;
-            var preparer = new IssueSubmissionPreparer(fixture.State.Application, fixture.State.Path, fixture.RepositoryRoot, token)
+            var preparer = new IssueSubmissionPreparer(fixture.State.Application, fixture.State.Path, fixture.RepositoryRoot,
+                lifetime ?? preparerLifetime.Token)
             {
                 IssueSource = new GitHubIssueSource(fixture.Gh), RepositorySource = fixture.Source, Gateway = gateway
             };
@@ -282,8 +317,10 @@ public sealed class SubmissionProgressorTests
                     return new(GitHub, new GatewayCredentials(NativeProfile.GatewayBaseUrl, "gateway-key"),
                         HttpDispatchTests.Credentials(credentials));
                 }, (progress, failure) => Stops.Enqueue((progress, failure))) { Clock = this.clock };
-            Running = Progressor.RunAsync(token);
+            Running = Progressor.RunAsync(lifetime ?? cancellation.Token);
         }
+
+        internal void StopPreparer() => preparerLifetime.Cancel();
 
         /// <summary>Return once another discovery pass has run, re-advancing if the loop was not yet parked.</summary>
         internal Task Scan()
@@ -307,11 +344,12 @@ public sealed class SubmissionProgressorTests
             }
         }
 
+        /// <summary>Ends the preparer's lifetime first, as the Generic Host does, then the service's token.</summary>
         public async ValueTask DisposeAsync()
         {
+            preparerLifetime.Cancel();
             cancellation.Cancel();
             await Running;
-            cancellation.Dispose();
         }
     }
 }

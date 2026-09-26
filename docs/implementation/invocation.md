@@ -96,12 +96,12 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
 
 - **Discovery.** At startup and then every 15 seconds it reads the unfinished
   submissions from the store. These are undecided submissions (no Contract, or
-  a bundle-bound Contract without its decision) and admitted ones whose Work Unit
-  has no Attempt, or only its current HTTP Attempt for that Contract with no
-  submission record or one that is `prepared` or `dispatched` without a replay
-  block. Rejected, cancelled, completed, abandoned and non-current work,
-  explicit replacements, earlier unbound associations, and worktree or bridge
-  records are never selected. The store is the only queue. Each submission has
+  one bound to the submission's RequestBundle, by the same rule that governs
+  admission) and admitted ones whose Work Unit has no Attempt, or only its
+  current HTTP Attempt for that Contract with no submission record or one that
+  is `prepared` or `dispatched` without a replay block. Rejected, cancelled,
+  completed, abandoned and non-current work, explicit replacements, earlier
+  unbound associations, and worktree or bridge records are never selected. The store is the only queue. Each submission has
   at most one operation in flight, and different submissions run independently,
   each in its own store session on the thread pool.
 - **Operation.** It calls `IssueSubmissionPreparer.PrepareAsync` on the
@@ -112,7 +112,9 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   configured origin refuses) and sends or exactly replays it through
   `DispatchHttpAsync`. A correlated Attempt returns without credentials or target
   contact; the [completion observer](dotnet-receipt-completion.md#automatic-completion-observation)
-  owns it from there. Zeroshot checks out B1 itself, so no client execution
+  owns it from there. The service never initiates a stop, abandonment or
+  replacement. Only that dispatch stops the exact run whose acknowledgement
+  arrives after abandonment, as it does for any caller. Zeroshot checks out B1 itself, so no client execution
   workspace is created. The operations' own cancellation, pause, authority and
   replay-block checks apply unchanged, and none holds a SQLite writer during a
   GitHub, gateway or target call.
@@ -121,16 +123,22 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   is retained.
 - **Retry.** Retryable preparation failures, `NativeTransportError` and a busy
   or locked store are temporary. The first retry follows after 15 seconds, and
-  the delay doubles after each consecutive failure up to 15 minutes. After 8
-  consecutive temporary failures, about half an hour, the submission stops,
-  because a failure can repeat forever on the same frozen input (#112). The
-  installation pause is a wait for release, checked again each scan, and does
-  not count. Any other failure stops at once: a refusal or conflict such as a
-  replay block, a retained binding to another origin or missing credentials.
-  Nothing is ever replaced.
+  the delay doubles after each consecutive failure up to one hour. After 10
+  consecutive temporary failures in one stage, about two hours, the submission
+  stops. That window outlasts a routine target or gateway maintenance outage,
+  while a failure that repeats on the same frozen input (#112) makes at most 10
+  model calls. Preparation and continuation count separately, so failed
+  proposals never use up the dispatch's retries. The installation pause is a
+  wait for release, checked again each scan, and does not count. Any other
+  failure stops at once: a refusal or conflict such as a replay block, a
+  retained binding to another origin or missing credentials. A failure caused
+  by an end committed meanwhile elsewhere, such as a cancellation or
+  abandonment, is not reported; the submission just leaves. Nothing is ever
+  replaced.
 - **Reasons.** `Progress()` returns each unfinished submission's state
   (`progressing`, `waiting` with its `retryAt`, or `stopped`), the last failure's
-  code, message and retryable flag, and its consecutive failure count. The
+  stage (`preparation` or `continuation`), code, message and retryable flag, and
+  its consecutive failure count in that stage. The
   required callback runs once when a submission stops, with the exception only
   for an unexpected failure; a callback that throws is ignored. Waits and stops
   live only in the process, so a restart discovers the submission again with a
@@ -139,7 +147,8 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   that reason. An unexpected failure of discovery itself ends `RunAsync` with
   that exception.
 - **Shutdown.** Cancelling `RunAsync` detaches every operation without stopping,
-  abandoning or cleaning up anything. Committed checkpoints remain, and an
+  abandoning or cleaning up anything. A preparation cancelled because the
+  preparer's lifetime ended first, as at host shutdown, detaches the same way. Committed checkpoints remain, and an
   unresolved dispatch stays unresolved for exact replay by the next process;
   local drainage does not resolve it.
 

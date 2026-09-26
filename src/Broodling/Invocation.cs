@@ -71,14 +71,14 @@ public sealed class Invocation(BroodlingStore store, InvocationTarget target)
     /// allocation governs, as for <see cref="ResumeAsync(string, string?, string, DispatchCredentials?, CancellationToken)"/>.
     /// Its PR authority continues only through a DirectTarget.
     /// </summary>
-    public Task<AdmissionStatus> ResumeSubmissionAsync(string submissionId, DispatchCredentials? credentials = null,
+    public async Task<AdmissionStatus> ResumeSubmissionAsync(string submissionId, DispatchCredentials? credentials = null,
         CancellationToken cancellationToken = default)
     {
         if (target is not InvocationTarget.Direct)
             throw new UnsupportedRuntime("An Issue submission's pull-request authority continues only through a DirectTarget.");
         var revisionId = store.GetIssueSubmission(submissionId).ContractRevisionId
             ?? throw new AttemptAdmissionError("The Issue submission has no admitted Contract revision.");
-        return ResumeAsync(revisionId, () => store.AdmitHttpAttempt(submissionId), credentials, cancellationToken);
+        return await ResumeAsync(revisionId, () => store.AdmitHttpAttempt(submissionId), credentials, cancellationToken);
     }
 
     private async Task<AdmissionStatus> ResumeAsync(string revisionId, Func<AttemptRecord> allocate,
