@@ -847,10 +847,12 @@ is fixed, not configurable:
 | Credentials | Current `GATEWAY_API_KEY` and exactly `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`, read from the process environment for each proposal |
 | Trust | The host's system TLS trust for the gateway |
 
-The gateway's support for `/chat/completions` with tools, `tool_choice` and the
-`json_object` response format for `gpt-5.6-sol` is an assumption. It has not
-been confirmed against the real gateway; the historical #77 record probed only
-`/models` ([validation record](validation.md)).
+The gateway's support for these requests was confirmed on 2026-09-26 by a probe
+that mirrored `BundledProposer`'s exact request against
+`https://cliproxy.local.faviann.com/v1`. Turn 1 used tools, `tool_choice: auto`
+and the `json_object` response format, and the model returned a `read_reference`
+tool call. Turn 2 carried the tool result under `tool_choice: none` and returned
+a valid JSON object. Proposal quality on real issues is still unverified.
 
 Supply the key through the same secret source as dispatch credentials. It is
 sent only as the gateway's bearer token. It is never written to the
