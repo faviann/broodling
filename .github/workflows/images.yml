@@ -48,7 +48,11 @@ jobs:
       - name: Check native-state transitions from the listed published target images
         env:
           BROODLING_TEST_TARGET_IMAGE: broodling-target:candidate
-        run: dotnet test --project tests/Broodling.Tests/Broodling.Tests.csproj --treenode-filter '/*/*/TargetImageTransitionTests/*'
+        run: |
+          # The runner configures Git LFS filters, a checkout transformation Broodling refuses in custody.
+          sudo git config --system --remove-section filter.lfs || :
+          git config --global --remove-section filter.lfs || :
+          dotnet test --project tests/Broodling.Tests/Broodling.Tests.csproj --treenode-filter '/*/*/TargetImageTransitionTests/*'
 
       - name: Publish to GHCR
         if: github.event_name == 'push'

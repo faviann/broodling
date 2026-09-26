@@ -9,7 +9,9 @@ SDK seam, not provider semantic quality or a validated live deployment.
 Use Linux x86-64, a .NET 10 SDK (tested with 10.0.401), Git, `cc` and libc headers.
 `global.json` selects the Microsoft.Testing.Platform runner, not an SDK version.
 The administrative Git tests require an ordinary non-PID-1 host with waitable
-children and no competing reaper. Install only the bridge's pinned SDK in a
+children and no competing reaper. The host's system and global Git configuration
+must add no checkout transformation, such as Git LFS filters, which Broodling's
+source custody refuses. Install only the bridge's pinned SDK in a
 dedicated Python 3.13+ environment:
 
 ```bash
