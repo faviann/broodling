@@ -180,21 +180,37 @@ as PID 1.
   They keep every refusal and pause requirement they have from the release
   artifact. The image has no Docker
   socket, so the host maintenance procedure stops and verifies the target and
-  supplies the stopped-target check. The [image demonstration](../tests/README.md#image-demonstration)
-  retires and replaces an Attempt that the image's processing server created.
-  The prepared successor currently has no supported dispatch path: automatic
-  progression never selects a Replacement Attempt, the server's resume route
-  never continues one, and the release artifact's `resume` would need the
-  container-path custody on the host, which is not supported. Dispatching it is
-  [#210](https://github.com/faviann/broodling/issues/210). Until then, replacing
-  leaves a current successor that no supported path dispatches and that, until
-  stopped, blocks any revision of its Work Unit; stopping it ends
-  replacement of that Work Unit's unchanged work: the stopped successor is never
-  acknowledged as retired, the predecessor already has its one successor, and a
-  revision with unchanged inputs ends `unchanged`. `retire-attempt` alone keeps
-  those options open.
+  supplies the stopped-target check.
+- After `release-installation`, restart the target and the processing server,
+  then dispatch that Attempt's prepared successor with the image's `resume`, run
+  as the processing service itself:
+  `docker compose run --rm --no-deps broodling resume /var/lib/broodling/state.sqlite3 CONTRACT_REVISION_ID /etc/broodling/invocation.json`.
+  Run it with the same Compose files and overrides as the running processing
+  service, so that it gets that service's environment, invocation configuration
+  and mounts; do not add credentials with `-e`. `CONTRACT_REVISION_ID` is the replaced Attempt's `contractRevisionId`, from
+  `GET /attempts/{id}` or `history`. The command needs what the server has: the
+  state mount, whose repository root holds the successor's B1 custody at its
+  recorded container path; the Direct `config.json`, whose origin must be the
+  successor's retained one and whose root it trusts; `GH_TOKEN`,
+  `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` from the service's own environment;
+  and the project network to the origin. It refuses while the installation is
+  paused. It sends the prepared request with its intended run ID and prints the
+  Contract revision's status, where the successor's submission is `correlated`
+  with that run ID; repeating it returns that correlation, or replays the exact
+  request if the acknowledgement was lost. Running it beside the server is safe:
+  both processes write the same SQLite WAL store under its locks, and automatic
+  progression never selects a Replacement Attempt or its submission, so only
+  this command dispatches the successor. Once the successor is correlated, the
+  server's completion observation retains its result and `POST /attempts/{id}/stop`
+  stops it, as for the server's own Attempts. Dispatch the successor rather than
+  stopping it while prepared: a stopped, never-dispatched successor keeps a
+  `no_dispatch_intent` proof that nothing acknowledges, so it cannot itself be
+  replaced. The [image demonstration](../tests/README.md#image-demonstration)
+  retires, replaces and then dispatches an Attempt that the image's processing
+  server created.
 - CLI Attempts stay release-artifact-only. The invocation commands (`submit`,
-  `resume`, `wait`, `stop`) are not supported in the image, and
+  `resume`, `wait`, `stop`) are not supported in the image, except `resume` for
+  a processing-server Replacement Attempt as above, and
   `retire-attempt` and `replace-attempt` for an Attempt that `submit` created run
   from the release artifact. A CLI Attempt's source custody is the common Git directory of the caller checkout
   named to `submit`, at its host path, which the image does not mount.
@@ -476,7 +492,8 @@ stopped-target maintenance the host procedure passes its current check to
 `retire-attempt <path> <attempt-id> <stopped-target-check-json>`, then, still
 paused, may replace an abandoned retired Attempt with
 `replace-attempt <path> <predecessor-attempt-id> <retry-key>`, which prepares but
-never dispatches the successor; see
+never dispatches the successor; after `release-installation`, `resume` of its
+Contract revision dispatches it; see
 [verified maintenance retirement](../docs/implementation/dotnet-retirement-replacement.md#verified-maintenance-retirement).
 See [state lifecycle](../docs/implementation/dotnet-identity-custody.md).
 

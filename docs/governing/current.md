@@ -197,8 +197,9 @@ an Attempt, it ends with a retained explanation linking that authority instead
 of being proposed or executed. #205 runs `retire-attempt` and
 `replace-attempt` from the Broodling image for Attempts that the processing
 server created, with the stopped-target check supplied by the host; CLI Attempts
-keep them in the release artifact. A processing-server Replacement Attempt has no
-supported dispatch path yet (#210). Remaining #100 intent includes
+keep them in the release artifact. After release, the image's `resume`, run as
+the processing service, dispatches a processing-server Replacement Attempt
+(#210). Remaining #100 intent includes
 Compose, maintenance and backup/restore; those remain unimplemented. The
 ASP.NET host is not authority to add them.
 
@@ -216,8 +217,8 @@ mounts are stopped. It records that check and leaves a completed Attempt
 unabandoned. An abandoned Attempt retired this way can then be explicitly replaced
 (#123) from the same Contract, RequestBundle binding and original B1; the
 successor is admitted and prepared only under the pause and dispatches only after
-release, though a processing-server successor has no supported dispatch path yet
-(#210). A revision (#124) likewise requires every dispatched Attempt of its Work
+release, through Resume (for a processing-server successor, the image's `resume`,
+#210). A revision (#124) likewise requires every dispatched Attempt of its Work
 Unit, successful or not, to be retired this way and none to be current; its
 Contract's own Attempts then disregard the earlier Contracts' ended and completed
 work, and replacement refuses an Attempt of any Contract the latest submission

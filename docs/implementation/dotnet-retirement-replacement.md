@@ -203,20 +203,28 @@ admitted. The command also replaces an HTTP predecessor retired with
 both the successor's admission and its first preparation require the
 persisted pause, checked under the writer (`maintenance_unverified` otherwise), so
 a successor admitted before a release cannot be prepared, by any caller, until the
-installation is paused again. The command never dispatches. For a CLI Attempt,
-after `release-installation`, Resume dispatches the successor through the
-ordinary gate. For a processing-server Attempt the successor currently has no
-supported dispatch path: automatic progression never selects a Replacement
-Attempt, the server's resume route never continues one, `resume` is not
-supported in the image and the release artifact's would need the container-path
-custody on the host, which is not supported. Dispatching it is
-[#210](https://github.com/faviann/broodling/issues/210). Until then, replacing
-leaves a current successor that no supported path dispatches and that, until
-stopped, blocks any revision of its Work Unit; stopping it ends
-replacement of that Work Unit's unchanged work: its `no_dispatch_intent` proof
-is never acknowledged (nothing calls `RetireAttempt`), so it cannot be replaced;
-the predecessor already has its one successor; and a revision with unchanged
-inputs ends `unchanged`. `retire-attempt` alone keeps those options open.
+installation is paused again. The command never dispatches. After
+`release-installation`, Resume dispatches the successor through the ordinary
+gate: for a CLI Attempt the release artifact's `resume`, and for a
+processing-server Attempt the image's `resume`, run as the processing service
+beside the restarted server:
+
+```bash
+docker compose run --rm --no-deps broodling resume /var/lib/broodling/state.sqlite3 CONTRACT_REVISION_ID /etc/broodling/invocation.json
+```
+
+Resume takes the Contract revision's latest Attempt, the successor, returns its
+retained preparation at the configured origin (refusing a different one), checks
+its retained B1 custody at the recorded container path and sends the prepared request with the service's current credentials,
+under the same pause check and initiation lock as any dispatch. Nothing else
+dispatches it: automatic progression never selects a Replacement Attempt or its
+submission, and the server's resume route never continues one, so running the
+command while the server runs cannot double-dispatch. Once the successor is
+correlated, the server's completion observation consumes it like any correlated
+current HTTP Attempt. Dispatch the successor rather than stopping it while
+prepared: its `no_dispatch_intent` proof would never be acknowledged (nothing
+calls `RetireAttempt`), so it could not be replaced; the predecessor already has
+its one successor; and a revision with unchanged inputs ends `unchanged`.
 A completed Attempt cannot be replaced.
 
 This is safe because the pinned Zeroshot ends every non-terminal run as
@@ -299,7 +307,8 @@ command.
 The [image demonstration](../../tests/README.md#image-demonstration) runs both
 commands from the Broodling image on an abandoned, correlated Attempt that the
 image's own processing server created, with a check the host made of the
-stopped target.
+stopped target, then dispatches the successor after release with the image's
+`resume`.
 `ReplacementCompletionTests` checks the integrated completed-Work-Unit refusal
 at API and SQL boundaries, plus completed retry-key identity handback without
 renewed authority. Its historical seed bypasses only ordinary admission while

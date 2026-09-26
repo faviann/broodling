@@ -210,7 +210,8 @@ checks two kinds of fact separately:
   the stack ready with its pinned dependency versions.
 
 Those checks run `broodling` as the reader, without processing configuration.
-It then demonstrates verified maintenance of a processing-server Attempt (#205):
+It then demonstrates verified maintenance and replacement of a processing-server
+Attempt (#205, #210):
 
 - Processing, with [processing.yaml](images/processing.yaml) layered over the
   project: `broodling` restarts from the same image and state directory as the
@@ -233,6 +234,15 @@ It then demonstrates verified maintenance of a processing-server Attempt (#205):
   and the host builds the stopped-target check from `docker inspect` of the
   stopped target. `retire-attempt` then records the `stopped_target` retirement,
   and `replace-attempt` prepares the successor without dispatching it.
+- Dispatch of the Replacement Attempt (#210): `release-installation`, then
+  `broodling`, `zeroshot` and `gateway` restart with the processing overlay, and
+  the image's `resume`, run beside the server as the processing service with its
+  invocation configuration, fake credentials and network, dispatches the
+  successor, which the restarted server left `prepared`. Resume passes the
+  retained B1 custody check at the recorded container path inside the one-off
+  container, and the server then reads the successor as `correlated` with the
+  intended run ID that `replace-attempt` printed, its run available at the
+  target; the predecessor stays retired.
 
 No real credentials, provider, GitHub or existing target are used, and no real
 Codex runs, so it proves neither a real agent's network reach nor PR delivery.
