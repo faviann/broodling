@@ -154,7 +154,8 @@ public sealed partial class BroodlingStore
     /// branch. The revision and its submission association commit together and the decision
     /// goes through <see cref="Admit"/>; a bound submission is never proposed again. A malformed
     /// or authority-changing proposal is retained as the submission's refusal and throws
-    /// <see cref="ContractProposalRefused"/>, then and on every later call.
+    /// <see cref="ContractProposalRefused"/>, then and on every later call. A bundle identical to an earlier
+    /// admitted submission's is not proposed: its retained end throws <see cref="SubmissionInputsUnchanged"/>.
     /// </summary>
     public AdmissionStatus AdmitRequestBundle(string submissionId, Func<ContractProposalInput, Contract> propose,
         string constructedBy = "model_extraction")
@@ -192,6 +193,8 @@ public sealed partial class BroodlingStore
             return BoundAdmission(bound);
         if (submission.ProposalRefusal is { } refusal)
             throw new ContractProposalRefused(refusal);
+        if (submission.Unchanged is { } unchanged)
+            throw new SubmissionInputsUnchanged(unchanged);
         RequireUnpaused();
         if (submission.State == "cancelled")
             throw new IssueSubmissionConflict("A cancelled Issue submission cannot acquire Contract authority.");
@@ -200,6 +203,7 @@ public sealed partial class BroodlingStore
         if (bundle.State != "complete")
             throw new RequestBundleConflict("Contract admission requires a completed RequestBundle.");
         var (request, targetBranch) = ManifestAuthority(bundle, submission);
+        RefuseUnchangedInputs(submission, bundle);
         var work = GetWorkUnit(submission.WorkUnitId);
         var effect = new RequiredEffect("pull_request",
             $"Deliver one proposal as a pull request to branch '{targetBranch}' of {work.Owner}/{work.Repository}, including its commit and push.",

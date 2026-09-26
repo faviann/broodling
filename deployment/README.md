@@ -513,12 +513,13 @@ trusted callers.
 | Route | Maps to | Answers |
 | --- | --- | --- |
 | `POST /submissions` with `{"issueUrl": "…"}` | `SubmitIssue` | `202` with `{submission}` and `Location: /submissions/{id}` once the submission is committed, with no GitHub, model or target contact. Repeating an issue URL returns its latest existing submission. `400 invalid_work_reference` before anything is written. |
+| `POST /submissions/{id}/revisions` | [`ReviseIssueSubmission`](../docs/implementation/invocation.md#revised-work) | `202` with `{submission}` and `Location: /submissions/{id}` of the successor once it is committed, and the same successor on replay. `409 issue_submission_conflict` while the predecessor is unfinished or not the latest, an Attempt is current, or a dispatched Attempt is not yet retired under verified maintenance. An `unchanged` successor's read carries its explanation and the linked submission and Contract. |
 | `POST /submissions/{id}/resume` | [`SubmissionProgressor.Resume`](../docs/implementation/invocation.md#automatic-progression) | `202` with `Location` when that unfinished submission is continued at the next scan, forgetting an in-process stop or wait. `200` with `resumed: false` when its end or native correlation is retained. Never a Replacement Attempt. |
 | `POST /submissions/{id}/stop` with `{"reason": "…"}` | `CancelIssueSubmissionAsync` | `200` with `{submission, attempt, error}` once the cancellation is committed: `attempt` is the stop report of the Attempt it abandoned, if any. `409` for completed work. |
 | `POST /attempts/{id}/stop` with `{"reason": "…"}` | `StopAsync` | The `stop` command's report: `200` once abandonment is committed, with `error` naming what ended the native stop (such as `cessation_unconfirmed`, a transport timeout, or `caller_detached` at shutdown); `409` when nothing was abandoned. A dispatched LocalTarget run refuses with `python_required`, unabandoned. |
 
 A stop without a reason answers `400 reason_required`. A reader answers
-`503 processing_not_configured` to all four.
+`503 processing_not_configured` to all five.
 
 For the server's lifetime, the process's one preparer,
 [automatic progression](../docs/implementation/invocation.md#automatic-progression)

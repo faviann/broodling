@@ -24,6 +24,13 @@ public abstract record IssueSubmissionPreparation
     public sealed record ProposalRefused(IssueSubmission Submission, ContractProposalRefusal Refusal)
         : IssueSubmissionPreparation(Submission.SubmissionId);
 
+    /// <summary>
+    /// The submission's frozen inputs repeat an earlier admitted submission's; it retains that explanation and
+    /// link and is neither proposed nor executed.
+    /// </summary>
+    public sealed record Unchanged(IssueSubmission Submission, IssueSubmissionUnchanged Explanation)
+        : IssueSubmissionPreparation(Submission.SubmissionId);
+
     /// <summary>The submission is cancelled, so it cannot progress.</summary>
     public sealed record Cancelled(IssueSubmission Submission) : IssueSubmissionPreparation(Submission.SubmissionId);
 
@@ -129,11 +136,13 @@ public sealed class IssueSubmissionPreparer(BroodlingApplication application, st
         }
     }
 
-    /// <summary>The retained cancellation or refusal that ends preparation before any decision, if any.</summary>
+    /// <summary>The retained cancellation, unchanged inputs or refusal that ends preparation before any decision, if any.</summary>
     private static IssueSubmissionPreparation? Ended(BroodlingStore store, IssueSubmission submission)
     {
         if (submission.State == "cancelled")
             return new IssueSubmissionPreparation.Cancelled(submission);
+        if (submission.Unchanged is { } unchanged)
+            return new IssueSubmissionPreparation.Unchanged(submission, unchanged);
         if (submission.ProposalRefusal is { } refusal)
             return new IssueSubmissionPreparation.ProposalRefused(submission, refusal);
         if (submission.ContractRevisionId is null && submission.State == "rejected")

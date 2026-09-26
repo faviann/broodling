@@ -209,6 +209,41 @@ public sealed class HttpProcessingTests
     }
 
     [Test]
+    public async Task ARevisionOfANamedPredecessorIsAcceptedOnceAndItsUnchangedEndIsReadable()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new PreparationFixture();
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
+        string first, revision;
+        using (var store = fixture.State.Initialize())
+        {
+            first = store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
+            await RequestAdmissionTests.Capture(store, fixture, first);
+            revision = store.AdmitRequestBundle(first, ContractIngressTests.Propose, "caller").Revision.ContractRevisionId;
+            await store.CancelIssueSubmissionAsync(first, "Revise the request.");
+        }
+        var gateway = new Gateway((_, _) => Task.FromResult(ControlledGateway.Final(Proposal)));
+        await using var server = await Server.Start(fixture.State, fixture.RepositoryRoot, target, Peers(fixture, gateway));
+
+        var accepted = await server.Client.PostAsync($"/submissions/{first}/revisions", null);
+        await Assert.That(accepted.StatusCode).IsEqualTo(HttpStatusCode.Accepted);
+        var successor = (string)(await Body(accepted))["submission"]!["submissionId"]!;
+        await Assert.That(accepted.Headers.Location!.OriginalString).IsEqualTo($"/submissions/{successor}");
+        var replayed = await server.Client.PostAsync($"/submissions/{first}/revisions", null);
+        await Assert.That(replayed.Headers.Location!.OriginalString).IsEqualTo($"/submissions/{successor}");
+        var active = await server.Client.PostAsync($"/submissions/{successor}/revisions", null);
+        await Assert.That(active.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+
+        // The unchanged successor's read carries its explanation and the link to the existing authority.
+        JsonNode read = new JsonObject();
+        await server.Until(() => (string?)(read = server.Get($"/submissions/{successor}"))["submission"]!["state"] == "unchanged");
+        await Assert.That((string)read["submission"]!["unchanged"]!["admittedSubmissionId"]!).IsEqualTo(first);
+        await Assert.That((string)read["submission"]!["unchanged"]!["contractRevisionId"]!).IsEqualTo(revision);
+        await Assert.That((string)read["submission"]!["unchanged"]!["explanation"]!).Contains("replacement");
+        await Assert.That(gateway.Contexts).IsEmpty();
+    }
+
+    [Test]
     public async Task OnlyAServerThatCanProcessWorkAcceptsIt()
     {
         await using var target = new StockTarget();

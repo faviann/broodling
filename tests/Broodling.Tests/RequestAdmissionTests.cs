@@ -185,6 +185,10 @@ public sealed class RequestAdmissionTests
         await Assert.That(store.FindAdmissionDecision(undecided.ContractRevisionId!)).IsNull();
         await Assert.That(store.GetIssueSubmission(undecided.SubmissionId).ContractRevisionId)
             .IsEqualTo(undecided.ContractRevisionId);
+
+        // It has ended, so it can be revised, and progression discovers the successor.
+        var successor = store.ReviseIssueSubmission(admitted.SubmissionId).SubmissionId;
+        await Assert.That(store.UnfinishedSubmissions()).Contains(successor);
     }
 
     internal static string Request(params string[] declarations) =>

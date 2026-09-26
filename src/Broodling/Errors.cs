@@ -75,6 +75,13 @@ public sealed class ContractProposalRefused(ContractProposalRefusal refusal)
     public ContractProposalRefusal Refusal { get; } = refusal;
 }
 
+/// <summary>The submission's frozen inputs repeat already-admitted authority; its retained explanation links that authority.</summary>
+public sealed class SubmissionInputsUnchanged(IssueSubmissionUnchanged unchanged)
+    : BroodlingException("inputs_unchanged", unchanged.Explanation)
+{
+    public IssueSubmissionUnchanged Unchanged { get; } = unchanged;
+}
+
 public sealed class ContractImmutabilityError(string message)
     : BroodlingException("contract_immutability_error", message);
 

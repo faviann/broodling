@@ -59,7 +59,12 @@ public sealed partial class BroodlingStore
             transaction.Commit();
             return historical; // Historical identity only; never restore authority or materialize here.
         }
-        RequireIncompleteWorkUnit(predecessor.WorkUnitId, transaction);
+        RequireIncompleteWorkUnit(predecessor.WorkUnitId, predecessor.ContractRevisionId, transaction);
+        // The retry_requires_retirement trigger refuses the same: only the latest authority may execute again.
+        using (var superseded = Command("SELECT 1 FROM superseded_contracts WHERE contract_revision_id = $p0",
+            transaction, predecessor.ContractRevisionId))
+            if (superseded.ExecuteScalar() is not null)
+                throw new AttemptConflict("The Work Unit's latest submission supersedes this Attempt's Contract; it is not replaced.");
         RequireBundleAuthority(contract, transaction);
         if (predecessor.Abandonment is null || ReadRetirement(predecessorId, transaction) is not { RetiredAt: not null } retirement)
             throw new AttemptAdmissionError("Replacement requires abandonment and completed retirement.");

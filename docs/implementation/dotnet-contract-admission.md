@@ -82,6 +82,13 @@ as supplied sources; there is no second Contract pipeline.
   read-only HTTP submission reads. The refusal is final: later calls report it
   without proposing again, and the submission can never bind a Contract. Like a
   capture refusal, it grants nothing, so one reached during a pause is retained.
+- Before proposing, a bundle whose manifest, apart from its bundle and
+  submission IDs, equals that of an earlier submission of the Work Unit with an
+  admitted bundle-bound Contract is not proposed. Its retained
+  `issue_submission_unchanged` row links the latest such submission and
+  Contract, the submission moves to `unchanged` and the call throws
+  `SubmissionInputsUnchanged`, then and on every later call
+  ([revised work](invocation.md#revised-work)).
 - Unsupported obligations, prerequisites and other refusals remain rejection
   findings, exactly as for supplied sources.
 
@@ -190,7 +197,8 @@ shutdown.
 
 - It returns an `IssueSubmissionPreparation`: `Decided` with the admission status
   (admitted, or rejected with its findings), `CaptureRefused` with the refused
-  bundle, `ProposalRefused` with the retained refusal, `Cancelled`, or `Failed`
+  bundle, `ProposalRefused` with the retained refusal, `Unchanged` with the
+  retained explanation, `Cancelled`, or `Failed`
   with a safe code and message and `Retryable`. Retryable failures are
   retryable GitHub, repository and gateway failures, the installation pause, and
   a busy or locked SQLite store (`store_busy`). Other failures need attention:

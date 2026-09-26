@@ -256,6 +256,14 @@ completed-Work-Unit refusal remains in admission/retry/API/SQL, with completed-A
 abandonment refusal, factual current-authority-loss guard and Attempt
 `INSERT OR REPLACE` protection. H replaces only
 the ordinary abandoned-work insertion guard with the safe-retry exception.
+For a [revision's](invocation.md#revised-work) Contract (#124), admission and
+replacement disregard the completions, and the retired or never-dispatched ended
+Attempts, of the Contracts preceding it, in the application and in SQL. A failed
+Attempt of a later revision can therefore be replaced after an earlier revision
+succeeded; every other Work Unit keeps these guards unchanged. Conversely, the
+application and `retry_requires_retirement` refuse to replace an Attempt whose
+Contract the Work Unit's latest submission supersedes: that submission is neither
+bound to the Contract nor ended `unchanged` with a link to it.
 
 ## Evidence and limits
 
