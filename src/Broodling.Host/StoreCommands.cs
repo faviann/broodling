@@ -38,7 +38,8 @@ public static class StoreCommands
                 "release-installation" => store.ReleaseInstallation(),
                 "retire-attempt" => store.RetireStoppedTargetAttempt(args[2], ParseStoppedTargetCheck(args[3])),
                 "replace-attempt" => store.PrepareRetry(args[2], args[3]),
-                _ => new { operation = args[0], store = store.Path, schema = store.Information }
+                // The release record takes the exact schema identity and the upgradable ones from here.
+                _ => new { operation = args[0], store = store.Path, schema = store.Information, upgradesFrom = StoreSchema.UpgradesFrom }
             };
             // System.Text.Json writes byte arrays as base64, preserving binary source and canonical Contract bytes.
             output.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
@@ -49,11 +50,11 @@ public static class StoreCommands
         {
             // Never echo raw exception text, source bytes, paths, or stack traces.
             var code = exception is BroodlingException known ? known.Code : "store_operation_failed";
-            error.WriteLine(JsonSerializer.Serialize(new
-            {
-                error = code,
-                message = "Store operation refused. Existing state was not replaced. Inspect the path and retained state before retrying."
-            }));
+            const string message = "Store operation refused. Existing state was not replaced. Inspect the path and retained state before retrying.";
+            // A released schema's refusal reason is fixed text from StoreSchema.Refused.
+            error.WriteLine(code == StoreSchema.ReleasedRefusal
+                ? JsonSerializer.Serialize(new { error = code, message, reason = exception.Message })
+                : JsonSerializer.Serialize(new { error = code, message }));
             return 1;
         }
     }

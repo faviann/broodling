@@ -157,11 +157,17 @@ The HTTP integration requires fresh state. Pre-transition `broodling.dotnet`
 stores (schemas 1–12), Python databases and foreign files are unsupported:
 ordinary open and `UpgradeStore` refuse them with `incompatible_store` without
 changing their files, and there is no migration, import or history reader.
-`UpgradeStore` accepts an already-current store unchanged; this format has no
-earlier version to upgrade. Until the first build carrying this format ships,
-schema additions edit the version-1 definition in place; a store initialized
-from an earlier in-progress definition fails the definition-hash check and is
-refused, not upgraded. Existing stores must remain at separate paths and must
+`UpgradeStore` accepts an already-current store unchanged; it upgrades no
+earlier identity. `initialize-store` and `upgrade-store` report the exact
+identity (format, version and definition SHA-256) for the release record. Until
+the first `v*` version freezes version 1 in
+[`application-schemas.json`](../../deployment/application-schemas.json), schema
+additions edit the version-1 definition in place; a store initialized from an
+earlier in-progress definition fails the definition-hash check and is refused,
+not upgraded. A frozen definition is never edited: a later change increments the
+version, and a released earlier identity that `UpgradeStore` does not upgrade is
+refused unchanged with `released_schema_refused` and its documented reason
+([application schema compatibility](../../deployment/README.md#application-schema-compatibility)). Existing stores must remain at separate paths and must
 never be silently replaced.
 
 Direct `Microsoft.Data.Sqlite` 10.0.12 is used instead of EF Core. The operations

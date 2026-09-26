@@ -229,6 +229,27 @@ public sealed class StoreLifecycleTests
     }
 
     [Test]
+    public async Task ReleasedEarlierIdentityIsRefusedWithItsDocumentedReasonWithoutChangingTheStore()
+    {
+        using var fixture = new StoreFixture();
+        using (fixture.Initialize()) { }
+        // Stands in for a store that an earlier released version initialized.
+        var released = new SchemaIdentity(StoreSchema.Format, 0, new string('a', 64));
+        fixture.Execute($"UPDATE store_metadata SET version = 0, definition_hash = '{released.DefinitionSha256}'");
+        var before = File.ReadAllBytes(fixture.Path);
+        var refused = new Dictionary<SchemaIdentity, string> { [released] = "Schema 0 stores are not carried forward." };
+
+        StoreStateException? refusal = null;
+        try { using var store = BroodlingStore.Upgrade(fixture.Path, refused); }
+        catch (StoreStateException error) { refusal = error; }
+
+        await Assert.That(refusal?.Code).IsEqualTo("released_schema_refused");
+        await Assert.That(refusal!.Message).IsEqualTo("Schema 0 stores are not carried forward.");
+        await Assert.That(RefusalCode(() => BroodlingStore.Upgrade(fixture.Path))).IsEqualTo("incompatible_store");
+        await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(before)).IsTrue();
+    }
+
+    [Test]
     public async Task StoreCannotBePlacedInsideDisposableWorktreeEvenThroughParentSymlink()
     {
         using var fixture = new StoreFixture();
@@ -284,9 +305,20 @@ public sealed class StoreLifecycleTests
         var output = new StringWriter();
         var error = new StringWriter();
         await Assert.That(StoreCommands.Run(["initialize-store", fixture.Path], fixture.Application, output, error)).IsEqualTo(0);
-        await Assert.That(output.ToString().Contains("broodling.application")).IsTrue();
+        // The release record takes the exact identity from this output, so it must be the stored one.
+        var initialized = System.Text.Json.Nodes.JsonNode.Parse(output.ToString())!;
+        using (var connection = fixture.Connect())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT definition_hash FROM store_metadata";
+            await Assert.That(initialized["schema"]!["definitionSha256"]!.GetValue<string>()).IsEqualTo((string)command.ExecuteScalar()!);
+        }
+        await Assert.That(initialized["schema"]!["format"]!.GetValue<string>()).IsEqualTo("broodling.application");
+        await Assert.That(initialized["upgradesFrom"]!.AsArray().Count).IsEqualTo(0);
         output.GetStringBuilder().Clear();
         await Assert.That(StoreCommands.Run(["upgrade-store", fixture.Path], fixture.Application, output, error)).IsEqualTo(0);
+        await Assert.That(System.Text.Json.Nodes.JsonNode.Parse(output.ToString())!["schema"]!.ToJsonString())
+            .IsEqualTo(initialized["schema"]!.ToJsonString());
         await Assert.That(StoreCommands.Run(["initialize-store", fixture.Path], fixture.Application, output, error)).IsEqualTo(1);
         await Assert.That(error.ToString().Contains("store_exists")).IsTrue();
         await Assert.That(error.ToString().Contains(fixture.Path)).IsFalse();
