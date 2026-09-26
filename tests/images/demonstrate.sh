@@ -149,6 +149,9 @@ if [[ -n $facts ]]; then
     jq -n --argjson store "$store" --argjson readiness "$readiness" \
         --arg tls "$(docker inspect --format '{{.Config.Image}}' "$(container zeroshot-tls)")" \
         '{storeFormat: $store.schema.format, storeSchemaVersion: $store.schema.schemaVersion,
+          storeDefinitionSha256: $store.schema.definitionSha256,
+          upgradesFrom: ($store.upgradesFrom | map({storeFormat: .format, storeSchemaVersion: .schemaVersion,
+            storeDefinitionSha256: .definitionSha256})),
           zeroshotTlsImage: $tls, readiness: ($readiness | {versions, apiPaginateSlurp, hostedUidTransition, providerTasks})}' \
         >"$facts"
 fi

@@ -2,7 +2,7 @@
 # stack, checks that the DirectTarget image serves native state written by each published target
 # image listed in deployment/native-state-transitions.json, then publishes exactly those images to
 # GHCR with a release record. Every push publishes immutable sha-<commit> candidates; a v* tag
-# publishes that version. Fork pull requests only build and check; same-repository pull requests
+# publishes that version, only with a frozen application schema. Fork pull requests only build and check; same-repository pull requests
 # are covered by the push run of their head.
 name: Images
 
@@ -43,6 +43,16 @@ jobs:
 
       - name: Demonstrate the images in ADR 0001's topology
         run: tests/images/demonstrate.sh broodling:candidate broodling-target:candidate "$RUNNER_TEMP/facts.json"
+
+      # A version publishes only an application schema frozen in deployment/application-schemas.json,
+      # identified by the image's own initialize-store output; branch candidates may carry an unfrozen one.
+      - name: Require a frozen application schema for a version
+        if: github.ref_type == 'tag'
+        run: |
+          jq --exit-status --slurpfile facts "$RUNNER_TEMP/facts.json" '$facts[0] as $image | .format == $image.storeFormat
+            and any(.frozen[]; .schemaVersion == $image.storeSchemaVersion and .definitionSha256 == $image.storeDefinitionSha256)' \
+            deployment/application-schemas.json >/dev/null \
+            || { echo "::error::The image's application schema is not frozen in deployment/application-schemas.json; nothing was published."; exit 1; }
 
       # The release record states these transitions only for the target image checked here.
       - name: Check native-state transitions from the listed published target images
@@ -93,7 +103,7 @@ jobs:
               version: (if $version == "" then null else $version end),
               tag: $tag,
               images: {broodling: $broodling, zeroshot: $target, "zeroshot-tls": $facts.zeroshotTlsImage},
-              application: {storeFormat: $facts.storeFormat, storeSchemaVersion: $facts.storeSchemaVersion},
+              application: ($facts | {storeFormat, storeSchemaVersion, storeDefinitionSha256, upgradesFrom}),
               executionAsset: {sha256: $approval.asset.sha256, native: $approval.native},
               nativeStateTransitions: {to: $target, from: $transitions[0].from},
               zeroshotTls: {user: "10443:10443", caddyfile: {path: "deployment/zeroshot-tls.Caddyfile", sha256: $caddyfileSha256, content: $caddyfile}},
