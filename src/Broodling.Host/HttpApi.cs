@@ -7,7 +7,7 @@ namespace Broodling.Host;
 /// <summary>
 /// HTTP over the application operations. Each request opens and disposes its own session and never holds the
 /// SQLite writer during an external call. Retained reads contact no GitHub or provider; submission and Attempt
-/// reads add one bounded, unretained native observation. Submit, resume and stop need a processing server, and a
+/// reads add one bounded, unretained native observation. Submit, revise, resume and stop need a processing server, and a
 /// request's response or disconnect never decides what happens to accepted work.
 /// </summary>
 internal static class HttpApi
@@ -55,7 +55,7 @@ internal static class HttpApi
             ? Task.FromResult(Results.Json(new
             {
                 error = "processing_not_configured",
-                message = "This server only reads. Configure Broodling:Invocation and Broodling:RepositoryRoot to submit, resume or stop work."
+                message = "This server only reads. Configure Broodling:Invocation and Broodling:RepositoryRoot to submit, revise, resume or stop work."
             }, Json, statusCode: 503))
             : Respond(store => operation(store, processing));
 
@@ -106,6 +106,13 @@ internal static class HttpApi
         app.MapPost("/submissions", (SubmitRequest request) => Operate((store, _) =>
         {
             var submission = store.SubmitIssue(request.IssueUrl ?? "");
+            return Task.FromResult<IResult>(Results.Accepted($"/submissions/{submission.SubmissionId}", new { submission }));
+        }));
+        // Revised work for one named, ended predecessor, answered once committed like a submission; the
+        // progressor captures and prepares it afresh. A replay returns the predecessor's exact successor.
+        app.MapPost("/submissions/{id}/revisions", (string id) => Operate((store, _) =>
+        {
+            var submission = store.ReviseIssueSubmission(id);
             return Task.FromResult<IResult>(Results.Accepted($"/submissions/{submission.SubmissionId}", new { submission }));
         }));
         // The one progression owner continues the exact submission; ended or correlated work is handed back.
