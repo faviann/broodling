@@ -78,6 +78,10 @@ as supplied sources; there is no second Contract pipeline.
   pin, Work Unit or producer, records no revision. Its finding (the refusal's
   safe code and detail) is retained in `contract_proposal_refusals`, the
   submission moves to `rejected` and the call throws `ContractProposalRefused`.
+  `IssueSubmission.ProposalRefusal` exposes it, including through the
+  read-only HTTP submission reads. The refusal is final: later calls report it
+  without proposing again, and the submission can never bind a Contract. Like a
+  capture refusal, it grants nothing, so one reached during a pause is retained.
 - Before proposing, a bundle whose manifest, apart from its bundle and
   submission IDs, equals that of an earlier submission of the Work Unit with an
   admitted bundle-bound Contract is not proposed. Its retained
@@ -85,10 +89,6 @@ as supplied sources; there is no second Contract pipeline.
   Contract, the submission moves to `unchanged` and the call throws
   `SubmissionInputsUnchanged`, then and on every later call
   ([revised work](invocation.md#revised-work)).
-  `IssueSubmission.ProposalRefusal` exposes it, including through the
-  read-only HTTP submission reads. The refusal is final: later calls report it
-  without proposing again, and the submission can never bind a Contract. Like a
-  capture refusal, it grants nothing, so one reached during a pause is retained.
 - Unsupported obligations, prerequisites and other refusals remain rejection
   findings, exactly as for supplied sources.
 

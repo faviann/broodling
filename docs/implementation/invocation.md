@@ -192,8 +192,10 @@ URL keeps returning its latest submission; revised work names its predecessor.
   content digest and pinned blob. On a match the successor ends `unchanged`
   with a retained explanation linking the latest matching submission and its
   Contract, whose Attempts carry the existing outcome; another execution of
-  that authority uses explicit replacement. Material that never gained an
-  admitted Contract, or any changed input, is proposed and decided as usual.
+  that authority uses explicit replacement. An admitted Contract counts even
+  when its submission was cancelled before any Attempt ran, so only changed
+  inputs proceed from it. Material that never gained an admitted Contract, or
+  any changed input, is proposed and decided as usual.
 - **Authority.** The successor's Contract takes an ordinary first Attempt from
   its own retained B1; no Replacement Attempt is allocated. For that Contract
   alone, admission and explicit replacement disregard the completions, and the
