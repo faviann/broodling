@@ -253,7 +253,9 @@ on the target image, and then publishes exactly those images to GHCR:
 - A `v*` tag publishes that tag name and attaches the release record to a
   GitHub release of the same name. Publish a version by pushing the tag only.
   Do not create the GitHub release first: that also creates the tag, and the
-  workflow's release creation then fails after the images were pushed.
+  workflow's release creation then fails after the images were pushed. A tag
+  publishes nothing unless the Broodling image's application schema is frozen
+  (see [application schema compatibility](#application-schema-compatibility)).
 - Pull requests from forks only build, demonstrate and run the transition check.
 
 Published tags are never moved: a run refuses to publish over an existing tag,
@@ -272,11 +274,12 @@ contains:
 - `images.broodling` and `images.zeroshot` as `repository@sha256:DIGEST`, and
   `images["zeroshot-tls"]`, the pinned Caddy reference;
 - `zeroshotTls`: the user and the Caddyfile to mount (path, SHA-256 and content);
-- `application`: the store format and schema version the Broodling image
-  initializes. Before the first `v*` version, schema 1 is still edited in
-  place, so the version alone does not identify the definition the image
-  opens; its `upgrade-store` decides, and `incompatible_store` means the
-  selection is unsupported (see [native-state transitions](#native-state-transitions));
+- `application`: the exact application schema the Broodling image initializes
+  and opens, taken from its own `initialize-store` output: `storeFormat`,
+  `storeSchemaVersion` and `storeDefinitionSha256`, the SHA-256 of the schema
+  definition. `upgradesFrom` lists the identities, with the same three fields,
+  that its `upgrade-store` upgrades; it is empty so far (see
+  [application schema compatibility](#application-schema-compatibility));
 - `executionAsset`: the approved asset SHA-256 and its native pins from the
   approval manifest;
 - `nativeStateTransitions`: `to`, the published `images.zeroshot`, and `from`,
@@ -359,18 +362,53 @@ Rollback is not a reverse transition: restore the pre-update snapshot with the
 prior image. Running a prior image over state that a newer image served is not
 established.
 
-The application schema is separate. The record's `application` names the store
-format and schema version its Broodling image supports. Apply it explicitly with
-that image's `upgrade-store` against the stopped application's store, for
-example `docker compose run --rm --no-deps broodling upgrade-store /var/lib/broodling/state.sqlite3`.
-It accepts a store of exactly its current definition unchanged and refuses
-anything else without change (`StoreLifecycleTests`,
-[state lifecycle](../docs/implementation/dotnet-identity-custody.md)); a refusal
-means that selection is unsupported. Until the first `v*` version the version-1
-definition is still edited in place, so `sha-` candidates with the same
-`storeSchemaVersion` need not accept each other's stores. For example, after
+### Application schema compatibility
+
+The application schema is separate from native state. A record's `application`
+identifies it exactly, so the update procedure decides from the deployed
+release's record and the selected release's record alone, without running
+either image:
+
+- Equal `storeFormat`, `storeSchemaVersion` and `storeDefinitionSha256`: the
+  selected image opens the deployed store unchanged.
+- Otherwise the selection is compatible only if the deployed record's three
+  fields are an entry of the selected record's `application.upgradesFrom`: the
+  selected image's `upgrade-store` upgrades that store. Any other selection is
+  unsupported. No release upgrades an earlier identity yet.
+- A record without `storeDefinitionSha256`, published before that field
+  existed, does not identify its definition and establishes no compatibility.
+
+Apply a compatible selection explicitly with the selected image's
+`upgrade-store` against the stopped application's store, for example
+`docker compose run --rm --no-deps broodling upgrade-store /var/lib/broodling/state.sqlite3`.
+It accepts a store of exactly its current identity unchanged, upgrades one listed
+in its `upgradesFrom` (none so far), and refuses anything else without change
+(`StoreLifecycleTests`,
+[state lifecycle](../docs/implementation/dotnet-identity-custody.md)). A released
+earlier identity that it does not upgrade is refused with `released_schema_refused`
+and that identity's documented reason in `reason`; any other store is refused with
+`incompatible_store`. Either refusal means the selection is unsupported.
+
+[`application-schemas.json`](application-schemas.json) freezes each released
+identity of the `broodling.application` format by `schemaVersion` and
+`definitionSha256`. A `v*` tag publishes only a Broodling image whose reported
+identity is frozen there; `sha-` candidates may carry an unfrozen one. Once a
+version is frozen its definition never changes: any later schema change
+increments the version, and every older frozen version needs an explicit
+`upgrade-store` disposition in `StoreSchema`, either an upgrade listed in
+`UpgradesFrom` or a refusal in `Refused` whose reason is documented here.
+`ApplicationSchemaFreezeTests` fails otherwise. No version is frozen yet, so no
+refusal reason exists.
+
+The first `v*` version freezes schema version 1. Before tagging it, take
+`application.storeDefinitionSha256` from the release record of the `sha-`
+candidate to be released, add `{"schemaVersion": 1, "definitionSha256": "…"}`
+to `frozen` in a reviewed commit, and tag that commit once its own candidate
+record reports the same identity. Until then `sha-` candidates of schema
+version 1 can carry different definitions and refuse each other's stores: after
 #123 the `sha-47b4e4b…` Broodling image refuses a store that the `sha-ae6fe2b…`
-image initialized with `incompatible_store`.
+image initialized with `incompatible_store`. Records published since #206 tell
+such candidates apart by `storeDefinitionSha256`.
 
 ## State and operator commands
 
