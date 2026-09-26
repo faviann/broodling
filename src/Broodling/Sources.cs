@@ -79,4 +79,7 @@ public sealed record WorkUnit(string WorkUnitId, string ReferenceKey, string Hos
 public sealed record WorkSubmission(string SubmissionId, string WorkUnitId, string SubmittedRepository,
     string SubmittedIssue, string ReceivedAt);
 
-public sealed record StoreInformation(string Format, int SchemaVersion, string InitializedAt);
+public sealed record StoreInformation(string Format, int SchemaVersion, string DefinitionSha256, string InitializedAt);
+
+/// <summary>An exact application schema: its format, version and the SHA-256 of its definition.</summary>
+public sealed record SchemaIdentity(string Format, int SchemaVersion, string DefinitionSha256);

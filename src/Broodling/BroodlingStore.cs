@@ -57,7 +57,7 @@ public sealed partial class BroodlingStore : IDisposable
                     StoreSchema.Format, StoreSchema.Version, StoreSchema.DefinitionHash,
                     StoreSchema.ManifestHash(store.connection, transaction), now);
                 transaction.Commit();
-                store.Information = new(StoreSchema.Format, StoreSchema.Version, now);
+                store.Information = new(StoreSchema.Format, StoreSchema.Version, StoreSchema.DefinitionHash, now);
             }
             store.Configure();
             return store;
@@ -70,7 +70,9 @@ public sealed partial class BroodlingStore : IDisposable
         }
     }
 
-    internal static BroodlingStore Open(string path, string? directTargetRoot = null)
+    /// <param name="refused">Released identities refused with their documented reasons; only tests replace <see cref="StoreSchema.Refused"/>.</param>
+    internal static BroodlingStore Open(string path, string? directTargetRoot = null,
+        IReadOnlyDictionary<SchemaIdentity, string>? refused = null)
     {
         var target = StorePath(path);
         if (!File.Exists(target))
@@ -78,7 +80,7 @@ public sealed partial class BroodlingStore : IDisposable
         var store = new BroodlingStore(target, directTargetRoot);
         try
         {
-            RequireSupportedIdentity(target);
+            RequireSupportedIdentity(target, refused ?? StoreSchema.Refused);
             store.connection.Open();
             store.RequireCurrentSchema();
             store.Configure();
@@ -101,9 +103,10 @@ public sealed partial class BroodlingStore : IDisposable
     /// journal or checkpoint a WAL into the main file. The immutable SQLite URI reads
     /// the main file without locks, journal or WAL. It reads only the identity row:
     /// initialization commits it before enabling WAL and nothing rewrites it.
-    /// Everything else is checked on the read-write connection.
+    /// Everything else is checked on the read-write connection. A released identity that is
+    /// no longer current is refused at once with its documented reason.
     /// </summary>
-    private static void RequireSupportedIdentity(string target)
+    private static void RequireSupportedIdentity(string target, IReadOnlyDictionary<SchemaIdentity, string> refused)
     {
         // Without locks, a read can overlap a checkpoint that is rewriting main-file pages, so a
         // current store can read as malformed or without its row for a moment. The row itself
@@ -115,7 +118,10 @@ public sealed partial class BroodlingStore : IDisposable
         {
             try
             {
-                if (HasSupportedIdentity(target)) return;
+                var identity = ReadIdentity(target);
+                if (identity == StoreSchema.Current) return;
+                if (identity is not null && refused.TryGetValue(identity, out var reason))
+                    throw new StoreStateException(StoreSchema.ReleasedRefusal, reason);
             }
             catch (SqliteException) when (waited < IdentityWindow) { }
             if (waited >= IdentityWindow) throw new StoreStateException("incompatible_store", UnsupportedStore);
@@ -128,7 +134,7 @@ public sealed partial class BroodlingStore : IDisposable
     private static readonly TimeSpan IdentityMaximumDelay = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan IdentityWindow = TimeSpan.FromSeconds(2);
 
-    private static bool HasSupportedIdentity(string target)
+    private static SchemaIdentity? ReadIdentity(string target)
     {
         using var probe = new SqliteConnection(new SqliteConnectionStringBuilder
         {
@@ -141,16 +147,19 @@ public sealed partial class BroodlingStore : IDisposable
         command.CommandText = "SELECT format, version, definition_hash FROM store_metadata WHERE singleton = 1";
         using var reader = command.ExecuteReader();
         return reader.Read()
-            && reader.GetValue(0) is string format && format == StoreSchema.Format
-            && reader.GetValue(1) is long version && version == StoreSchema.Version
-            && reader.GetValue(2) is string definition && definition == StoreSchema.DefinitionHash;
+            && reader.GetValue(0) is string format
+            && reader.GetValue(1) is long version && version is >= 0 and <= int.MaxValue
+            && reader.GetValue(2) is string definition
+            ? new(format, (int)version, definition) : null;
     }
 
     /// <summary>
-    /// Explicit upgrade request. This store format has no earlier version, so only
-    /// current state opens; pre-transition and foreign state is refused unchanged.
+    /// Explicit upgrade request. It upgrades no earlier identity (<see cref="StoreSchema.UpgradesFrom"/>),
+    /// so only current state opens: a released earlier identity is refused with its documented reason,
+    /// and pre-transition and foreign state is refused unchanged.
     /// </summary>
-    internal static BroodlingStore Upgrade(string path) => Open(path);
+    internal static BroodlingStore Upgrade(string path, IReadOnlyDictionary<SchemaIdentity, string>? refused = null) =>
+        Open(path, null, refused);
 
     public void Dispose() => connection.Dispose();
 
@@ -167,7 +176,7 @@ public sealed partial class BroodlingStore : IDisposable
             || reader.GetValue(3) is not string manifest || manifest != StoreSchema.ManifestHash(connection)
             || reader.GetValue(4) is not string initializedAt || string.IsNullOrEmpty(initializedAt))
             throw new StoreStateException("incompatible_store", UnsupportedStore);
-        Information = new(format, (int)version, initializedAt);
+        Information = new(format, (int)version, definition, initializedAt);
         using var control = Command("SELECT 1 FROM installation_control WHERE singleton = 1");
         if (control.ExecuteScalar() is null)
             throw new StoreStateException("incompatible_store", "The installation control state is missing.");

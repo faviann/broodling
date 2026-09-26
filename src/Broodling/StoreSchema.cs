@@ -10,6 +10,19 @@ internal static class StoreSchema
     internal const string Format = "broodling.application";
     internal const int Version = 1;
     internal static string DefinitionHash => Digests.Bytes(Encoding.UTF8.GetBytes(Sql));
+    internal static SchemaIdentity Current => new(Format, Version, DefinitionHash);
+
+    // deployment/application-schemas.json freezes each released identity. A released definition is
+    // never edited, so a later schema change increments Version and gives every older released
+    // identity one disposition: listed in UpgradesFrom with its upgrade, or refused here with a
+    // documented reason (ApplicationSchemaFreezeTests).
+    internal const string ReleasedRefusal = "released_schema_refused";
+    internal static readonly IReadOnlyDictionary<SchemaIdentity, string> Refused = new Dictionary<SchemaIdentity, string>();
+    /// <summary>
+    /// Released identities that <c>upgrade-store</c> upgrades to <see cref="Current"/>: none. The
+    /// release record reports this list, so an upgrade is added here together with its implementation.
+    /// </summary>
+    internal static readonly IReadOnlyList<SchemaIdentity> UpgradesFrom = [];
     internal const string Sql = IdentitySql + "\n" + AdmissionSql + "\n" + AttemptSql + "\n" + ProvisioningSql
         + "\n" + DispatchSql + "\n" + CompletionSql + "\n" + RetirementSql + "\n" + IssueSubmissionSql
         + "\n" + InstallationSql + "\n" + RequestBundleSql + "\n" + CancellationSql + "\n" + RepositoryPreparationSql
