@@ -154,8 +154,9 @@ public sealed partial class BroodlingStore
     /// branch. The revision and its submission association commit together and the decision
     /// goes through <see cref="Admit"/>; a bound submission is never proposed again. A malformed
     /// or authority-changing proposal is retained as the submission's refusal and throws
-    /// <see cref="ContractProposalRefused"/>, then and on every later call. A bundle identical to an earlier
-    /// admitted submission's is not proposed: its retained end throws <see cref="SubmissionInputsUnchanged"/>.
+    /// <see cref="ContractProposalRefused"/>, then and on every later call. A bundle whose work-defining identity
+    /// equals that of an earlier admitted submission whose Contract has an Attempt is not proposed: its retained
+    /// end throws <see cref="SubmissionInputsUnchanged"/>.
     /// </summary>
     public AdmissionStatus AdmitRequestBundle(string submissionId, Func<ContractProposalInput, Contract> propose,
         string constructedBy = "model_extraction")

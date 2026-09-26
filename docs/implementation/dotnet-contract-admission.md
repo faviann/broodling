@@ -82,9 +82,9 @@ as supplied sources; there is no second Contract pipeline.
   read-only HTTP submission reads. The refusal is final: later calls report it
   without proposing again, and the submission can never bind a Contract. Like a
   capture refusal, it grants nothing, so one reached during a pause is retained.
-- Before proposing, a bundle whose manifest, apart from its bundle and
-  submission IDs, equals that of an earlier submission of the Work Unit with an
-  admitted bundle-bound Contract is not proposed. Its retained
+- Before proposing, a bundle whose work-defining identity equals that of an
+  earlier submission of the Work Unit with an admitted bundle-bound Contract
+  that has an Attempt is not proposed. Its retained
   `issue_submission_unchanged` row links the latest such submission and
   Contract, the submission moves to `unchanged` and the call throws
   `SubmissionInputsUnchanged`, then and on every later call
