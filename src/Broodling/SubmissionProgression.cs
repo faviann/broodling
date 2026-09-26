@@ -233,31 +233,40 @@ public sealed partial class BroodlingStore
     /// <summary>
     /// Accepted Issue submissions that ordinary progression can still move: undecided ones with no Contract
     /// or with one bound to their RequestBundle, and admitted ones whose Work Unit has no Attempt or only its
-    /// current HTTP Attempt for that Contract, not yet correlated or replay-blocked. Rejected, cancelled,
-    /// completed, abandoned and non-current work, Replacement Attempts, earlier unbound associations, and worktree
-    /// or bridge records are never selected.
+    /// current HTTP Attempt for that Contract, not yet correlated or replay-blocked. A revision's ended
+    /// Attempts of the Contracts preceding it do not count. Rejected, cancelled, unchanged, completed,
+    /// abandoned and non-current work, Replacement Attempts, earlier unbound associations, and worktree or
+    /// bridge records are never selected.
     /// </summary>
     internal IReadOnlyList<string> UnfinishedSubmissions()
     {
         using var transaction = connection.BeginTransaction(deferred: true);
+        var result = UnfinishedSubmissions(null, transaction);
+        transaction.Commit();
+        return result;
+    }
+
+    /// <summary>The same selection, of every submission or only of one exact submission.</summary>
+    private IReadOnlyList<string> UnfinishedSubmissions(string? submissionId, SqliteTransaction transaction)
+    {
         var candidates = new List<(string SubmissionId, string? RevisionId)>();
         // Abandonment and completion both end currentness.
         using (var command = Command("""
             SELECT s.submission_id, s.contract_revision_id FROM issue_submissions AS s
-            WHERE s.state IN ('accepted', 'capturing')
+            WHERE ($p0 IS NULL OR s.submission_id = $p0) AND (s.state IN ('accepted', 'capturing')
                 OR (s.state = 'admitted' AND NOT EXISTS (
                     SELECT 1 FROM attempts AS a LEFT JOIN native_submissions AS n USING (attempt_id)
                     WHERE a.work_unit_id = s.work_unit_id
+                      AND NOT (a.is_current = 0 AND a.contract_revision_id IN (SELECT prior_contract_revision_id
+                          FROM revision_prior_contracts WHERE contract_revision_id = s.contract_revision_id))
                       AND (a.is_current = 0 OR a.resource_kind <> 'http' OR a.contract_revision_id <> s.contract_revision_id
-                          OR n.format <> 'http.v1' OR n.state = 'correlated' OR n.replay_blocked_reason IS NOT NULL)))
+                          OR n.format <> 'http.v1' OR n.state = 'correlated' OR n.replay_blocked_reason IS NOT NULL))))
             ORDER BY s.rowid
-            """, transaction))
+            """, transaction, submissionId))
         using (var row = command.ExecuteReader())
             while (row.Read()) candidates.Add((row.GetString(0), row.IsDBNull(1) ? null : row.GetString(1)));
-        var result = candidates.Where(candidate => candidate.RevisionId is null || BundleBound(candidate.RevisionId, transaction))
+        return candidates.Where(candidate => candidate.RevisionId is null || BundleBound(candidate.RevisionId, transaction))
             .Select(candidate => candidate.SubmissionId).ToList();
-        transaction.Commit();
-        return result;
     }
 
     /// <summary>Whether the revision carries its associated submission's completed RequestBundle, under the one authority rule.</summary>

@@ -122,7 +122,7 @@ CREATE TABLE issue_submissions (
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
     submission_sequence INTEGER NOT NULL CHECK (submission_sequence > 0),
     issue_url TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('accepted', 'capturing', 'preparing', 'admitted', 'rejected', 'cancelled', 'interrupted', 'abandoned', 'completed')),
+    state TEXT NOT NULL CHECK (state IN ('accepted', 'capturing', 'preparing', 'admitted', 'rejected', 'cancelled', 'interrupted', 'abandoned', 'completed', 'unchanged')),
     contract_revision_id TEXT REFERENCES contract_revisions(contract_revision_id),
     received_at TEXT NOT NULL,
     UNIQUE (work_unit_id, submission_sequence)
@@ -213,7 +213,7 @@ CREATE TABLE store_metadata (
     manifest_hash TEXT NOT NULL,
     initialized_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'4b64e2c4fd607657311af55e19ee528be25904b127e564594caff69ea6e1ba01','3b1c6fa693cb4f4d01fea75f520bf26b56e052d88e685abf6c8a4fe8c56bc89f','2026-09-25T18:54:16.6525981+00:00');
+INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'c67b72a15d81c8895bc617bc028960859f9b455447547b1c2ffca2a84e841ac3','3d9cfb22e4cc0a78ff71964effebfd2c6ab6d477b97f958adc35b7c8bf7c36d0','2026-09-25T18:54:16.6525981+00:00');
 CREATE TABLE work_submissions (
     submission_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -437,7 +437,9 @@ CREATE TRIGGER abandonment_no_completed BEFORE INSERT ON attempt_abandonments
 WHEN EXISTS (SELECT 1 FROM attempt_completions WHERE attempt_id = NEW.attempt_id)
 BEGIN SELECT RAISE(ABORT, 'completed Attempt cannot be abandoned'); END;
 CREATE TRIGGER attempts_no_completed_work BEFORE INSERT ON attempts
-WHEN EXISTS (SELECT 1 FROM attempt_completions WHERE work_unit_id = NEW.work_unit_id)
+WHEN EXISTS (SELECT 1 FROM attempt_completions WHERE work_unit_id = NEW.work_unit_id
+    AND contract_revision_id NOT IN (SELECT prior_contract_revision_id FROM revision_prior_contracts
+        WHERE contract_revision_id = NEW.contract_revision_id))
 BEGIN SELECT RAISE(ABORT, 'completed Work Unit cannot acquire new Attempt authority'); END;
 CREATE TRIGGER attempts_no_replace BEFORE INSERT ON attempts
 WHEN EXISTS (
@@ -486,7 +488,11 @@ BEGIN SELECT RAISE(ABORT, 'retry identity and parameters are immutable'); END;
 CREATE TRIGGER retries_no_delete BEFORE DELETE ON attempt_retries
 BEGIN SELECT RAISE(ABORT, 'retry lineage is immutable'); END;
 CREATE TRIGGER attempts_no_abandoned_work BEFORE INSERT ON attempts
-WHEN EXISTS (SELECT 1 FROM attempts WHERE work_unit_id = NEW.work_unit_id AND is_current = 0)
+WHEN EXISTS (SELECT 1 FROM attempts AS a WHERE a.work_unit_id = NEW.work_unit_id AND a.is_current = 0
+    AND NOT (a.contract_revision_id IN (SELECT prior_contract_revision_id FROM revision_prior_contracts
+            WHERE contract_revision_id = NEW.contract_revision_id)
+        AND (NOT EXISTS (SELECT 1 FROM native_submissions WHERE attempt_id = a.attempt_id AND state <> 'prepared')
+            OR EXISTS (SELECT 1 FROM attempt_retirements WHERE attempt_id = a.attempt_id AND retired_at IS NOT NULL))))
   AND NOT EXISTS (SELECT 1 FROM attempt_retries WHERE attempt_id = NEW.attempt_id)
 BEGIN SELECT RAISE(ABORT, 'ended Work Unit requires explicit safe replacement'); END;
 CREATE TRIGGER retry_preserves_bindings BEFORE INSERT ON attempts
@@ -652,4 +658,59 @@ CREATE TRIGGER contract_proposal_refusal_final BEFORE UPDATE OF contract_revisio
 WHEN NEW.contract_revision_id IS NOT NULL
   AND EXISTS (SELECT 1 FROM contract_proposal_refusals WHERE submission_id = NEW.submission_id)
 BEGIN SELECT RAISE(ABORT, 'A refused Contract proposal is final for its Issue submission'); END;
+CREATE TABLE issue_submission_revisions (
+    successor_submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
+    predecessor_submission_id TEXT NOT NULL UNIQUE REFERENCES issue_submissions(submission_id),
+    requested_at TEXT NOT NULL,
+    CHECK (successor_submission_id <> predecessor_submission_id)
+) STRICT;
+CREATE TRIGGER issue_submission_revision_bound BEFORE INSERT ON issue_submission_revisions
+WHEN NOT EXISTS (
+    SELECT 1 FROM issue_submissions AS successor JOIN issue_submissions AS predecessor USING (work_unit_id)
+    WHERE successor.submission_id = NEW.successor_submission_id
+      AND predecessor.submission_id = NEW.predecessor_submission_id
+      AND successor.submission_sequence = predecessor.submission_sequence + 1
+      AND successor.state = 'accepted' AND successor.contract_revision_id IS NULL
+)
+BEGIN SELECT RAISE(ABORT, 'A revision links a new submission to the latest submission of its Work Unit'); END;
+CREATE TRIGGER issue_submission_revision_no_update BEFORE UPDATE ON issue_submission_revisions
+BEGIN SELECT RAISE(ABORT, 'Issue submission revision lineage is immutable'); END;
+CREATE TRIGGER issue_submission_revision_no_delete BEFORE DELETE ON issue_submission_revisions
+BEGIN SELECT RAISE(ABORT, 'Issue submission revision lineage is durable'); END;
+CREATE VIEW revision_prior_contracts AS
+SELECT successor.contract_revision_id AS contract_revision_id,
+    earlier.contract_revision_id AS prior_contract_revision_id
+FROM issue_submission_revisions AS link
+JOIN issue_submissions AS successor ON successor.submission_id = link.successor_submission_id
+JOIN issue_submissions AS earlier ON earlier.work_unit_id = successor.work_unit_id
+    AND earlier.submission_sequence < successor.submission_sequence
+WHERE successor.contract_revision_id IS NOT NULL AND earlier.contract_revision_id IS NOT NULL
+  AND earlier.contract_revision_id <> successor.contract_revision_id;
+CREATE TABLE issue_submission_unchanged (
+    submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
+    admitted_submission_id TEXT NOT NULL REFERENCES issue_submissions(submission_id),
+    contract_revision_id TEXT NOT NULL REFERENCES contract_revisions(contract_revision_id),
+    explanation TEXT NOT NULL CHECK (length(trim(explanation)) > 0),
+    recorded_at TEXT NOT NULL
+) STRICT;
+CREATE TRIGGER issue_submission_unchanged_bound BEFORE INSERT ON issue_submission_unchanged
+WHEN NOT EXISTS (
+    SELECT 1 FROM issue_submissions AS s JOIN request_bundles AS b USING (submission_id)
+    JOIN issue_submissions AS admitted ON admitted.work_unit_id = s.work_unit_id
+    JOIN admission_decisions AS d ON d.contract_revision_id = admitted.contract_revision_id
+    WHERE s.submission_id = NEW.submission_id AND s.state = 'capturing'
+      AND s.contract_revision_id IS NULL AND b.state = 'complete'
+      AND admitted.submission_id = NEW.admitted_submission_id
+      AND admitted.submission_sequence < s.submission_sequence
+      AND admitted.contract_revision_id = NEW.contract_revision_id AND d.outcome = 'admitted'
+)
+BEGIN SELECT RAISE(ABORT, 'An unchanged submission links an earlier admitted submission of its Work Unit'); END;
+CREATE TRIGGER issue_submission_unchanged_no_update BEFORE UPDATE ON issue_submission_unchanged
+BEGIN SELECT RAISE(ABORT, 'An unchanged-input explanation is immutable'); END;
+CREATE TRIGGER issue_submission_unchanged_no_delete BEFORE DELETE ON issue_submission_unchanged
+BEGIN SELECT RAISE(ABORT, 'An unchanged-input explanation is durable'); END;
+CREATE TRIGGER issue_submission_unchanged_final BEFORE UPDATE OF contract_revision_id ON issue_submissions
+WHEN NEW.contract_revision_id IS NOT NULL
+  AND EXISTS (SELECT 1 FROM issue_submission_unchanged WHERE submission_id = NEW.submission_id)
+BEGIN SELECT RAISE(ABORT, 'An unchanged Issue submission never acquires Contract authority'); END;
 COMMIT;

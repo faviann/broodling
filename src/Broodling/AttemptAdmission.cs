@@ -109,7 +109,7 @@ public sealed partial class BroodlingStore
         // it must never leave an acknowledged Attempt without selected-object custody.
         GitCustody.Retain(state);
         using var transaction = connection.BeginTransaction(deferred: false);
-        RequireOrdinaryAttemptAuthority(contract.WorkUnitId, transaction);
+        RequireOrdinaryAttemptAuthority(contract.WorkUnitId, revisionId, transaction);
         RequireIssueSubmissionNotCancelled(revisionId, transaction);
         if (RequireBundleAuthority(contract, transaction) is { } bundle && bundle.Repository?.StartingState != state)
             throw new AttemptAdmissionError("A bundle-bound Contract starts only from its retained repository preparation.");
@@ -144,17 +144,40 @@ public sealed partial class BroodlingStore
             allocation?.Enclosure, allocation?.WorktreePath, allocation?.Branch, attempt.AdmittedAt, attempt.ResourceKind);
     }
 
-    private void RequireOrdinaryAttemptAuthority(string workUnitId, SqliteTransaction transaction)
+    /// <summary>
+    /// A Contract acquires ordinary Attempt authority only in a Work Unit with no ended work, except that a
+    /// revision's Contract is not held back by the Contracts preceding it once each of their dispatched
+    /// Attempts is retired under verified maintenance. The <c>attempts_no_abandoned_work</c> trigger is the
+    /// same rule.
+    /// </summary>
+    private void RequireOrdinaryAttemptAuthority(string workUnitId, string contractRevisionId, SqliteTransaction transaction)
     {
-        RequireIncompleteWorkUnit(workUnitId, transaction);
-        var previous = ReadAttempts("work_unit_id = $p0", workUnitId, transaction);
-        if (previous.Any(attempt => attempt.Abandonment is not null || !attempt.IsCurrent))
-            throw new StaleAttempt("Ordinary admission cannot restore ended authority or authorize replacement.");
+        RequireIncompleteWorkUnit(workUnitId, contractRevisionId, transaction);
+        using var ended = Command("""
+            SELECT 1 FROM attempts AS a WHERE a.work_unit_id = $p0 AND a.is_current = 0
+              AND NOT (a.contract_revision_id IN (SELECT prior_contract_revision_id FROM revision_prior_contracts
+                      WHERE contract_revision_id = $p1)
+                  AND (NOT EXISTS (SELECT 1 FROM native_submissions WHERE attempt_id = a.attempt_id AND state <> 'prepared')
+                      OR EXISTS (SELECT 1 FROM attempt_retirements WHERE attempt_id = a.attempt_id AND retired_at IS NOT NULL)))
+            LIMIT 1
+            """, transaction, workUnitId, contractRevisionId);
+        if (ended.ExecuteScalar() is not null)
+            throw new StaleAttempt("Ordinary admission cannot restore ended authority or authorize replacement; a revision also needs every earlier dispatched Attempt retired under verified maintenance.");
     }
 
-    private void RequireIncompleteWorkUnit(string workUnitId, SqliteTransaction transaction)
+    /// <summary>
+    /// Completed work refuses new Attempt authority for the Work Unit, except that a revision's Contract
+    /// disregards the completions of the Contracts preceding it. The <c>attempts_no_completed_work</c>
+    /// trigger is the same rule.
+    /// </summary>
+    private void RequireIncompleteWorkUnit(string workUnitId, string contractRevisionId, SqliteTransaction transaction)
     {
-        using var completed = Command("SELECT 1 FROM attempt_completions WHERE work_unit_id = $p0 LIMIT 1", transaction, workUnitId);
+        using var completed = Command("""
+            SELECT 1 FROM attempt_completions WHERE work_unit_id = $p0
+              AND contract_revision_id NOT IN (SELECT prior_contract_revision_id FROM revision_prior_contracts
+                  WHERE contract_revision_id = $p1)
+            LIMIT 1
+            """, transaction, workUnitId, contractRevisionId);
         if (completed.ExecuteScalar() is not null)
             throw new StaleAttempt("Completed Work Units cannot acquire new Attempt authority.");
     }

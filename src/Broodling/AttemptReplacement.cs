@@ -59,7 +59,7 @@ public sealed partial class BroodlingStore
             transaction.Commit();
             return historical; // Historical identity only; never restore authority or materialize here.
         }
-        RequireIncompleteWorkUnit(predecessor.WorkUnitId, transaction);
+        RequireIncompleteWorkUnit(predecessor.WorkUnitId, predecessor.ContractRevisionId, transaction);
         RequireBundleAuthority(contract, transaction);
         if (predecessor.Abandonment is null || ReadRetirement(predecessorId, transaction) is not { RetiredAt: not null } retirement)
             throw new AttemptAdmissionError("Replacement requires abandonment and completed retirement.");

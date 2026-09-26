@@ -60,7 +60,13 @@ four triggers. The same procedure appended those five definitions verbatim from 
 store initialized by the #112 application and replaced both hashes again. #123
 changed the `retry_requires_retirement` trigger in place; that one definition was
 replaced verbatim from a store initialized by the #123 application, with both
-hashes replaced again. Its public API
+hashes replaced again. #124 added `unchanged` to the `issue_submissions` state
+check, changed the `attempts_no_completed_work` and `attempts_no_abandoned_work`
+triggers, and added the empty `issue_submission_revisions` and
+`issue_submission_unchanged` tables with their seven triggers and the
+`revision_prior_contracts` view. Those three definitions were replaced and the ten
+new ones appended verbatim from a store initialized by the #124 application, with
+both hashes replaced again; no row changed. Its public API
 initialized a new store and, for `acme/widget#12` and `#13`, completed a
 RequestBundle through the checkpoint API. It then associated each submission
 with a pull-request Contract that has no RequestBundle binding: admitted
@@ -79,9 +85,12 @@ Python's `sqlite3.Connection.iterdump` produced the dump.
 - #112 definition hash: `dd6895ba373a28777d12008f80e4ef1f8858e8bb8cde57f13adea2a8d8fbd853`.
 - #112 manifest hash: `fa5ce4fd0fe07dfdb2e992f0a39debb89d3b70fca5804d39c51192e3800c00b0`.
 - #112 SQL fixture SHA-256: `a99df9dc1a174adcca2fa812e9d0c3b8b1bae80c618c63f6c6964a7d44ba6fe2`.
-- Current definition hash: `4b64e2c4fd607657311af55e19ee528be25904b127e564594caff69ea6e1ba01`.
-- Current manifest hash: `3b1c6fa693cb4f4d01fea75f520bf26b56e052d88e685abf6c8a4fe8c56bc89f`.
-- Current SQL fixture SHA-256: `31e75b81ad6db8aad30515fc0ea558ef6177906e3eebef5da879ed265b151b47`.
+- #123 definition hash: `4b64e2c4fd607657311af55e19ee528be25904b127e564594caff69ea6e1ba01`.
+- #123 manifest hash: `3b1c6fa693cb4f4d01fea75f520bf26b56e052d88e685abf6c8a4fe8c56bc89f`.
+- #123 SQL fixture SHA-256: `31e75b81ad6db8aad30515fc0ea558ef6177906e3eebef5da879ed265b151b47`.
+- Current definition hash: `c67b72a15d81c8895bc617bc028960859f9b455447547b1c2ffca2a84e841ac3`.
+- Current manifest hash: `3d9cfb22e4cc0a78ff71964effebfd2c6ab6d477b97f958adc35b7c8bf7c36d0`.
+- Current SQL fixture SHA-256: `7c4245f123e9b330696f8c0b950c1f78aaa7eb672caa4ec7974bd244f682d740`.
 
 # Other fixtures
 

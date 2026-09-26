@@ -22,7 +22,23 @@ public sealed record IssueSubmission(string SubmissionId, string WorkUnitId, lon
 
     /// <summary>The retained refusal of this submission's Contract proposal; it then has no Contract.</summary>
     public ContractProposalRefusal? ProposalRefusal { get; init; }
+
+    /// <summary>The submission this revision explicitly names; null for a Work Unit's first submission.</summary>
+    public string? PredecessorSubmissionId { get; init; }
+
+    /// <summary>The revision that names this submission as its predecessor, if one was requested.</summary>
+    public string? SuccessorSubmissionId { get; init; }
+
+    /// <summary>Why this submission ended without a Contract: its inputs repeat already-admitted authority.</summary>
+    public IssueSubmissionUnchanged? Unchanged { get; init; }
 }
+
+/// <summary>
+/// Retained end of a submission whose frozen request environment is identical to an earlier admitted
+/// submission's. It links that submission and its Contract, whose Attempts carry the existing outcome.
+/// </summary>
+public sealed record IssueSubmissionUnchanged(string SubmissionId, string AdmittedSubmissionId,
+    string ContractRevisionId, string Explanation, string RecordedAt);
 
 /// <summary>One retained reason a bundle-bound Contract proposal was refused before any revision.</summary>
 public sealed record ContractProposalFinding(string Code, string Detail);
@@ -307,7 +323,10 @@ public sealed partial class BroodlingStore
             contractRevisionId, Array.AsReadOnly(attempts))
         {
             Cancellation = ReadIssueSubmissionCancellation(id, transaction),
-            ProposalRefusal = ReadContractProposalRefusal(id, transaction)
+            ProposalRefusal = ReadContractProposalRefusal(id, transaction),
+            PredecessorSubmissionId = ReadRevisionLink("predecessor_submission_id", "successor_submission_id", id, transaction),
+            SuccessorSubmissionId = ReadRevisionLink("successor_submission_id", "predecessor_submission_id", id, transaction),
+            Unchanged = ReadIssueSubmissionUnchanged(id, transaction)
         };
     }
 
