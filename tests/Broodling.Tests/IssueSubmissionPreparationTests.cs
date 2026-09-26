@@ -259,7 +259,7 @@ public sealed class IssueSubmissionPreparationTests
     };
 
     /// <summary>A controlled model gateway that records each proposal's initial context.</summary>
-    private sealed class Gateway(Func<string, CancellationToken, Task<HttpResponseMessage>> reply) : HttpMessageHandler
+    internal sealed class Gateway(Func<string, CancellationToken, Task<HttpResponseMessage>> reply) : HttpMessageHandler
     {
         private readonly ConcurrentQueue<string> contexts = new();
         internal IReadOnlyList<string> Contexts => contexts.ToArray();

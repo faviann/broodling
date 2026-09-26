@@ -198,7 +198,7 @@ shutdown.
   started, an earlier unbound association, a store that is missing or
   incompatible, and any other SQLite error, such as a guard abort
   (`store_error`, with SQLite's error code and message). The preparer has no retry cadence; its caller decides when to call
-  again.
+  again. [Automatic progression](invocation.md#automatic-progression) is that caller when none is connected.
 - Every result except `Failed` is retained, so a later call returns it again
   without acquisition or a model call. A cancellation or refusal that commits
   while preparation runs is returned instead of the failure it causes.

@@ -237,6 +237,9 @@ transport)` admits a worktree Attempt and dispatches it through the bridge.
 `Direct(origin)` admits an HTTP Attempt, prepares or reopens its submission at
 that origin and dispatches it with the caller's current `DispatchCredentials`.
 It needs no Python executable, SDK client state, workspace root or launcher.
+`ResumeSubmissionAsync(submissionId, credentials)` takes the same Direct path for
+one Issue submission's bundle-bound Contract; its first Attempt starts from the
+RequestBundle's retained B1, and a Local target refuses before any work.
 An existing Attempt continues only through the kind its retained resources name:
 a Direct target on a worktree Attempt, a Local target on an HTTP Attempt, or a
 Direct origin that differs from the retained binding refuses before any

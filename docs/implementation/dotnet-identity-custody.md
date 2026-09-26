@@ -141,7 +141,12 @@ Well-formed replacement and supplementary characters remain valid path text.
 Open first checks the format/version/definition identity row through an
 immutable read of the main file alone, so refusal never replays a journal,
 checkpoints a WAL or creates sidecars. That row is committed before WAL is
-enabled and never rewritten. Only a matching store is then opened in SQLite
+enabled and never rewritten. Because the read takes no locks, it can overlap a
+checkpoint rewriting the main file and see a current store as malformed or
+without its row, sometimes for more than 100 ms under load. The probe therefore
+reads again after a delay that starts at 10 ms and doubles up to 200 ms, for
+about 2 seconds, and refuses only when no read confirms the identity. Foreign or
+pre-transition state fails every read, so only a refusal waits that long. Only a matching store is then opened in SQLite
 read/write mode without create, where the full identity, retained schema
 manifest and installation control are checked before WAL and full
 synchronization are configured. An incompatible or
