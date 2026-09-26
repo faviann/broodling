@@ -9,7 +9,9 @@ SDK seam, not provider semantic quality or a validated live deployment.
 Use Linux x86-64, a .NET 10 SDK (tested with 10.0.401), Git, `cc` and libc headers.
 `global.json` selects the Microsoft.Testing.Platform runner, not an SDK version.
 The administrative Git tests require an ordinary non-PID-1 host with waitable
-children and no competing reaper. Install only the bridge's pinned SDK in a
+children and no competing reaper. The host's system and global Git configuration
+must add no checkout transformation, such as Git LFS filters, which Broodling's
+source custody refuses. Install only the bridge's pinned SDK in a
 dedicated Python 3.13+ environment:
 
 ```bash
@@ -29,9 +31,12 @@ across worktrees; its default is the repository's `.venv/bin/python`.
 Missing SDK/native dependencies fail rather than skip.
 The image startup tests also require rootful Docker access. They build the actual
 `deployment/DirectTarget.Dockerfile`, which fetches the pinned SDK wheel for its
-native binary, so an uncached build needs access to the pinned image/package sources. They also use the pinned
-`zeroshot-tls` Caddy image; when it is absent, the run pulls it by digest and removes
-it afterwards unless another concurrent run still uses it. Each run owns and removes
+native binary, so an uncached build needs access to the pinned image/package sources.
+`BROODLING_TEST_TARGET_IMAGE` names a prebuilt DirectTarget image to use instead;
+the run keeps it. The [transition check](#native-state-transition-check) pulls the
+listed published target images by digest from GHCR when absent. They also use the pinned
+`zeroshot-tls` Caddy image. The run removes an image it pulled afterwards unless
+another concurrent run still uses it. Each run owns and removes
 its uniquely tagged test images, its containers, networks and disposable volumes,
 named with unique `broodling-186-` (ADR stack) or `broodling-180-` (stock target)
 prefixes, and its host directories, unique `target-stack-*` and
@@ -79,6 +84,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | DirectTarget session setup, JSON-RPC envelope and run status projection validation | `DirectTargetSessionTests`: loopback stock-target stand-in, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
 | DirectTarget wait polling cadence, per-read deadlines and cancellation; stop precheck, single force and shared deadline | `DirectTargetRunTests`: the same loopback stand-in with a controlled clock, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
 | Unmodified native HTTP/OECP boundary with the approved asset, through the application: controlled PR delivery from exact B1 without a client checkout, receipt consumption, restart and offline replay, unavailable-B1 failure and same-run replay, and on-demand frozen-reference reads through the installed helper | `StockDirectTargetTests`: [witness](#controlled-stock-directtarget-witness) |
+| Native state written by each listed published target image and served by this revision's image on the same mounts and origin: the recorded native version, the retained correlation and its completed result, and exact replay of an unacknowledged submission onto its recorded run | `TargetImageTransitionTests`: [transition check](#native-state-transition-check) |
 
 `Broodling.ProcessWitness` is a test-only caller for real process-death and
 Git-lock boundaries. Ordinary build/test/publish copies the C administrative
@@ -138,6 +144,32 @@ unresolved until exact replay.
 
 The provider, forge and PR receipt are controlled. The run is not a real GitHub
 PR, semantic-quality result, image publication or production topology check.
+
+## Native-state transition check
+
+`TargetImageTransitionTests` checks the
+[established native-state transitions](../deployment/README.md#native-state-transitions),
+one case per source listed in `deployment/native-state-transitions.json`. It first
+requires the published image, pulled by digest, to carry the listed native version
+and executable SHA-256. Then it runs the stock witness's controlled layer over that
+published image, initializes it the same way and serves it through its own
+entrypoint. On it, one Attempt's run finishes, with its target's terminal output
+read, not consumed. Another Attempt's send with an unavailable B1 leaves the run
+recorded but unacknowledged. The target is then stopped and the same state and
+home volumes, forge and loopback origin are served by the controlled layer over
+this revision's DirectTarget image, through the entrypoint's ordinary startup
+without initialization. Through the application alone:
+
+- Wait reconnects by the retained run identity and disposes the Attempt with a
+  receipt equal to the terminal output that the published image produced.
+- Resume's exact replay of the unacknowledged submission correlates the run the
+  published image recorded, and the native ledger gains no run.
+
+The images workflow runs it with `BROODLING_TEST_TARGET_IMAGE` naming the image it
+is about to publish. Like the witness, it uses Docker volumes, a literal-loopback
+origin rather than `zeroshot-tls`, and controlled provider, forge and receipt. It
+does not cover a run active during the swap, a reverse transition or other native
+versions.
 
 ## Image demonstration
 

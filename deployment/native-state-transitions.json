@@ -1,0 +1,20 @@
+{
+  "from": [
+    {
+      "image": "ghcr.io/faviann/broodling-target@sha256:48055a75977cf85c95739abae4b6b9c348fd3f191509f6b8d596c55bbc854dc5",
+      "sourceRevision": "ae6fe2baa1beffe083683bddb6ce8cced5eecfc9",
+      "native": {
+        "version": "zeroshot 10.3.0",
+        "linuxX64ExecutableSha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06"
+      }
+    },
+    {
+      "image": "ghcr.io/faviann/broodling-target@sha256:a17d56177d3794eaf19bf22f2040b5b41cac3faf28f52cf08dd43da79a5d645f",
+      "sourceRevision": "47b4e4b86b1f6ca9af9a1dafae8f34ccc6e4980a",
+      "native": {
+        "version": "zeroshot 10.3.0",
+        "linuxX64ExecutableSha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06"
+      }
+    }
+  ]
+}
