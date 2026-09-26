@@ -4,9 +4,9 @@
 # server's Attempts, retire-attempt and replace-attempt, and resume to dispatch such a Replacement
 # Attempt. Build from the repository root:
 #   docker build -f deployment/Broodling.Dockerfile -t broodling:REVISION .
-# It carries no Python, SDK, Codex launcher or native client. The invocation commands (submit,
-# resume, wait, stop) otherwise, and retire-attempt and replace-attempt for Attempts that submit
-# created, run from the release artifact on a host with gh and the caller checkout's common Git directory.
+# It carries no Python, SDK, Codex launcher or native client. For Attempts that submit created, the
+# invocation commands (submit, resume, wait, stop), retire-attempt and replace-attempt run from the
+# release artifact on a host with gh and the caller checkout's common Git directory.
 
 # The official SDK wheel, only for its pinned native binary (the same pin as bridge/requirements.txt).
 FROM scratch AS wheel

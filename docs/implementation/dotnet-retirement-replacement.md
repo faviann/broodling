@@ -215,8 +215,7 @@ docker compose run --rm --no-deps broodling resume /var/lib/broodling/state.sqli
 
 Resume takes the Contract revision's latest Attempt, the successor, returns its
 retained preparation at the configured origin (refusing a different one), checks
-its B1 custody at the recorded container path under the service's repository
-root and sends the prepared request with the service's current credentials,
+its retained B1 custody at the recorded container path and sends the prepared request with the service's current credentials,
 under the same pause check and initiation lock as any dispatch. Nothing else
 dispatches it: automatic progression never selects a Replacement Attempt or its
 submission, and the server's resume route never continues one, so running the
@@ -308,7 +307,8 @@ command.
 The [image demonstration](../../tests/README.md#image-demonstration) runs both
 commands from the Broodling image on an abandoned, correlated Attempt that the
 image's own processing server created, with a check the host made of the
-stopped target.
+stopped target, then dispatches the successor after release with the image's
+`resume`.
 `ReplacementCompletionTests` checks the integrated completed-Work-Unit refusal
 at API and SQL boundaries, plus completed retry-key identity handback without
 renewed authority. Its historical seed bypasses only ordinary admission while

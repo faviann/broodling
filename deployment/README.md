@@ -185,7 +185,9 @@ as PID 1.
   then dispatch that Attempt's prepared successor with the image's `resume`, run
   as the processing service itself:
   `docker compose run --rm --no-deps broodling resume /var/lib/broodling/state.sqlite3 CONTRACT_REVISION_ID /etc/broodling/invocation.json`.
-  `CONTRACT_REVISION_ID` is the replaced Attempt's `contractRevisionId`, from
+  Run it with the same Compose files and overrides as the running processing
+  service, so that it gets that service's environment, invocation configuration
+  and mounts; do not add credentials with `-e`. `CONTRACT_REVISION_ID` is the replaced Attempt's `contractRevisionId`, from
   `GET /attempts/{id}` or `history`. The command needs what the server has: the
   state mount, whose repository root holds the successor's B1 custody at its
   recorded container path; the Direct `config.json`, whose origin must be the

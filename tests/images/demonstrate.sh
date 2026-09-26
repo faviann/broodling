@@ -224,14 +224,20 @@ processing up --detach --wait --wait-timeout 120 broodling zeroshot gateway
 # The processing service's own definition: its invocation configuration, credentials, state and network.
 # Automatic progression never selects a Replacement Attempt, so only this command dispatches it.
 revision="$(jq -r .attempt.contractRevisionId <<<"$observed")"
-resumed="$(processing run --rm --no-deps -T broodling resume /var/lib/broodling/state.sqlite3 "$revision" /etc/broodling/invocation.json)"
 successor_id="$(jq -r .attemptId <<<"$successor")"
-echo "resume: $(jq -c --arg id "$successor_id" '.submissions[] | select(.attemptId == $id)' <<<"$resumed")"
+# The healthy server has scanned at startup and left the successor prepared.
+[[ "$(api "http://127.0.0.1:8080/attempts/$successor_id" | jq -r .submission.state)" == prepared ]] \
+    || fail 'the server dispatched the successor'
+resumed="$(processing run --rm --no-deps -T broodling resume /var/lib/broodling/state.sqlite3 "$revision" /etc/broodling/invocation.json)"
+resumed="$(jq -c --arg id "$successor_id" '.submissions[] | select(.attemptId == $id)' <<<"$resumed")"
+echo "resume: $resumed"
+[[ "$(jq -r .state <<<"$resumed")" == correlated ]] || fail 'resume did not correlate the successor'
 dispatched="$(api "http://127.0.0.1:8080/attempts/$successor_id")"
 jq -c '{attemptId: .attempt.attemptId, b1: .attempt.b1.repository, submission: .submission.state, runId: .submission.runId,
-    runIdentity: .observation.runIdentity, observation: .observation.phase}' <<<"$dispatched"
-[[ "$(jq -r '"\(.submission.state) \(.submission.runId) \(.observation.runIdentity) \(.attempt.b1.repository)"' <<<"$dispatched")" \
-    == "correlated $(jq -r .intendedRunId <<<"$successor") confirmed /var/lib/broodling/repositories/acme/widget.git" ]] \
+    availability: .observation.availability, phase: .observation.phase}' <<<"$dispatched"
+# Available: the target serves the correlated run's progress.
+[[ "$(jq -r '"\(.submission.state) \(.submission.runId) \(.observation.availability) \(.attempt.b1.repository)"' <<<"$dispatched")" \
+    == "correlated $(jq -r .intendedRunId <<<"$successor") available /var/lib/broodling/repositories/acme/widget.git" ]] \
     || fail "successor dispatch: $dispatched"
 predecessor="$(api "http://127.0.0.1:8080/attempts/$attempt" | jq -c '{isCurrent: .attempt.isCurrent, retirement: .attempt.retirement.basis}')"
 echo "predecessor: $predecessor"

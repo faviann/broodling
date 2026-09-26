@@ -238,9 +238,11 @@ Attempt (#205, #210):
   `broodling`, `zeroshot` and `gateway` restart with the processing overlay, and
   the image's `resume`, run beside the server as the processing service with its
   invocation configuration, fake credentials and network, dispatches the
-  successor. The server then reads it as `correlated` with the intended run ID
-  that `replace-attempt` printed, confirmed and running at the target, with B1
-  custody at the same container path; the predecessor stays retired.
+  successor, which the restarted server left `prepared`. Resume passes the
+  retained B1 custody check at the recorded container path inside the one-off
+  container, and the server then reads the successor as `correlated` with the
+  intended run ID that `replace-attempt` printed, its run available at the
+  target; the predecessor stays retired.
 
 No real credentials, provider, GitHub or existing target are used, and no real
 Codex runs, so it proves neither a real agent's network reach nor PR delivery.
