@@ -34,8 +34,9 @@ public sealed record IssueSubmission(string SubmissionId, string WorkUnitId, lon
 }
 
 /// <summary>
-/// Retained end of a submission whose frozen request environment is identical to an earlier admitted
-/// submission's. It links that submission and its Contract, whose Attempts carry the existing outcome.
+/// Retained end of a submission whose work-defining request identity equals that of an earlier admitted
+/// submission whose Contract has an Attempt. It links that submission and its Contract, whose Attempts carry the
+/// existing outcome.
 /// </summary>
 public sealed record IssueSubmissionUnchanged(string SubmissionId, string AdmittedSubmissionId,
     string ContractRevisionId, string Explanation, string RecordedAt);

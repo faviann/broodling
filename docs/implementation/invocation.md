@@ -183,19 +183,30 @@ URL keeps returning its latest submission; revised work names its predecessor.
   `stopped_target` [maintenance retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement).
   Otherwise it refuses with `issue_submission_conflict` and creates nothing.
 - **Processing.** Progression captures the successor afresh through the
-  ordinary preparer. Before any proposal, its completed bundle's manifest is
-  compared byte for byte with that of each earlier submission whose
-  bundle-bound Contract was admitted, with only the bundle and submission IDs
-  blanked (the manifest records no capture time). Everything else is compared:
-  acquisition inputs, policy and limits, the repository, PR target branch,
-  starting revision and commit, and each reference's selection, source,
-  content digest and pinned blob. On a match the successor ends `unchanged`
+  ordinary preparer. Before any proposal, its completed bundle's
+  work-defining identity is compared with that of each earlier submission
+  whose bundle-bound Contract was admitted and has at least one Attempt. The
+  identity is the digest-verified manifest with the bundle and submission IDs
+  blanked (the manifest records no capture time), in which the retained GitHub
+  responses of the primary issue and of each referenced issue or comment count
+  only through their work-defining fields: an issue's `title` and `body`, and a
+  comment's `body`. Each reference's ID and selection still identify which
+  issue or comment was captured. GitHub bookkeeping in those responses, such as
+  `updated_at`, `comments`, `reactions`, `labels`, `assignees`, `state`, and
+  user or URL metadata, never makes a revision changed. Everything else is
+  compared exactly: acquisition inputs (the primary issue locator), policy and
+  limits, the repository, PR target branch, starting revision and commit, each
+  reference's selection, and every other reference's content digest and pinned
+  blob. The comparison is literal, not semantic, and retained bundles and
+  their digests are never changed. On a match the successor ends `unchanged`
   with a retained explanation linking the latest matching submission and its
   Contract, whose Attempts carry the existing outcome; another execution of
-  that authority uses explicit replacement. An admitted Contract counts even
-  when its submission was cancelled before any Attempt ran, so only changed
-  inputs proceed from it. Material that never gained an admitted Contract, or
-  any changed input, is proposed and decided as usual.
+  that authority uses explicit replacement. An admitted Contract with no
+  Attempt, for example one whose submission was cancelled before any Attempt
+  ran, is not a match, so the same material is proposed and decided again.
+  Material that never gained an admitted Contract, or any changed input, is
+  proposed and decided as usual. Unchanged successors recorded earlier keep
+  their retained link and explanation.
 - **Authority.** The successor's Contract takes an ordinary first Attempt from
   its own retained B1; no Replacement Attempt is allocated. For that Contract
   alone, admission and explicit replacement disregard the completions, and the

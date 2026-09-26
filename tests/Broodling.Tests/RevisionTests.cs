@@ -60,6 +60,13 @@ public sealed class RevisionTests
         await Assert.That(store.SubmitIssue(Issue).SubmissionId).IsEqualTo(third.SubmissionId);
         await Assert.That(store.IssueHistory(Issue).Select(submission => submission.SubmissionId).ToArray())
             .IsEquivalentTo([first, second.SubmissionId, third.SubmissionId]);
+
+        // The same material's admitted Contract was cancelled before any Attempt ran, so it is proposed and decided
+        // again rather than ending unchanged at a Contract that can never execute.
+        var readmitted = (IssueSubmissionPreparation.Decided)await revisions.Prepare(third.SubmissionId);
+        await Assert.That(readmitted.Admission.Decision!.Admitted).IsTrue();
+        await Assert.That(revisions.Gateway.Contexts.Count).IsEqualTo(3);
+        await Assert.That(store.GetIssueSubmission(third.SubmissionId).Unchanged).IsNull();
     }
 
     [Test]
@@ -110,6 +117,12 @@ public sealed class RevisionTests
     {
         await using var revisions = new Revisions();
         var store = revisions.Store;
+        string[] activity = ["/repos/acme/widget/issues/12", "/repos/acme/widget/issues/8", "/repos/acme/widget/issues/comments/5"];
+        var declared = RequestAdmissionTests.Request("- background: https://github.com/acme/widget/issues/8",
+            "- decision: https://github.com/acme/widget/issues/12#issuecomment-5");
+        revisions.Fixture.SetIssue(12, declared);
+        revisions.Fixture.SetIssue(8, "Auditors need every row.");
+        revisions.Fixture.SetComment(12, 5, "Use a header row.");
         var first = store.SubmitIssue(Issue).SubmissionId;
         await revisions.Prepare(first);
         var admitted = store.GetIssueSubmission(first);
@@ -118,10 +131,16 @@ public sealed class RevisionTests
         revisions.Fixture.SetIssue(12, "## Request\nNo marked request.\n");
         var refused = store.ReviseIssueSubmission(first).SubmissionId;
         await Assert.That(await revisions.Prepare(refused)).IsTypeOf<IssueSubmissionPreparation.CaptureRefused>();
-        revisions.Fixture.SetIssue(12, RequestAdmissionTests.Request());
+        // Meanwhile the issue and the referenced issue and comment gained activity that GitHub reports with them.
+        revisions.Fixture.SetIssue(12, declared);
+        foreach (var apiPath in activity)
+            AddActivity(revisions.Fixture, apiPath);
         var second = store.ReviseIssueSubmission(refused).SubmissionId;
 
         var ended = (IssueSubmissionPreparation.Unchanged)await revisions.Prepare(second);
+        // Only bookkeeping differs: the retained responses themselves are not equal.
+        foreach (var reference in new[] { "primary", "github:acme/widget/issues/8", "github:acme/widget/issues/12#issuecomment-5" })
+            await Assert.That(Captured(store, second, reference)).IsNotEqualTo(Captured(store, first, reference));
         var unchanged = store.GetIssueSubmission(second);
         await Assert.That(ended.Explanation).IsEqualTo(unchanged.Unchanged);
         await Assert.That(unchanged.State).IsEqualTo("unchanged");
@@ -150,6 +169,23 @@ public sealed class RevisionTests
         await Assert.That(await revisions.Prepare(third)).IsTypeOf<IssueSubmissionPreparation.Decided>();
         await Assert.That(revisions.Gateway.Contexts.Count).IsEqualTo(2);
         await Assert.That(store.GetRequestBundle(third).Repository!.StartingCommit).IsEqualTo(revisions.Fixture.AdvancedCommit);
+    }
+
+    [Test]
+    public async Task AChangedIssueBodyProceedsEvenWhenItsExecutableRequestIsTheSame()
+    {
+        await using var revisions = new Revisions();
+        var store = revisions.Store;
+        var first = store.SubmitIssue(Issue).SubmissionId;
+        await revisions.Prepare(first);
+        store.AbandonAttempt(store.AdmitHttpAttempt(first).AttemptId, "Never dispatched.");
+        // Only text outside the marked request section changes.
+        revisions.Fixture.SetIssue(12, "Context: exports are for auditors.\n\n" + RequestAdmissionTests.Request());
+        var second = store.ReviseIssueSubmission(first).SubmissionId;
+
+        await Assert.That(await revisions.Prepare(second)).IsTypeOf<IssueSubmissionPreparation.Decided>();
+        await Assert.That(revisions.Gateway.Contexts.Count).IsEqualTo(2);
+        await Assert.That(Captured(store, second, "request")).IsEqualTo(Captured(store, first, "request"));
     }
 
     [Test]
@@ -197,6 +233,21 @@ public sealed class RevisionTests
         var refusal = Assert.Throws<IssueSubmissionConflict>(() => store.ReviseIssueSubmission(predecessorId));
         await Assert.That(refusal.Message).Contains(reason);
         await Assert.That(store.IssueHistory(Issue).Count).IsEqualTo(history);
+    }
+
+    /// <summary>The captured content digest of one reference in a submission's bundle.</summary>
+    private static string Captured(BroodlingStore store, string submissionId, string referenceId) =>
+        store.GetRequestBundle(submissionId).References.Single(reference => reference.ReferenceId == referenceId).ContentSha256!;
+
+    /// <summary>GitHub's bookkeeping after activity on an issue or comment: a later update, a comment count, a reaction.</summary>
+    private static void AddActivity(PreparationFixture fixture, string apiPath)
+    {
+        var file = fixture.ResponseFile(apiPath);
+        var response = JsonNode.Parse(File.ReadAllText(file))!;
+        response["updated_at"] = "2026-09-26T12:00:00Z";
+        response["comments"] = 1;
+        response["reactions"] = new JsonObject { ["total_count"] = 1, ["+1"] = 1 };
+        File.WriteAllText(file, response.ToJsonString());
     }
 
     /// <summary>One store, preparer and target for a Work Unit's revisions, driven step by step.</summary>

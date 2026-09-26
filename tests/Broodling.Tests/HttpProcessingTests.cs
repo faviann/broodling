@@ -220,7 +220,7 @@ public sealed class HttpProcessingTests
             first = store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
             await RequestAdmissionTests.Capture(store, fixture, first);
             revision = store.AdmitRequestBundle(first, ContractIngressTests.Propose, "caller").Revision.ContractRevisionId;
-            await store.CancelIssueSubmissionAsync(first, "Revise the request.");
+            store.AbandonAttempt(store.AdmitHttpAttempt(first).AttemptId, "Revise the request.");
         }
         var gateway = new Gateway((_, _) => Task.FromResult(ControlledGateway.Final(Proposal)));
         await using var server = await Server.Start(fixture.State, fixture.RepositoryRoot, target, Peers(fixture, gateway));

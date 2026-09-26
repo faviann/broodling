@@ -189,9 +189,12 @@ stopping or abandoning work; the server stops if either service fails.
 Unconfigured, it stays a reader. #124 adds an explicit revision: a new Issue
 submission that names the Work Unit's latest, ended submission as its
 predecessor, created at most once and returned exactly on replay. Progression
-captures and prepares it afresh; if its frozen request environment equals an
-already-admitted submission's, it ends with a retained explanation linking that
-authority instead of being proposed or executed. #205 runs `retire-attempt` and
+captures and prepares it afresh; if its work-defining request identity (#207:
+primary and referenced issue titles and bodies, referenced comment bodies,
+other references' content, starting commit and PR target, ignoring GitHub
+bookkeeping) equals that of an already-admitted submission whose Contract has
+an Attempt, it ends with a retained explanation linking that authority instead
+of being proposed or executed. #205 runs `retire-attempt` and
 `replace-attempt` from the Broodling image for Attempts that the processing
 server created, with the stopped-target check supplied by the host; CLI Attempts
 keep them in the release artifact. A processing-server Replacement Attempt has no

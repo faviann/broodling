@@ -25,7 +25,7 @@ public abstract record IssueSubmissionPreparation
         : IssueSubmissionPreparation(Submission.SubmissionId);
 
     /// <summary>
-    /// The submission's frozen inputs repeat an earlier admitted submission's; it retains that explanation and
+    /// The submission's work-defining inputs repeat an earlier admitted submission's; it retains that explanation and
     /// link and is neither proposed nor executed.
     /// </summary>
     public sealed record Unchanged(IssueSubmission Submission, IssueSubmissionUnchanged Explanation)
