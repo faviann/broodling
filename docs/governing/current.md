@@ -212,7 +212,10 @@ successor is admitted and prepared only under the pause and dispatches only afte
 release. A revision (#124) likewise requires every dispatched Attempt of its Work
 Unit, successful or not, to be retired this way and none to be current; its
 Contract's own Attempts then disregard the earlier Contracts' ended and completed
-work, so one current execution authority remains and earlier results stay intact.
+work, and replacement refuses an Attempt of any Contract a later submission
+supersedes (an unchanged revision keeps its linked Contract replaceable). One
+current execution authority, that of the latest revision, therefore remains, and
+earlier results stay intact.
 An HTTP Attempt's prepared submission retains the complete request,
 approved asset bytes and an intended run identity; that is neither dispatch intent
 nor native acceptance. Broodling records abandonment and requests native

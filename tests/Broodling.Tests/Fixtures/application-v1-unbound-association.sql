@@ -213,7 +213,7 @@ CREATE TABLE store_metadata (
     manifest_hash TEXT NOT NULL,
     initialized_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'c67b72a15d81c8895bc617bc028960859f9b455447547b1c2ffca2a84e841ac3','3d9cfb22e4cc0a78ff71964effebfd2c6ab6d477b97f958adc35b7c8bf7c36d0','2026-09-25T18:54:16.6525981+00:00');
+INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'d476d4ec50c88dedfdf48dca2b5e23dd0b0f0de6a7b72b2e0d850931da99f8ed','11530fe154fca91fd713f8a61c9404310b734cb6b850962524f78ba702c9e6f7','2026-09-25T18:54:16.6525981+00:00');
 CREATE TABLE work_submissions (
     submission_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -482,6 +482,8 @@ WHEN EXISTS (SELECT 1 FROM attempt_retries WHERE retry_key = NEW.retry_key
       AND (r.basis = 'stopped_target'
         OR NOT EXISTS (SELECT 1 FROM native_submissions AS s WHERE s.attempt_id = a.attempt_id AND s.state <> 'prepared'))
 ) OR EXISTS (SELECT 1 FROM attempts WHERE attempt_id = NEW.attempt_id)
+  OR EXISTS (SELECT 1 FROM attempts JOIN superseded_contracts USING (contract_revision_id)
+    WHERE attempt_id = NEW.predecessor_id)
 BEGIN SELECT RAISE(ABORT, 'retry requires safely retired predecessor and a new successor'); END;
 CREATE TRIGGER retries_no_update BEFORE UPDATE ON attempt_retries
 BEGIN SELECT RAISE(ABORT, 'retry identity and parameters are immutable'); END;
@@ -713,4 +715,13 @@ CREATE TRIGGER issue_submission_unchanged_final BEFORE UPDATE OF contract_revisi
 WHEN NEW.contract_revision_id IS NOT NULL
   AND EXISTS (SELECT 1 FROM issue_submission_unchanged WHERE submission_id = NEW.submission_id)
 BEGIN SELECT RAISE(ABORT, 'An unchanged Issue submission never acquires Contract authority'); END;
+CREATE VIEW superseded_contracts AS
+SELECT DISTINCT bound.contract_revision_id AS contract_revision_id
+FROM issue_submissions AS bound
+JOIN issue_submissions AS later ON later.work_unit_id = bound.work_unit_id
+    AND later.submission_sequence > bound.submission_sequence
+WHERE bound.contract_revision_id IS NOT NULL
+  AND later.contract_revision_id IS NOT bound.contract_revision_id
+  AND NOT EXISTS (SELECT 1 FROM issue_submission_unchanged AS u
+      WHERE u.submission_id = later.submission_id AND u.contract_revision_id = bound.contract_revision_id);
 COMMIT;

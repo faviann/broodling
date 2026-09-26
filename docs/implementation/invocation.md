@@ -173,7 +173,7 @@ URL keeps returning its latest submission; revised work names its predecessor.
   existing successor, whatever later history exists. Otherwise it creates a new
   `accepted` submission for the same Work Unit, with the next sequence and an
   immutable link to the predecessor. Concurrent calls converge on that one
-  successor. Earlier submissions are never amended; their exact reads gain only
+  successor. Revision never amends the predecessor; its exact read gains only
   `successorSubmissionId`.
 - **Eligibility.** The predecessor must be the Work Unit's latest submission and
   must have ended: no longer unfinished under the discovery rule above (for
@@ -199,7 +199,10 @@ URL keeps returning its latest submission; revised work names its predecessor.
   alone, admission and explicit replacement disregard the completions, and the
   retired or never-dispatched ended Attempts, of the Contracts preceding it.
   SQL enforces the same rule, and one current Attempt per Work Unit still
-  holds. Ordinary Work Units keep every completed- and ended-work guard.
+  holds. Ordinary Work Units keep every completed- and ended-work guard. Once a
+  later submission supersedes a Contract (unless that submission ended
+  `unchanged` with a link to it), explicit replacement refuses that Contract's
+  Attempts, so only the latest authority can execute again.
 - **Stops.** A cancellation stays bound to its first Attempt, and an Attempt
   stop to its exact Attempt, so replaying the predecessor's stops never reaches
   the successor.

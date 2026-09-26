@@ -260,7 +260,10 @@ For a [revision's](invocation.md#revised-work) Contract (#124), admission and
 replacement disregard the completions, and the retired or never-dispatched ended
 Attempts, of the Contracts preceding it, in the application and in SQL. A failed
 Attempt of a later revision can therefore be replaced after an earlier revision
-succeeded; every other Work Unit keeps these guards unchanged.
+succeeded; every other Work Unit keeps these guards unchanged. Conversely, the
+application and `retry_requires_retirement` refuse to replace an Attempt whose
+Contract a later submission supersedes, unless that submission ended `unchanged`
+with a link to the Contract.
 
 ## Evidence and limits
 

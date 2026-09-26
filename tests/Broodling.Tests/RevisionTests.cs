@@ -82,6 +82,10 @@ public sealed class RevisionTests
 
         revisions.Fixture.SetIssue(12, Revised);
         var second = store.ReviseIssueSubmission(first).SubmissionId;
+        // The revision supersedes the predecessor's Contract, whose retired Attempt is then never replaced.
+        store.PauseInstallation();
+        await Assert.That(() => store.PrepareRetry(dispatched, "late")).Throws<AttemptConflict>();
+        store.ReleaseInstallation();
         await Assert.That(store.UnfinishedSubmissions()).IsEquivalentTo([second]);
         await revisions.Prepare(second);
         // Progression discovers the admitted successor and gives it an ordinary first Attempt from its own B1.
@@ -129,6 +133,10 @@ public sealed class RevisionTests
         await Assert.That(revisions.Gateway.Contexts.Count).IsEqualTo(1);
         await Assert.That(revisions.Fixture.ReadGhPaths().Length).IsEqualTo(reads);
         await Assert.That(store.UnfinishedSubmissions()).IsEmpty();
+        // As its explanation says, the linked authority can still execute again through explicit replacement.
+        var original = store.GetAttempt(store.GetIssueSubmission(first).AttemptIds.Single());
+        await ReplacementTests.SafeRetire(store, original);
+        store.AbandonAttempt(store.AdmitRetry(original.AttemptId, "rerun").AttemptId, "Revise instead.");
 
         // A moved starting commit is changed authority, even with the same request text.
         revisions.Fixture.AdvanceMainAndAddDevelop();
