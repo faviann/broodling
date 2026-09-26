@@ -245,6 +245,35 @@ public sealed class SubmissionProgressorTests
     }
 
     [Test]
+    public async Task ATemporaryTargetFailureRetriesTheSameFrozenRequest()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new PreparationFixture();
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
+        var submissionId = Submit(fixture, 12).Single();
+        var sends = 0;
+        target.Submit = body => Task.FromResult(Interlocked.Increment(ref sends) == 1
+            ? (503, """{"code":"target.unavailable","message":"busy"}""")
+            : target.Accept(body));
+
+        await using var service = new Service(fixture, target, Proposing());
+        await Until(() => service.Progressor.Progress() is [{ State: SubmissionProgress.Waiting }]);
+        var waiting = service.Progressor.Progress().Single();
+        await Assert.That(waiting.Stage).IsEqualTo(SubmissionProgress.Continuation);
+        await Assert.That(waiting.Code).IsEqualTo("native_transport_error");
+        await Assert.That(waiting.Retryable).IsTrue();
+        await Assert.That(waiting.Failures).IsEqualTo(1);
+
+        await service.ScanUntil(() => Correlated(fixture, submissionId));
+        await Assert.That(target.Bodies.Count).IsEqualTo(2);
+        await Assert.That(JsonNode.DeepEquals(Frozen(target.Bodies[0]), Frozen(target.Bodies[1]))).IsTrue();
+        using var store = fixture.State.Open();
+        var attemptId = store.GetIssueSubmission(submissionId).AttemptIds.Single();
+        await Assert.That(store.FindSubmission(attemptId)!.RunId).IsEqualTo((string)target.Bodies[0]["runId"]!);
+        await Assert.That(service.Stops).IsEmpty();
+    }
+
+    [Test]
     public async Task WorkAbandonedDuringItsSendLeavesWithoutAStop()
     {
         await using var target = new StockTarget();

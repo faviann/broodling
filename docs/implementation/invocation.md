@@ -100,7 +100,7 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   admission) and admitted ones whose Work Unit has no Attempt, or only its
   current HTTP Attempt for that Contract with no submission record or one that
   is `prepared` or `dispatched` without a replay block. Rejected, cancelled,
-  completed, abandoned and non-current work, explicit replacements, earlier
+  completed, abandoned and non-current work, Replacement Attempts, earlier
   unbound associations, and worktree or bridge records are never selected. The store is the only queue. Each submission has
   at most one operation in flight, and different submissions run independently,
   each in its own store session on the thread pool.
@@ -123,14 +123,16 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   is retained. A provider that throws stops the submission for attention.
 - **Retry.** Retryable preparation failures, `NativeTransportError` other than
   `request_too_large` (the frozen request's size never changes) and a busy or
-  locked store are temporary. The first retry follows after 15 seconds, and
-  the delay doubles after each consecutive failure up to one hour. After 10
+  locked store are temporary. A retry runs at the first scan at least a delay
+  after the failure: 15 seconds, doubling after each consecutive failure up to
+  one hour. After 10
   consecutive temporary failures in one stage, about two hours, the submission
   stops. That window outlasts a routine target or gateway maintenance outage,
   while a failure that repeats on the same frozen input (#112) makes at most 10
   model calls. Preparation and continuation count separately, so failed
   proposals never use up the dispatch's retries. The installation pause is a
-  wait for release, checked again each scan, and does not count. Any other
+  wait for release, checked again at the first scan at least 15 seconds after
+  the paused attempt, and does not count. Any other
   failure stops at once: a refusal or conflict such as a replay block, a
   retained binding to another origin or missing credentials. A failure caused
   by an end committed meanwhile elsewhere, such as a cancellation or

@@ -52,7 +52,10 @@ public sealed class SubmissionProgressor(BroodlingApplication application, strin
     InvocationTarget.Direct target, IssueSubmissionPreparer preparer, Func<ProgressionCredentials> credentials,
     Action<SubmissionProgress, Exception?> stopped)
 {
-    /// <summary>The scan interval: the first retry delay and the longest wait for a released pause.</summary>
+    /// <summary>
+    /// The scan interval and the first retry delay. A retry, including a recheck of the pause, runs at the first
+    /// scan at least its delay after the failure.
+    /// </summary>
     internal static readonly TimeSpan Cadence = TimeSpan.FromSeconds(15);
     /// <summary>The retry delay doubles from <see cref="Cadence"/> up to this.</summary>
     internal static readonly TimeSpan MaximumRetryDelay = TimeSpan.FromHours(1);
@@ -215,7 +218,7 @@ public sealed partial class BroodlingStore
     /// Accepted Issue submissions that ordinary progression can still move: undecided ones with no Contract
     /// or with one bound to their RequestBundle, and admitted ones whose Work Unit has no Attempt or only its
     /// current HTTP Attempt for that Contract, not yet correlated or replay-blocked. Rejected, cancelled,
-    /// completed, abandoned and non-current work, replacements, earlier unbound associations, and worktree
+    /// completed, abandoned and non-current work, Replacement Attempts, earlier unbound associations, and worktree
     /// or bridge records are never selected.
     /// </summary>
     internal IReadOnlyList<string> UnfinishedSubmissions()
