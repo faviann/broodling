@@ -158,8 +158,7 @@ all keep native 10.3.0. The Compose installation
 (homelab-iac#353) remains open. #113 serves retained
 work and frozen references over read-only HTTP from the ASP.NET host, opening
 existing state only. #118 adds a callable completion observer that retains
-correlated HTTP results with no caller waiting; attaching it to the host process
-belongs to #120. #114 gives a new bundle-bound native task the RequestBundle's
+correlated HTTP results with no caller waiting. #114 gives a new bundle-bound native task the RequestBundle's
 compact manifest instead of reference bodies; native agents read references on
 demand through a read-only helper in the DirectTarget image that calls the
 existing reader as the `broodling` service. Earlier prepared records keep their
@@ -179,11 +178,17 @@ that operation and continues an admitted Contract from retained B1 to native
 correlation, replaying an unresolved dispatch exactly. It retries temporary
 failures with a doubling delay up to a limit, stops on refusals and conflicts,
 never waits for an Attempt and never initiates a stop, abandonment or
-replacement. Remaining #100
-intent includes public HTTP submission intake, attaching the progression and
-completion services to the host process (#120), Compose, maintenance and
-backup/restore; those remain unimplemented. The ASP.NET host is not authority to
-add them.
+replacement. #120 makes the ASP.NET host, when configured with a DirectTarget,
+a service repository root and current credentials, accept URL-only Issue
+submissions over HTTP once durably committed, map exact resume and stop onto
+the progression service and the existing cancellation and stop operations, and
+run one preparer, the progression service and the completion observer for its
+lifetime. Its submission and Attempt reads add one bounded native observation
+beside the retained facts. Disconnects and ordinary shutdown detach without
+stopping or abandoning work; the server stops if either service fails.
+Unconfigured, it stays a reader. Remaining #100 intent includes predecessor-
+linked revised submission, Compose, maintenance and backup/restore; those remain
+unimplemented. The ASP.NET host is not authority to add them.
 
 ## Lifecycle and retention limits
 

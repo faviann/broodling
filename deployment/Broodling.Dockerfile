@@ -1,8 +1,8 @@
-# The Broodling service image: the ASP.NET host as a fixed non-root user, serving the read-only
-# HTTP reader, with the store-only commands (initialization, inspection, installation pause). Build
-# from the repository root:
+# The Broodling service image: the ASP.NET host as a fixed non-root user, serving HTTP (the read-only
+# reader, or with its processing configuration also submission and automatic processing), with the
+# store-only commands (initialization, inspection, installation pause). Build from the repository root:
 #   docker build -f deployment/Broodling.Dockerfile -t broodling:REVISION .
-# It carries no gh, Python, SDK, Codex launcher or native client. The invocation commands (submit,
+# It carries no Python, SDK, Codex launcher or native client. The invocation commands (submit,
 # resume, wait, stop), retire-attempt and replace-attempt run from the release artifact on a host
 # with gh and the caller checkout's common Git directory.
 
@@ -34,8 +34,16 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0.12-noble@sha256:2d584d8147faddb0d678c5
 LABEL org.opencontainers.image.source=https://github.com/faviann/broodling
 # Git for source/accepted-object custody; curl only for the credential-free health check; tini as
 # PID 1, because administrative Git refuses a PID-1 host process (dotnet-worktree-materialization.md).
+# The processing server acquires issues and repositories through gh, the DirectTarget image's pin.
+# Completion fetches each accepted commit with plain Git, which asks gh for the current GH_TOKEN, so a
+# private repository's result can be retained; acquisition ignores system Git configuration.
+ADD --checksum=sha256:f876a3b87bf67c94f773d17becca4dc7340b056dab901473a9260ee2a73e237b \
+    https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_amd64.deb /tmp/gh.deb
 RUN apt-get update && apt-get install -y --no-install-recommends git curl tini \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && dpkg --install /tmp/gh.deb && rm /tmp/gh.deb \
+    && /usr/bin/gh --version \
+    && git config --system credential.https://github.com.helper '!/usr/bin/gh auth git-credential'
 COPY --from=build /app /app
 # The image's non-root `app` user. The operator's durable state directory, mounted at
 # /var/lib/broodling, must be owned by it; the image never changes mounted ownership.

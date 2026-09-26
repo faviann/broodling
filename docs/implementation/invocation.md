@@ -5,7 +5,8 @@ native dispatch for one explicitly configured target: `InvocationTarget.Local`
 (worktree materialization and the SDK bridge, for no-effect work) or
 `InvocationTarget.Direct` (an HTTP DirectTarget Attempt for authorized PR work,
 with no Python, SDK client state, workspace root or launcher). It is a callable
-API, not an HTTP intake. The [current authority](../governing/current.md) governs scope; the
+API; the [HTTP service](#http-service) maps submission, resume and stop onto these
+operations. The [current authority](../governing/current.md) governs scope; the
 [release guide](../../deployment/README.md) supplies operator configuration and
 commands. The retired Python API is preserved at the
 [frozen baseline](https://github.com/faviann/broodling/blob/b3f61a96c40401722ec16fc361958d1690982e02/docs/implementation/invocation.md).
@@ -21,9 +22,9 @@ commands. The retired Python API is preserved at the
 | Submit an explicit GitHub reference with typed proposer and exact effect authority | `Invocation.SubmitAsync`: [target selection](zeroshot-native-integration.md#composed-invocation-and-target-selection) |
 | Resume the exact recorded revision | `Invocation.ResumeAsync`: [HTTP dispatch](zeroshot-native-integration.md#http-dispatch-and-acknowledgement), [bridge dispatch](dotnet-native-dispatch.md) |
 | Resume one Issue submission's admitted Contract from its retained B1 | `Invocation.ResumeSubmissionAsync`: [automatic progression](#automatic-progression) |
-| Progress unfinished Issue submissions with no caller connected, for one process lifetime | `SubmissionProgressor.RunAsync`: [automatic progression](#automatic-progression) |
+| Progress unfinished Issue submissions with no caller connected, for one process lifetime; continue one exact submission at the next scan | `SubmissionProgressor.RunAsync/Resume`: [automatic progression](#automatic-progression) |
 | Inspect retained revision/lineage without external calls | `BroodlingStore.Status/History`: [admission and observation](dotnet-contract-admission.md#persistence-recovery-and-observation) |
-| Serve those retained submission, revision, Attempt and bundle/reference reads over read-only HTTP | `Broodling.Host` routes: [release guide](../../deployment/README.md) |
+| Serve those retained reads with bounded native observations over HTTP, and with processing configuration accept, resume and stop exact work while progression and completion observation run | `Broodling.Host` routes: [HTTP service](#http-service), [release guide](../../deployment/README.md#processing-server) |
 | Pause, inspect drain status or explicitly release admission/dispatch | `BroodlingStore.PauseInstallation/GetInstallationStatus/ReleaseInstallation`: [installation pause](dotnet-installation-pause.md) |
 | Read bounded, unretained native phase/active-node progress for a correlated Attempt, or a dispatched HTTP Attempt by its intended ID | `BroodlingStore.ObserveAsync`: [native integration](zeroshot-native-integration.md#dispatch-recovery-and-completion) |
 | Consume the correlated native result or replay retained completion | `Invocation.WaitAsync` / `BroodlingStore.WaitAsync`: [completion](dotnet-receipt-completion.md) |
@@ -145,7 +146,11 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   required callback runs once when a submission stops, with the exception only
   for an unexpected failure; a callback that throws is ignored. Waits and stops
   live only in the process, so a restart discovers the submission again with a
-  fresh limit. A submission that leaves the unfinished set, for example through
+  fresh limit. `Resume(submissionId)` has the same effect for one exact
+  unfinished submission without a restart: it forgets that submission's wait
+  or stop and failure count, so the next scan runs it; an operation in flight
+  continues. It returns false and changes nothing for a submission that is no
+  longer unfinished. A submission that leaves the unfinished set, for example through
   its replay block or a cancellation, leaves `Progress()`; the store retains
   that reason. An unexpected failure of discovery itself ends `RunAsync` with
   that exception.
@@ -155,9 +160,45 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   unresolved dispatch stays unresolved for exact replay by the next process;
   local drainage does not resolve it.
 
-Attaching the service to the ASP.NET host lifetime, with its configuration and
-credentials, belongs to [#120](https://github.com/faviann/broodling/issues/120).
+## HTTP service
 
-The [P5 human-review requirement](../../evaluation/p5/README.md) applies to every
-accepted revision. The host runs neither automatic service yet, and no merge,
-deployment, execution supervisor or broader effect authority is introduced.
+[#120](https://github.com/faviann/broodling/issues/120) attaches these services
+to `Broodling.Host`. Configured with a Direct `config.json` (`Broodling:Invocation`)
+and an existing service repository root (`Broodling:RepositoryRoot`), and
+holding current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY`, the server
+constructs one `IssueSubmissionPreparer` whose lifetime ends when the host starts
+stopping, one `SubmissionProgressor` and one `CompletionObserver`, and runs both
+services for the host's lifetime. It reads the credentials from its environment
+for each operation, never retaining them. The required callbacks log a stopped
+submission and an unexpected observation failure. If either `RunAsync` fails
+unexpectedly the server stops and exits unsuccessfully, so it never keeps
+accepting work that nothing would process. Without that configuration it serves
+reads only; a configuration that cannot process, such as one setting alone, a
+LocalTarget configuration, a missing root or missing credentials, refuses startup.
+
+- **Submit** (`POST /submissions`) calls `SubmitIssue` and answers `202` with the
+  retained submission and its `Location` once that commits. It contacts no
+  GitHub, model or target: the progressor takes the submission at its next scan.
+- **Resume** (`POST /submissions/{id}/resume`) calls `SubmissionProgressor.Resume`,
+  so the process's one progression owner continues that exact submission; it
+  never creates a Replacement Attempt. Ended or correlated work is handed back.
+- **Stop** (`POST /submissions/{id}/stop`, `POST /attempts/{id}/stop`) requires a
+  reason and calls `CancelIssueSubmissionAsync` or `StopAsync`, answering with
+  the `stop` command's report so committed abandonment stays distinct from
+  unconfirmed cessation. The stop runs to its own bounds whatever its caller
+  does; only shutdown detaches it. Once the cancellation or abandonment commits,
+  any later failure, including that detachment (`caller_detached`), is reported
+  with it rather than as an error answer.
+- **Reads** add to the submission and Attempt routes one bounded `ObserveAsync`,
+  serialized with its availability apart from the retained facts, and the
+  submission's in-process `Progress()` entry without its message, which only
+  the server log keeps.
+
+An Attempt whose completion observation failed unexpectedly is not observed
+again until the server restarts; resume does not re-arm it.
+
+Routes, status codes and configuration are in the
+[release guide](../../deployment/README.md#processing-server). Shutdown detaches
+both services as described above. The [P5 human-review requirement](../../evaluation/p5/README.md)
+applies to every accepted revision. No merge, deployment, execution supervisor
+or broader effect authority is introduced.

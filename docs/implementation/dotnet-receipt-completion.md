@@ -173,9 +173,10 @@ A wait ends in one of five ways:
   observer passes the Attempt ID and exception once to the required
   `unexpectedFailure` callback, and a callback that throws is ignored. That
   Attempt is not observed again in this process, while other observations
-  continue; a restart observes it again. The library has no logging, so #120
-  owns what the callback reports when it attaches the observer to the host. An
-  unexpected failure of discovery itself ends `RunAsync` with that exception.
+  continue; a restart observes it again. The library has no logging; the
+  processing server logs the Attempt ID and exception as an error. An
+  unexpected failure of discovery itself ends `RunAsync` with that exception,
+  which stops the processing server.
 
 Each successful scan also detaches any wait whose Attempt has left that set,
 for example after an independent stop or abandonment ends its authority. Such a
@@ -186,9 +187,8 @@ disposition. A scan that cannot read the store detaches nothing. Cancelling
 through their retained bindings. Concurrent observers, or an observer racing an
 explicit wait, converge through the final write described above. A retained
 completion is never selected again, so it stays readable with no target or
-origin. Attaching the observer to the ASP.NET host's lifetime belongs to
-[#120](https://github.com/faviann/broodling/issues/120); the host remains
-read-only.
+origin. The [processing server](invocation.md#http-service) (#120) runs the
+observer for the ASP.NET host's lifetime, with its configured root certificate.
 
 ## Durable authority and upgrades
 

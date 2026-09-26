@@ -81,6 +81,22 @@ public sealed class SubmissionProgressor(BroodlingApplication application, strin
     }
 
     /// <summary>
+    /// Continue one exact unfinished submission at the next scan. A stop or wait this process recorded for it is
+    /// forgotten with its failure count, as a restart would; an operation already running continues. Returns
+    /// false and changes nothing when ordinary progression no longer selects the submission, because its end or
+    /// native correlation is retained. It never creates a Replacement Attempt or selects other work.
+    /// </summary>
+    public bool Resume(string submissionId)
+    {
+        using (var store = application.OpenStore(storePath, directTargetRootCertificate))
+            if (!store.UnfinishedSubmissions().Contains(submissionId)) return false;
+        lock (progress)
+            if (progress.TryGetValue(submissionId, out var entry) && entry.State != SubmissionProgress.Progressing)
+                progress.Remove(submissionId);
+        return true;
+    }
+
+    /// <summary>
     /// Progress until cancelled. Cancellation detaches every operation at its next await; committed checkpoints
     /// remain and an unresolved dispatch stays unresolved for exact replay by the next process.
     /// </summary>

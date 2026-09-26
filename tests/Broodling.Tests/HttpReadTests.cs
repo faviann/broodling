@@ -86,8 +86,17 @@ public sealed class HttpReadTests
                 submissions = store.IssueHistory(ContractIngressTests.Reference),
                 revisions = store.History(ContractIngressTests.Reference)
             }),
-            ($"/submissions/{submission.SubmissionId}", store.GetIssueSubmission(submission.SubmissionId)),
-            ($"/submissions/{bound.SubmissionId}", store.GetIssueSubmission(bound.SubmissionId)),
+            // A reader has no progression, and neither Attempt has a native run to observe.
+            ($"/submissions/{submission.SubmissionId}", new
+            {
+                submission = store.GetIssueSubmission(submission.SubmissionId),
+                admission = (object?)null, progression = (object?)null, observation = (object?)null
+            }),
+            ($"/submissions/{bound.SubmissionId}", new
+            {
+                submission = store.GetIssueSubmission(bound.SubmissionId),
+                admission = store.Status(boundRevision).Decision, progression = (object?)null, observation = (object?)null
+            }),
             ($"/issues?url={boundIssue}", new
             {
                 submissions = store.IssueHistory("https://github.com/acme/widget/issues/13"),
@@ -102,7 +111,8 @@ public sealed class HttpReadTests
             {
                 attempt = store.GetAttempt(fixture.Attempt.AttemptId),
                 submission = store.FindSubmission(fixture.Attempt.AttemptId),
-                completion = store.FindCompletion(fixture.Attempt.AttemptId)
+                completion = store.FindCompletion(fixture.Attempt.AttemptId),
+                observation = (object?)null // A retained completion is not observed again.
             })
         };
         foreach (var (path, expected) in reads)
@@ -111,7 +121,7 @@ public sealed class HttpReadTests
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
             await Assert.That(JsonNode.DeepEquals(await Body(response), JsonSerializer.SerializeToNode(expected, Json))).IsTrue();
         }
-        var boundRead = await Body(await client.GetAsync($"/submissions/{bound.SubmissionId}"));
+        var boundRead = (await Body(await client.GetAsync($"/submissions/{bound.SubmissionId}")))["submission"]!;
         await Assert.That(boundRead["contractRevisionId"]!.GetValue<string>()).IsEqualTo(boundRevision);
         await Assert.That(boundRead["attemptIds"]!.AsArray().Select(id => id!.GetValue<string>()))
             .IsEquivalentTo([boundAttempt.AttemptId]);
@@ -149,7 +159,7 @@ public sealed class HttpReadTests
         using var transaction = writer.BeginTransaction(deferred: false);
         await Assert.That((await client.GetAsync("/health")).StatusCode).IsEqualTo(HttpStatusCode.OK);
         var submission = await Body(await client.GetAsync($"/submissions/{submissionId}"));
-        await Assert.That(submission["submissionId"]!.GetValue<string>()).IsEqualTo(submissionId);
+        await Assert.That(submission["submission"]!["submissionId"]!.GetValue<string>()).IsEqualTo(submissionId);
         transaction.Rollback();
     }
 

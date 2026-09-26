@@ -44,10 +44,10 @@ needs a fresh store; see [state and operator commands](#state-and-operator-comma
 The owner decision is a future operational gate, not a prerequisite for finishing
 source retirement. This guide and #140 authorize no deployment, state switch,
 silent replacement, deletion, target creation or new live-provider campaign.
-Remaining #100 product intent is unchanged; public URL-only HTTP intake,
-automatic execution/completion, Compose, maintenance and retention work remain
-separate. Callable pre-Contract Issue
-submission identity is documented in the state API.
+Remaining #100 product intent is unchanged; Compose, maintenance and retention
+work remain separate. URL-only HTTP submission with automatic processing and
+result capture is the [processing server](#processing-server). Callable
+pre-Contract Issue submission identity is documented in the state API.
 
 ## Build a release artifact
 
@@ -56,7 +56,7 @@ Use a .NET 10 SDK (tested with 10.0.401), Git, `cc` and libc development
 headers. The native shim uses the build host's libc; this is not a portable
 glibc/musl or arbitrary-host binary qualification. Runtime host requirements
 include .NET 10 / ASP.NET Core 10, Git, the GitHub CLI `gh` for issue and
-repository acquisition by `submit`, Python 3.13+ only for the no-effect
+repository acquisition by `submit` and the processing server, Python 3.13+ only for the no-effect
 LocalTarget bridge, and ordinary
 non-PID-1 child ownership as described by
 [materialization](../docs/implementation/dotnet-worktree-materialization.md).
@@ -143,15 +143,23 @@ by rebuilding.
 The runtime stage is ASP.NET Core 10.0.12 on Ubuntu 24.04. The build stage uses
 the matching SDK 10.0.401 image, so `libbroodling_git.so` links against the
 runtime's libc. The image holds the published host output at `/app`, including
-`execution-assets/`, plus Git, curl and tini. It runs
+`execution-assets/`, plus Git, gh 2.101.0 (the DirectTarget image's pin, also
+Git's credential helper for `https://github.com`), curl and tini. It runs
 `dotnet /app/Broodling.Host.dll` under tini as the image's non-root `app` user,
 `1654:1654`. Administrative Git refuses a PID-1 process, so the host never runs
 as PID 1.
 
-- With no arguments it serves the read-only reader on port **8080** over
-  `Broodling__Store=/var/lib/broodling/state.sqlite3`. The DirectTarget image's
-  reference helper reads from `http://broodling:8080`, so keep that port and
-  service name.
+- With no arguments it serves HTTP on port **8080** over
+  `Broodling__Store=/var/lib/broodling/state.sqlite3`: the read-only reader, or
+  the [processing server](#processing-server) when the service also sets
+  `Broodling__Invocation` and `Broodling__RepositoryRoot` and supplies
+  credentials. For the ADR 0001 stack, mount a Direct `config.json` read-only
+  (for example at `/etc/broodling/invocation.json`) naming
+  `https://zeroshot.dev.faviann.com` and `/tls-root/root.crt`, and use
+  `Broodling__RepositoryRoot=/var/lib/broodling/repositories`, a directory the
+  operator creates in the state directory, owned by `1654:1654`. The
+  DirectTarget image's reference helper reads from `http://broodling:8080`, so
+  keep that port and service name.
 - Arguments select a store, inspection or maintenance command instead. For
   example, a new installation initializes its store once with
   `docker compose run --rm --no-deps broodling initialize-store /var/lib/broodling/state.sqlite3`.
@@ -159,9 +167,7 @@ as PID 1.
   installation pause commands work the same way.
 - The invocation commands (`submit`, `resume`, `wait`, `stop`),
   `retire-attempt` and `replace-attempt` are not supported in the image in this
-  revision; run them from the release artifact. `submit` acquires the issue and repository through
-  `gh`, which the image lacks, so it refuses with `github_source_error`. An
-  Attempt's source custody is the common Git directory of the caller checkout
+  revision; run them from the release artifact. A CLI Attempt's source custody is the common Git directory of the caller checkout
   named to `submit`, at its host path, which the image does not mount.
   Resuming or waiting on the Attempt needs it, `retire-attempt` checks the
   Attempt's B1 and accepted-revision pins there, and `replace-attempt` pins B1
@@ -184,8 +190,9 @@ as PID 1.
 
 The image contains no Python, SDK, native client, Codex CLI or C# Codex
 launcher. HTTP DirectTarget submission, observation and control need none of
-them and no client helper process, but in this revision they run from the
-release artifact as described above. The no-effect LocalTarget profile needs
+them and no client helper process; the processing server runs them in the
+image, while the CLI invocation commands run from the release artifact as
+described above. The no-effect LocalTarget profile needs
 all of them, so it remains available only from the [release artifact](#build-a-release-artifact).
 Like the release, the image initializes and opens only the current store
 format, `broodling.application` schema 1. Under
@@ -392,18 +399,33 @@ never dispatches the successor; see
 See [state lifecycle](../docs/implementation/dotnet-identity-custody.md).
 
 The host routes commands before HTTP startup. Running it without a command starts
-the read-only HTTP server over existing state named by `Broodling:Store`
+the HTTP server over existing state named by `Broodling:Store`
 (for example `--Broodling:Store=/NEW/state.sqlite3` or `Broodling__Store`); bind
 it with the standard `--urls`/`ASPNETCORE_URLS`. Startup only opens the store and
 refuses missing or incompatible state with a safe error code before listening.
-Each request uses its own session; nothing contacts GitHub, a provider or the
-target. `GET /health` opens the store and answers 503 when it is unavailable.
-Retained reads are `/issues?url=<issue-url>`, `/submissions/{id}`,
-`/submissions/{id}/bundle`, `/bundles/{id}/reference?id=<reference-id>`,
-`/revisions/{id}` and `/attempts/{id}`, mapping the application reads in
-[invocation](../docs/implementation/invocation.md). The server has no submission
-intake and does not yet run the callable automatic progression or completion
-services (#120). No daemon is needed to supervise native runs.
+Without processing configuration it only reads; with it, it is the
+[processing server](#processing-server). Each request uses its own session and
+never contacts GitHub or a provider. `GET /health` opens the store and answers
+503 when it is unavailable. Retained reads are `/issues?url=<issue-url>`,
+`/submissions/{id}`, `/submissions/{id}/bundle`,
+`/bundles/{id}/reference?id=<reference-id>`, `/revisions/{id}` and
+`/attempts/{id}`, mapping the application reads in
+[invocation](../docs/implementation/invocation.md).
+
+`/submissions/{id}` returns `{submission, admission, progression, observation}`
+and `/attempts/{id}` returns `{attempt, submission, completion, observation}`.
+The retained facts come from the store: the accepted submission with its state,
+proposal refusal and cancellation, and the admission decision with its findings;
+capture refusals are in the bundle. `progression` is the processing server's
+in-process state for an unfinished submission (`progressing`, `waiting` with
+`retryAt`, or `stopped`, with the last failure's stage, code, retryable flag and
+count; its message stays in the server log), or null. `observation` is one bounded (10 s), unretained native read of the
+submission's latest Attempt or of that Attempt: `availability` `available`
+(with `phase` and `activeNodes`) or `unavailable` (with a fixed `reason`), its
+`observedAt` time and `runIdentity` (`intended` or `confirmed`). It is null when
+no run is addressable or the completion is already retained. An unreachable
+target makes only the observation unavailable; it is never an execution failure
+and the retained facts still answer.
 
 ### Invocation configuration
 
@@ -457,6 +479,62 @@ excludes operator-managed effect-capable MCP/extensions. This profile still
 cannot produce a stable successful local disposition. A new Attempt takes the
 configured kind; an existing Attempt continues only through its retained kind,
 and a mismatch refuses before any contact.
+
+### Processing server
+
+The server accepts, resumes and stops exact work and processes accepted work
+unattended when it is configured with both:
+
+- `Broodling:Invocation` (`Broodling__Invocation`): the path of a Direct
+  [`config.json`](#invocation-configuration). Its origin is where new Attempts
+  are sent and its root certificate is trusted for every target connection.
+- `Broodling:RepositoryRoot` (`Broodling__RepositoryRoot`): an existing absolute,
+  durable directory writable by the service, where it keeps the service-owned
+  bare repositories that hold each submission's B1 and accepted commits. It is
+  durable operating state: keep it at its path with the store.
+
+Its process environment must hold `GH_TOKEN`, `GATEWAY_API_KEY` and exactly
+`GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`. They are read for each
+operation and never retained or echoed; in Compose, supply them only to
+`broodling` through its own protected env file. Startup refuses, with a safe
+code and before listening, one setting without the other, a LocalTarget
+configuration, a missing repository root or missing or invalid credentials. The
+host also needs Git and `gh` (the image has both). Completion fetches each
+accepted commit from the repository's GitHub origin with plain Git, using the
+service user's Git credential configuration. The image configures
+`credential.https://github.com.helper` as `!/usr/bin/gh auth git-credential` in
+its system Git configuration, so that fetch uses the current `GH_TOKEN` and a
+private repository's result is retained. A release-artifact host needs the same
+helper for the service user (`gh auth setup-git`, or that `git config`);
+without it a private repository's result is never retained and observation
+retries it. There is no application authentication: expose the server only to
+trusted callers.
+
+| Route | Maps to | Answers |
+| --- | --- | --- |
+| `POST /submissions` with `{"issueUrl": "…"}` | `SubmitIssue` | `202` with `{submission}` and `Location: /submissions/{id}` once the submission is committed, with no GitHub, model or target contact. Repeating an issue URL returns its latest existing submission. `400 invalid_work_reference` before anything is written. |
+| `POST /submissions/{id}/resume` | [`SubmissionProgressor.Resume`](../docs/implementation/invocation.md#automatic-progression) | `202` with `Location` when that unfinished submission is continued at the next scan, forgetting an in-process stop or wait. `200` with `resumed: false` when its end or native correlation is retained. Never a Replacement Attempt. |
+| `POST /submissions/{id}/stop` with `{"reason": "…"}` | `CancelIssueSubmissionAsync` | `200` with `{submission, attempt, error}` once the cancellation is committed: `attempt` is the stop report of the Attempt it abandoned, if any. `409` for completed work. |
+| `POST /attempts/{id}/stop` with `{"reason": "…"}` | `StopAsync` | The `stop` command's report: `200` once abandonment is committed, with `error` naming what ended the native stop (such as `cessation_unconfirmed`, a transport timeout, or `caller_detached` at shutdown); `409` when nothing was abandoned. A dispatched LocalTarget run refuses with `python_required`, unabandoned. |
+
+A stop without a reason answers `400 reason_required`. A reader answers
+`503 processing_not_configured` to all four.
+
+For the server's lifetime, the process's one preparer,
+[automatic progression](../docs/implementation/invocation.md#automatic-progression)
+and [completion observation](../docs/implementation/dotnet-receipt-completion.md#automatic-completion-observation)
+run at startup and then every 15 seconds, so a new submission starts within
+about 15 seconds. Neither a response nor a disconnect changes accepted work, and
+a stop continues to its own bound (30 seconds for the native stop) after its
+caller leaves. Ordinary shutdown detaches both services without stopping,
+abandoning or cleaning up anything; the next process continues from retained
+checkpoints and replays an unresolved dispatch exactly. A submission that stops
+for attention is logged and shown as its `progression`; resolve the cause, then
+resume it or restart the server. An Attempt whose completion observation fails
+unexpectedly is logged and not observed again until the server restarts;
+resume does not re-arm it, so restart is the remedy. If either service fails unexpectedly, the
+server logs it, stops and exits with status 1, so that a supervisor restarts it
+rather than it accepting work it would not process.
 
 ## Existing-target readiness
 
@@ -698,7 +776,9 @@ Initial PR dispatch and acknowledgement replay require current `GH_TOKEN`,
 `GATEWAY_API_KEY` and exactly
 `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1` in the caller's
 environment. Supply secrets through an appropriate secret source, never argv,
-tracked configuration or Docker environment. The fixed runtime is standard
+tracked configuration or a command's Docker environment; the
+[processing server](#processing-server) takes them from its own protected
+service environment. The fixed runtime is standard
 `software-change`, Codex / `gateway` / `gpt-5.6-sol` / medium.
 The GitHub identity needs repository/source access and native PR delivery
 permissions; broad credential privileges do not authorize broader effects.
@@ -755,7 +835,8 @@ Contract with the one built-in proposer
 ([reference](../docs/implementation/dotnet-contract-admission.md#bundled-proposer)).
 The callable `IssueSubmissionPreparer` (#116) runs it after capture, and the
 callable `SubmissionProgressor` (#117) calls that preparer with no caller
-connected. No host command runs any of them yet; #120 attaches them to the service. The proposer's profile
+connected. The [processing server](#processing-server) runs them for its
+lifetime (#120); no host command does. The proposer's profile
 is fixed, not configurable:
 
 | Setting | Value |
@@ -797,7 +878,7 @@ completed results; interrupted active native runs may become `RuntimeLost`.
 A fresh empty target at an old origin cannot recover them. Reconnect to the
 retained identity and inspect/consume its outcome; do not silently replace it.
 
-For a consistent filesystem backup, stop callers and quiesce/stop the native
+For a consistent filesystem backup, stop callers and the processing server, and quiesce/stop the native
 target with those interruption consequences understood. Preserve SQLite
 sidecars, absolute paths, mount/image/origin and account/native UID ownership.
 Restore within the same host boundary; do not run a restored authority copy
