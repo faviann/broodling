@@ -188,9 +188,10 @@ URL keeps returning its latest submission; revised work names its predecessor.
   whose bundle-bound Contract was admitted and has at least one Attempt. The
   identity is the digest-verified manifest with the bundle and submission IDs
   blanked (the manifest records no capture time), in which the retained GitHub
-  responses of the primary issue and of each referenced comment count only
-  through their work-defining fields: the issue's `title` and `body`, and each
-  comment's `body`. GitHub bookkeeping in those responses, such as
+  responses of the primary issue and of each referenced issue or comment count
+  only through their work-defining fields: an issue's `title` and `body`, and a
+  comment's `body`. Each reference's ID and selection still identify which
+  issue or comment was captured. GitHub bookkeeping in those responses, such as
   `updated_at`, `comments`, `reactions`, `labels`, `assignees`, `state`, and
   user or URL metadata, never makes a revision changed. Everything else is
   compared exactly: acquisition inputs (the primary issue locator), policy and

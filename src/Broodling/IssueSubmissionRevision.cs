@@ -98,9 +98,9 @@ public sealed partial class BroodlingStore
                     throw new IssueSubmissionConflict("The Issue submission can no longer be prepared.");
                 Execute("INSERT INTO issue_submission_unchanged VALUES ($p0, $p1, $p2, $p3, $p4)", transaction,
                     submission.SubmissionId, admitted.SubmissionId, admitted.ContractRevisionId,
-                    "This submission's work-defining request (the primary issue's title and body, referenced comments' bodies, "
-                    + "other references' content, starting commit and PR target) is identical to that of already-admitted "
-                    + $"Issue submission {admitted.SubmissionId} (Contract revision {admitted.ContractRevisionId}), so it is neither "
+                    "This submission's work-defining request (the primary and referenced issues' titles and bodies, "
+                    + "referenced comments' bodies, other references' content, starting commit and PR target) is identical to that "
+                    + $"of already-admitted Issue submission {admitted.SubmissionId} (Contract revision {admitted.ContractRevisionId}), so it is neither "
                     + "proposed nor executed again; that Contract and its Attempts carry the existing outcome. Another execution of "
                     + "unchanged authority uses the explicit replacement operation.", Now());
                 Execute("UPDATE issue_submissions SET state = 'unchanged' WHERE submission_id = $p0 AND state = 'capturing'",
@@ -114,8 +114,8 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// A completed bundle's digest-verified manifest with its own bundle and submission IDs blanked, and with the
-    /// retained GitHub responses of the primary issue and of each referenced comment reduced to their
-    /// work-defining fields: the issue's title and body, a comment's body. GitHub bookkeeping in those responses,
+    /// retained GitHub responses of the primary issue and of each referenced issue or comment reduced to their
+    /// work-defining fields: an issue's title and body, a comment's body. GitHub bookkeeping in those responses,
     /// such as <c>updated_at</c>, comment counts or reactions, therefore changes nothing. Every reference's
     /// selection and every other reference's content digest stay, as do the acquisition inputs, policy and
     /// limits, the starting revision and commit and the PR target branch. The manifest records no capture times.
@@ -134,8 +134,8 @@ public sealed partial class BroodlingStore
         var references = manifest.References.Select(reference =>
         {
             string[] fields = reference.ReferenceId == "primary" ? ["title", "body"]
-                : reference.ReferenceId.StartsWith("github:", StringComparison.Ordinal)
-                    && reference.ReferenceId.Contains("#issuecomment-", StringComparison.Ordinal) ? ["body"] : [];
+                : !reference.ReferenceId.StartsWith("github:", StringComparison.Ordinal) ? []
+                : reference.ReferenceId.Contains("#issuecomment-", StringComparison.Ordinal) ? ["body"] : ["title", "body"];
             if (fields.Length == 0 || reference.SourceId is not { } sourceId)
                 return reference;
             var source = ReadSource(sourceId, transaction);
