@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
@@ -65,8 +66,11 @@ internal static class HttpApi
             {
                 submission,
                 admission = submission.ContractRevisionId is { } revision ? store.Status(revision).Decision : null,
-                // Only what this process holds: a running operation, or the reason it waits or stopped.
-                progression = processing?.Progressor.Progress().SingleOrDefault(entry => entry.SubmissionId == submissionId),
+                // Only what this process holds: a running operation, or why it waits or stopped. The failure
+                // message can carry process or path detail, so only the server log keeps it.
+                progression = processing?.Progressor.Progress().SingleOrDefault(entry => entry.SubmissionId == submissionId) is { } entry
+                    ? new { entry.State, entry.Stage, entry.Code, entry.Retryable, entry.Failures, entry.RetryAt }
+                    : null,
                 observation = submission.AttemptIds.Count == 0 ? null : await Observe(store, submission.AttemptIds[^1])
             };
         }
@@ -102,36 +106,34 @@ internal static class HttpApi
         app.MapPost("/submissions", (SubmitRequest request) => Operate((store, _) =>
         {
             var submission = store.SubmitIssue(request.IssueUrl ?? "");
-            return Task.FromResult(Results.Json(new { submission }, Json, statusCode: 202)
-                .WithLocation($"/submissions/{submission.SubmissionId}"));
+            return Task.FromResult<IResult>(Results.Accepted($"/submissions/{submission.SubmissionId}", new { submission }));
         }));
         // The one progression owner continues the exact submission; ended or correlated work is handed back.
         app.MapPost("/submissions/{id}/resume", (string id) => Operate((store, service) =>
         {
             store.GetIssueSubmission(id);
             var resumed = service.Progressor.Resume(id);
-            var result = Results.Json(new { submission = store.GetIssueSubmission(id), resumed }, Json, statusCode: resumed ? 202 : 200);
-            return Task.FromResult(resumed ? result.WithLocation($"/submissions/{id}") : result);
+            var body = new { submission = store.GetIssueSubmission(id), resumed };
+            return Task.FromResult<IResult>(resumed ? Results.Accepted($"/submissions/{id}", body) : Results.Json(body, Json));
         }));
-        // Stops run to their own bounds whatever the caller does; only shutdown detaches them.
+        // Stops run to their own bounds whatever the caller does; only shutdown detaches them. Once the
+        // cancellation or abandonment commits, the answer reports it with whatever ended the native stop.
         var stopping = app.Lifetime.ApplicationStopping;
         app.MapPost("/submissions/{id}/stop", (string id, StopRequest request) => Operate(async (store, _) =>
         {
             if (string.IsNullOrWhiteSpace(request.Reason)) return ReasonRequired();
-            string? refusal = null;
+            Exception? failure = null;
             try { await store.CancelIssueSubmissionAsync(id, request.Reason, null, stopping); }
-            catch (BroodlingException stop) when (stop is not (UnknownRecord or StoreStateException or IssueSubmissionConflict))
-            {
-                refusal = stop.Code; // A native stop that followed the committed cancellation.
-            }
+            catch (Exception stop) { failure = stop; }
             var submission = store.GetIssueSubmission(id);
-            // Committed cancellation answers 200 even when the native stop that followed was refused or timed out.
+            var committed = submission.Cancellation is not null;
+            var refusal = StopRefusal(failure, committed);
             return Results.Json(new
             {
                 submission,
                 attempt = submission.Cancellation?.AttemptId is { } attemptId ? InvocationCommands.StopReport(store, attemptId, refusal) : null,
                 error = refusal
-            }, Json, statusCode: submission.Cancellation is null ? 409 : 200);
+            }, Json, statusCode: committed ? 200 : 409);
         }));
         app.MapPost("/attempts/{id}/stop", (string id, StopRequest request) => Operate(async (store, _) =>
         {
@@ -143,14 +145,30 @@ internal static class HttpApi
                     error = "python_required",
                     message = "Stopping a dispatched LocalTarget run requires the release artifact's stop command with its LocalTarget config.json. The Attempt was not abandoned."
                 }, Json, statusCode: 409);
-            string? refusal = null;
+            Exception? failure = null;
             try { await store.StopAsync(id, request.Reason, null, stopping); }
-            catch (BroodlingException stop) when (stop is not (UnknownRecord or StoreStateException)) { refusal = stop.Code; }
-            var attempt = store.GetAttempt(id);
-            // Committed abandonment answers 200 even when the native stop was refused or timed out.
-            return Results.Json(InvocationCommands.StopReport(store, id, refusal), Json,
-                statusCode: refusal is null || attempt.Abandonment is not null ? 200 : 409);
+            catch (Exception stop) { failure = stop; }
+            var committed = store.GetAttempt(id) is { Abandonment: not null } or { Retirement: not null };
+            return Results.Json(InvocationCommands.StopReport(store, id, StopRefusal(failure, committed)), Json,
+                statusCode: failure is null || committed ? 200 : 409);
         }));
+    }
+
+    /// <summary>
+    /// The safe code of what ended a stop, as the <c>stop</c> command reports it. With nothing committed, only an
+    /// application refusal is reported as one; any other failure is rethrown for the ordinary error answer.
+    /// </summary>
+    private static string? StopRefusal(Exception? failure, bool committed)
+    {
+        switch (failure)
+        {
+            case null: return null;
+            case BroodlingException refusal when committed || refusal is not (UnknownRecord or StoreStateException): return refusal.Code;
+            case OperationCanceledException when committed: return "caller_detached";
+            case not null when committed: return "stop_failed";
+        }
+        ExceptionDispatchInfo.Throw(failure);
+        return null;
     }
 
     /// <summary>
@@ -186,15 +204,4 @@ internal static class HttpApi
         error = "reason_required",
         message = "A stop names its reason. Nothing was changed."
     }, Json, statusCode: 400);
-
-    private static IResult WithLocation(this IResult result, string location) => new Located(result, location);
-
-    private sealed class Located(IResult result, string location) : IResult
-    {
-        public Task ExecuteAsync(HttpContext context)
-        {
-            context.Response.Headers.Location = location;
-            return result.ExecuteAsync(context);
-        }
-    }
 }

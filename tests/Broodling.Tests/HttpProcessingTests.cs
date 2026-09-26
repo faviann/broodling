@@ -74,6 +74,8 @@ public sealed class HttpProcessingTests
         JsonNode read = new JsonObject();
         await server.Until(() => (read = server.Get($"/submissions/{submissionId}"))["progression"]?["state"]?.GetValue<string>() == "stopped");
         await Assert.That((string)read["progression"]!["code"]!).IsEqualTo("contract_proposer_error");
+        // The failure message stays in the server log; it can carry process or path detail.
+        await Assert.That(read["progression"]!.AsObject().ContainsKey("message")).IsFalse();
         await Assert.That(read["submission"]!["contractRevisionId"]).IsNull();
         await Assert.That(read["observation"]).IsNull();
 
@@ -137,6 +139,9 @@ public sealed class HttpProcessingTests
         using var fixture = new HttpFixture();
         var native = fixture.PrepareAt(target.Origin, "correlated");
         var attemptId = fixture.Attempt.AttemptId;
+        // A submission for the same Contract, whose cancellation is bound to that Attempt.
+        var bound = fixture.Store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
+        fixture.Store.AssociateIssueSubmission(bound, fixture.Attempt.ContractRevisionId);
         var discovery = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         target.Discovery = () => discovery.Task;
         target.Reply = (request, id) => (string)request["method"]! switch
@@ -179,6 +184,16 @@ public sealed class HttpProcessingTests
         await Assert.That((string)report["error"]!).IsEqualTo("cessation_unconfirmed");
         await Assert.That((bool)report["quarantined"]!).IsTrue();
 
+        // Cancelling the submission binds and stops that exact Attempt; the committed cancellation answers 200 with
+        // the Attempt's stop report even though native cessation stays unconfirmed.
+        var withAttempt = await server.Client.PostAsJsonAsync($"/submissions/{bound}/stop", new { reason = "withdrawn" });
+        await Assert.That(withAttempt.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var boundStop = await Body(withAttempt);
+        await Assert.That((string)boundStop["submission"]!["cancellation"]!["attemptId"]!).IsEqualTo(attemptId);
+        await Assert.That((string)boundStop["attempt"]!["attempt"]!["attemptId"]!).IsEqualTo(attemptId);
+        await Assert.That((string)boundStop["attempt"]!["attempt"]!["abandonment"]!["reason"]!).IsEqualTo("operator stop");
+        await Assert.That((string)boundStop["error"]!).IsEqualTo("cessation_unconfirmed");
+
         // A submission with no Attempt is cancelled; resuming it hands back that retained fact.
         var pending = fixture.Store.SubmitIssue("https://github.com/acme/widget/issues/77").SubmissionId;
         var cancelled = await server.Client.PostAsJsonAsync($"/submissions/{pending}/stop", new { reason = "withdrawn" });
@@ -190,7 +205,7 @@ public sealed class HttpProcessingTests
         var handedBack = await server.Client.PostAsync($"/submissions/{pending}/resume", null);
         await Assert.That(handedBack.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await Assert.That((bool)(await Body(handedBack))["resumed"]!).IsFalse();
-        await Assert.That(target.Count("run/force")).IsEqualTo(2);
+        await Assert.That(target.Count("run/force")).IsEqualTo(3);
     }
 
     [Test]
