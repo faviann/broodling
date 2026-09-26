@@ -72,17 +72,18 @@ internal static class StoreSchema
             AND earlier.submission_sequence < successor.submission_sequence
         WHERE successor.contract_revision_id IS NOT NULL AND earlier.contract_revision_id IS NOT NULL
           AND earlier.contract_revision_id <> successor.contract_revision_id;
-        -- A later submission supersedes a Contract unless it is bound to that Contract or ended unchanged
-        -- with a link to it; a superseded Contract's Attempts are never replaced.
+        -- The Work Unit's latest submission supersedes a Contract unless it is bound to that Contract or
+        -- ended unchanged with a link to it; a superseded Contract's Attempts are never replaced.
         CREATE VIEW superseded_contracts AS
         SELECT DISTINCT bound.contract_revision_id AS contract_revision_id
         FROM issue_submissions AS bound
-        JOIN issue_submissions AS later ON later.work_unit_id = bound.work_unit_id
-            AND later.submission_sequence > bound.submission_sequence
+        JOIN issue_submissions AS latest ON latest.work_unit_id = bound.work_unit_id
+            AND latest.submission_sequence = (SELECT MAX(submission_sequence) FROM issue_submissions
+                WHERE work_unit_id = bound.work_unit_id)
         WHERE bound.contract_revision_id IS NOT NULL
-          AND later.contract_revision_id IS NOT bound.contract_revision_id
+          AND latest.contract_revision_id IS NOT bound.contract_revision_id
           AND NOT EXISTS (SELECT 1 FROM issue_submission_unchanged AS u
-              WHERE u.submission_id = later.submission_id AND u.contract_revision_id = bound.contract_revision_id);
+              WHERE u.submission_id = latest.submission_id AND u.contract_revision_id = bound.contract_revision_id);
 
         CREATE TABLE issue_submission_unchanged (
             submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),

@@ -199,10 +199,10 @@ URL keeps returning its latest submission; revised work names its predecessor.
   alone, admission and explicit replacement disregard the completions, and the
   retired or never-dispatched ended Attempts, of the Contracts preceding it.
   SQL enforces the same rule, and one current Attempt per Work Unit still
-  holds. Ordinary Work Units keep every completed- and ended-work guard. Once a
-  later submission supersedes a Contract (unless that submission ended
-  `unchanged` with a link to it), explicit replacement refuses that Contract's
-  Attempts, so only the latest authority can execute again.
+  holds. Ordinary Work Units keep every completed- and ended-work guard.
+  Explicit replacement refuses an Attempt of a Contract that the Work Unit's
+  latest submission supersedes: one neither bound to that Contract nor ended
+  `unchanged` with a link to it. Only the latest authority can execute again.
 - **Stops.** A cancellation stays bound to its first Attempt, and an Attempt
   stop to its exact Attempt, so replaying the predecessor's stops never reaches
   the successor.

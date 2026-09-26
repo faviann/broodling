@@ -88,9 +88,9 @@ Python's `sqlite3.Connection.iterdump` produced the dump.
 - #123 definition hash: `4b64e2c4fd607657311af55e19ee528be25904b127e564594caff69ea6e1ba01`.
 - #123 manifest hash: `3b1c6fa693cb4f4d01fea75f520bf26b56e052d88e685abf6c8a4fe8c56bc89f`.
 - #123 SQL fixture SHA-256: `31e75b81ad6db8aad30515fc0ea558ef6177906e3eebef5da879ed265b151b47`.
-- Current definition hash: `d476d4ec50c88dedfdf48dca2b5e23dd0b0f0de6a7b72b2e0d850931da99f8ed`.
-- Current manifest hash: `11530fe154fca91fd713f8a61c9404310b734cb6b850962524f78ba702c9e6f7`.
-- Current SQL fixture SHA-256: `7f87e98bf3cfcddabf1d2124ec59c139627f307f6c710974892f32fa8c0c8343`.
+- Current definition hash: `3a414aa75ea9dba6e051cc4a6eb68b49059b9f7c1c29f56d10d3744b3b06d799`.
+- Current manifest hash: `1732a43b3b5a9e7f8a2738cc8071cd7baf16d68636ce80b06d5839112f0e53eb`.
+- Current SQL fixture SHA-256: `7b5684de2a1f0c6204411f967bd843104a5ad481d57b58e0336950135757741e`.
 
 # Other fixtures
 

@@ -262,8 +262,8 @@ Attempts, of the Contracts preceding it, in the application and in SQL. A failed
 Attempt of a later revision can therefore be replaced after an earlier revision
 succeeded; every other Work Unit keeps these guards unchanged. Conversely, the
 application and `retry_requires_retirement` refuse to replace an Attempt whose
-Contract a later submission supersedes, unless that submission ended `unchanged`
-with a link to the Contract.
+Contract the Work Unit's latest submission supersedes: that submission is neither
+bound to the Contract nor ended `unchanged` with a link to it.
 
 ## Evidence and limits
 

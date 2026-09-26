@@ -64,7 +64,7 @@ public sealed partial class BroodlingStore
         using (var superseded = Command("SELECT 1 FROM superseded_contracts WHERE contract_revision_id = $p0",
             transaction, predecessor.ContractRevisionId))
             if (superseded.ExecuteScalar() is not null)
-                throw new AttemptConflict("A later revision supersedes this Attempt's Contract; it is not replaced.");
+                throw new AttemptConflict("The Work Unit's latest submission supersedes this Attempt's Contract; it is not replaced.");
         RequireBundleAuthority(contract, transaction);
         if (predecessor.Abandonment is null || ReadRetirement(predecessorId, transaction) is not { RetiredAt: not null } retirement)
             throw new AttemptAdmissionError("Replacement requires abandonment and completed retirement.");

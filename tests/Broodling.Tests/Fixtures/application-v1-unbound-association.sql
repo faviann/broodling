@@ -213,7 +213,7 @@ CREATE TABLE store_metadata (
     manifest_hash TEXT NOT NULL,
     initialized_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'d476d4ec50c88dedfdf48dca2b5e23dd0b0f0de6a7b72b2e0d850931da99f8ed','11530fe154fca91fd713f8a61c9404310b734cb6b850962524f78ba702c9e6f7','2026-09-25T18:54:16.6525981+00:00');
+INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'3a414aa75ea9dba6e051cc4a6eb68b49059b9f7c1c29f56d10d3744b3b06d799','1732a43b3b5a9e7f8a2738cc8071cd7baf16d68636ce80b06d5839112f0e53eb','2026-09-25T18:54:16.6525981+00:00');
 CREATE TABLE work_submissions (
     submission_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -718,10 +718,11 @@ BEGIN SELECT RAISE(ABORT, 'An unchanged Issue submission never acquires Contract
 CREATE VIEW superseded_contracts AS
 SELECT DISTINCT bound.contract_revision_id AS contract_revision_id
 FROM issue_submissions AS bound
-JOIN issue_submissions AS later ON later.work_unit_id = bound.work_unit_id
-    AND later.submission_sequence > bound.submission_sequence
+JOIN issue_submissions AS latest ON latest.work_unit_id = bound.work_unit_id
+    AND latest.submission_sequence = (SELECT MAX(submission_sequence) FROM issue_submissions
+        WHERE work_unit_id = bound.work_unit_id)
 WHERE bound.contract_revision_id IS NOT NULL
-  AND later.contract_revision_id IS NOT bound.contract_revision_id
+  AND latest.contract_revision_id IS NOT bound.contract_revision_id
   AND NOT EXISTS (SELECT 1 FROM issue_submission_unchanged AS u
-      WHERE u.submission_id = later.submission_id AND u.contract_revision_id = bound.contract_revision_id);
+      WHERE u.submission_id = latest.submission_id AND u.contract_revision_id = bound.contract_revision_id);
 COMMIT;

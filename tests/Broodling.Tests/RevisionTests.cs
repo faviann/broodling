@@ -114,7 +114,12 @@ public sealed class RevisionTests
         await revisions.Prepare(first);
         var admitted = store.GetIssueSubmission(first);
         store.AbandonAttempt(store.AdmitHttpAttempt(first).AttemptId, "Never dispatched.");
-        var second = store.ReviseIssueSubmission(first).SubmissionId;
+        // An intermediate revision is refused before any Contract; the next one restores the admitted inputs.
+        revisions.Fixture.SetIssue(12, "## Request\nNo marked request.\n");
+        var refused = store.ReviseIssueSubmission(first).SubmissionId;
+        await Assert.That(await revisions.Prepare(refused)).IsTypeOf<IssueSubmissionPreparation.CaptureRefused>();
+        revisions.Fixture.SetIssue(12, RequestAdmissionTests.Request());
+        var second = store.ReviseIssueSubmission(refused).SubmissionId;
 
         var ended = (IssueSubmissionPreparation.Unchanged)await revisions.Prepare(second);
         var unchanged = store.GetIssueSubmission(second);
@@ -133,7 +138,8 @@ public sealed class RevisionTests
         await Assert.That(revisions.Gateway.Contexts.Count).IsEqualTo(1);
         await Assert.That(revisions.Fixture.ReadGhPaths().Length).IsEqualTo(reads);
         await Assert.That(store.UnfinishedSubmissions()).IsEmpty();
-        // As its explanation says, the linked authority can still execute again through explicit replacement.
+        // As its explanation says, the linked authority can still execute again through explicit replacement:
+        // only the latest submission decides supersession, not the refused one before it.
         var original = store.GetAttempt(store.GetIssueSubmission(first).AttemptIds.Single());
         await ReplacementTests.SafeRetire(store, original);
         store.AbandonAttempt(store.AdmitRetry(original.AttemptId, "rerun").AttemptId, "Revise instead.");
