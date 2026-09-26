@@ -91,18 +91,7 @@ public static class InvocationCommands
                     refusal = exception is BroodlingException known ? known.Code : exception is OperationCanceledException ? "caller_detached" : "stop_failed";
                     exitCode = exception is OperationCanceledException ? 130 : 1;
                 }
-                var attempt = store.GetAttempt(args[2]);
-                var submission = store.FindSubmission(args[2]);
-                output.WriteLine(JsonSerializer.Serialize(new
-                {
-                    attempt,
-                    submission = Summary(submission),
-                    quarantined = submission is { State: not "prepared" } && attempt.Retirement is null, error = refusal,
-                    message = attempt.Retirement is { Basis: "stopped_target" } ? "Attempt retired under verified stopped-target maintenance."
-                        : attempt.Abandonment is null ? "Stop refused; inspect retained authority."
-                        : attempt.Retirement is null ? "Attempt abandoned. Cessation unconfirmed; retain its resources and use operator containment. No automatic retry."
-                        : "Attempt abandoned with retained safe cessation proof. Retirement and replacement remain explicit operations."
-                }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                output.WriteLine(JsonSerializer.Serialize(StopReport(store, args[2], refusal), Json));
                 return exitCode;
             }
             AdmissionStatus status;
@@ -147,6 +136,26 @@ public static class InvocationCommands
         var handback = JsonSerializer.SerializeToNode(status, Json)!.AsObject();
         handback["submissions"] = JsonSerializer.SerializeToNode(status.Submissions.Select(Summary), Json);
         output.WriteLine(handback.ToJsonString());
+    }
+
+    /// <summary>
+    /// What an exact stop committed, told apart from what it observed: abandonment or retirement, the native
+    /// submission's status facts, quarantine, and the refusal that ended the stop, if any.
+    /// </summary>
+    internal static object StopReport(BroodlingStore store, string attemptId, string? refusal)
+    {
+        var attempt = store.GetAttempt(attemptId);
+        var submission = store.FindSubmission(attemptId);
+        return new
+        {
+            attempt,
+            submission = Summary(submission),
+            quarantined = submission is { State: not "prepared" } && attempt.Retirement is null, error = refusal,
+            message = attempt.Retirement is { Basis: "stopped_target" } ? "Attempt retired under verified stopped-target maintenance."
+                : attempt.Abandonment is null ? "Stop refused; inspect retained authority."
+                : attempt.Retirement is null ? "Attempt abandoned. Cessation unconfirmed; retain its resources and use operator containment. No automatic retry."
+                : "Attempt abandoned with retained safe cessation proof. Retirement and replacement remain explicit operations."
+        };
     }
 
     private static object? Summary(NativeSubmission? submission) => submission is null ? null : new

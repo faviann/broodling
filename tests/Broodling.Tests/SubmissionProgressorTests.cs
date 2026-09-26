@@ -47,8 +47,10 @@ public sealed class SubmissionProgressorTests
         var attemptId = store.GetIssueSubmission(submissionId).AttemptIds.Single();
         // While progression waits on the target, the same process answers reads and another session can write.
         await Assert.That((await client.GetAsync("/health").WaitAsync(Bound)).StatusCode).IsEqualTo(HttpStatusCode.OK);
-        var read = JsonNode.Parse(await (await client.GetAsync($"/submissions/{submissionId}").WaitAsync(Bound)).Content.ReadAsStringAsync())!;
-        await Assert.That((string)read["state"]!).IsEqualTo("admitted");
+        // The issue history is retained state only; a submission read would also observe the target.
+        var read = JsonNode.Parse(await (await client.GetAsync("/issues?url=https%3A%2F%2Fgithub.com%2Facme%2Fwidget%2Fissues%2F12")
+            .WaitAsync(Bound)).Content.ReadAsStringAsync())!;
+        await Assert.That((string)read["submissions"]![0]!["state"]!).IsEqualTo("admitted");
         using (var writer = fixture.State.Connect())
         using (var transaction = writer.BeginTransaction(deferred: false))
             transaction.Rollback();

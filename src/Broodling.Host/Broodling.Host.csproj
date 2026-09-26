@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Broodling\Broodling.csproj" />
+    <InternalsVisibleTo Include="Broodling.Tests" />
   </ItemGroup>
 
   <ItemGroup>

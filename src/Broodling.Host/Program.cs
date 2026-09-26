@@ -25,11 +25,15 @@ catch (Exception exception) when (exception is Broodling.BroodlingException or I
     // Never echo raw exception text or paths.
     Console.Error.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
     {
-        error = exception is Broodling.BroodlingException known ? known.Code : "store_operation_failed",
-        message = "Server startup refused. Configure Broodling:Store as existing initialized state; nothing was created or replaced."
+        error = exception is Broodling.BroodlingException known ? known.Code : "startup_failed",
+        message = "Server startup refused. Configure Broodling:Store as existing initialized state and, to process submissions, "
+            + "Broodling:Invocation, an existing Broodling:RepositoryRoot and current credentials; nothing was created or replaced."
     }));
     return 1;
 }
 
+// Run disposes the host's services when it returns.
+var processing = app.Services.GetService<Broodling.Host.Processing>();
 app.Run();
-return 0;
+// A processing service that failed unexpectedly stopped the server; exit unsuccessfully for the supervisor.
+return processing?.Failed == true ? 1 : 0;
