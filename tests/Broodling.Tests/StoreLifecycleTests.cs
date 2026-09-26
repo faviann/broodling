@@ -46,6 +46,41 @@ public sealed class StoreLifecycleTests
         await Assert.That(Files()).IsEqualTo(before);
     }
 
+    [Test]
+    public async Task CurrentStateOpensWhileAnotherSessionWritesAndCheckpoints()
+    {
+        using var fixture = new StoreFixture();
+        using (fixture.Initialize()) { }
+        using var stop = new CancellationTokenSource();
+        var writer = Task.Run(() =>
+        {
+            using var store = fixture.Open();
+            using var checkpoint = fixture.Connect();
+            using var command = checkpoint.CreateCommand();
+            command.CommandText = "PRAGMA wal_checkpoint(PASSIVE)";
+            // Frequent writes, each checkpointed into the main file as the last session to close would.
+            for (var issue = 1; !stop.IsCancellationRequested; issue++)
+            {
+                store.SubmitIssue("https://github.com/acme/widget/issues/" + issue);
+                command.ExecuteNonQuery();
+                Thread.Sleep(5);
+            }
+        });
+        int[] refusals;
+        try
+        {
+            refusals = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+                Enumerable.Range(0, 25).Count(_ => RefusalCode(() => fixture.Open()) is not null))));
+        }
+        finally
+        {
+            stop.Cancel();
+            await writer;
+        }
+
+        await Assert.That(refusals.Sum()).IsEqualTo(0);
+    }
+
     private static string? RefusalCode(Func<BroodlingStore> operation)
     {
         try

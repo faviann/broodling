@@ -100,11 +100,31 @@ public sealed partial class BroodlingStore : IDisposable
     /// Refuse unsupported state before the read-write open, which can replay a hot
     /// journal or checkpoint a WAL into the main file. The immutable SQLite URI reads
     /// the main file without locks, journal or WAL. It reads only the identity row:
-    /// initialization commits it before enabling WAL and nothing rewrites it, so
-    /// concurrent writes and checkpoints of a current store cannot make it spuriously
-    /// refuse. Everything else is checked on the read-write connection.
+    /// initialization commits it before enabling WAL and nothing rewrites it.
+    /// Everything else is checked on the read-write connection.
     /// </summary>
     private static void RequireSupportedIdentity(string target)
+    {
+        // Without locks, a read can overlap a checkpoint that is rewriting main-file pages, so a
+        // current store can read as malformed or without its row for a moment. The row itself
+        // never changes: foreign or pre-transition state fails every attempt, while a read
+        // torn by a checkpoint passes on a later one.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                if (HasSupportedIdentity(target)) return;
+                if (attempt == IdentityAttempts) throw new StoreStateException("incompatible_store", UnsupportedStore);
+            }
+            catch (SqliteException) when (attempt < IdentityAttempts) { }
+            Thread.Sleep(IdentityRetryDelay);
+        }
+    }
+
+    private const int IdentityAttempts = 10;
+    private static readonly TimeSpan IdentityRetryDelay = TimeSpan.FromMilliseconds(10);
+
+    private static bool HasSupportedIdentity(string target)
     {
         using var probe = new SqliteConnection(new SqliteConnectionStringBuilder
         {
@@ -116,11 +136,10 @@ public sealed partial class BroodlingStore : IDisposable
         using var command = probe.CreateCommand();
         command.CommandText = "SELECT format, version, definition_hash FROM store_metadata WHERE singleton = 1";
         using var reader = command.ExecuteReader();
-        if (!reader.Read()
-            || reader.GetValue(0) is not string format || format != StoreSchema.Format
-            || reader.GetValue(1) is not long version || version != StoreSchema.Version
-            || reader.GetValue(2) is not string definition || definition != StoreSchema.DefinitionHash)
-            throw new StoreStateException("incompatible_store", UnsupportedStore);
+        return reader.Read()
+            && reader.GetValue(0) is string format && format == StoreSchema.Format
+            && reader.GetValue(1) is long version && version == StoreSchema.Version
+            && reader.GetValue(2) is string definition && definition == StoreSchema.DefinitionHash;
     }
 
     /// <summary>
