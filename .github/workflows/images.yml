@@ -1,7 +1,9 @@
 # Builds the Broodling and DirectTarget images, demonstrates them together in a disposable ADR 0001
-# stack, then publishes exactly those images to GHCR with a release record. Every push publishes
-# immutable sha-<commit> candidates; a v* tag publishes that version. Fork pull requests only
-# build and demonstrate; same-repository pull requests are covered by the push run of their head.
+# stack, checks that the DirectTarget image serves native state written by each published target
+# image listed in deployment/native-state-transitions.json, then publishes exactly those images to
+# GHCR with a release record. Every push publishes immutable sha-<commit> candidates; a v* tag
+# publishes that version. Fork pull requests only build and check; same-repository pull requests
+# are covered by the push run of their head.
 name: Images
 
 on:
@@ -28,7 +30,8 @@ jobs:
       REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # The host runs the image's own check-target, as an operator with Docker access would.
+      # The host runs the image's own check-target, as an operator with Docker access would, and the
+      # transition check from the test suite.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
@@ -40,6 +43,12 @@ jobs:
 
       - name: Demonstrate the images in ADR 0001's topology
         run: tests/images/demonstrate.sh broodling:candidate broodling-target:candidate "$RUNNER_TEMP/facts.json"
+
+      # The release record states these transitions only for the target image checked here.
+      - name: Check native-state transitions from the listed published target images
+        env:
+          BROODLING_TEST_TARGET_IMAGE: broodling-target:candidate
+        run: dotnet test --project tests/Broodling.Tests/Broodling.Tests.csproj --treenode-filter '/*/*/TargetImageTransitionTests/*'
 
       - name: Publish to GHCR
         if: github.event_name == 'push'
@@ -71,6 +80,7 @@ jobs:
             --arg broodling "${published[broodling]}" --arg target "${published[broodling-target]}" \
             --slurpfile facts "$RUNNER_TEMP/facts.json" \
             --slurpfile approval src/Broodling/execution-assets/approval.json \
+            --slurpfile transitions deployment/native-state-transitions.json \
             --rawfile caddyfile deployment/zeroshot-tls.Caddyfile \
             --arg caddyfileSha256 "$(sha256sum deployment/zeroshot-tls.Caddyfile | cut -d ' ' -f 1)" \
             '$facts[0] as $facts | $approval[0] as $approval | {
@@ -81,6 +91,7 @@ jobs:
               images: {broodling: $broodling, zeroshot: $target, "zeroshot-tls": $facts.zeroshotTlsImage},
               application: {storeFormat: $facts.storeFormat, storeSchemaVersion: $facts.storeSchemaVersion},
               executionAsset: {sha256: $approval.asset.sha256, native: $approval.native},
+              nativeStateTransitions: {to: $target, from: $transitions[0].from},
               zeroshotTls: {user: "10443:10443", caddyfile: {path: "deployment/zeroshot-tls.Caddyfile", sha256: $caddyfileSha256, content: $caddyfile}},
               demonstration: $facts.readiness
             }' > release-record.json
