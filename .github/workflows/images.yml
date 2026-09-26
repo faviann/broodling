@@ -46,23 +46,57 @@ jobs:
 
       # A version publishes only an application schema frozen in deployment/application-schemas.json,
       # identified by the image's own initialize-store output; branch candidates may carry an unfrozen one.
+      # The records on earlier v* releases are the immutable authority: the list must keep every released
+      # identity, and a released version's definition never changes.
       - name: Require a frozen application schema for a version
         if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          jq --exit-status --slurpfile facts "$RUNNER_TEMP/facts.json" '$facts[0] as $image | .format == $image.storeFormat
-            and any(.frozen[]; .schemaVersion == $image.storeSchemaVersion and .definitionSha256 == $image.storeDefinitionSha256)' \
-            deployment/application-schemas.json >/dev/null \
-            || { echo "::error::The image's application schema is not frozen in deployment/application-schemas.json; nothing was published."; exit 1; }
+          set -euo pipefail
+          released="$RUNNER_TEMP/released"
+          mkdir -p "$released"
+          # Any failure to list or download a record refuses publication.
+          tags="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 1000 --json tagName --jq '.[].tagName')"
+          count=0
+          for tag in $tags; do
+            [[ $tag == v* && $tag != "$GITHUB_REF_NAME" ]] || continue
+            count=$((count + 1))
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern release-record.json --output "$released/$count.json"
+          done
+          shopt -s nullglob
+          records=("$released"/*.json)
+          jq -n '[inputs | .application]' "${records[@]}" </dev/null >"$RUNNER_TEMP/released.json"
+          problems="$(jq -r -n --slurpfile facts "$RUNNER_TEMP/facts.json" --slurpfile list deployment/application-schemas.json \
+            --slurpfile released "$RUNNER_TEMP/released.json" '
+            def identity: {storeFormat, storeSchemaVersion, storeDefinitionSha256};
+            ($facts[0] | identity) as $image | $list[0] as $list | ($released[0] | map(identity)) as $released
+            | ($list.frozen | map({storeFormat: $list.format, storeSchemaVersion: .schemaVersion,
+                storeDefinitionSha256: .definitionSha256})) as $frozen
+            | (if ($frozen | map(.storeSchemaVersion) | length) != ($frozen | map(.storeSchemaVersion) | unique | length)
+                then "deployment/application-schemas.json freezes a schema version more than once" else empty end),
+              (if any($frozen[]; . == $image) then empty
+                else "the image schema \($image | tojson) is not frozen in deployment/application-schemas.json" end),
+              ($released[] | select(.storeFormat == $image.storeFormat and .storeSchemaVersion == $image.storeSchemaVersion
+                and .storeDefinitionSha256 != $image.storeDefinitionSha256)
+                | "a released version has schema version \(.storeSchemaVersion) with definition \(.storeDefinitionSha256)"),
+              ($released[] | select(. as $identity | any($frozen[]; . == $identity) | not)
+                | "the released schema \(tojson) is missing from deployment/application-schemas.json")')"
+          if [[ -n $problems ]]; then
+            while IFS= read -r problem; do echo "::error::$problem; nothing was published."; done <<<"$problems"
+            exit 1
+          fi
 
-      # The release record states these transitions only for the target image checked here.
-      - name: Check native-state transitions from the listed published target images
+      # The release record states these transitions only for the target image checked here. The frozen
+      # application schemas are checked against this revision's code on every push.
+      - name: Check native-state transitions from the listed published target images and the frozen schemas
         env:
           BROODLING_TEST_TARGET_IMAGE: broodling-target:candidate
         run: |
           # The runner configures Git LFS filters, a checkout transformation Broodling refuses in custody.
           sudo git config --system --remove-section filter.lfs || :
           git config --global --remove-section filter.lfs || :
-          dotnet test --project tests/Broodling.Tests/Broodling.Tests.csproj --treenode-filter '/*/*/TargetImageTransitionTests/*'
+          dotnet test --project tests/Broodling.Tests/Broodling.Tests.csproj --treenode-filter '/*/*/(TargetImageTransitionTests)|(ApplicationSchemaFreezeTests)/*'
 
       - name: Publish to GHCR
         if: github.event_name == 'push'

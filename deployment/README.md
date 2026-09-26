@@ -245,8 +245,9 @@ read-only public root.
 
 The [images workflow](../.github/workflows/images.yml) runs for every push. It
 builds both images, runs the [image demonstration](../tests/README.md#image-demonstration)
-on them and the [native-state transition check](../tests/README.md#native-state-transition-check)
-on the target image, and then publishes exactly those images to GHCR:
+on them, the [native-state transition check](../tests/README.md#native-state-transition-check)
+on the target image and `ApplicationSchemaFreezeTests`, and then publishes
+exactly those images to GHCR:
 
 - A branch push publishes `sha-<full commit>` candidates, so a pull request's
   head is published before merge.
@@ -256,7 +257,7 @@ on the target image, and then publishes exactly those images to GHCR:
   workflow's release creation then fails after the images were pushed. A tag
   publishes nothing unless the Broodling image's application schema is frozen
   (see [application schema compatibility](#application-schema-compatibility)).
-- Pull requests from forks only build, demonstrate and run the transition check.
+- Pull requests from forks only build, demonstrate and run the checks.
 
 Published tags are never moved: a run refuses to publish over an existing tag,
 and a re-run of a published commit therefore fails at publication. Select images
@@ -391,14 +392,26 @@ and that identity's documented reason in `reason`; any other store is refused wi
 
 [`application-schemas.json`](application-schemas.json) freezes each released
 identity of the `broodling.application` format by `schemaVersion` and
-`definitionSha256`. A `v*` tag publishes only a Broodling image whose reported
-identity is frozen there; `sha-` candidates may carry an unfrozen one. Once a
-version is frozen its definition never changes: any later schema change
-increments the version, and every older frozen version needs an explicit
-`upgrade-store` disposition in `StoreSchema`, either an upgrade listed in
-`UpgradesFrom` or a refusal in `Refused` whose reason is documented here.
-`ApplicationSchemaFreezeTests` fails otherwise. No version is frozen yet, so no
-refusal reason exists.
+`definitionSha256`. Once a version is frozen its definition never changes: any
+later schema change increments the version. The images workflow enforces this
+before it pushes any image:
+
+- On every push, `ApplicationSchemaFreezeTests` compares this revision's code
+  with the list. The current version must not be below a frozen one, a frozen
+  current version must have the current definition, and every older frozen
+  version needs an explicit `upgrade-store` disposition in `StoreSchema`: an
+  upgrade listed in `UpgradesFrom` or a refusal in `Refused` whose reason is
+  documented here.
+- On a `v*` tag, the image's reported identity must be in the list, and the
+  list must freeze each version at most once. The records attached to earlier
+  `v*` releases, not the editable list, are the authority for what was
+  released: the list must still contain each of their `application`
+  identities, and none of them may have the image's format and version with
+  another definition. A failure to list those releases or download a record
+  also refuses publication.
+
+`sha-` candidates may carry an unfrozen identity. No version is frozen yet, so
+no refusal reason exists.
 
 The first `v*` version freezes schema version 1. Before tagging it, take
 `application.storeDefinitionSha256` from the release record of the `sha-`
