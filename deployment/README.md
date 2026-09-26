@@ -268,20 +268,90 @@ contains:
   initializes, which is the application schema it supports;
 - `executionAsset`: the approved asset SHA-256 and its native pins from the
   approval manifest;
+- `nativeStateTransitions`: `to`, the published `images.zeroshot`, and `from`,
+  the published target images listed in
+  [`native-state-transitions.json`](native-state-transitions.json) at that
+  revision, each with its source revision and native version and executable
+  SHA-256 (see [native-state transitions](#native-state-transitions));
 - `demonstration`: the native, Codex, Node and gh versions and the other
   dependency facts that `check-target` observed in the demonstration.
 
 A record states that these two images passed the demonstration together at that
-revision. It is not a compatibility registry, and the two images need not share
-a version. It establishes neither upgrade compatibility with existing state
-(#125) nor supported-profile readiness (#126). An operator records a deployed
-target's image ID from `docker inspect` of the running container in the
-readiness inventory.
+revision, and that its target image passed the transition check from each listed
+source. It is not a compatibility registry, and the two images need not share a
+version. It does not establish supported-profile readiness (#126). An operator
+records a deployed target's image ID from `docker inspect` of the running
+container in the readiness inventory.
 
 The first publication created the `broodling` and `broodling-target` packages
 linked to this repository and, like it, public: anonymous pulls by digest work.
 Visibility is an operator setting in each package's settings; the workflow
 never changes it. Keep both packages readable by the installation host.
+
+### Native-state transitions
+
+An update may change the `zeroshot` image only by an established transition. A
+release establishes exactly these:
+
+- from each published target image listed in its revision's
+  [`native-state-transitions.json`](native-state-transitions.json) to its
+  record's `images.zeroshot`;
+- keeping the deployed target image, which changes no native state.
+
+No `v*` version has been tagged, so the list holds published `sha-` candidates,
+not versions: the two target images published from `main` since #121,
+`sha-ae6fe2baa1beffe083683bddb6ce8cced5eecfc9`
+(`@sha256:48055a75977cf85c95739abae4b6b9c348fd3f191509f6b8d596c55bbc854dc5`) and
+`sha-47b4e4b86b1f6ca9af9a1dafae8f34ccc6e4980a`
+(`@sha256:a17d56177d3794eaf19bf22f2040b5b41cac3faf28f52cf08dd43da79a5d645f`).
+Each listed image and this revision's image carry native `zeroshot 10.3.0`,
+executable SHA-256
+`afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06`, so every
+established transition keeps that native version. No transition to or from
+another native version, and none from an unlisted image, is established. Adding
+a published image to the list is a reviewed change that the next workflow run
+checks.
+
+Before publishing, the images workflow runs the
+[transition check](../tests/README.md#native-state-transition-check) from every
+listed source to the candidate target image; if one fails, nothing is published.
+The host update procedure owns refusing any other selection. It needs:
+
+- The deployed `zeroshot` image, selected by digest, to be a listed source, or
+  to equal the new record's `images.zeroshot`.
+- The installation pause, drained execution with its results captured, and
+  `zeroshot` stopped for the swap. The check covers finished runs and a
+  submission that the source image recorded without acknowledging; a run still
+  active at the swap may become `RuntimeLost`, as on any restart.
+- The same host directories, unchanged, at `/state` and `/home/node`, and the
+  same public root read-only at `/tls-root`.
+- The same arguments without `initialize`: `--listen 0.0.0.0:18770
+  --public-origin` with the recorded origin, and `--storage /state`. Ordinary
+  startup of the new image refuses unrecognized state or a different origin;
+  never initialize over existing state.
+- Unchanged container root with Docker's default capabilities, the `zeroshot`
+  alias, `zeroshot-tls` and its root, and Broodling's `directOrigin` and
+  `directRootCertificate`: retained Attempts reconnect to their retained origin.
+- Native UID ownership preserved: no recursive ownership change.
+- Afterwards, `check-target` with the inventory's `imageId` updated to the new
+  image.
+
+Rollback is not a reverse transition: restore the pre-update snapshot with the
+prior image. Running a prior image over state that a newer image served is not
+established.
+
+The application schema is separate. The record's `application` names the store
+format and schema version its Broodling image supports. Apply it explicitly with
+that image's `upgrade-store` against the stopped application's store, for
+example `docker compose run --rm --no-deps broodling upgrade-store /var/lib/broodling/state.sqlite3`.
+It accepts a store of exactly its current definition unchanged and refuses
+anything else without change (`StoreLifecycleTests`,
+[state lifecycle](../docs/implementation/dotnet-identity-custody.md)); a refusal
+means that selection is unsupported. Until the first `v*` version the version-1
+definition is still edited in place, so `sha-` candidates with the same
+`storeSchemaVersion` need not accept each other's stores. For example, after
+#123 the `sha-47b4e4b…` Broodling image refuses a store that the `sha-ae6fe2b…`
+image initialized with `incompatible_store`.
 
 ## State and operator commands
 
@@ -702,7 +772,8 @@ the gateway.
 
 Keep the authoritative SQLite store/sidecars, original source common Git and
 B1 objects, Attempt enclosures/worktrees, runtime state, native target state/home,
-exact target image/origin, release/dependency environment and operator inventory
+exact target image (changed only by an [established transition](#native-state-transitions))
+and origin, release/dependency environment and operator inventory
 at their retained paths. Protect native session state and private content as
 sensitive. Retain exact accepted Git objects and full receipts for independent
 review; moving PR branch tips are insufficient.

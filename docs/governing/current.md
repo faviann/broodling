@@ -150,7 +150,11 @@ initialization through the HTTPS origin and readiness of that stack. #121 builds
 the non-root Broodling image and the DirectTarget image, demonstrates them
 together in a disposable instance of that topology and publishes them to GHCR
 with a release record of digests, pins and the supported store schema
-([images](../../deployment/README.md#images)). The Compose installation
+([images](../../deployment/README.md#images)). #125 checks before each publication
+that the target image serves native state written by each listed published
+target image, and records those
+[established transitions](../../deployment/README.md#native-state-transitions);
+all keep native 10.3.0. The Compose installation
 (homelab-iac#353) remains open. #113 serves retained
 work and frozen references over read-only HTTP from the ASP.NET host, opening
 existing state only. #118 adds a callable completion observer that retains
