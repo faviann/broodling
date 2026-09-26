@@ -225,7 +225,8 @@ It then demonstrates verified maintenance of a processing-server Attempt (#205):
   server itself captures, proposes, admits and dispatches a posted issue URL to
   a correlated Attempt whose B1 custody is recorded as
   `/var/lib/broodling/repositories/acme/widget.git`. A forge hold keeps the
-  target's worker waiting until the server's stop route abandons the Attempt.
+  target's worker waiting, so the run is active until it is stopped; the
+  server's stop route then abandons the Attempt.
 - Maintenance, from [compose.yaml](images/compose.yaml) alone, so the unchanged
   image as `1654:1654` with only its state and the public root mounted and no
   credentials or peers: `pause-installation`; `broodling` and `zeroshot` stop,

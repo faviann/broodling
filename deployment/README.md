@@ -184,9 +184,14 @@ as PID 1.
   retires and replaces an Attempt that the image's processing server created.
   The prepared successor currently has no supported dispatch path: automatic
   progression never selects a Replacement Attempt, the server's resume route
-  never continues one, and the release artifact's `resume` cannot reach its
-  container-path custody. It stays current, holding its Work Unit, until it is
-  stopped. Dispatching it is [#210](https://github.com/faviann/broodling/issues/210).
+  never continues one, and the release artifact's `resume` would need the
+  container-path custody on the host, which is not supported. Dispatching it is
+  [#210](https://github.com/faviann/broodling/issues/210). Until then, replacing
+  leaves a current successor that nothing dispatches, and stopping it ends
+  replacement of that Work Unit's unchanged work: the stopped successor is never
+  acknowledged as retired, the predecessor already has its one successor, and a
+  revision with unchanged inputs ends `unchanged`. `retire-attempt` alone keeps
+  those options open.
 - CLI Attempts stay release-artifact-only. The invocation commands (`submit`,
   `resume`, `wait`, `stop`) are not supported in the image, and
   `retire-attempt` and `replace-attempt` for an Attempt that `submit` created run
