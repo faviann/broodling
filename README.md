@@ -52,14 +52,16 @@ Application behavior is callable without HTTP. Follow the seam you need:
 | Safe never-dispatched retirement and explicit replacement | [Lifecycle](docs/implementation/dotnet-retirement-replacement.md) |
 | Inspect an existing selected DirectTarget | [Target readiness](docs/implementation/dotnet-target-readiness.md) |
 
-The ASP.NET host serves retained work and frozen references over read-only HTTP
-from existing state. The bundled Contract proposer and exact-submission
+The ASP.NET host serves retained work, frozen references and bounded native
+progress over HTTP from existing state. With its
+[processing configuration](deployment/README.md#processing-server) it also
+accepts URL-only Issue submissions and resumes and stops exact work, while
+automatic progression through
 [preparation](docs/implementation/dotnet-contract-admission.md#issue-submission-preparation)
-are callable only ([configuration](deployment/README.md#bundled-contract-proposer)).
-The host runs no #100 submission intake, pre-Contract preparation, automatic
-progression or automatic completion capture. Scheduling, backlog selection,
-Compose deployment, maintenance and retention automation remain separately
-scoped work.
+and the bundled proposer to dispatch, and automatic completion capture, run for
+its lifetime ([HTTP service](docs/implementation/invocation.md#http-service)).
+Scheduling, backlog selection, Compose deployment, maintenance and retention
+automation remain separately scoped work.
 
 ## Native boundary and limitations
 

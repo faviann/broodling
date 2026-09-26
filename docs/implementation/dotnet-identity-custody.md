@@ -184,7 +184,7 @@ dotnet test --solution Broodling.sln
 
 The two commands compose the application API, emit JSON on success, and return
 nonzero with a stable safe error code on failure. They do not start HTTP or
-install/deploy anything. Ordinary host startup serves only read-only HTTP; see the
+install/deploy anything. Ordinary host startup serves HTTP over existing state; see the
 [release guide](../../deployment/README.md).
 
 TUnit tests use real SQLite for canonical replay/reopen, per-component
