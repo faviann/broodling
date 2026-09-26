@@ -3,7 +3,8 @@
 # the same native state. Only external peers are controlled: `gh` and the GitHub URL of acme/widget (mounted
 # shims ahead of the image's own on PATH), the model gateway at its pinned origin (the `gateway` service,
 # trusted through the demonstration's TLS root) and the provider and forge inside the target. Credentials are
-# fake. The maintenance commands run afterwards from compose.yaml alone, without any of this.
+# fake. The maintenance commands run afterwards from compose.yaml alone, without any of this; the resume that
+# dispatches the Replacement Attempt after release runs with it, as the processing service.
 services:
   broodling:
     environment:

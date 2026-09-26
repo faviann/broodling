@@ -1,11 +1,12 @@
 # The Broodling service image: the ASP.NET host as a fixed non-root user, serving HTTP (the read-only
 # reader, or with its processing configuration also submission and automatic processing), with the
 # store-only commands (initialization, inspection, installation pause) and, for the processing
-# server's Attempts, retire-attempt and replace-attempt. Build from the repository root:
+# server's Attempts, retire-attempt and replace-attempt, and resume to dispatch such a Replacement
+# Attempt. Build from the repository root:
 #   docker build -f deployment/Broodling.Dockerfile -t broodling:REVISION .
 # It carries no Python, SDK, Codex launcher or native client. The invocation commands (submit,
-# resume, wait, stop), and retire-attempt and replace-attempt for Attempts that submit created, run
-# from the release artifact on a host with gh and the caller checkout's common Git directory.
+# resume, wait, stop) otherwise, and retire-attempt and replace-attempt for Attempts that submit
+# created, run from the release artifact on a host with gh and the caller checkout's common Git directory.
 
 # The official SDK wheel, only for its pinned native binary (the same pin as bridge/requirements.txt).
 FROM scratch AS wheel

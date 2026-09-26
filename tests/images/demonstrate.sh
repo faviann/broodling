@@ -5,7 +5,8 @@
 # readiness of the containers, mounts and pinned dependencies. No service gets a Docker socket.
 # It then runs the Broodling image as the processing server with controlled peers (processing.yaml)
 # until its Attempt is correlated, stops that Attempt, and retires and replaces it under verified
-# stopped-target maintenance with the image's own commands.
+# stopped-target maintenance with the image's own commands. After release, the image's resume command
+# dispatches the Replacement Attempt beside the restarted processing server.
 # Needs rootful Docker with Compose, curl, jq and a .NET 10 ASP.NET runtime on the host. Uses no real
 # credentials, provider, GitHub or existing target; everything it creates is removed on exit.
 # Usage: demonstrate.sh BROODLING_IMAGE TARGET_IMAGE [FACTS_JSON]
@@ -216,6 +217,25 @@ successor="$(compose run --rm --no-deps -T broodling replace-attempt /var/lib/br
 echo "replace-attempt: $(jq -c '{attemptId, state, intendedRunId}' <<<"$successor")"
 [[ "$(jq -r --arg predecessor "$attempt" '"\(.state) \(.attemptId != $predecessor)"' <<<"$successor")" == 'prepared true' ]] \
     || fail 'replacement'
+
+step 'Release, restart, then dispatch the successor with the image resume command beside the running server'
+compose run --rm --no-deps -T broodling release-installation /var/lib/broodling/state.sqlite3
+processing up --detach --wait --wait-timeout 120 broodling zeroshot gateway
+# The processing service's own definition: its invocation configuration, credentials, state and network.
+# Automatic progression never selects a Replacement Attempt, so only this command dispatches it.
+revision="$(jq -r .attempt.contractRevisionId <<<"$observed")"
+resumed="$(processing run --rm --no-deps -T broodling resume /var/lib/broodling/state.sqlite3 "$revision" /etc/broodling/invocation.json)"
+successor_id="$(jq -r .attemptId <<<"$successor")"
+echo "resume: $(jq -c --arg id "$successor_id" '.submissions[] | select(.attemptId == $id)' <<<"$resumed")"
+dispatched="$(api "http://127.0.0.1:8080/attempts/$successor_id")"
+jq -c '{attemptId: .attempt.attemptId, b1: .attempt.b1.repository, submission: .submission.state, runId: .submission.runId,
+    runIdentity: .observation.runIdentity, observation: .observation.phase}' <<<"$dispatched"
+[[ "$(jq -r '"\(.submission.state) \(.submission.runId) \(.observation.runIdentity) \(.attempt.b1.repository)"' <<<"$dispatched")" \
+    == "correlated $(jq -r .intendedRunId <<<"$successor") confirmed /var/lib/broodling/repositories/acme/widget.git" ]] \
+    || fail "successor dispatch: $dispatched"
+predecessor="$(api "http://127.0.0.1:8080/attempts/$attempt" | jq -c '{isCurrent: .attempt.isCurrent, retirement: .attempt.retirement.basis}')"
+echo "predecessor: $predecessor"
+[[ $predecessor == '{"isCurrent":false,"retirement":"stopped_target"}' ]] || fail 'the predecessor is no longer retired'
 
 if [[ -n $facts ]]; then
     jq -n --argjson store "$store" --argjson readiness "$readiness" \
