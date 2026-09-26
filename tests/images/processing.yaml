@@ -1,0 +1,36 @@
+# demonstrate.sh's processing phase, layered over compose.yaml: `broodling` runs the unchanged Broodling image
+# as the processing server, and `zeroshot` the controlled provider/forge layer over the DirectTarget image on
+# the same native state. Only external peers are controlled: `gh` and the GitHub URL of acme/widget (mounted
+# shims ahead of the image's own on PATH), the model gateway at its pinned origin (the `gateway` service,
+# trusted through the demonstration's TLS root) and the provider and forge inside the target. Credentials are
+# fake. The maintenance commands run afterwards from compose.yaml alone, without any of this.
+services:
+  broodling:
+    environment:
+      Broodling__Invocation: /etc/broodling/invocation.json
+      Broodling__RepositoryRoot: /var/lib/broodling/repositories
+      GH_TOKEN: demo-token
+      GATEWAY_BASE_URL: https://cliproxy.local.faviann.com/v1
+      GATEWAY_API_KEY: demo-key
+      SSL_CERT_FILE: /tls-root/root.crt
+    volumes:
+      - { type: bind, source: ./processing/invocation.json, target: /etc/broodling/invocation.json, read_only: true }
+      - { type: bind, source: ./processing/gh, target: /usr/local/bin/gh, read_only: true }
+      - { type: bind, source: ./processing/git, target: /usr/local/bin/git, read_only: true }
+      - { type: bind, source: ./processing/github, target: /github, read_only: true }
+      - { type: bind, source: "${DEMO_ROOT:?}/forge", target: /forge, read_only: true }
+
+  zeroshot:
+    image: ${CONTROLLED_TARGET_IMAGE:?}
+    volumes:
+      - { type: bind, source: "${DEMO_ROOT:?}/forge", target: /forge }
+
+  gateway:
+    image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    networks:
+      default:
+        aliases: [cliproxy.local.faviann.com]
+    volumes:
+      - { type: bind, source: "${DEMO_ROOT:?}/tls-root-key", target: /tls-root-key, read_only: true }
+      - { type: bind, source: "${DEMO_ROOT:?}/tls-root", target: /tls-root, read_only: true }
+      - { type: bind, source: ./processing/gateway.Caddyfile, target: /etc/caddy/Caddyfile, read_only: true }

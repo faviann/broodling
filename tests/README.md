@@ -209,10 +209,35 @@ checks two kinds of fact separately:
   `check-target`, copied out of the Broodling image and run on the host, reports
   the stack ready with its pinned dependency versions.
 
-No credentials, provider, GitHub or existing target are used, and no Codex shell
-command runs, so it proves neither a real agent's network reach nor PR
-delivery. `broodling` runs as the reader, without processing configuration. It removes its containers, network, volume and directory, and the
-pinned Caddy image if it pulled it. The optional `FACTS_JSON` receives the
+Those checks run `broodling` as the reader, without processing configuration.
+It then demonstrates verified maintenance of a processing-server Attempt (#205):
+
+- Processing, with [processing.yaml](images/processing.yaml) layered over the
+  project: `broodling` restarts from the same image and state directory as the
+  processing server with `Broodling__RepositoryRoot=/var/lib/broodling/repositories`,
+  and `zeroshot` serves the same native state from the
+  [controlled stock-target layer](fixtures/README.md#controlled-stock-directtarget)
+  over the target image. Only peers are controlled: `gh` and `git` shims,
+  mounted ahead of the image's own on `PATH`, answer GitHub's API from files and
+  fetch `acme/widget` from a mounted forge; a `gateway` service under the pinned
+  gateway's name, signed by the demonstration's root, which `broodling` trusts
+  through `SSL_CERT_FILE`, returns a fixed proposal; credentials are fake. The
+  server itself captures, proposes, admits and dispatches a posted issue URL to
+  a correlated Attempt whose B1 custody is recorded as
+  `/var/lib/broodling/repositories/acme/widget.git`. A forge hold keeps the
+  target's worker waiting, so the run is active until it is stopped; the
+  server's stop route then abandons the Attempt.
+- Maintenance, from [compose.yaml](images/compose.yaml) alone, so the unchanged
+  image as `1654:1654` with only its state and the public root mounted and no
+  credentials or peers: `pause-installation`; `broodling` and `zeroshot` stop,
+  and the host builds the stopped-target check from `docker inspect` of the
+  stopped target. `retire-attempt` then records the `stopped_target` retirement,
+  and `replace-attempt` prepares the successor without dispatching it.
+
+No real credentials, provider, GitHub or existing target are used, and no real
+Codex runs, so it proves neither a real agent's network reach nor PR delivery.
+It removes its containers, network, volumes, directory and controlled target
+image, and the pinned Caddy image if it pulled it. The optional `FACTS_JSON` receives the
 store format, schema version and definition SHA-256 and the identities that
 `upgrade-store` upgrades, all from the image's `initialize-store` output, the
 Caddy reference and the readiness facts for the release record.

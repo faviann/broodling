@@ -3,7 +3,10 @@
 # (compose.yaml): explicit initialization, service startup as the production users, real mount
 # ownership, credential-free health, in-project network reads and discovery, then host-only
 # readiness of the containers, mounts and pinned dependencies. No service gets a Docker socket.
-# Needs rootful Docker with Compose, curl, jq and a .NET 10 ASP.NET runtime on the host. Uses no
+# It then runs the Broodling image as the processing server with controlled peers (processing.yaml)
+# until its Attempt is correlated, stops that Attempt, and retires and replaces it under verified
+# stopped-target maintenance with the image's own commands.
+# Needs rootful Docker with Compose, curl, jq and a .NET 10 ASP.NET runtime on the host. Uses no real
 # credentials, provider, GitHub or existing target; everything it creates is removed on exit.
 # Usage: demonstrate.sh BROODLING_IMAGE TARGET_IMAGE [FACTS_JSON]
 set -euo pipefail
@@ -21,15 +24,19 @@ base="${BROODLING_TEST_WORKSPACE_ROOT:-$HOME/.cache/broodling-tests}"
 mkdir -p -- "$base"
 # Readiness compares canonical host paths.
 root="$(realpath -- "$base")/image-demo-$project"
-export DEMO_ROOT="$root" BROODLING_IMAGE="$broodling_image" TARGET_IMAGE="$target_image"
+controlled_target="broodling-205-stock-target:$project"
+export DEMO_ROOT="$root" BROODLING_IMAGE="$broodling_image" TARGET_IMAGE="$target_image" \
+    CONTROLLED_TARGET_IMAGE="$controlled_target"
 
 compose() { docker compose --project-name "$project" --file "$here/compose.yaml" "$@"; }
+processing() { compose --file "$here/processing.yaml" "$@"; }
 step() { printf '\n== %s\n' "$*"; }
 fail() { printf 'FAILED: %s\n' "$*" >&2; exit 1; }
 bind() { printf 'type=bind,src=%s,dst=%s' "$1" "$2"; }
 
 cleanup() {
-    compose down --volumes --remove-orphans --timeout 5 >/dev/null 2>&1 || :
+    processing down --volumes --remove-orphans --timeout 5 >/dev/null 2>&1 || :
+    if [[ ${built_controlled-} == true ]]; then docker image rm "$controlled_target" >/dev/null 2>&1 || :; fi
     if [[ ${created_root-} == true ]]; then
         # Root- and service-owned files: remove them as root before deleting the owned directory.
         docker run --rm --network none --mount "$(bind "$root" /owned)" --entrypoint find "$target_image" \
@@ -144,6 +151,71 @@ readiness="$(dotnet "$root/host/Broodling.Host.dll" check-target "$root/target-i
     || fail "check-target: $readiness"
 printf '%s\n' "$readiness"
 [[ "$(jq -r .ready <<<"$readiness")" == true ]] || fail 'check-target is not ready'
+
+step 'Processing server in the Broodling image, with controlled GitHub, gateway, provider and forge'
+docker build --quiet --build-arg BASE="$target_image" --tag "$controlled_target" "$here/../fixtures/stock-target" >/dev/null
+built_controlled=true
+# The operator's repository root in the state directory, and the forge's acme/widget with one commit on
+# main, owned by the service user, which Git requires for its fetch; the target's forge shim marks it safe.
+# The forge's hold keeps the target's worker waiting, so the run stays active until it is stopped.
+docker run --rm --network none --mount "$(bind "$root" /owned)" --entrypoint /bin/sh "$target_image" -ec "
+    mkdir -m 0700 /owned/broodling/repositories && chown $broodling_user /owned/broodling/repositories
+    mkdir /owned/forge && touch /owned/forge/hold && git init --quiet --bare --initial-branch=main /owned/forge/widget.git
+    git clone --quiet /owned/forge/widget.git /tmp/seed 2>/dev/null && echo 'A widget.' >/tmp/seed/README.md
+    git -C /tmp/seed add README.md
+    git -C /tmp/seed -c user.name=demo -c user.email=demo@example.invalid commit --quiet --message initial
+    git -C /tmp/seed push --quiet origin main
+    chown -R $broodling_user /owned/forge/widget.git"
+# The same native state, now served by the controlled layer; broodling restarts with processing configuration.
+processing up --detach --wait --wait-timeout 120 broodling zeroshot gateway
+api() { processing exec -T broodling curl --silent --show-error --fail-with-body --max-time 30 "$@"; }
+submitted="$(api --json '{"issueUrl": "https://github.com/acme/widget/issues/1"}' http://127.0.0.1:8080/submissions)"
+submission="$(jq -r .submission.submissionId <<<"$submitted")"
+echo "accepted submission $submission for https://github.com/acme/widget/issues/1"
+for _ in $(seq 1 180); do
+    # Capture, proposal, admission, the Attempt, its preparation and dispatch all happen in the server.
+    progress="$(api "http://127.0.0.1:8080/submissions/$submission")"
+    [[ "$(jq -r .progression.state <<<"$progress")" != stopped ]] || break
+    attempt="$(jq -r '.submission.attemptIds[0] // empty' <<<"$progress")"
+    if [[ -n $attempt ]]; then
+        observed="$(api "http://127.0.0.1:8080/attempts/$attempt")"
+        [[ "$(jq -r .submission.state <<<"$observed")" == correlated ]] && break
+    fi
+    sleep 1
+done
+[[ "$(jq -r .submission.state <<<"${observed:-null}")" == correlated ]] \
+    || fail "no correlated Attempt: $progress $(processing logs broodling | grep --after-context 1 'fail:\|warn:')"
+jq -c '{attemptId: .attempt.attemptId, b1: .attempt.b1.repository, submission: .submission.state,
+    observation: .observation.phase}' <<<"$observed"
+# B1 custody is the service-owned bare repository under the configured root, recorded as the container's path.
+[[ "$(jq -r .attempt.b1.repository <<<"$observed")" == /var/lib/broodling/repositories/acme/widget.git ]] || fail 'B1 custody'
+stopped="$(api --json '{"reason": "demonstration: replace under maintenance"}' "http://127.0.0.1:8080/attempts/$attempt/stop" \
+    | jq -c '{abandoned: (.attempt.abandonment != null), error}')"
+echo "stop: $stopped"
+[[ "$(jq -r .abandoned <<<"$stopped")" == true ]] || fail 'stop'
+
+step 'Verified stopped-target maintenance: pause, stop and check on the host, then the image commands'
+# One-off commands from compose.yaml alone need not mention the processing phase's gateway.
+export COMPOSE_IGNORE_ORPHANS=true
+compose run --rm --no-deps -T broodling pause-installation /var/lib/broodling/state.sqlite3
+processing stop broodling zeroshot gateway
+target_container="$(container zeroshot)"
+[[ "$(docker inspect --format '{{.State.Running}}' "$target_container")" == false ]] || fail 'the target still runs'
+check="$(docker inspect --format '{{json .Mounts}}' "$target_container" | jq -c --arg origin "$origin" \
+    --arg container "$target_container" --arg now "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" \
+    '{directOrigin: $origin, containerName: $container, stateMount: (.[] | select(.Destination == "/state") | .Source),
+      homeMount: (.[] | select(.Destination == "/home/node") | .Source), verifiedAt: $now}')"
+echo "host check: $check"
+# compose.yaml alone: the image as 1654:1654 with only its state and the public root, and no credentials, peers,
+# host release artifact or caller checkout.
+retired="$(compose run --rm --no-deps -T broodling retire-attempt /var/lib/broodling/state.sqlite3 "$attempt" "$check")"
+echo "retire-attempt: $retired"
+[[ "$(jq -r '"\(.basis) \(.retiredAt != null) \(.stoppedTarget.containerName)"' <<<"$retired")" \
+    == "stopped_target true $target_container" ]] || fail 'retirement'
+successor="$(compose run --rm --no-deps -T broodling replace-attempt /var/lib/broodling/state.sqlite3 "$attempt" demonstration)"
+echo "replace-attempt: $(jq -c '{attemptId, state, intendedRunId}' <<<"$successor")"
+[[ "$(jq -r --arg predecessor "$attempt" '"\(.state) \(.attemptId != $predecessor)"' <<<"$successor")" == 'prepared true' ]] \
+    || fail 'replacement'
 
 if [[ -n $facts ]]; then
     jq -n --argjson store "$store" --argjson readiness "$readiness" \

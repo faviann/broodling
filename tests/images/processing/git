@@ -1,0 +1,8 @@
+#!/bin/sh
+# Controlled forge: a fetch from the admitted repository's GitHub URL reads the mounted bare repository.
+# Acquisition disables system and global Git configuration, so command-line configuration is the only way
+# in. Every other command, custody included, is unchanged.
+if [ "$1" = -C ] && [ "$3" = fetch ]; then
+    exec /usr/bin/git -c url./forge/widget.git.insteadOf=https://github.com/acme/widget.git "$@"
+fi
+exec /usr/bin/git "$@"
