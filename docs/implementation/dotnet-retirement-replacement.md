@@ -202,8 +202,14 @@ admitted. The command also replaces an HTTP predecessor retired with
 both the successor's admission and its first preparation require the
 persisted pause, checked under the writer (`maintenance_unverified` otherwise), so
 a successor admitted before a release cannot be prepared, by any caller, until the
-installation is paused again. The command never dispatches: after
-`release-installation`, Resume dispatches the successor through the ordinary gate.
+installation is paused again. The command never dispatches. For a CLI Attempt,
+after `release-installation`, Resume dispatches the successor through the
+ordinary gate. For a processing-server Attempt the successor currently has no
+supported dispatch path: automatic progression never selects a Replacement
+Attempt, the server's resume route never continues one, the image has no
+`resume` and the release artifact's cannot reach its container-path custody. It
+stays current, holding its Work Unit, until it is stopped; dispatching it is
+[#210](https://github.com/faviann/broodling/issues/210).
 A completed Attempt cannot be replaced.
 
 This is safe because the pinned Zeroshot ends every non-terminal run as

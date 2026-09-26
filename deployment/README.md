@@ -173,14 +173,20 @@ as PID 1.
   and then, still paused,
   `docker compose run --rm --no-deps broodling replace-attempt /var/lib/broodling/state.sqlite3 ATTEMPT_ID RETRY_KEY`.
   Such an Attempt's B1 and accepted-revision pins are in its service-owned bare
-  repository under `Broodling:RepositoryRoot`, recorded as the container path
-  inside the mounted state directory. The commands therefore need only that
-  mount: no credentials, network, host release artifact or caller checkout.
+  repository under `Broodling:RepositoryRoot`, recorded as the container path.
+  With that root in the state directory (`/var/lib/broodling/repositories`), the
+  commands need only the state mount: no credentials, network, host release
+  artifact or caller checkout.
   They keep every refusal and pause requirement they have from the release
   artifact. The image has no Docker
   socket, so the host maintenance procedure stops and verifies the target and
   supplies the stopped-target check. The [image demonstration](../tests/README.md#image-demonstration)
   retires and replaces an Attempt that the image's processing server created.
+  The prepared successor currently has no supported dispatch path: automatic
+  progression never selects a Replacement Attempt, the server's resume route
+  never continues one, and the release artifact's `resume` cannot reach its
+  container-path custody. It stays current, holding its Work Unit, until it is
+  stopped. Dispatching it is [#210](https://github.com/faviann/broodling/issues/210).
 - CLI Attempts stay release-artifact-only. The invocation commands (`submit`,
   `resume`, `wait`, `stop`) are not supported in the image, and
   `retire-attempt` and `replace-attempt` for an Attempt that `submit` created run

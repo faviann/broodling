@@ -217,9 +217,9 @@ It then demonstrates verified maintenance of a processing-server Attempt (#205):
   processing server with `Broodling__RepositoryRoot=/var/lib/broodling/repositories`,
   and `zeroshot` serves the same native state from the
   [controlled stock-target layer](fixtures/README.md#controlled-stock-directtarget)
-  over the target image. Only peers are controlled: mounted `gh` and `git` shims
-  ahead of the image's own answer GitHub's API from files and fetch
-  `acme/widget` from a mounted forge; a `gateway` service under the pinned
+  over the target image. Only peers are controlled: `gh` and `git` shims,
+  mounted ahead of the image's own on `PATH`, answer GitHub's API from files and
+  fetch `acme/widget` from a mounted forge; a `gateway` service under the pinned
   gateway's name, signed by the demonstration's root, which `broodling` trusts
   through `SSL_CERT_FILE`, returns a fixed proposal; credentials are fake. The
   server itself captures, proposes, admits and dispatches a posted issue URL to
