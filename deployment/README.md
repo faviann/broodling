@@ -143,8 +143,8 @@ by rebuilding.
 The runtime stage is ASP.NET Core 10.0.12 on Ubuntu 24.04. The build stage uses
 the matching SDK 10.0.401 image, so `libbroodling_git.so` links against the
 runtime's libc. The image holds the published host output at `/app`, including
-`execution-assets/`, plus Git, gh 2.101.0 (the DirectTarget image's pin), curl
-and tini. It runs
+`execution-assets/`, plus Git, gh 2.101.0 (the DirectTarget image's pin, also
+Git's credential helper for `https://github.com`), curl and tini. It runs
 `dotnet /app/Broodling.Host.dll` under tini as the image's non-root `app` user,
 `1654:1654`. Administrative Git refuses a PID-1 process, so the host never runs
 as PID 1.
@@ -418,8 +418,8 @@ The retained facts come from the store: the accepted submission with its state,
 proposal refusal and cancellation, and the admission decision with its findings;
 capture refusals are in the bundle. `progression` is the processing server's
 in-process state for an unfinished submission (`progressing`, `waiting` with
-`retryAt`, or `stopped`, with the last failure's stage, code and message), or
-null. `observation` is one bounded (10 s), unretained native read of the
+`retryAt`, or `stopped`, with the last failure's stage, code, retryable flag and
+count; its message stays in the server log), or null. `observation` is one bounded (10 s), unretained native read of the
 submission's latest Attempt or of that Attempt: `availability` `available`
 (with `phase` and `activeNodes`) or `unavailable` (with a fixed `reason`), its
 `observedAt` time and `runIdentity` (`intended` or `confirmed`). It is null when
@@ -500,9 +500,13 @@ operation and never retained or echoed; in Compose, supply them only to
 code and before listening, one setting without the other, a LocalTarget
 configuration, a missing repository root or missing or invalid credentials. The
 host also needs Git and `gh` (the image has both). Completion fetches each
-accepted commit from the repository's GitHub origin with the service user's own
-Git configuration, not these credentials, so a private repository's result is
-retained only once that user has Git fetch access; until then observation
+accepted commit from the repository's GitHub origin with plain Git, using the
+service user's Git credential configuration. The image configures
+`credential.https://github.com.helper` as `!/usr/bin/gh auth git-credential` in
+its system Git configuration, so that fetch uses the current `GH_TOKEN` and a
+private repository's result is retained. A release-artifact host needs the same
+helper for the service user (`gh auth setup-git`, or that `git config`);
+without it a private repository's result is never retained and observation
 retries it. There is no application authentication: expose the server only to
 trusted callers.
 
@@ -511,7 +515,7 @@ trusted callers.
 | `POST /submissions` with `{"issueUrl": "…"}` | `SubmitIssue` | `202` with `{submission}` and `Location: /submissions/{id}` once the submission is committed, with no GitHub, model or target contact. Repeating an issue URL returns its latest existing submission. `400 invalid_work_reference` before anything is written. |
 | `POST /submissions/{id}/resume` | [`SubmissionProgressor.Resume`](../docs/implementation/invocation.md#automatic-progression) | `202` with `Location` when that unfinished submission is continued at the next scan, forgetting an in-process stop or wait. `200` with `resumed: false` when its end or native correlation is retained. Never a Replacement Attempt. |
 | `POST /submissions/{id}/stop` with `{"reason": "…"}` | `CancelIssueSubmissionAsync` | `200` with `{submission, attempt, error}` once the cancellation is committed: `attempt` is the stop report of the Attempt it abandoned, if any. `409` for completed work. |
-| `POST /attempts/{id}/stop` with `{"reason": "…"}` | `StopAsync` | The `stop` command's report: `200` once abandonment is committed, with `error` naming a native stop that was refused or timed out (such as `cessation_unconfirmed`); `409` when nothing was abandoned. A dispatched LocalTarget run refuses with `python_required`, unabandoned. |
+| `POST /attempts/{id}/stop` with `{"reason": "…"}` | `StopAsync` | The `stop` command's report: `200` once abandonment is committed, with `error` naming what ended the native stop (such as `cessation_unconfirmed`, a transport timeout, or `caller_detached` at shutdown); `409` when nothing was abandoned. A dispatched LocalTarget run refuses with `python_required`, unabandoned. |
 
 A stop without a reason answers `400 reason_required`. A reader answers
 `503 processing_not_configured` to all four.
@@ -526,7 +530,9 @@ caller leaves. Ordinary shutdown detaches both services without stopping,
 abandoning or cleaning up anything; the next process continues from retained
 checkpoints and replays an unresolved dispatch exactly. A submission that stops
 for attention is logged and shown as its `progression`; resolve the cause, then
-resume it or restart the server. If either service fails unexpectedly, the
+resume it or restart the server. An Attempt whose completion observation fails
+unexpectedly is logged and not observed again until the server restarts;
+resume does not re-arm it, so restart is the remedy. If either service fails unexpectedly, the
 server logs it, stops and exits with status 1, so that a supervisor restarts it
 rather than it accepting work it would not process.
 

@@ -35,12 +35,15 @@ LABEL org.opencontainers.image.source=https://github.com/faviann/broodling
 # Git for source/accepted-object custody; curl only for the credential-free health check; tini as
 # PID 1, because administrative Git refuses a PID-1 host process (dotnet-worktree-materialization.md).
 # The processing server acquires issues and repositories through gh, the DirectTarget image's pin.
+# Completion fetches each accepted commit with plain Git, which asks gh for the current GH_TOKEN, so a
+# private repository's result can be retained; acquisition ignores system Git configuration.
 ADD --checksum=sha256:f876a3b87bf67c94f773d17becca4dc7340b056dab901473a9260ee2a73e237b \
     https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_amd64.deb /tmp/gh.deb
 RUN apt-get update && apt-get install -y --no-install-recommends git curl tini \
     && rm -rf /var/lib/apt/lists/* \
     && dpkg --install /tmp/gh.deb && rm /tmp/gh.deb \
-    && /usr/bin/gh --version
+    && /usr/bin/gh --version \
+    && git config --system credential.https://github.com.helper '!/usr/bin/gh auth git-credential'
 COPY --from=build /app /app
 # The image's non-root `app` user. The operator's durable state directory, mounted at
 # /var/lib/broodling, must be owned by it; the image never changes mounted ownership.

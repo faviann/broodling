@@ -186,10 +186,16 @@ LocalTarget configuration, a missing root or missing credentials, refuses startu
   reason and calls `CancelIssueSubmissionAsync` or `StopAsync`, answering with
   the `stop` command's report so committed abandonment stays distinct from
   unconfirmed cessation. The stop runs to its own bounds whatever its caller
-  does; only shutdown detaches it.
+  does; only shutdown detaches it. Once the cancellation or abandonment commits,
+  any later failure, including that detachment (`caller_detached`), is reported
+  with it rather than as an error answer.
 - **Reads** add to the submission and Attempt routes one bounded `ObserveAsync`,
   serialized with its availability apart from the retained facts, and the
-  submission's in-process `Progress()` entry.
+  submission's in-process `Progress()` entry without its message, which only
+  the server log keeps.
+
+An Attempt whose completion observation failed unexpectedly is not observed
+again until the server restarts; resume does not re-arm it.
 
 Routes, status codes and configuration are in the
 [release guide](../../deployment/README.md#processing-server). Shutdown detaches
