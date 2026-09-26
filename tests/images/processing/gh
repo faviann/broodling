@@ -1,0 +1,6 @@
+#!/bin/sh
+# Controlled GitHub API: `gh api ... PATH` answers the mounted /github/PATH.json, or GitHub's 404 document.
+for path; do :; done
+if [ "$1" = api ] && [ -f "/github$path.json" ]; then exec cat "/github$path.json"; fi
+printf '{"message":"Not Found","status":"404"}'
+exit 1

@@ -34,7 +34,9 @@ target's fixed dependency paths:
   candidate bytes to `README.md`, verifiers accept, and a corrected reply
   resumes the requested thread. When the task lists a RequestBundle, the worker
   also reads each listed reference through the installed `broodling-reference`
-  helper and writes its output to `references/<index>`.
+  helper and writes its output to `references/<index>`. While the forge holds a
+  `hold` file, the worker waits, so the image demonstration's run stays active
+  until it is stopped.
 - `git` maps `https://github.com/acme/widget.git` to a mounted host bare
   repository and marks only that repository as a safe directory, because the
   target's isolated identities do not own it. Native clears the Git environment

@@ -141,10 +141,14 @@ retires dispatched work, for HTTP DirectTarget Attempts during host maintenance.
 The host procedure ([homelab-iac#356](https://github.com/faviann/homelab-iac/issues/356))
 pauses the installation, drains and quiesces Broodling, stops the target, verifies
 the correct target and its state mounts are stopped and keeps them stopped. It then
-runs the image command once per Attempt with a check it made during this pause:
+runs the command once per Attempt with a check it made during this pause. For an
+Attempt that the processing server created (#205) that is the Broodling image's
+own command against the stopped application's store; a CLI Attempt uses the
+release artifact's (`dotnet /RELEASE/host/Broodling.Host.dll retire-attempt …`),
+which reaches the caller checkout's common Git directory:
 
 ```bash
-dotnet /RELEASE/host/Broodling.Host.dll retire-attempt /EXISTING/DOTNET/state.sqlite3 ATTEMPT_ID \
+docker compose run --rm --no-deps broodling retire-attempt /var/lib/broodling/state.sqlite3 ATTEMPT_ID \
   '{"directOrigin":"https://zeroshot.dev.faviann.com","containerName":"broodling-zeroshot-1","stateMount":"/NEW/target-state","homeMount":"/NEW/target-home","verifiedAt":"2026-09-25T12:00:00Z"}'
 ```
 
@@ -182,10 +186,10 @@ goes through the normal checks, which refuse it. LocalTarget worktree Attempts
 keep the policy above.
 
 An abandoned Attempt retired this way can then be replaced (#123), still within
-the maintenance pause, with the image command:
+the maintenance pause, with the same image or release command:
 
 ```bash
-dotnet /RELEASE/host/Broodling.Host.dll replace-attempt /EXISTING/DOTNET/state.sqlite3 PREDECESSOR_ATTEMPT_ID RETRY_KEY
+docker compose run --rm --no-deps broodling replace-attempt /var/lib/broodling/state.sqlite3 PREDECESSOR_ATTEMPT_ID RETRY_KEY
 ```
 
 It calls `PrepareRetry(predecessorId, retryKey)`, which admits the successor and
@@ -279,6 +283,10 @@ retirement: admission and first preparation refused outside the pause, the same
 bundle-bound task, origin and B1, same-key handback, dispatch refused until release
 and then through Resume, unchanged predecessor history, and the `replace-attempt`
 command.
+The [image demonstration](../../tests/README.md#image-demonstration) runs both
+commands from the Broodling image on an abandoned, correlated Attempt that the
+image's own processing server created, with a check the host made of the
+stopped target.
 `ReplacementCompletionTests` checks the integrated completed-Work-Unit refusal
 at API and SQL boundaries, plus completed retry-key identity handback without
 renewed authority. Its historical seed bypasses only ordinary admission while

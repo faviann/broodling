@@ -1,0 +1,20 @@
+# Controlled model gateway at the pinned origin, signed by the demonstration's TLS root. Every chat
+# completion is the same final proposal: one criterion for the issue's request.
+{
+	skip_install_trust
+	auto_https disable_redirects
+	pki {
+		ca local {
+			root {
+				cert /tls-root/root.crt
+				key /tls-root-key/root.key
+			}
+		}
+	}
+}
+
+cliproxy.local.faviann.com {
+	tls internal
+	header Content-Type application/json
+	respond /v1/chat/completions `{"choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "{\"criteria\": [{\"criterionId\": \"export\", \"statement\": \"Export the data as JSON.\"}]}"}}]}` 200
+}

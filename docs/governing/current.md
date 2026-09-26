@@ -191,7 +191,10 @@ submission that names the Work Unit's latest, ended submission as its
 predecessor, created at most once and returned exactly on replay. Progression
 captures and prepares it afresh; if its frozen request environment equals an
 already-admitted submission's, it ends with a retained explanation linking that
-authority instead of being proposed or executed. Remaining #100 intent includes
+authority instead of being proposed or executed. #205 runs `retire-attempt` and
+`replace-attempt` from the Broodling image for Attempts that the processing
+server created, with the stopped-target check supplied by the host; CLI Attempts
+keep them in the release artifact. Remaining #100 intent includes
 Compose, maintenance and backup/restore; those remain unimplemented. The
 ASP.NET host is not authority to add them.
 

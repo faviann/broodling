@@ -165,9 +165,26 @@ as PID 1.
   `docker compose run --rm --no-deps broodling initialize-store /var/lib/broodling/state.sqlite3`.
   The store-only commands `upgrade-store`, `status`, `history` and the
   installation pause commands work the same way.
-- The invocation commands (`submit`, `resume`, `wait`, `stop`),
-  `retire-attempt` and `replace-attempt` are not supported in the image in this
-  revision; run them from the release artifact. A CLI Attempt's source custody is the common Git directory of the caller checkout
+- For an Attempt that the processing server created, `retire-attempt` and
+  `replace-attempt` run in the image against the stopped application's store
+  during [verified maintenance retirement](../docs/implementation/dotnet-retirement-replacement.md#verified-maintenance-retirement),
+  for example
+  `docker compose run --rm --no-deps broodling retire-attempt /var/lib/broodling/state.sqlite3 ATTEMPT_ID CHECK_JSON`
+  and then, still paused,
+  `docker compose run --rm --no-deps broodling replace-attempt /var/lib/broodling/state.sqlite3 ATTEMPT_ID RETRY_KEY`.
+  Such an Attempt's B1 and accepted-revision pins are in its service-owned bare
+  repository under `Broodling:RepositoryRoot`, recorded as the container path
+  inside the mounted state directory. The commands therefore need only that
+  mount: no credentials, network, host release artifact or caller checkout.
+  They keep every refusal and pause requirement they have from the release
+  artifact. The image has no Docker
+  socket, so the host maintenance procedure stops and verifies the target and
+  supplies the stopped-target check. The [image demonstration](../tests/README.md#image-demonstration)
+  retires and replaces an Attempt that the image's processing server created.
+- CLI Attempts stay release-artifact-only. The invocation commands (`submit`,
+  `resume`, `wait`, `stop`) are not supported in the image, and
+  `retire-attempt` and `replace-attempt` for an Attempt that `submit` created run
+  from the release artifact. A CLI Attempt's source custody is the common Git directory of the caller checkout
   named to `submit`, at its host path, which the image does not mount.
   Resuming or waiting on the Attempt needs it, `retire-attempt` checks the
   Attempt's B1 and accepted-revision pins there, and `replace-attempt` pins B1

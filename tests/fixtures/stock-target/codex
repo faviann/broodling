@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -23,6 +24,9 @@ def value(field):
 
 
 if schema["type"] == "null":
+    # While the forge holds /forge/hold the worker waits, so its run stays active until it is stopped.
+    while Path("/forge/hold").exists():
+        time.sleep(0.2)
     # The worker changes the checkout so delivery has a candidate commit.
     Path("README.md").write_text("candidate from the controlled provider\n")
     # Like an agent consulting its available references, it reads each listed one through the
