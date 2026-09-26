@@ -238,7 +238,8 @@ read-only public root.
 
 The [images workflow](../.github/workflows/images.yml) runs for every push. It
 builds both images, runs the [image demonstration](../tests/README.md#image-demonstration)
-on them and then publishes exactly those images to GHCR:
+on them and the [native-state transition check](../tests/README.md#native-state-transition-check)
+on the target image, and then publishes exactly those images to GHCR:
 
 - A branch push publishes `sha-<full commit>` candidates, so a pull request's
   head is published before merge.
@@ -246,7 +247,7 @@ on them and then publishes exactly those images to GHCR:
   GitHub release of the same name. Publish a version by pushing the tag only.
   Do not create the GitHub release first: that also creates the tag, and the
   workflow's release creation then fails after the images were pushed.
-- Pull requests from forks only build and demonstrate.
+- Pull requests from forks only build, demonstrate and run the transition check.
 
 Published tags are never moved: a run refuses to publish over an existing tag,
 and a re-run of a published commit therefore fails at publication. Select images
@@ -265,7 +266,10 @@ contains:
   `images["zeroshot-tls"]`, the pinned Caddy reference;
 - `zeroshotTls`: the user and the Caddyfile to mount (path, SHA-256 and content);
 - `application`: the store format and schema version the Broodling image
-  initializes, which is the application schema it supports;
+  initializes. Before the first `v*` version, schema 1 is still edited in
+  place, so the version alone does not identify the definition the image
+  opens; its `upgrade-store` decides, and `incompatible_store` means the
+  selection is unsupported (see [native-state transitions](#native-state-transitions));
 - `executionAsset`: the approved asset SHA-256 and its native pins from the
   approval manifest;
 - `nativeStateTransitions`: `to`, the published `images.zeroshot`, and `from`,
@@ -315,10 +319,18 @@ checks.
 Before publishing, the images workflow runs the
 [transition check](../tests/README.md#native-state-transition-check) from every
 listed source to the candidate target image; if one fails, nothing is published.
-The host update procedure owns refusing any other selection. It needs:
+The host update procedure owns refusing any other selection.
 
-- The deployed `zeroshot` image, selected by digest, to be a listed source, or
-  to equal the new record's `images.zeroshot`.
+Keeping the deployed target image needs no swap: the `zeroshot` container,
+its mounts and native state stay as they are. The new record's demonstration
+covers its own two images together, not that older target image with the new
+Broodling image. `check-target` still applies after the update, with the
+inventory's `imageId` unchanged, because it also inspects the replaced
+`broodling` container.
+
+To change the `zeroshot` image, the procedure needs:
+
+- The deployed `zeroshot` image, selected by digest, to be a listed source.
 - The installation pause, drained execution with its results captured, and
   `zeroshot` stopped for the swap. The check covers finished runs and a
   submission that the source image recorded without acknowledging; a run still
