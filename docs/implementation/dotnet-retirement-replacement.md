@@ -141,11 +141,12 @@ retires dispatched work, for HTTP DirectTarget Attempts during host maintenance.
 The host procedure ([homelab-iac#356](https://github.com/faviann/homelab-iac/issues/356))
 pauses the installation, drains and quiesces Broodling, stops the target, verifies
 the correct target and its state mounts are stopped and keeps them stopped. It then
-runs the command once per Attempt with a check it made during this pause. For an
-Attempt that the processing server created (#205) that is the Broodling image's
-own command against the stopped application's store; a CLI Attempt uses the
-release artifact's (`dotnet /RELEASE/host/Broodling.Host.dll retire-attempt …`),
-which reaches the caller checkout's common Git directory:
+runs the command once per Attempt with a check it made during this pause. A CLI
+Attempt uses the release artifact's command
+(`dotnet /RELEASE/host/Broodling.Host.dll retire-attempt …`), which reaches the
+caller checkout's common Git directory. For an Attempt that the processing server
+created (#205) it is the Broodling image's own command against the stopped
+application's store:
 
 ```bash
 docker compose run --rm --no-deps broodling retire-attempt /var/lib/broodling/state.sqlite3 ATTEMPT_ID \
@@ -206,11 +207,12 @@ installation is paused again. The command never dispatches. For a CLI Attempt,
 after `release-installation`, Resume dispatches the successor through the
 ordinary gate. For a processing-server Attempt the successor currently has no
 supported dispatch path: automatic progression never selects a Replacement
-Attempt, the server's resume route never continues one, the image has no
-`resume` and the release artifact's would need the container-path custody on the
-host, which is not supported. Dispatching it is
+Attempt, the server's resume route never continues one, `resume` is not
+supported in the image and the release artifact's would need the container-path
+custody on the host, which is not supported. Dispatching it is
 [#210](https://github.com/faviann/broodling/issues/210). Until then, replacing
-leaves a current successor that nothing dispatches, and stopping it ends
+leaves a current successor that no supported path dispatches and that, until
+stopped, blocks any revision of its Work Unit; stopping it ends
 replacement of that Work Unit's unchanged work: its `no_dispatch_intent` proof
 is never acknowledged (nothing calls `RetireAttempt`), so it cannot be replaced;
 the predecessor already has its one successor; and a revision with unchanged

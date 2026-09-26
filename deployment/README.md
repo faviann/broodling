@@ -187,7 +187,8 @@ as PID 1.
   never continues one, and the release artifact's `resume` would need the
   container-path custody on the host, which is not supported. Dispatching it is
   [#210](https://github.com/faviann/broodling/issues/210). Until then, replacing
-  leaves a current successor that nothing dispatches, and stopping it ends
+  leaves a current successor that no supported path dispatches and that, until
+  stopped, blocks any revision of its Work Unit; stopping it ends
   replacement of that Work Unit's unchanged work: the stopped successor is never
   acknowledged as retired, the predecessor already has its one successor, and a
   revision with unchanged inputs ends `unchanged`. `retire-attempt` alone keeps
