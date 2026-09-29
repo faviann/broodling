@@ -111,14 +111,51 @@ It never expands, edits or regenerates them. Changing the asset requires a
 reviewed release with a new approved identity.
 
 [`generate.sh`](../../src/Broodling/execution-assets/generate.sh) is the
-build-time recipe. It takes the pinned native executable, runs
-`profile set --template software-change --delivery pull_request
---uniform-runtime-config` and `profile show` with an isolated HOME/config, then
-checks the exact approved bytes. It then re-admits the graph/runtime through
-`profile set --graph --runtime-config` and requires an exact round trip. It runs
-no target or provider. It is not a runtime helper. The Broodling
+build-time recipe. It reads one manifest, by default the approval manifest, and
+takes the native executable that manifest pins. It runs `profile set --template
+software-change --delivery pull_request --uniform-runtime-config` with the
+manifest's uniform runtime, then `profile show`, twice, each under `env -i` with
+an empty temporary HOME, `ZEROSHOT_CONFIG_DIR` and `ZEROSHOT_STATE_DIR`. It
+requires both generations and the manifest's asset to have identical bytes. It
+then re-admits the graph/runtime through a fresh `profile set --graph
+--runtime-config` and requires an exact round trip. It runs no target or
+provider. It is not a runtime helper. The Broodling
 [image build](../../deployment/README.md#broodling-image) runs it with the
 pinned native and fails unless the published asset equals its output.
+
+### Native 10.9.0 candidate asset
+
+[`candidate-10.9.0.json`](../../src/Broodling/execution-assets/candidate-10.9.0.json)
+records a candidate Execution asset for review,
+[`software-change-pr-codex-gateway-10.9.0.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway-10.9.0.json).
+It is evidence, not an approval: nothing loads it and the release does not
+package it. Its hash identity approves nothing until an authorized approval binds
+it in `approval.json` and `DirectTargetBinding` (#215). The manifest records:
+
+- The asset's bytes and SHA-256.
+- Native `zeroshot 10.9.0` from source `75ae54b6…`, the official `v10.9.0` Linux
+  x86-64 musl release archive's SHA-256 and the extracted executable's SHA-256.
+- The policy: Codex / `gateway` / `gpt-5.6-sol` / medium / small / execution
+  sessions, the explicit `gateway` connection, native's `github` delivery
+  connection and native's default `consider` PR feedback. Native serializes both
+  defaults by omitting `sessionScope` and `pullRequestFeedback`.
+- The recipe files' SHA-256. The recipe revision is the commit that adds the
+  manifest.
+- The asset structure that
+  [`describe.py`](../../src/Broodling/execution-assets/describe.py) reads: six
+  executable nodes, the `builtin.git-delivery.pr@2` `v2`/`pr` receipt,
+  `ci_failed`/`conflict`/`repair_required` routing to `delivery_repair`, the
+  ten-iteration `change_loop` and no node `timeoutMs`.
+
+`generate.sh` refuses a changed recipe file or asset structure. With `--fetch`,
+it takes the executable from the pinned release archive in a cache directory. It
+downloads the archive only when that archive is absent, after checking that the
+release tag names the pinned commit and that the release `SHA256SUMS` lists the
+archive checksum. The standalone check needs network access on its first run:
+
+```bash
+src/Broodling/execution-assets/generate.sh --manifest src/Broodling/execution-assets/candidate-10.9.0.json --fetch ~/.cache/broodling-native
+```
 
 ## HTTP submission preparation
 

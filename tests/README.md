@@ -29,6 +29,10 @@ dotnet build Broodling.sln --configuration Release
 `BROODLING_TEST_PYTHON` can point to an existing pinned SDK environment shared
 across worktrees; its default is the repository's `.venv/bin/python`.
 Missing SDK/native dependencies fail rather than skip.
+The candidate asset check downloads native 10.9.0's pinned Linux x86-64 release
+archive from GitHub into `native-releases/` under the test workspace root (below)
+when it is absent there, and fails without that access. A cached archive is
+verified by checksum and needs no network.
 The image startup tests also require rootful Docker access. They build the actual
 `deployment/DirectTarget.Dockerfile`, which fetches the pinned SDK wheel for its
 native binary, so an uncached build needs access to the pinned image/package sources.
@@ -72,7 +76,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | LocalTarget bridge: frozen dispatch, caller death, launcher policy, released SDK/native transport, the bridge dependency file pinned to the handshake SDK apart from the DirectTarget binding, and refusal of a direct locator | `NativeDispatchTests`, `DispatchProcessTests`, `NativePolicyTests`, `NativeTransportTests`: [dispatch](../docs/implementation/dotnet-native-dispatch.md) |
 | Offline HTTP preparation, retained asset/request reopen, a bundle-bound task's compact manifest without reference bodies, corrupt-content refusal and HTTP submission SQL guards | `HttpSubmissionTests`: [HTTP preparation](../docs/implementation/zeroshot-native-integration.md#http-submission-preparation) |
 | HTTP send gates, intent before discovery, exact acknowledgement, retained conflict, concurrent replies, late acknowledgement stop, killed HTTP callers, a buffered request accepted after caller death and exact replay of a bundle-bound request frozen before reference access | `HttpDispatchTests`, `DispatchProcessTests`: loopback stock-target stand-in, [HTTP dispatch](../docs/implementation/zeroshot-native-integration.md#http-dispatch-and-acknowledgement) |
-| Approved execution asset: build-output inclusion, loader refusals, pinned-tool regeneration and native admission | `ExecutionAssetTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset) |
+| Approved execution asset: build-output inclusion, loader refusals, pinned-tool regeneration and native admission; the 10.9.0 candidate asset's reproduction and admission from its own pinned release archive | `ExecutionAssetTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset), [candidate](../docs/implementation/zeroshot-native-integration.md#native-1090-candidate-asset) |
 | Bounded native progress observation, unavailable/timeout mapping and unchanged retained facts | `NativeObservationTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#dispatch-recovery-and-completion) |
 | Receipt validation, atomic exact-Attempt completion, late results (correlated HTTP Attempts over the loopback stand-in) | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
 | Automatic completion without a reader: startup/running discovery that never dispatches, per-scan retry of temporary failures, retained receipt and accepted-pin refusal, detachment after authority loss, shutdown and restart, no rediscovery of retained results | `CompletionObserverTests`: [automatic observation](../docs/implementation/dotnet-receipt-completion.md#automatic-completion-observation) |
