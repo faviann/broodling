@@ -92,8 +92,13 @@ public sealed class StockPullRequestDeliveryTests
     [Test]
     public async Task BehindHeadIsAdvancedByTheForgeThenReady()
     {
-        // Main moves on without conflict once the PR opens, so GitHub reports the head behind.
-        await using var delivery = await ScriptedDelivery.StartAsync(new() { ["onOpen"] = Change("UPSTREAM.md", "upstream change\n") });
+        // Main moves on without conflict once the PR opens; the branch rule requires up-to-date branches, so
+        // GitHub reports the head behind.
+        await using var delivery = await ScriptedDelivery.StartAsync(new()
+        {
+            ["onOpen"] = Change("UPSTREAM.md", "upstream change\n"),
+            ["requireUpToDate"] = true,
+        });
         var completion = await delivery.ReadyAsync();
         var readiness = delivery.Readiness();
         await Assert.That((string?)readiness[0].Observed!["mergeStateStatus"]).IsEqualTo("BEHIND");
@@ -381,14 +386,22 @@ internal sealed class ScriptedDelivery : IAsyncDisposable
     /// <summary>Each case's record, whether or not it passed: identities, result and native's forge requests.</summary>
     public async ValueTask DisposeAsync()
     {
-        var (failure, executions) = await Target.LedgerAsync(RunId);
-        Console.WriteLine($"native {native.Version} (linux-x64 sha256 {native.Sha256}); approved asset sha256 "
-            + $"{Store.FindSubmission(AttemptId)!.AssetSha256}; run {RunId}: {result}; native failure {failure ?? "none"}, "
-            + "node executions " + string.Join(", ", executions.Select(node => $"{node.Key}={node.Value}")));
-        foreach (var request in Target.Trace()) Console.WriteLine("  gh " + request);
-        Store.Dispose();
-        await Target.DisposeAsync();
-        git.Dispose();
+        try
+        {
+            var (failure, executions) = await Target.LedgerAsync(RunId);
+            Console.WriteLine($"native {native.Version} (linux-x64 sha256 {native.Sha256}); approved asset sha256 "
+                + $"{Store.FindSubmission(AttemptId)!.AssetSha256}; run {RunId}: {result}; native failure {failure ?? "none"}, "
+                + "node executions " + string.Join(", ", executions.Select(node => $"{node.Key}={node.Value}")));
+            foreach (var request in Target.Trace()) Console.WriteLine("  gh " + request);
+        }
+        // The record is diagnostic: failing to make it must neither hide the case's own result nor skip cleanup.
+        catch (Exception error) { Console.WriteLine("record unavailable: " + error.Message); }
+        finally
+        {
+            Store.Dispose();
+            await Target.DisposeAsync();
+            git.Dispose();
+        }
     }
 }
 

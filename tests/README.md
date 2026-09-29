@@ -182,7 +182,9 @@ native's own ledger read inside the target:
   reports `deliver` active and keeps polling at its interval. A Wait cancelled
   after 5 seconds leaves no completion and no abandonment. The explicit stop
   abandons the Attempt, native records `force_stopped`, and nothing completes.
-- Behind: main moves without conflict once the PR opens. Native requests
+- Behind: main moves without conflict once the PR opens, and the scenario's
+  branch rule requires up-to-date branches, the only case in which GitHub
+  reports `BEHIND`. Native requests
   GitHub's branch update from the published head, adopts the forge's merge
   commit and hands off that head on the next poll.
 - CI failure: the first head's required check fails. The repair receives the

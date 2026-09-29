@@ -97,11 +97,16 @@ internal sealed class StockDirectTarget : IAsyncDisposable
         File.Move(Scenario + ".new", Scenario, overwrite: true);
     }
 
-    /// <summary>Every <c>gh</c> invocation native has made so far, as the controlled forge recorded it.</summary>
+    /// <summary>
+    /// Every <c>gh</c> invocation native has made so far, as the controlled forge recorded it. A last line the
+    /// shim is still appending, not yet newline-terminated, is not a request yet.
+    /// </summary>
     internal IReadOnlyList<ForgeRequest> Trace()
     {
         var trace = Path.Combine(root, "gh-trace.jsonl");
-        return File.Exists(trace) ? File.ReadAllLines(trace).Select(line => JsonSerializer.Deserialize<ForgeRequest>(line, Json)!).ToList() : [];
+        if (!File.Exists(trace)) return [];
+        var lines = File.ReadAllText(trace).Split('\n');
+        return lines[..^1].Select(line => JsonSerializer.Deserialize<ForgeRequest>(line, Json)!).ToList();
     }
 
     /// <summary>The native actually serving: its reported version and executable SHA-256, read inside the running target.</summary>

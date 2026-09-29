@@ -13,9 +13,10 @@ Every invocation is appended to /forge/gh-trace.jsonl. A test may script the for
   feedback        {"issueComments", "reviews", "reviewComments"}: each a list of pages of REST items
   onOpen          {"path", "content"}: commit this change to main once the PR is opened
   foreignHead     report the PR head as coming from this other repository
+  requireUpToDate the branch rule requires up-to-date branches, so a head without main is behind
 
 Mergeability comes from the forge repository itself: a head that does not merge cleanly with main
-conflicts, and one that does not contain main is behind.
+conflicts, and, with requireUpToDate, one that does not contain main is behind.
 """
 import fcntl, json, os, re, subprocess, sys
 
@@ -28,11 +29,19 @@ UPDATE = "<updatePullRequestBranch mutation>"
 arguments = sys.argv[1:]
 
 
+def is_policy(document):
+    return document.lstrip().startswith("query") and "statusCheckRollup" in document
+
+
+def is_update(document):
+    return "updatePullRequestBranch" in document
+
+
 def label(argument):
-    """The graphql documents are fixed native text: the trace names the two it recognizes."""
-    if argument.startswith("query=") and "updatePullRequestBranch" in argument:
+    """The graphql documents are fixed native text: the trace names the two it answers, by the same rules."""
+    if argument.startswith("query=") and is_update(argument[6:]):
         return "query=" + UPDATE
-    if argument.startswith("query=") and "statusCheckRollup" in argument:
+    if argument.startswith("query=") and is_policy(argument[6:]):
         return "query=" + POLICY
     return argument
 
@@ -94,7 +103,8 @@ def mergeability(entry):
     base, head = revision(entry["base"]), revision(entry["head"])
     if git("merge-tree", "--write-tree", head, base, check=False).returncode != 0:
         return "CONFLICTING", "DIRTY"
-    if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0:
+    # GitHub reports BEHIND only where branch protection requires branches to be up to date.
+    if scenario.get("requireUpToDate") and git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0:
         return "MERGEABLE", "BEHIND"
     return "MERGEABLE", None
 
@@ -217,9 +227,9 @@ with open("/forge/pulls.lock", "a") as lock:
     job = re.fullmatch(re.escape(PREFIX) + r"actions/jobs/(\d+)/logs", path)
     if job:
         reply(f"Run the controlled check\n##[error]job {job[1]} failed: the controlled check rejected this head\n")
-    if path == "graphql" and fields.get("query", "").lstrip().startswith("query") and "statusCheckRollup" in fields["query"]:
-        reply(policy(next(entry for entry in pulls if entry["number"] == int(fields["number"])), pulls))
-    if path == "graphql" and "updatePullRequestBranch" in fields.get("query", ""):
+    if path == "graphql" and is_update(fields.get("query", "")):
         entry = next(entry for entry in pulls if f"PR_{entry['number']}" == fields["pullRequestId"])
         reply(update_branch(entry, fields["expectedHeadOid"]))
+    if path == "graphql" and is_policy(fields.get("query", "")):
+        reply(policy(next(entry for entry in pulls if entry["number"] == int(fields["number"])), pulls))
 refuse(f"unexpected gh api call: {method} {path}")

@@ -51,11 +51,13 @@ target's fixed dependency paths:
   state a readiness answer or branch update came from, to `gh-trace.jsonl` and
   refuses anything else as unexpected, including `gh pr merge`. Mergeability
   comes from the forge repository: a head that does not merge cleanly with main
-  is `DIRTY`, and one that does not contain main is `BEHIND`. The branch update
-  merges main into the head, as GitHub does. A test may script the rest in
-  `scenario.json`, which the shim rereads on every call: check runs for each
-  successive PR head, the target branch's rule, the review decision, feedback
-  pages, a change to main once the PR opens, and a foreign head repository.
+  is `DIRTY`. Where the scenario requires up-to-date branches, as GitHub
+  branch protection can, one that does not contain main is `BEHIND`. The branch
+  update merges main into the head, as GitHub does. A test may script the rest
+  in `scenario.json`, which the shim rereads on every call: check runs for each
+  successive PR head, the target branch's rule and whether it requires
+  up-to-date branches, the review decision, feedback pages, a change to main
+  once the PR opens, and a foreign head repository.
   Without a scenario it reports an open, clean PR on an unprotected branch with
   no checks and no comments or reviews, so native reports it `ready`.
 
