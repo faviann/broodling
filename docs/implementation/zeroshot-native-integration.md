@@ -40,7 +40,7 @@ The two execution targets pin their native separately.
 | Pin | Owner and consumers |
 | --- | --- |
 | LocalTarget bridge: SDK 10.3.0.post1 and its bundled `zeroshot 10.3.0` | [`NativeProfile`](../../src/Broodling/NativeProfile.cs) `SdkVersion`/`NativeVersion` and [bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt). The bridge version handshake, each `local` locator and the Python environment use only these. |
-| DirectTarget binding: native release, source revision, Linux x86-64 executable and approved execution asset | [`DirectTargetBinding`](../../src/Broodling/DirectTargetBinding.cs), recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json). Asset loading, each prepared submission's retained binding and its reopen/dispatch check, target readiness, [`generate.sh`](../../src/Broodling/execution-assets/generate.sh), both image recipes and the release record use only these. |
+| DirectTarget binding: native release, source revision, Linux x86-64 executable and approved execution asset | [`DirectTargetBinding`](../../src/Broodling/DirectTargetBinding.cs), recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json). Asset loading, each prepared submission's retained binding and its reopen/dispatch check, target readiness, [`generate.sh`](../../src/Broodling/execution-assets/generate.sh) and the release record use only these. Both image recipes carry a copy of the binding's executable pin, which target readiness checks. |
 
 A DirectTarget binding change is a change to the Execution asset and native an
 HTTP Attempt's Prepared submission is bound to. It leaves the no-effect LocalTarget
@@ -65,8 +65,11 @@ DirectTarget binding alone.
 
 The official [Zeroshot 10.3.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.3.0)
 and [SDK 10.3.0.post1](https://github.com/the-open-engine/zeroshot/releases/tag/zeroshot-python-v10.3.0_1)
-remain selected for both. The Linux x86-64 wheel bundles the native engine; its exact URL
-and SHA-256 live in [bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt).
+remain selected for both. The Linux x86-64 wheel bundles the native engine. The
+bridge's copy of its exact URL and SHA-256 is in
+[bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt); the
+DirectTarget's is in the two image recipes and the approval manifest's
+`generation.sdkWheelSha256`.
 
 The sole production Python source file is
 [zeroshot_bridge.py](../../src/Broodling/bridge/zeroshot_bridge.py). It serves

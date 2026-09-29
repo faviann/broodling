@@ -9,8 +9,8 @@ namespace Broodling.Tests;
 public sealed class NativeTransportTests
 {
     /// <summary>
-    /// The installed bridge dependency is the SDK the LocalTarget handshake requires. The DirectTarget binding
-    /// pins its native separately, so changing that binding leaves this pair untouched.
+    /// The bridge's <c>requirements.txt</c> names the wheel for <see cref="NativeProfile.SdkVersion"/>, the SDK
+    /// the LocalTarget handshake requires, so the Python dependency cannot drift from the handshake pin.
     /// </summary>
     [Test]
     public async Task BridgeRequirementIsTheHandshakeSdk()
