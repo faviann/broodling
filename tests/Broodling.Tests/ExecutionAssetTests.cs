@@ -71,6 +71,25 @@ public sealed class ExecutionAssetTests
         }
     }
 
+    [Test]
+    public async Task PinnedReleaseReproducesAndAdmitsTheCandidateAsset()
+    {
+        // The candidate's own pinned native release, never the bridge's; generate.sh downloads it once into
+        // the test workspace cache and verifies archive, executable and recipe against the candidate manifest.
+        var cache = Path.Combine(Environment.GetEnvironmentVariable("BROODLING_TEST_WORKSPACE_ROOT")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "broodling-tests"), "native-releases");
+        var output = Path.Combine(Directory.CreateTempSubdirectory("broodling-asset-").FullName, "asset.json");
+        try
+        {
+            await Run(Path.Combine(Source, "generate.sh"), "--manifest", Path.Combine(Source, "candidate-10.9.0.json"), "--fetch", cache, output);
+            await Assert.That(File.ReadAllBytes(output).SequenceEqual(File.ReadAllBytes(Path.Combine(Source, "software-change-pr-codex-gateway-10.9.0.json")))).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(output)!, true);
+        }
+    }
+
     private static async Task<string> Run(string program, params string[] arguments)
     {
         var start = new ProcessStartInfo(program) { RedirectStandardOutput = true, RedirectStandardError = true };
@@ -80,7 +99,7 @@ public sealed class ExecutionAssetTests
         using var process = Process.Start(start)!;
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(60));
+        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(180));
         if (process.ExitCode != 0) throw new Exception(await error);
         return await output;
     }
