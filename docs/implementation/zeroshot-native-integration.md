@@ -127,11 +127,12 @@ The asset and manifest hold no credential values. The asset also omits the
 gateway URL, which `DispatchCredentials` enforces separately.
 
 [`ExecutionAsset.LoadBundled`](../../src/Broodling/ExecutionAsset.cs) checks the
-packaged files against the identity and binding compiled into the release. It
-refuses a missing, changed or unapproved asset, including the superseded 10.3.0
-asset, and a manifest bound to another native release or policy.
-`ExecutionAssetTests` also checks that the manifest's policy is the asset's own
-runtime. C# passes the graph and runtime through opaquely. It never expands,
+packaged files against the SHA-256 of the asset and of the whole reviewed
+approval manifest compiled into `DirectTargetBinding`. It refuses a missing,
+changed or unapproved asset, including the superseded 10.3.0 asset, and any
+other manifest, such as one naming another native release, policy or recipe
+revision. `ExecutionAssetTests` checks that the manifest's asset and native
+blocks are the binding's and that its policy is the asset's own runtime. C# passes the graph and runtime through opaquely. It never expands,
 edits or regenerates them. Changing the asset requires a reviewed release with
 a new approved identity.
 

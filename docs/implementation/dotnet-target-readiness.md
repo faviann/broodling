@@ -127,7 +127,8 @@ Finally a GET of `<origin>/.well-known/zeroshot-native-v2` must return HTTP 200
 and the exact stock discovery document: kind `zeroshot.native-v2-target/v2`,
 authentication `none`, audience `controller` and the stock run, session and OECP
 routes. `privateBootstrapPath`, `oauth` and `loginSession` may be absent or null,
-and `extensions` absent or empty. Unknown or duplicate fields refuse.
+and `extensions` absent or an object, whose optional capabilities are ignored.
+Unknown or duplicate fields refuse.
 
 Discovery keeps the origin's host name for TLS but connects to `zeroshot-tls`'s
 actual host publication, read from the inspection (a wildcard address is reached

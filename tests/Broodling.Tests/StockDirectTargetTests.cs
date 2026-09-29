@@ -102,9 +102,10 @@ public sealed class StockDirectTargetTests
         var record = store.FindSubmission(attempt)!;
         await DirectTargetSubmission.SubmitAsync(new Uri(target.Origin), null, record.RequestJson, record.IntendedRunId!,
             Credentials.Environment(), TimeProvider.System, default);
-        await Assert.That(record.State).IsEqualTo("dispatched");
-        await Assert.That(record.RunId).IsNull();
-        return record;
+        var unresolved = store.FindSubmission(attempt)!;
+        await Assert.That(unresolved.State).IsEqualTo("dispatched");
+        await Assert.That(unresolved.RunId).IsNull();
+        return unresolved;
     }
 
     [Test]

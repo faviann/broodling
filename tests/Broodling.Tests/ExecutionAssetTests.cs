@@ -25,6 +25,7 @@ public sealed class ExecutionAssetTests
     [Arguments("wrong-hash")]
     [Arguments("rebound-native")]
     [Arguments("rebound-policy")]
+    [Arguments("rebound-recipe")]
     [Arguments("10.3-approval")]
     public async Task LoadingRefusesMissingChangedOrDifferentlyBoundMaterial(string defect)
     {
@@ -49,6 +50,7 @@ public sealed class ExecutionAssetTests
                 case "wrong-hash": approval["asset"]!["sha256"] = new string('0', 64); break;
                 case "rebound-native": approval["native"]!["release"]!["resticLinuxX64ExecutableSha256"] = new string('0', 64); break;
                 case "rebound-policy": approval["policy"]!["pullRequestFeedback"] = "ignore"; break;
+                case "rebound-recipe": approval["generation"]!["recipeRevision"] = new string('0', 40); break;
                 case "10.3-approval":
                     // The superseded binding approves nothing, even beside the bytes it named.
                     File.Move(asset, Path.Combine(directory.FullName, "software-change-pr-codex-gateway.json"));
@@ -76,10 +78,13 @@ public sealed class ExecutionAssetTests
     [Test]
     public async Task ApprovedPolicyIsTheAssetsOwnRuntime()
     {
-        // The manifest's policy must describe the approved bytes, not only match the loader's expectation.
+        // The loader pins the manifest's bytes; its bindings must be this release's and describe the approved asset.
         var manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(Source, "approval.json")))!;
+        await Assert.That(JsonNode.DeepEquals(manifest["asset"], new JsonObject { ["file"] = DirectTargetBinding.AssetFile,
+            ["bytes"] = ExecutionAsset.LoadBundled().Content().Length, ["sha256"] = DirectTargetBinding.AssetSha256 })).IsTrue();
+        await Assert.That(JsonNode.DeepEquals(manifest["native"], DirectTargetBinding.Native())).IsTrue();
         var policy = manifest["policy"]!;
-        await Assert.That(JsonNode.DeepEquals(policy, ExecutionAsset.Approval["policy"])).IsTrue();
+        await Assert.That((string)policy["gatewayBaseUrl"]!).IsEqualTo(NativeProfile.GatewayBaseUrl);
         var runtime = ExecutionAsset.LoadBundled().Runtime().AsObject();
         foreach (var field in new[] { "harness", "provider", "size" })
             await Assert.That((string)runtime[field]!).IsEqualTo((string)policy[field]!);
