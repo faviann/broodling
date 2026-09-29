@@ -30,7 +30,8 @@ public sealed class TargetReadiness
     internal const string TlsUser = "10443:10443";
     /// <summary>Native's fixed inner listener on the project network, where <c>zeroshot-tls</c> forwards; never published.</summary>
     internal const string NativeListen = "0.0.0.0:18770";
-    private const string NativeSha256 = NativeProfile.NativeExecutableSha256;
+    /// <summary>The target image's Codex, pinned by the DirectTarget image rather than the LocalTarget host's <see cref="CodexProfile"/>.</summary>
+    private const string CodexVersion = "codex-cli 0.153.4";
     private const string GhSha256 = "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff";
     private static readonly string[] CredentialNames = ["GH_TOKEN", "GITHUB_TOKEN", "GATEWAY_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY"];
     private static readonly TimeSpan DiscoveryBudget = TimeSpan.FromSeconds(10);
@@ -143,8 +144,8 @@ public sealed class TargetReadiness
             Task<string> Execute(params string[] arguments) => command(["exec", containerId!, .. arguments], cancellationToken);
             var versions = new Dictionary<string, string>();
             foreach (var (label, program, expected) in new[] {
-                ("native", "/usr/local/bin/zeroshot", NativeProfile.NativeVersion),
-                ("codex", "/usr/local/bin/codex", CodexProfile.Version),
+                ("native", "/usr/local/bin/zeroshot", DirectTargetBinding.NativeVersion),
+                ("codex", "/usr/local/bin/codex", CodexVersion),
                 ("node", "/usr/local/bin/node", "v22.23.2") })
             {
                 Require((await Execute(program, "--version")).Trim() == expected, $"Target {label} version differs from supported pin.");
@@ -153,7 +154,7 @@ public sealed class TargetReadiness
             var gh = (await Execute("/usr/bin/gh", "--version")).Trim().Split('\n')[0];
             Require(gh.StartsWith("gh version 2.101.0 ", StringComparison.Ordinal), "Target GitHub CLI version differs from supported pin.");
             versions["gh"] = "gh version 2.101.0"; // Do not return arbitrary trailing process output.
-            foreach (var (program, expected) in new[] { ("/usr/local/bin/zeroshot", NativeSha256), ("/usr/bin/gh", GhSha256) })
+            foreach (var (program, expected) in new[] { ("/usr/local/bin/zeroshot", DirectTargetBinding.NativeExecutableSha256), ("/usr/bin/gh", GhSha256) })
                 Require((await Execute("sha256sum", program)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() == expected,
                     "Target executable bytes differ from supported pin.");
             var help = await Execute("/usr/bin/gh", "api", "graphql", "--paginate", "--slurp", "--help");

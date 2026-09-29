@@ -8,7 +8,9 @@
 # invocation commands (submit, resume, wait, stop), retire-attempt and replace-attempt run from the
 # release artifact on a host with gh and the caller checkout's common Git directory.
 
-# The official SDK wheel, only for its pinned native binary (the same pin as bridge/requirements.txt).
+# The DirectTarget binding's native executable (src/Broodling/DirectTargetBinding.cs and
+# execution-assets/approval.json), taken from the official SDK wheel that carries it. This pin is
+# independent of the LocalTarget bridge's bridge/requirements.txt; both currently name this wheel.
 FROM scratch AS wheel
 ADD --checksum=sha256:f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9 \
     https://github.com/the-open-engine/zeroshot/releases/download/zeroshot-python-v10.3.0_1/the_open_engine_zeroshot-10.3.0.post1-py3-none-manylinux_2_17_x86_64.whl /zeroshot.whl

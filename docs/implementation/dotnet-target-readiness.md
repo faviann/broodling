@@ -106,7 +106,10 @@ mount source: the root key directory or Caddy's data, which holds the
 intermediate key.
 
 Subsequent execs use the inspected target container ID, never a newly selected
-name:
+name. The native version and hash are the
+[DirectTarget binding](zeroshot-native-integration.md#pinned-dependencies-and-bridge);
+the other pins are the DirectTarget image's own, independent of the LocalTarget
+bridge and its host Codex profile:
 
 | Probe | Required observation |
 | --- | --- |

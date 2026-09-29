@@ -33,11 +33,39 @@ PR delivery includes native commit, push and open-or-update. It promises neither
 passing CI nor merge. Broodling retains the full matching receipt and commits
 completion/current-authority loss atomically for the exact Attempt.
 
-## Pinned dependency and bridge
+## Pinned dependencies and bridge
+
+The two execution targets pin their native separately.
+
+| Pin | Owner and consumers |
+| --- | --- |
+| LocalTarget bridge: SDK 10.3.0.post1 and its bundled `zeroshot 10.3.0` | [`NativeProfile`](../../src/Broodling/NativeProfile.cs) `SdkVersion`/`NativeVersion` and [bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt). The bridge version handshake, each `local` locator and the Python environment use only these. |
+| DirectTarget binding: native release, source revision, Linux x86-64 executable and approved execution asset | [`DirectTargetBinding`](../../src/Broodling/DirectTargetBinding.cs), recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json). Asset loading, each prepared submission's retained binding and its reopen/dispatch check, target readiness, [`generate.sh`](../../src/Broodling/execution-assets/generate.sh), both image recipes and the release record use only these. |
+
+A DirectTarget binding change is a change to the Execution asset and native an
+HTTP Attempt's Prepared submission is bound to. It leaves the no-effect LocalTarget
+bridge, its Python environment and its retained `local` locators unchanged;
+`NativeTransportTests` ties the bridge dependency file to the handshake SDK.
+Both pins currently name the same native, and the images and asset recipe take
+the DirectTarget executable from the same official wheel, by their own pins.
+The target image's Codex is likewise its own readiness pin, apart from the
+LocalTarget host's `CodexProfile`. The gateway URL remains one shared constant:
+the bridge does not use it, while the bundled proposer calls it and DirectTarget
+dispatch credentials and the approved asset policy require it.
+`NativeProfile.Runtime()` is the bridge's runtime only; an HTTP Attempt's runtime
+is the asset's.
+
+The submission (`DirectTargetSubmission`), reader and stopper
+(`DirectTargetRun`, and the `INativeReader`/`INativeStopper` seams the
+application operations accept) stay unchanged for a later client adapter to
+replace the DirectTarget transport behind them. Broodling keeps authority over
+the Prepared submission, Dispatch intent, Native correlation, Native observation
+and Attempt retirement; the adapter would take its native identity from the
+DirectTarget binding alone.
 
 The official [Zeroshot 10.3.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.3.0)
 and [SDK 10.3.0.post1](https://github.com/the-open-engine/zeroshot/releases/tag/zeroshot-python-v10.3.0_1)
-remain selected. The Linux x86-64 wheel bundles the native engine; its exact URL
+remain selected for both. The Linux x86-64 wheel bundles the native engine; its exact URL
 and SHA-256 live in [bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt).
 
 The sole production Python source file is
@@ -122,7 +150,8 @@ commits all of the following together:
 - The exact asset bytes in the content-addressed `execution_assets` row.
 - A Broodling-only binding that is never sent: protocol
   `zeroshot.native-v2-target/v2`, the target origin, the common Git directory,
-  the frozen result-fetch origin and the native release pins.
+  the frozen result-fetch origin and the DirectTarget binding's native
+  release, source and executable.
 
 Concurrent preparers converge on the first committed record; a loser never
 generates or compares another identity. Repeating preparation does not read the
