@@ -39,18 +39,20 @@ public sealed record NativeLocator(string Kind, string Address, string? SdkVersi
 }
 
 /// <summary>
-/// The pinned native release and gateway constants shared by both targets, and the fixed LocalTarget
-/// bridge policy for no-effect work: runtime, target environment and the explicit Codex profile.
-/// Authorized PR work uses the HTTP DirectTarget and its approved execution asset;
-/// <see cref="DispatchCredentials"/> carries its current secrets. There is no caller-selected
-/// model/runtime or arbitrary environment map.
+/// The LocalTarget bridge's pins and fixed policy for no-effect work: the SDK and bundled native its
+/// handshake requires (the <c>bridge/requirements.txt</c> wheel), runtime, target environment and the
+/// explicit Codex profile. The HTTP DirectTarget's native release and approved execution asset are the
+/// separate <see cref="DirectTargetBinding"/>. There is no caller-selected model/runtime or arbitrary
+/// environment map.
 /// </summary>
 public sealed class NativeProfile
 {
     public const string SdkVersion = "10.3.0.post1";
     public const string NativeVersion = "zeroshot 10.3.0";
-    public const string NativeSourceRevision = "054ad3fd6c763b98d12f5b2e90830b97116561ad";
-    public const string NativeExecutableSha256 = "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06";
+    /// <summary>
+    /// The one supported gateway endpoint. Not a bridge pin (the bridge uses Codex/OpenAI): the bundled
+    /// proposer calls it, and DirectTarget dispatch credentials and the approved asset policy require it.
+    /// </summary>
     public const string GatewayBaseUrl = "https://cliproxy.local.faviann.com/v1";
     internal static readonly string[] OperatingVariables = ["HOME", "CODEX_HOME", "LANG", "LC_ALL", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "USERPROFILE", "XDG_CACHE_HOME", "XDG_CONFIG_HOME"];
     private readonly string stateDirectory;

@@ -221,11 +221,7 @@ public sealed partial class BroodlingStore
     private static JsonObject HttpBinding(AttemptRecord attempt, string origin, string resultOrigin) => new()
     {
         ["protocol"] = DirectTargetDiscovery.Kind, ["origin"] = origin, ["repository"] = attempt.B1.Repository, ["resultOrigin"] = resultOrigin,
-        ["native"] = new JsonObject
-        {
-            ["version"] = NativeProfile.NativeVersion, ["sourceRevision"] = NativeProfile.NativeSourceRevision,
-            ["linuxX64ExecutableSha256"] = NativeProfile.NativeExecutableSha256
-        }
+        ["native"] = DirectTargetBinding.Native()
     };
 
     /// <summary>Captured once from the retained common Git directory; later remote changes never rebind it.</summary>

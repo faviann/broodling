@@ -130,11 +130,14 @@ tests/images/demonstrate.sh broodling:REVIEWED_REVISION broodling-target:REVIEWE
 ```
 
 Both builds fetch the official SDK 10.3.0.post1 wheel by its pinned SHA-256
-(the [bridge/requirements.txt](../src/Broodling/bridge/requirements.txt) pin)
-and use only its native `zeroshot 10.3.0` executable, source
+and use only its native executable, the
+[DirectTarget binding](../docs/implementation/zeroshot-native-integration.md#pinned-dependencies-and-bridge)
+`zeroshot 10.3.0`, source
 `054ad3fd6c763b98d12f5b2e90830b97116561ad`, SHA-256
-`afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06`. Neither
-image contains the SDK. Base images are pinned by digest; apt packages come from
+`afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06`. That pin is
+separate from the LocalTarget bridge's
+[bridge/requirements.txt](../src/Broodling/bridge/requirements.txt), which
+currently names the same wheel. Neither image contains the SDK. Base images are pinned by digest; apt packages come from
 the base distribution at build time, so select a published image by digest, not
 by rebuilding.
 

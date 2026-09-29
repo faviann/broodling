@@ -7,11 +7,14 @@ set -euo pipefail
 assets="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 native="$(realpath -- "${1:?Usage: generate.sh ZEROSHOT_EXECUTABLE [OUTPUT]}")"
 output="${2:-}"
-approved_sha256=10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8
-native_sha256=afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06
+# The DirectTarget binding, as the reviewed approval manifest beside this recipe records it (the
+# application refuses a manifest that differs from its compiled DirectTargetBinding).
+{ read -r approved_sha256; read -r native_sha256; read -r native_version; } < <(python3 -c 'import json, sys
+approval = json.load(open(sys.argv[1]))
+print(approval["asset"]["sha256"], approval["native"]["linuxX64ExecutableSha256"], approval["native"]["version"], sep="\n")' "$assets/approval.json")
 
 [[ "$(sha256sum -- "$native" | cut -d ' ' -f 1)" == "$native_sha256" ]] \
-    || { printf 'The pinned Linux x86-64 zeroshot 10.3.0 executable is required.\n' >&2; exit 1; }
+    || { printf 'The pinned Linux x86-64 %s executable is required.\n' "$native_version" >&2; exit 1; }
 
 work="$(mktemp -d -t broodling-execution-asset.XXXXXXXX)"
 trap 'rm -rf -- "$work"' EXIT
@@ -19,7 +22,7 @@ mkdir -p "$work/home" "$work/config"
 zeroshot() {
     (cd -- "$work" && env -i PATH=/usr/bin:/bin HOME="$work/home" ZEROSHOT_CONFIG_DIR="$work/config" "$native" "$@")
 }
-[[ "$(zeroshot --version)" == 'zeroshot 10.3.0' ]]
+[[ "$(zeroshot --version)" == "$native_version" ]]
 
 # Asset identity is SHA-256 of these exact bytes: {graph, runtime} from `profile show`,
 # written as Python json.dumps(indent=2, sort_keys=True) plus a final newline.

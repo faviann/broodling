@@ -8,6 +8,18 @@ namespace Broodling.Tests;
 
 public sealed class NativeTransportTests
 {
+    /// <summary>
+    /// The bridge's <c>requirements.txt</c> names the wheel for <see cref="NativeProfile.SdkVersion"/>, the SDK
+    /// the LocalTarget handshake requires, so the Python dependency cannot drift from the handshake pin.
+    /// </summary>
+    [Test]
+    public async Task BridgeRequirementIsTheHandshakeSdk()
+    {
+        var requirement = File.ReadAllLines(Path.Combine(NativeFixture.RepositoryRoot, "src", "Broodling", "bridge", "requirements.txt"))
+            .Single(line => !line.StartsWith('#'));
+        await Assert.That(requirement).Contains($"/the_open_engine_zeroshot-{NativeProfile.SdkVersion}-py3-none-manylinux_2_17_x86_64.whl#sha256=");
+    }
+
     [Test]
     [Arguments("wrong-sdk", "zeroshot 10.3.0")]
     [Arguments("10.3.0.post1", "zeroshot wrong-native")]

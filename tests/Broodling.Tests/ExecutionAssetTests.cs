@@ -31,7 +31,7 @@ public sealed class ExecutionAssetTests
                 File.Copy(file, Path.Combine(directory.FullName, Path.GetFileName(file)));
             var asset = Path.Combine(directory.FullName, "software-change-pr-codex-gateway.json");
             var manifest = Path.Combine(directory.FullName, "approval.json");
-            await Assert.That(ExecutionAsset.Load(directory.FullName).Sha256).IsEqualTo(ExecutionAsset.ApprovedSha256);
+            await Assert.That(ExecutionAsset.Load(directory.FullName).Sha256).IsEqualTo(DirectTargetBinding.AssetSha256);
             switch (defect)
             {
                 case "missing-asset": File.Delete(asset); break;
@@ -42,7 +42,7 @@ public sealed class ExecutionAssetTests
                     File.WriteAllBytes(asset, bytes);
                     break;
                 case "rebound-manifest":
-                    File.WriteAllText(manifest, File.ReadAllText(manifest).Replace(NativeProfile.NativeSourceRevision, new string('0', 40)));
+                    File.WriteAllText(manifest, File.ReadAllText(manifest).Replace(DirectTargetBinding.NativeSourceRevision, new string('0', 40)));
                     break;
             }
             await Assert.That(() => ExecutionAsset.Load(directory.FullName)).Throws<UnsupportedRuntime>();
@@ -59,6 +59,7 @@ public sealed class ExecutionAssetTests
         var output = Path.Combine(Directory.CreateTempSubdirectory("broodling-asset-").FullName, "asset.json");
         try
         {
+            // The bridge wheel currently carries the DirectTarget binding's executable; generate.sh refuses any other bytes.
             var native = (await Run(NativeFixture.Python, "-I", "-c",
                 "import importlib.resources; print(importlib.resources.files('zeroshot').joinpath('_bin', 'zeroshot'))")).Trim();
             await Run(Path.Combine(Source, "generate.sh"), native, output);

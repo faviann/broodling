@@ -127,11 +127,7 @@ internal sealed class BundleHttpFixture : IDisposable
         {
             ["protocol"] = "zeroshot.native-v2-target/v2", ["origin"] = target.GetLeftPart(UriPartial.Authority),
             ["repository"] = Attempt.B1.Repository, ["resultOrigin"] = "https://github.com/acme/widget.git",
-            ["native"] = new JsonObject
-            {
-                ["version"] = NativeProfile.NativeVersion, ["sourceRevision"] = NativeProfile.NativeSourceRevision,
-                ["linuxX64ExecutableSha256"] = NativeProfile.NativeExecutableSha256
-            }
+            ["native"] = DirectTargetBinding.Native()
         }.ToJsonString();
         using var connection = Git.State.Connect();
         using var command = connection.CreateCommand();
@@ -186,7 +182,7 @@ public sealed class HttpSubmissionTests
         await Assert.That(task.Contains("The complete reviewed request.") && task.Contains("\"comparisonBase\":\"" + attempt.B1.CommitOid))
             .IsTrue();
 
-        await Assert.That(prepared.AssetSha256).IsEqualTo(ExecutionAsset.ApprovedSha256);
+        await Assert.That(prepared.AssetSha256).IsEqualTo(DirectTargetBinding.AssetSha256);
         using (var connection = fixture.Git.State.Connect())
         using (var command = connection.CreateCommand())
         {
@@ -198,11 +194,7 @@ public sealed class HttpSubmissionTests
         {
             ["protocol"] = "zeroshot.native-v2-target/v2", ["origin"] = HttpFixture.Target, ["repository"] = attempt.B1.Repository,
             ["resultOrigin"] = "https://github.com/acme/widget.git",
-            ["native"] = new JsonObject
-            {
-                ["version"] = NativeProfile.NativeVersion, ["sourceRevision"] = NativeProfile.NativeSourceRevision,
-                ["linuxX64ExecutableSha256"] = NativeProfile.NativeExecutableSha256
-            }
+            ["native"] = DirectTargetBinding.Native()
         })).IsTrue();
         await Assert.That(prepared.Locator).IsEqualTo(new NativeLocator("direct", HttpFixture.Target, null));
 
