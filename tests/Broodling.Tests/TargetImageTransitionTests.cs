@@ -7,35 +7,39 @@ using static Broodling.Tests.TargetImage;
 namespace Broodling.Tests;
 
 /// <summary>
-/// An update of the DirectTarget image over retained native state: state written by a published target
-/// image listed in <c>deployment/native-state-transitions.json</c> is then served by this revision's
-/// image (or the candidate named by <c>BROODLING_TEST_TARGET_IMAGE</c>) on the same state and home
-/// mounts and origin, through the entrypoint's ordinary startup. Only the application observes the
-/// result. Provider, forge and PR receipt are controlled, as in the stock witness.
+/// Native state survives a restart of this revision's DirectTarget image (or the candidate named by
+/// <c>BROODLING_TEST_TARGET_IMAGE</c>) and an update to it from each published target image listed in
+/// <c>deployment/native-state-transitions.json</c>, on the same state and home mounts and origin, through
+/// the entrypoint's ordinary startup. A listed image must carry the binding's own native: transitions are
+/// established only within one native release. Only the application observes the result. Provider, forge
+/// and PR receipt are controlled, as in the stock witness.
 /// </summary>
 public sealed class TargetImageTransitionTests
 {
-    public static IEnumerable<Func<PublishedTarget>> ListedSources() =>
+    public static IEnumerable<Func<SourceTarget>> Sources() =>
         JsonNode.Parse(File.ReadAllText(Path.Combine(NativeFixture.RepositoryRoot, "deployment", "native-state-transitions.json")))!["from"]!
-            .AsArray().Select(source => (Func<PublishedTarget>)(() => new((string)source!["image"]!,
+            .AsArray().Select(source => (Func<SourceTarget>)(() => new((string)source!["image"]!,
                 (string)source["native"]!["version"]!, (string)source["native"]!["linuxX64ExecutableSha256"]!)))
+            .Prepend(() => new(null, DirectTargetBinding.NativeVersion, DirectTargetBinding.NativeExecutableSha256))
             .ToList();
 
     [Test]
-    [MethodDataSource(nameof(ListedSources))]
-    public async Task NativeStateFromAListedPublishedImageSurvivesTheUpdateToThisImage(PublishedTarget source)
+    [MethodDataSource(nameof(Sources))]
+    public async Task NativeStateSurvivesTheRestartOrUpdateToThisImage(SourceTarget source)
     {
-        var published = await Pinned(source.Image);
-        // The native version recorded for the published image is the one it carries.
-        var native = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", published, "-ec",
+        await Assert.That((source.NativeVersion, source.NativeSha256))
+            .IsEqualTo((DirectTargetBinding.NativeVersion, DirectTargetBinding.NativeExecutableSha256));
+        var image = source.Image is null ? await Direct.Value : await Pinned(source.Image);
+        // The native version recorded for the source image is the one it carries.
+        var native = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", image, "-ec",
             "zeroshot --version; sha256sum < /usr/local/bin/zeroshot");
         RequireSuccess(native);
         await Assert.That(native.Output).IsEqualTo($"{source.NativeVersion}\n{source.NativeSha256}  -\n");
         using var delivered = new AttemptFixture();
         using var unacknowledged = new AttemptFixture();
-        await using var target = await StockDirectTarget.StartAsync(delivered.State.Root, image: await ControlledOver(published));
+        await using var target = await StockDirectTarget.StartAsync(delivered.State.Root, image: await ControlledOver(image));
 
-        // On the published image: one correlated run that finished, and one send whose acknowledgement was lost.
+        // On the source image: one correlated run that finished, and one send whose acknowledgement was lost.
         var admitted = Admit(delivered, target);
         using var store = admitted.Store;
         await target.PushAsync(delivered.Repository, "main");
@@ -47,29 +51,28 @@ public sealed class TargetImageTransitionTests
         var pending = Admit(unacknowledged, target);
         using var pendingStore = pending.Store;
         var replay = new Invocation(pendingStore, new InvocationTarget.Direct(target.Origin));
-        // A B1 missing from the forge: the target records the run but does not acknowledge it.
-        var b1 = unacknowledged.Commit("never published\n");
-        await Assert.That(async () => await replay.ResumeAsync(pending.Revision, unacknowledged.Repository, b1, Credentials))
-            .Throws<NativeTransportError>();
-        var unresolved = pendingStore.FindSubmission(pendingStore.Status(pending.Revision).Attempts.Single().AttemptId)!;
-        await Assert.That(unresolved.RunId).IsNull();
+        // The target records the run, but its acknowledgement is lost.
+        var unresolved = await LoseAcknowledgementAsync(pendingStore, unacknowledged, replay, pending.Revision, unacknowledged.Head, target);
         await Assert.That(await target.RunCountAsync()).IsEqualTo(2);
 
         await target.RestartAsync(await Controlled.Value);
 
-        // Wait reconnects by the retained run identity and consumes the result the published image produced.
+        // Wait reconnects by the retained run identity and consumes the result the source image produced.
         var completion = await store.WaitAsync(attempt, null);
         await Assert.That(completion.Outcome).IsEqualTo("SUCCEEDED");
         await Assert.That(completion.DeliveryReceipt.GetRawText()).IsEqualTo(reference.GetRawText());
-        // The exact replay converges on the run the published image recorded for that submission key.
+        // The exact replay converges on the run the source image recorded for that submission key.
         var replayed = await replay.ResumeAsync(pending.Revision, credentials: Credentials);
         await Assert.That(replayed.Submissions.Single().RunId).IsEqualTo(unresolved.IntendedRunId);
         await Assert.That(await target.RunCountAsync()).IsEqualTo(2);
     }
 
-    /// <summary>A published target image by digest and the native it carries; displayed as its reference.</summary>
-    public sealed record PublishedTarget(string Image, string NativeVersion, string NativeSha256)
+    /// <summary>
+    /// A published target image by digest, or this revision's image itself (<c>null</c>, a restart), and the
+    /// native it carries; displayed as its reference.
+    /// </summary>
+    public sealed record SourceTarget(string? Image, string NativeVersion, string NativeSha256)
     {
-        public override string ToString() => Image;
+        public override string ToString() => Image ?? "this image (restart)";
     }
 }

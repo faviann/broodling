@@ -36,21 +36,9 @@ public sealed class CompletionPersistenceTests
         await Assert.That(() => Insert(fixture, contract: otherRevision)).Throws<SqliteException>();
         await Assert.That(() => Insert(fixture, attempt: "foreign-attempt")).Throws<SqliteException>();
         await Assert.That(() => Insert(fixture, run: "foreign-run")).Throws<SqliteException>();
-        var invalid = new List<string> { "null", "{}", "[]" };
-        foreach (var (field, value) in new[] {
-            ("repository", "\"foreign/project\""), ("targetBranch", "\"release\""), ("version", "\"v2\""),
-            ("headRevision", "\"" + fixture.Attempt.B1.CommitOid + "\""),
-            ("headRevision", "\"" + new string('B', 40) + "\""),
-            ("headRevision", "\"" + new string('b', 40) + "\\u0000\""),
-            ("pullRequestId", "0"), ("pullRequestId", "\"\""), ("pullRequestId", "\"١\""),
-            ("pullRequestId", "\"-1\""), ("pullRequestId", "\"1\\u0000\"") })
-        {
-            var json = JsonNode.Parse(CompletionFixture.Receipt().GetRawText())!;
-            json[field] = JsonNode.Parse(value); invalid.Add(json.ToJsonString());
-        }
-        var extra = JsonNode.Parse(CompletionFixture.Receipt().GetRawText())!; extra["extra"] = "field"; invalid.Add(extra.ToJsonString());
-        foreach (var receipt in invalid)
-            await Assert.That(() => Insert(fixture, receipt)).Throws<SqliteException>();
+        // The same table the application refuses (AttemptCompletionTests), with the accepted revision any valid head.
+        foreach (var (name, receipt) in CompletionFixture.RefusedReceipts(fixture.Attempt.B1.CommitOid, new string('b', 40)))
+            await Assert.That(() => Insert(fixture, receipt)).Throws<SqliteException>().Because(name);
         fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
         Insert(fixture);
         await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)!.Outcome).IsEqualTo("SUCCEEDED");

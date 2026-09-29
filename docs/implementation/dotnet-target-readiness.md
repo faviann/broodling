@@ -106,18 +106,19 @@ mount source: the root key directory or Caddy's data, which holds the
 intermediate key.
 
 Subsequent execs use the inspected target container ID, never a newly selected
-name. The native version and hash are the
+name. The native version and the `zeroshot` and `restic` hashes are the
 [DirectTarget binding](zeroshot-native-integration.md#pinned-dependencies-and-bridge);
 the other pins are the DirectTarget image's own, independent of the LocalTarget
 bridge and its host Codex profile:
 
 | Probe | Required observation |
 | --- | --- |
-| `/usr/local/bin/zeroshot --version` | `zeroshot 10.3.0` |
+| `/usr/local/bin/zeroshot --version` | `zeroshot 10.9.0` |
 | `/usr/local/bin/codex --version` | `codex-cli 0.153.4` |
 | `/usr/local/bin/node --version` | `v22.23.2` |
 | `/usr/bin/gh --version` | First line begins `gh version 2.101.0 ` |
-| `sha256sum /usr/local/bin/zeroshot` | `afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06` |
+| `sha256sum /usr/local/bin/zeroshot` | `f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94` |
+| `sha256sum /usr/local/bin/restic` | `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, the release archive's `restic` that native run allocation requires |
 | `sha256sum /usr/bin/gh` | `ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff` |
 | `/usr/bin/gh api graphql --paginate --slurp --help` | Declares the `--slurp` flag |
 | Short Python exec | `setgroups([10002])`, `setgid(10002)`, `setuid(10002)` and assertions of the resulting UID/GID succeed |
@@ -126,7 +127,8 @@ Finally a GET of `<origin>/.well-known/zeroshot-native-v2` must return HTTP 200
 and the exact stock discovery document: kind `zeroshot.native-v2-target/v2`,
 authentication `none`, audience `controller` and the stock run, session and OECP
 routes. `privateBootstrapPath`, `oauth` and `loginSession` may be absent or null,
-and `extensions` absent or empty. Unknown or duplicate fields refuse.
+and `extensions` absent or an object, whose optional capabilities are ignored.
+Unknown or duplicate fields refuse.
 
 Discovery keeps the origin's host name for TLS but connects to `zeroshot-tls`'s
 actual host publication, read from the inspection (a wildcard address is reached

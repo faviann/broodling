@@ -42,8 +42,10 @@ target's fixed dependency paths:
   target's isolated identities do not own it. Native clears the Git environment
   and global configuration, so this shim is the only way to add either setting.
 - `gh` implements only the `gh api` calls native pull-request delivery makes:
-  pull-request list/create, branch references and the policy query. It reports
-  an open PR with no required checks.
+  pull-request list/create/read/update, branch references, the paginated PR
+  feedback reads and the readiness policy query. It reports an open, clean PR
+  on an unprotected branch with no checks and no comments or reviews, so native
+  reports it `ready`.
 
 A successful run produces a controlled PR receipt, not a real GitHub PR or
 semantic-quality result. Credentials are fixed fake values. The only network

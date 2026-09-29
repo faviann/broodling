@@ -69,14 +69,15 @@ Source: [admission/delivery policy](../../src/Broodling/Closability.cs),
 ## Supported profile and outcomes
 
 The supported source/release profile is single-host Linux x86-64, .NET 10 /
-ASP.NET Core, SQLite through Microsoft.Data.Sqlite, Git, Zeroshot 10.3.0 and
-Codex 0.153.4. The authorized-PR path talks HTTP/OECP to the stock
-`zeroshot target serve` of an operator-managed DirectTarget. It submits the
-release-bundled approved execution asset (Zeroshot's standard `software-change`
-workflow with one uniform Codex / `gateway` / `gpt-5.6-sol` / medium-effort
-runtime) and uses exactly `https://cliproxy.local.faviann.com/v1`. It needs no
+ASP.NET Core, SQLite through Microsoft.Data.Sqlite, Git and Codex 0.153.4. The
+authorized-PR path talks HTTP/OECP to the stock `zeroshot target serve` of an
+operator-managed DirectTarget running native Zeroshot 10.9.0 (#215). It submits
+the release-bundled approved execution asset (native 10.9.0's standard
+`software-change` PR workflow with one uniform Codex / `gateway` /
+`gpt-5.6-sol` / medium-effort runtime and native's default `consider` PR
+feedback) and uses exactly `https://cliproxy.local.faviann.com/v1`. It needs no
 Python, SDK client state, workspace root or launcher. Python 3.13+ with SDK
-10.3.0.post1 serves only the no-effect LocalTarget bridge. The operator
+10.3.0.post1, bundling native 10.3.0, serves only the no-effect LocalTarget bridge. The operator
 configuration names one target kind; an existing Attempt continues only through
 its retained kind, with no fallback between them. Callable `TargetReadiness.CheckAsync`
 and the thin `check-target` command check the selected actual target's image,
@@ -86,11 +87,13 @@ configuration and pinned dependencies, including GitHub CLI. See
 | Frozen effect authority | Supported behavior |
 | --- | --- |
 | Empty required-effect set | LocalTarget worktree execution through the SDK bridge is permitted, but native success returns no stable accepted result; Broodling therefore refuses successful disposition. |
-| Exactly one `pull_request` effect with a target branch for a GitHub Work Unit | HTTP DirectTarget native PR delivery from exact B1, with no client execution checkout. A matching successful `v1/pr/opened` receipt supplies the stable non-B1 `headRevision`; after that exact commit is fetched and pinned locally, the disposition for that exact Attempt commits atomically with the receipt. |
+| Exactly one `pull_request` effect with a target branch for a GitHub Work Unit | HTTP DirectTarget native PR delivery from exact B1, with no client execution checkout. A matching successful `v2/pr/ready` receipt supplies the stable non-B1 `headRevision`; after that exact commit is fetched and pinned locally, the disposition for that exact Attempt commits atomically with the receipt. |
 | Other, mixed, multiple or underspecified effects | Refusal. Merge, standalone push, issue mutation, deployment and generic effect execution are unsupported. |
 
-PR delivery includes native commit, push and open-or-update. It promises neither
-passing CI nor merge. Initial or acknowledgement-replay dispatch requires current
+PR delivery includes native commit, push, open-or-update and native's `ready`
+assessment: its required checks and policy gates passed, with PR feedback
+considered and non-ready outcomes routed to native repair. It promises neither
+human approval, semantic correctness nor merge. Initial or acknowledgement-replay dispatch requires current
 `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY`; their values are not frozen
 or persisted by Broodling. Once run correlation is durable, status, wait, stop and
 terminal replay use retained identity without dispatch credentials. Lost
@@ -153,8 +156,11 @@ with a release record of digests, pins and the supported store schema
 ([images](../../deployment/README.md#images)). #125 checks before each publication
 that the target image serves native state written by each listed published
 target image, and records those
-[established transitions](../../deployment/README.md#native-state-transitions);
-all keep native 10.3.0. The Compose installation
+[established transitions](../../deployment/README.md#native-state-transitions).
+#215 replaced the initial DirectTarget native, asset, receipt and store
+definition with native 10.9.0's and removed the 10.3.0 sources; the check now
+restarts the candidate image over its own native state, and transitions are
+established only within one native release. The Compose installation
 (homelab-iac#353) remains open. #113 serves retained
 work and frozen references over read-only HTTP from the ASP.NET host, opening
 existing state only. #118 adds a callable completion observer that retains

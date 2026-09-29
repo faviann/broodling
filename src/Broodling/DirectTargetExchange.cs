@@ -282,5 +282,7 @@ internal static class DirectTargetDiscovery
         DirectTargetExchange.Shape(document, [.. Required.Keys], [.. NullOnly, "extensions"])
         && Required.All(field => document.GetProperty(field.Key) is { ValueKind: JsonValueKind.String } value && value.GetString() == field.Value)
         && NullOnly.All(name => !document.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null)
-        && (!document.TryGetProperty("extensions", out var extensions) || DirectTargetExchange.Shape(extensions, [], []));
+        // Native advertises optional capabilities (10.9.0: run history, workspace recovery/checkpoints) that this
+        // controller does not use; they change nothing about the run protocol it relies on.
+        && (!document.TryGetProperty("extensions", out var extensions) || extensions.ValueKind == JsonValueKind.Object);
 }

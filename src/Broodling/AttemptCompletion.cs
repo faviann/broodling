@@ -130,9 +130,9 @@ public sealed partial class BroodlingStore
         var pr = output.GetProperty("pullRequestId").GetString()!;
         var source = frozen.Source;
         if (frozen.Delivery != "pull_request" || source is null
-            || output.GetProperty("version").GetString() != "v1"
+            || output.GetProperty("version").GetString() != "v2"
             || output.GetProperty("mode").GetString() != "pr"
-            || output.GetProperty("outcome").GetString() != "opened"
+            || output.GetProperty("outcome").GetString() != "ready"
             || output.GetProperty("repository").GetString() != source.Repository
             || output.GetProperty("targetBranch").GetString() != source.Branch
             || head.Length != 40 || head.Any(character => !"0123456789abcdef".Contains(character))

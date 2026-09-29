@@ -20,7 +20,7 @@ public sealed class TargetReadinessTests
         await Assert.That(facts.ProviderTasks).IsEqualTo(0);
         await Assert.That(facts.ContainerId).IsEqualTo("selected-container-id");
         await Assert.That(facts.ImageId).IsEqualTo("sha256:installed");
-        await Assert.That(fixture.Calls.Count).IsEqualTo(9);
+        await Assert.That(fixture.Calls.Count).IsEqualTo(10);
         await Assert.That(fixture.Calls[0].SequenceEqual(["inspect", "--type", "container", "installation-target", "installation-tls",
             "installation-broodling"])).IsTrue();
         await Assert.That(fixture.Calls.Skip(1).All(args => args.Take(2).SequenceEqual(["exec", "selected-container-id"]))).IsTrue();
@@ -227,6 +227,7 @@ public sealed class TargetReadinessTests
     [Arguments("node", "version")]
     [Arguments("gh", "version")]
     [Arguments("native-hash", "executable bytes")]
+    [Arguments("restic-hash", "executable bytes")]
     [Arguments("gh-hash", "executable bytes")]
     [Arguments("slurp", "lacks api")]
     [Arguments("uid", "invalid")]
@@ -238,12 +239,19 @@ public sealed class TargetReadinessTests
     }
 
     [Test]
-    public async Task StockOptionalDiscoveryFieldsMayBeNullOrEmpty()
+    public async Task StockOptionalDiscoveryFieldsMayBeNullOrEmptyAndExtensionsAreIgnored()
     {
         using var fixture = new ReadinessFixture();
         foreach (var name in new[] { "privateBootstrapPath", "oauth", "loginSession" }) fixture.Discovery[name] = null;
         fixture.Discovery["extensions"] = new JsonObject();
         await Assert.That((await fixture.Check()).Ready).IsTrue();
+        // Native 10.9.0 advertises capabilities this controller does not use.
+        using var advertising = new ReadinessFixture();
+        advertising.Discovery["extensions"] = JsonNode.Parse("""
+            {"run_history":{"kind":"zeroshot.run-history/v1","baseUrl":"https://zeroshot.dev.faviann.com"},
+             "workspace_recovery":{"kind":"openengine.workspace-recovery/v1"}}
+            """);
+        await Assert.That((await advertising.Check()).Ready).IsTrue();
     }
 
     [Test]
@@ -267,7 +275,7 @@ public sealed class TargetReadinessTests
         using var fixture = new ReadinessFixture();
         switch (change)
         {
-            case "extensions": fixture.Discovery["extensions"] = new JsonObject { ["profile"] = ReadinessFixture.Secret }; break;
+            case "extensions": fixture.Discovery["extensions"] = new JsonArray(ReadinessFixture.Secret); break;
             case "duplicate": fixture.DiscoveryText = fixture.Discovery.ToJsonString()[..^1] + ",\"kind\":\"zeroshot.native-v2-target/v2\"}"; break;
             case "malformed": fixture.DiscoveryText = ReadinessFixture.Secret; break;
             case "http-failure": fixture.DiscoveryStatus = HttpStatusCode.InternalServerError; break;
@@ -307,7 +315,7 @@ public sealed class TargetReadinessTests
         using var result = JsonDocument.Parse(output.ToString());
         await Assert.That(result.RootElement.GetProperty("ready").GetBoolean()).IsTrue();
         await Assert.That(result.RootElement.GetProperty("providerTasks").GetInt32()).IsEqualTo(0);
-        await Assert.That(fixture.Calls.Count).IsEqualTo(9);
+        await Assert.That(fixture.Calls.Count).IsEqualTo(10);
         // Discovery trusts the invocation configuration's root, as invocation itself does.
         await Assert.That(fixture.TrustedRoot).IsEqualTo(fixture.RootCertificate);
         await Assert.That(Directory.GetFiles(fixture.Root).Length).IsEqualTo(2);
@@ -529,11 +537,12 @@ public sealed class TargetReadinessTests
             var key = string.Join(' ', args);
             var (label, output) = key switch
             {
-                "/usr/local/bin/zeroshot --version" => ("native", "zeroshot 10.3.0"),
+                "/usr/local/bin/zeroshot --version" => ("native", "zeroshot 10.9.0"),
                 "/usr/local/bin/codex --version" => ("codex", "codex-cli 0.153.4"),
                 "/usr/local/bin/node --version" => ("node", "v22.23.2"),
                 "/usr/bin/gh --version" => ("gh", "gh version 2.101.0 (2026-09-15) " + Secret + "\nignored"),
-                "sha256sum /usr/local/bin/zeroshot" => ("native-hash", "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06  /usr/local/bin/zeroshot"),
+                "sha256sum /usr/local/bin/zeroshot" => ("native-hash", "f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94  /usr/local/bin/zeroshot"),
+                "sha256sum /usr/local/bin/restic" => ("restic-hash", "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf  /usr/local/bin/restic"),
                 "sha256sum /usr/bin/gh" => ("gh-hash", "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff  /usr/bin/gh"),
                 "/usr/bin/gh api graphql --paginate --slurp --help" => ("slurp", "FLAGS\n    --slurp Wrap pages"),
                 "python3 -c import os; os.setgroups([10002]); os.setgid(10002); os.setuid(10002); assert os.getuid() == 10002 and os.getgid() == 10002" => ("uid", ""),
@@ -546,7 +555,7 @@ public sealed class TargetReadinessTests
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (request.Method != HttpMethod.Get || request.RequestUri!.AbsoluteUri != Origin + "/.well-known/zeroshot-native-v2"
-                || request.Headers.Authorization is not null || Calls.Count != 9)
+                || request.Headers.Authorization is not null || Calls.Count != 10)
                 throw new InvalidOperationException("Unexpected discovery request");
             DiscoveryCalls++;
             DiscoveryStarted.TrySetResult();

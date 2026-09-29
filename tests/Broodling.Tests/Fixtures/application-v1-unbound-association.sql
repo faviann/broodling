@@ -213,7 +213,7 @@ CREATE TABLE store_metadata (
     manifest_hash TEXT NOT NULL,
     initialized_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'3a414aa75ea9dba6e051cc4a6eb68b49059b9f7c1c29f56d10d3744b3b06d799','1732a43b3b5a9e7f8a2738cc8071cd7baf16d68636ce80b06d5839112f0e53eb','2026-09-25T18:54:16.6525981+00:00');
+INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'2ef2d8752c19220da9dfaa8800520032ce0982a76de5c59b599884a5dc0d1d60','95a34c26df246c160787dcf2c908ade68acdac019628cbfeb243834cce8ad0a5','2026-09-25T18:54:16.6525981+00:00');
 CREATE TABLE work_submissions (
     submission_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -403,9 +403,9 @@ WHEN NOT EXISTS (
       AND (SELECT count(*) FROM json_each(NEW.receipt_json)) = 7
       AND (SELECT count(*) FROM json_each(NEW.receipt_json) WHERE type = 'text'
           AND key IN ('version', 'mode', 'outcome', 'repository', 'targetBranch', 'headRevision', 'pullRequestId')) = 7
-      AND json_extract(NEW.receipt_json, '$.version') = 'v1'
+      AND json_extract(NEW.receipt_json, '$.version') = 'v2'
       AND json_extract(NEW.receipt_json, '$.mode') = 'pr'
-      AND json_extract(NEW.receipt_json, '$.outcome') = 'opened'
+      AND json_extract(NEW.receipt_json, '$.outcome') = 'ready'
       AND json_extract(NEW.receipt_json, '$.repository') = w.owner || '/' || w.repository
       AND json_extract(NEW.receipt_json, '$.targetBranch')
           = json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')

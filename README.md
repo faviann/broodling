@@ -73,8 +73,8 @@ retains the exact official wheel URL and SHA-256: SDK **10.3.0.post1**, bundled
 Zeroshot **10.3.0**. Codex remains **0.153.4**.
 
 Exactly one authorized GitHub `pull_request` effect naming a target branch
-selects HTTP DirectTarget PR delivery, with no Python helper: the stock
-`zeroshot target serve` receives the release-bundled approved asset (one uniform
+selects HTTP DirectTarget PR delivery, with no Python helper: the stock native
+10.9.0 `zeroshot target serve` receives the release-bundled approved asset (one uniform
 Codex / `gateway` / `gpt-5.6-sol` / medium-effort runtime) through exactly
 `https://cliproxy.local.faviann.com/v1`.
 Current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` are required for
