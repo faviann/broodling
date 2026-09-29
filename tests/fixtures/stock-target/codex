@@ -23,7 +23,15 @@ def value(field):
     return {name: value(item) for name, item in field["properties"].items()}
 
 
-if schema["type"] == "null":
+node_input = json.loads(prompt.split("Input JSON:\n", 1)[1].split("\n", 1)[0]) if schema["type"] == "null" else {}
+if "outcome" in node_input:
+    # Delivery repair: append exactly what delivery reported to the candidate, so every repair is a new
+    # commit, and resolve and stage README.md, which a materialized merge conflict leaves unmerged.
+    with open("delivery-repairs.jsonl", "a") as repairs:
+        repairs.write(json.dumps({name: node_input[name] for name in ("outcome", "deliveryFeedback")}) + "\n")
+    Path("README.md").write_text("candidate repaired by the controlled provider\n")
+    subprocess.run(["/usr/bin/git", "add", "--all"], check=True)
+elif schema["type"] == "null":
     # While the forge holds /forge/hold the worker waits, so its run stays active until it is stopped.
     while Path("/forge/hold").exists():
         time.sleep(0.2)
@@ -31,7 +39,7 @@ if schema["type"] == "null":
     Path("README.md").write_text("candidate from the controlled provider\n")
     # Like an agent consulting its available references, it reads each listed one through the
     # installed helper, using only the bundle and reference identities from its frozen task.
-    task = json.loads(prompt.split("Input JSON:\n", 1)[1].split("\n", 1)[0])["task"]
+    task = node_input["task"]
     bundle = json.loads(task.split("\n\n", 1)[1]).get("requestBundle")
     for index, reference in enumerate(bundle["references"] if bundle else []):
         read = subprocess.run(["/usr/local/bin/broodling-reference", bundle["bundleId"], reference["referenceId"]],

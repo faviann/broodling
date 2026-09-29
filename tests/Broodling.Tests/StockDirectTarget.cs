@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using static Broodling.Tests.TargetImage;
 
 namespace Broodling.Tests;
@@ -7,7 +9,8 @@ namespace Broodling.Tests;
 /// <summary>
 /// The selected unmodified native HTTP/OECP target in the DirectTarget image, with a controlled
 /// Codex provider and a controlled forge: shimmed <c>git</c>/<c>gh</c> backed by a host bare
-/// repository for <c>acme/widget</c>. State volumes are disposable and credentials are fake.
+/// repository for <c>acme/widget</c>, which a test may script and whose <c>gh</c> requests it can read.
+/// State volumes are disposable and credentials are fake.
 /// The host-side application needs an origin it can reach without zeroshot-tls, so the witness binds
 /// native to a literal-loopback origin: it records that binding with native's own commands, since the
 /// entrypoint initializes only through zeroshot-tls, and then serves through the unchanged entrypoint
@@ -87,6 +90,53 @@ internal sealed class StockDirectTarget : IAsyncDisposable
         return int.Parse(count.Output.Trim(), System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Replace the controlled forge's scenario (tests/fixtures/stock-target/gh), which it reads on every call.</summary>
+    internal void Script(JsonObject scenario)
+    {
+        File.WriteAllText(Scenario + ".new", scenario.ToJsonString());
+        File.Move(Scenario + ".new", Scenario, overwrite: true);
+    }
+
+    /// <summary>
+    /// Every <c>gh</c> invocation native has made so far, as the controlled forge recorded it. A last line the
+    /// shim is still appending, not yet newline-terminated, is not a request yet.
+    /// </summary>
+    internal IReadOnlyList<ForgeRequest> Trace()
+    {
+        var trace = Path.Combine(root, "gh-trace.jsonl");
+        if (!File.Exists(trace)) return [];
+        var lines = File.ReadAllText(trace).Split('\n');
+        return lines[..^1].Select(line => JsonSerializer.Deserialize<ForgeRequest>(line, Json)!).ToList();
+    }
+
+    /// <summary>The native actually serving: its reported version and executable SHA-256, read inside the running target.</summary>
+    internal async Task<(string Version, string Sha256)> NativeAsync()
+    {
+        var native = await DockerCommand("exec", id, "/bin/sh", "-ec", "zeroshot --version; sha256sum < /usr/local/bin/zeroshot");
+        RequireSuccess(native);
+        var lines = native.Output.Split('\n');
+        return (lines[0], lines[1].Split(' ')[0]);
+    }
+
+    /// <summary>
+    /// Native's own ledger record of <paramref name="runId"/>, read-only inside the target: its terminal failure
+    /// reason, which the application deliberately reduces to <c>native_failed</c>, and how many times each graph
+    /// node executed.
+    /// </summary>
+    internal async Task<(string? Failure, IReadOnlyDictionary<string, int> Executions)> LedgerAsync(string runId)
+    {
+        var stored = await DockerCommand("exec", id, "python3", "-c", "import sqlite3, sys; print(sqlite3.connect("
+            + "'file:/state/runs.sqlite3?mode=ro', uri=True).execute('SELECT stored_json FROM v2_runs WHERE run_id = ?', "
+            + "(sys.argv[1],)).fetchone()[0])", runId);
+        RequireSuccess(stored);
+        var snapshot = JsonNode.Parse(stored.Output)!["snapshot"]!;
+        var executions = snapshot["executions"]!.AsObject().GroupBy(execution => (string)execution.Value!["reference"]!["node"]!)
+            .ToDictionary(node => node.Key, node => node.Count());
+        return ((string?)snapshot["terminal"]?["reason"], executions);
+    }
+
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private string Scenario => Path.Combine(root, "scenario.json");
     private string[] Volumes => ["--mount", $"type=volume,src={id}-state,dst=/state",
         "--mount", $"type=volume,src={id}-home,dst=/home/node,volume-nocopy"];
     private string[] Arguments => ["--listen", TargetReadiness.NativeListen, "--public-origin", Origin, "--storage", "/state"];

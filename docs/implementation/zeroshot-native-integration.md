@@ -453,7 +453,12 @@ outstanding JSON-RPC request with string IDs. A reply must be exactly
 `{jsonrpc: "2.0", id, result}` or `{jsonrpc: "2.0", id, error}` for that ID.
 Batches, notifications, stale or wrong IDs and unknown envelope fields refuse.
 The projection must be exactly `{runId, title, source, size, atCursor, status}`,
-with run, title, size, repository, branch and B1 equal to the binding. The
+with run, title, size, repository, branch and B1 equal to the binding, plus
+native's optional `workspaceRecovery`. Native 10.9.0 adds it to a run that
+failed with a retained workspace, such as repair exhaustion or a refused PR
+identity. It is validated (`recoverable` boolean; optional
+`connectionRequirements` object and `resumedFrom`/`successorRunId` strings) and
+dropped: Broodling never resumes a run. The
 reader accepts only the pinned phase union. `admitted` carries only its phase.
 `running` and `stopping` also list active executions with their nodes.
 `finished` adds a terminal result and optional metadata. Unknown fields and

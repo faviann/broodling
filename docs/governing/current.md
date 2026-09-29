@@ -160,7 +160,11 @@ target image, and records those
 #215 replaced the initial DirectTarget native, asset, receipt and store
 definition with native 10.9.0's and removed the 10.3.0 sources; the check now
 restarts the candidate image over its own native state, and transitions are
-established only within one native release. The Compose installation
+established only within one native release. #219 witnesses that asset's stock
+PR readiness, repair and feedback contract against controlled forge scenarios
+([witness](../../tests/README.md#pr-readiness-repair-and-feedback)), and the
+status reader now drops native's workspace-recovery facts on failed runs.
+The Compose installation
 (homelab-iac#353) remains open. #113 serves retained
 work and frozen references over read-only HTTP from the ASP.NET host, opening
 existing state only. #118 adds a callable completion observer that retains
