@@ -26,11 +26,13 @@ requests still refuse; repository guidance cannot amend stored authority.
 | Frozen effects | Native selection and Broodling outcome |
 | --- | --- |
 | Empty | LocalTarget worktree Attempt through the SDK bridge, `delivery=none`. Native success has null output and no stable accepted result; successful disposition refuses. |
-| Exactly one GitHub `pull_request` naming a target branch | HTTP DirectTarget Attempt with the approved `delivery=pull_request` asset and frozen repository, authorized branch and original B1 selectors. A matching `v1/pr/opened` receipt supplies a stable non-B1 `headRevision`. The bridge never carries PR work. |
+| Exactly one GitHub `pull_request` naming a target branch | HTTP DirectTarget Attempt with the approved `delivery=pull_request` asset and frozen repository, authorized branch and original B1 selectors. A matching `v2/pr/ready` receipt supplies a stable non-B1 `headRevision`. The bridge never carries PR work. |
 | Other, mixed, multiple or underspecified | Refusal; no implicit fallback or wider effect. |
 
-PR delivery includes native commit, push and open-or-update. It promises neither
-passing CI nor merge. Broodling retains the full matching receipt and commits
+PR delivery includes native commit, push, open-or-update and native's readiness
+assessment of the PR: `ready` means its required checks and policy gates passed
+by native's own classification, with PR feedback considered. It promises neither
+human approval, semantic correctness nor merge, and native requests no merge. Broodling retains the full matching receipt and commits
 completion/current-authority loss atomically for the exact Attempt.
 
 ## Pinned dependencies and bridge
@@ -40,14 +42,15 @@ The two execution targets pin their native separately.
 | Pin | Owner and consumers |
 | --- | --- |
 | LocalTarget bridge: SDK 10.3.0.post1 and its bundled `zeroshot 10.3.0` | [`NativeProfile`](../../src/Broodling/NativeProfile.cs) `SdkVersion`/`NativeVersion` and [bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt). The bridge version handshake, each `local` locator and the Python environment use only these. |
-| DirectTarget binding: native release, source revision, Linux x86-64 executable and approved execution asset | [`DirectTargetBinding`](../../src/Broodling/DirectTargetBinding.cs), recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json). Asset loading, each prepared submission's retained binding and its reopen/dispatch check, target readiness, [`generate.sh`](../../src/Broodling/execution-assets/generate.sh) and the release record use only these. Both image recipes carry a copy of the binding's executable pin, which target readiness checks. |
+| DirectTarget binding: native release, source revision, Linux x86-64 executable and approved execution asset | [`DirectTargetBinding`](../../src/Broodling/DirectTargetBinding.cs), recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json). Asset loading, each prepared submission's retained binding and its reopen/dispatch check, target readiness, [`generate.sh`](../../src/Broodling/execution-assets/generate.sh) and the release record use only these. Both image recipes carry a copy of the binding's release archive pin; the DirectTarget image installs its `zeroshot` and the `restic` native run allocation requires, and target readiness checks both executables' SHA-256. |
 
 A DirectTarget binding change is a change to the Execution asset and native an
 HTTP Attempt's Prepared submission is bound to. It leaves the no-effect LocalTarget
 bridge, its Python environment and its retained `local` locators unchanged;
 `NativeTransportTests` ties the bridge dependency file to the handshake SDK.
-Both pins currently name the same native, and the images and asset recipe take
-the DirectTarget executable from the same official wheel, by their own pins.
+The pins name different natives: the bridge keeps SDK 10.3.0.post1 and its
+bundled `zeroshot 10.3.0`, while the DirectTarget binding is `zeroshot 10.9.0`
+from its official release archive.
 The target image's Codex is likewise its own readiness pin, apart from the
 LocalTarget host's `CodexProfile`. The gateway URL remains one shared constant:
 the bridge does not use it, while the bundled proposer calls it and DirectTarget
@@ -63,13 +66,14 @@ the Prepared submission, Dispatch intent, Native correlation, Native observation
 and Attempt retirement; the adapter would take its native identity from the
 DirectTarget binding alone.
 
-The official [Zeroshot 10.3.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.3.0)
-and [SDK 10.3.0.post1](https://github.com/the-open-engine/zeroshot/releases/tag/zeroshot-python-v10.3.0_1)
-remain selected for both. The Linux x86-64 wheel bundles the native engine. The
-bridge's copy of its exact URL and SHA-256 is in
-[bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt); the
-DirectTarget's is in the two image recipes and the approval manifest's
-`generation.sdkWheelSha256`.
+The bridge uses the official
+[SDK 10.3.0.post1](https://github.com/the-open-engine/zeroshot/releases/tag/zeroshot-python-v10.3.0_1),
+whose Linux x86-64 wheel bundles native 10.3.0; its exact URL and SHA-256 are in
+[bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt). The
+DirectTarget uses the official
+[v10.9.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.9.0)'s
+Linux x86-64 musl archive; its URL and SHA-256 are in the two image recipes and
+the approval manifest's `native.release`.
 
 The sole production Python source file is
 [zeroshot_bridge.py](../../src/Broodling/bridge/zeroshot_bridge.py). It serves
@@ -91,70 +95,70 @@ placement remain unsupported.
 ## Approved DirectTarget execution asset
 
 The HTTP DirectTarget path (#163) submits one release-bundled graph/runtime,
-[`execution-assets/software-change-pr-codex-gateway.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway.json).
-Its identity is the SHA-256 of the exact file bytes, formatting included:
-`10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8` (77,069
+[`execution-assets/software-change-pr-codex-gateway-10.9.0.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway-10.9.0.json):
+native 10.9.0's stock `software-change` template with `pull_request` delivery
+(#214). Its identity is the SHA-256 of the exact file bytes, formatting included:
+`258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc` (79,660
 bytes). This identity is Broodling's approval. It is not a stock `profileId` or a
 native digest. The [approval manifest](../../src/Broodling/execution-assets/approval.json)
-binds the asset to native `zeroshot 10.3.0`, source
-`054ad3fd6c763b98d12f5b2e90830b97116561ad`, the Linux x86-64 executable
-`afeb4372…6ee06`, the fixed runtime policy, the symbolic `gateway`/`github`
-connections and the gateway URL. It also records the SDK 10.3.0.post1 generation
-provenance. The asset and manifest hold no credential values. The asset also
-omits the gateway URL, which `DispatchCredentials` enforces separately.
+(#215) records the review that approved it and binds:
+
+- The asset's bytes and SHA-256.
+- Native `zeroshot 10.9.0` from source `75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa`,
+  the Linux x86-64 executable `f39952b9…2fad94`, and the official `v10.9.0`
+  musl release archive (`ca7305a0…d002d`) with its `restic` executable
+  (`90ab22a5…8a8cf`).
+- The policy: Codex / `gateway` / `gpt-5.6-sol` / medium / small / execution
+  sessions, the symbolic `gateway` connection on every agent node, native's
+  `github` delivery connection, native's default `consider` PR feedback and the
+  gateway URL. Native serializes both defaults by omitting `sessionScope` and
+  `pullRequestFeedback`.
+- The recipe: `generate.sh` and `describe.py` by SHA-256, from revision
+  `ebab6f40be923dba37c26a33e00ce94cd7761a71`, with its command, uniform runtime
+  and output format.
+- The asset structure that
+  [`describe.py`](../../src/Broodling/execution-assets/describe.py) reads: six
+  executable nodes, the `builtin.git-delivery.pr@2` `v2`/`pr` receipt with
+  outcomes `ready`, `ci_failed`, `conflict` and `repair_required`, the three
+  non-ready outcomes routing to `delivery_repair`, the ten-iteration
+  `change_loop` and no node `timeoutMs`.
+
+The asset and manifest hold no credential values. The asset also omits the
+gateway URL, which `DispatchCredentials` enforces separately.
 
 [`ExecutionAsset.LoadBundled`](../../src/Broodling/ExecutionAsset.cs) checks the
 packaged files against the identity and binding compiled into the release. It
-refuses a missing, changed or unapproved asset and a manifest bound to another
-native release or policy. C# passes the graph and runtime through opaquely.
-It never expands, edits or regenerates them. Changing the asset requires a
-reviewed release with a new approved identity.
+refuses a missing, changed or unapproved asset, including the superseded 10.3.0
+asset, and a manifest bound to another native release or policy.
+`ExecutionAssetTests` also checks that the manifest's policy is the asset's own
+runtime. C# passes the graph and runtime through opaquely. It never expands,
+edits or regenerates them. Changing the asset requires a reviewed release with
+a new approved identity.
 
 [`generate.sh`](../../src/Broodling/execution-assets/generate.sh) is the
 build-time recipe. It reads one manifest, by default the approval manifest, and
-takes the native executable that manifest pins. It runs `profile set --template
-software-change --delivery pull_request --uniform-runtime-config` with the
-manifest's uniform runtime, then `profile show`, twice, each under `env -i` with
-an empty temporary HOME, `ZEROSHOT_CONFIG_DIR` and `ZEROSHOT_STATE_DIR`. It
-requires both generations and the manifest's asset to have identical bytes. It
-then re-admits the graph/runtime through a fresh `profile set --graph
---runtime-config` and requires an exact round trip. It runs no target or
-provider. It is not a runtime helper. The Broodling
+takes the native executable that manifest pins. It refuses a changed recipe file.
+It runs `profile set --template software-change --delivery pull_request
+--uniform-runtime-config` with the manifest's uniform runtime, then `profile
+show`, twice, each under `env -i` with an empty temporary HOME,
+`ZEROSHOT_CONFIG_DIR` and `ZEROSHOT_STATE_DIR`. It requires both generations and
+the manifest's asset to have identical bytes and the structure `describe.py`
+reads to equal the manifest's. It then re-admits the graph/runtime through a
+fresh `profile set --graph --runtime-config` and requires an exact round trip.
+It runs no target or provider. It is not a runtime helper. It also accepts a
+`broodling.execution-asset-candidate/v1` manifest for reviewing a future
+candidate before approval. The Broodling
 [image build](../../deployment/README.md#broodling-image) runs it with the
 pinned native and fails unless the published asset equals its output.
 
-### Native 10.9.0 candidate asset
-
-[`candidate-10.9.0.json`](../../src/Broodling/execution-assets/candidate-10.9.0.json)
-records a candidate Execution asset for review,
-[`software-change-pr-codex-gateway-10.9.0.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway-10.9.0.json).
-It is evidence, not an approval: nothing loads it and the release does not
-package it. Its hash identity approves nothing until an authorized approval binds
-it in `approval.json` and `DirectTargetBinding` (#215). The manifest records:
-
-- The asset's bytes and SHA-256.
-- Native `zeroshot 10.9.0` from source `75ae54b6…`, the official `v10.9.0` Linux
-  x86-64 musl release archive's SHA-256 and the extracted executable's SHA-256.
-- The policy: Codex / `gateway` / `gpt-5.6-sol` / medium / small / execution
-  sessions, the explicit `gateway` connection, native's `github` delivery
-  connection and native's default `consider` PR feedback. Native serializes both
-  defaults by omitting `sessionScope` and `pullRequestFeedback`.
-- The recipe files' SHA-256. The recipe revision is the commit that adds the
-  manifest.
-- The asset structure that
-  [`describe.py`](../../src/Broodling/execution-assets/describe.py) reads: six
-  executable nodes, the `builtin.git-delivery.pr@2` `v2`/`pr` receipt,
-  `ci_failed`/`conflict`/`repair_required` routing to `delivery_repair`, the
-  ten-iteration `change_loop` and no node `timeoutMs`.
-
-`generate.sh` refuses a changed recipe file or asset structure. With `--fetch`,
-it takes the executable from the pinned release archive in a cache directory. It
-downloads the archive only when that archive is absent, after checking that the
-release tag names the pinned commit and that the release `SHA256SUMS` lists the
-archive checksum. The standalone check needs network access on its first run:
+With `--fetch`, it takes the executable from the pinned release archive in a
+cache directory. It downloads the archive only when that archive is absent,
+after checking that the release tag names the pinned commit and that the release
+`SHA256SUMS` lists the archive checksum. The standalone check needs network
+access on its first run:
 
 ```bash
-src/Broodling/execution-assets/generate.sh --manifest src/Broodling/execution-assets/candidate-10.9.0.json --fetch ~/.cache/broodling-native
+src/Broodling/execution-assets/generate.sh --fetch ~/.cache/broodling-native
 ```
 
 ## HTTP submission preparation
@@ -199,10 +203,7 @@ installed asset. It validates the retained record against the retained asset
 bytes, the approved identity and native binding, and a rebuild of the request
 from admitted authority. A missing or corrupt asset, a request whose graph,
 runtime or task differs, an unsupported binding or a different target origin
-refuses. Nothing is regenerated or rebound. A bundle-bound record prepared before
-reference access keeps its exact bytes: its task matches the projection earlier
-releases froze from the same admitted authority, so it still prepares,
-dispatches, replays and completes unchanged.
+refuses. Nothing is regenerated or rebound.
 
 ### Frozen-reference access
 
@@ -271,10 +272,11 @@ carries no run ID and nothing is adopted from it. Other valid problems are
 `TargetError`; malformed ones are `invalid_response`. Timeouts, cancellation,
 caller death and every refusal preserve the existing facts, so the intent stays
 unresolved and exact replay remains available while the Attempt is current.
-The stock target answers only after its checkout, and it can create a run yet
-reply `503 target.unavailable` (for example when exact B1 is missing from the
-forge). A slow checkout can exhaust the submit budget. In each case the intent
-stays unresolved, and an exact replay returns the same ID. For the same key, the
+Native 10.9.0 acknowledges once it has recorded the run and prepares the
+execution environment, including the checkout of exact B1, afterwards; a
+missing B1 fails that correlated run. A lost reply or a target error after the
+run was recorded leaves the intent unresolved, and an exact replay returns the
+same ID. For the same key, the
 stock target answers a different proposed ID with the original ID. That reply is
 `foreign_run`, never adopted.
 
@@ -423,7 +425,8 @@ response bytes. Discovery accepts only the stock
 `zeroshot.native-v2-target/v2` document with `authentication: none`, `audience:
 controller` and the exact run, session and OECP routes. `privateBootstrapPath`,
 `oauth` and `loginSession` may only be absent or null, and `extensions` absent
-or empty. Any other field refuses as an unsupported runtime. Discovery confirms
+or an object, whose optional capabilities (native 10.9.0 advertises run history
+and workspace recovery/checkpoints) this controller ignores. Any other field refuses as an unsupported runtime. Discovery confirms
 protocol shape. It does not attest native or image bytes or durable target state.
 
 ### DirectTarget run status reader
@@ -440,7 +443,7 @@ absent or null `bearerToken`. The endpoint must equal the origin's paired
 `ws`/`wss` authority plus `/native-v2/oecp`, and is checked before connecting.
 The WebSocket upgrade uses the same redirect-, proxy- and cookie-free handler.
 `initialize` must return the pinned stock reply exactly. At native revision
-`054ad3fd` that reply is constant: the full graph profile, logs, agent attach and
+`75ae54b6` that reply is constant: the full graph profile, logs, agent attach and
 an empty controller status. The stock controller reports that status for every
 connection, and neither the session nor initialization proves that the run exists.
 
@@ -553,7 +556,7 @@ stopped-target and mount verification belong to the host procedure
 The [TUnit suite](../../tests/README.md) covers Broodling authority, Git/SQLite
 durability and controlled released-SDK/native behavior. The
 [stock DirectTarget witness](../../tests/README.md#controlled-stock-directtarget-witness)
-runs the unmodified native 10.3.0 HTTP/OECP target and the approved asset with a
+runs the unmodified native 10.9.0 HTTP/OECP target and the approved asset with a
 controlled Codex provider and forge. Its PR receipt is controlled, not a real
 GitHub PR. None of these establishes provider quality, hostile sandbox resistance
 or physical cessation. [P5 remains scoped FAIL](../../evaluation/p5/README.md),

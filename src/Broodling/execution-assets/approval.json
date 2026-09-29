@@ -1,14 +1,27 @@
 {
   "kind": "broodling.execution-asset-approval/v1",
+  "approval": {
+    "issue": "https://github.com/faviann/broodling/issues/215",
+    "decision": "https://github.com/faviann/zeroshot-dotnet-sdk/issues/10#issuecomment-5850866440",
+    "candidate": "https://github.com/faviann/broodling/issues/214",
+    "review": "Approved after verifying: the v10.9.0 tag names the pinned source commit and the release SHA256SUMS lists the archive; the archive yields both pinned executables; generate.sh reproduces these exact bytes twice in clean environments and native admits them with an exact round trip; the structure below, read from the bytes by describe.py, matches the decision: six executable nodes, builtin.git-delivery.pr@2 with the v2/pr receipt (ready, ci_failed, conflict, repair_required) whose non-ready outcomes route to delivery_repair, the 10-iteration change loop, no node deadlines, gateway connections on every agent node, GH_TOKEN only on delivery, and the default consider pull-request feedback."
+  },
   "asset": {
-    "file": "software-change-pr-codex-gateway.json",
-    "bytes": 77069,
-    "sha256": "10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8"
+    "file": "software-change-pr-codex-gateway-10.9.0.json",
+    "bytes": 79660,
+    "sha256": "258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc"
   },
   "native": {
-    "version": "zeroshot 10.3.0",
-    "sourceRevision": "054ad3fd6c763b98d12f5b2e90830b97116561ad",
-    "linuxX64ExecutableSha256": "afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06"
+    "version": "zeroshot 10.9.0",
+    "sourceRevision": "75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa",
+    "linuxX64ExecutableSha256": "f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94",
+    "release": {
+      "repository": "the-open-engine/zeroshot",
+      "tag": "v10.9.0",
+      "archive": "zeroshot-v10.9.0-x86_64-unknown-linux-musl.tar.gz",
+      "archiveSha256": "ca7305a0a165f3909481ccfcccce367d3bc2c40a9ab65760f6d6cad2a38d002d",
+      "resticLinuxX64ExecutableSha256": "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf"
+    }
   },
   "policy": {
     "workflow": "software-change",
@@ -20,24 +33,213 @@
     "size": "small",
     "sessionScope": "execution",
     "connections": {
-      "gateway": ["GATEWAY_API_KEY", "GATEWAY_BASE_URL"],
-      "github": ["GH_TOKEN"]
+      "gateway": [
+        "GATEWAY_API_KEY",
+        "GATEWAY_BASE_URL"
+      ],
+      "github": [
+        "GH_TOKEN"
+      ]
     },
+    "pullRequestFeedback": "consider",
     "gatewayBaseUrl": "https://cliproxy.local.faviann.com/v1"
   },
   "generation": {
-    "sdk": "the-open-engine-zeroshot 10.3.0.post1",
-    "sdkWheelSha256": "f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9",
     "recipe": "generate.sh",
-    "command": ["zeroshot", "profile", "set", "NAME", "--template", "software-change", "--delivery", "pull_request", "--uniform-runtime-config", "UNIFORM_RUNTIME_JSON"],
+    "recipeFiles": {
+      "generate.sh": "e8da2580e06afa0dbda5cf37e9c1deba71db112fe46a57e237535be61df58ac8",
+      "describe.py": "cce427fc7eb2cc8e9d1f27935d55d4d460abd179561e7af0b6f3b6c5aea303bf"
+    },
+    "recipeRevision": "ebab6f40be923dba37c26a33e00ce94cd7761a71",
+    "environment": "env -i PATH=/usr/bin:/bin with an empty temporary HOME, ZEROSHOT_CONFIG_DIR and ZEROSHOT_STATE_DIR for each generation and the admission",
+    "command": [
+      "zeroshot",
+      "profile",
+      "set",
+      "NAME",
+      "--template",
+      "software-change",
+      "--delivery",
+      "pull_request",
+      "--uniform-runtime-config",
+      "UNIFORM_RUNTIME_JSON"
+    ],
     "uniformRuntime": {
       "harness": "codex",
       "provider": "gateway",
       "model": "gpt-5.6-sol",
       "effort": "medium",
       "size": "small",
-      "sessionScope": "execution"
+      "sessionScope": "execution",
+      "connections": {
+        "gateway": [
+          "GATEWAY_API_KEY",
+          "GATEWAY_BASE_URL"
+        ]
+      }
     },
     "format": "{graph, runtime} from `zeroshot profile show NAME`, Python json.dumps(indent=2, sort_keys=True) plus a final newline"
+  },
+  "structure": {
+    "delivery": {
+      "node": "deliver",
+      "pullRequestFeedback": "consider",
+      "receipt": {
+        "headRevision": {
+          "required": true,
+          "type": "string"
+        },
+        "mode": {
+          "required": true,
+          "type": [
+            "pr"
+          ]
+        },
+        "outcome": {
+          "required": true,
+          "type": [
+            "ci_failed",
+            "conflict",
+            "ready",
+            "repair_required"
+          ]
+        },
+        "pullRequestId": {
+          "required": true,
+          "type": "string"
+        },
+        "repository": {
+          "required": true,
+          "type": "string"
+        },
+        "targetBranch": {
+          "required": true,
+          "type": "string"
+        },
+        "version": {
+          "required": true,
+          "type": [
+            "v2"
+          ]
+        }
+      },
+      "signalRoutes": {
+        "delivery_repair": [
+          "ci_failed",
+          "conflict",
+          "repair_required"
+        ]
+      },
+      "signals": {
+        "delivery": [
+          "ci_failed",
+          "conflict",
+          "ready",
+          "repair_required"
+        ]
+      },
+      "worker": "builtin.git-delivery.pr@2"
+    },
+    "executableNodes": {
+      "acceptance": {
+        "kind": "verifier",
+        "runtime": {
+          "connections": {
+            "gateway": [
+              "GATEWAY_API_KEY",
+              "GATEWAY_BASE_URL"
+            ]
+          },
+          "effort": "medium",
+          "kind": "agent",
+          "model": "gpt-5.6-sol"
+        },
+        "worker": "builtin.agent.acceptance-verifier@1"
+      },
+      "code": {
+        "kind": "verifier",
+        "runtime": {
+          "connections": {
+            "gateway": [
+              "GATEWAY_API_KEY",
+              "GATEWAY_BASE_URL"
+            ]
+          },
+          "effort": "medium",
+          "kind": "agent",
+          "model": "gpt-5.6-sol"
+        },
+        "worker": "builtin.agent.code-verifier@1"
+      },
+      "deliver": {
+        "kind": "verifier",
+        "runtime": {
+          "connections": {
+            "github": [
+              "GH_TOKEN"
+            ]
+          },
+          "kind": "git_delivery"
+        },
+        "worker": "builtin.git-delivery.pr@2"
+      },
+      "delivery_repair": {
+        "kind": "step",
+        "runtime": {
+          "connections": {
+            "gateway": [
+              "GATEWAY_API_KEY",
+              "GATEWAY_BASE_URL"
+            ]
+          },
+          "effort": "medium",
+          "kind": "agent",
+          "model": "gpt-5.6-sol"
+        },
+        "worker": "builtin.agent.delivery-repair@1"
+      },
+      "review_repair": {
+        "kind": "step",
+        "runtime": {
+          "connections": {
+            "gateway": [
+              "GATEWAY_API_KEY",
+              "GATEWAY_BASE_URL"
+            ]
+          },
+          "effort": "medium",
+          "kind": "agent",
+          "model": "gpt-5.6-sol"
+        },
+        "worker": "builtin.agent.review-repair@1"
+      },
+      "worker": {
+        "kind": "step",
+        "runtime": {
+          "connections": {
+            "gateway": [
+              "GATEWAY_API_KEY",
+              "GATEWAY_BASE_URL"
+            ]
+          },
+          "effort": "medium",
+          "kind": "agent",
+          "model": "gpt-5.6-sol"
+        },
+        "worker": "builtin.agent.software-worker@1"
+      }
+    },
+    "loops": {
+      "change_loop": {
+        "maxIterations": 10
+      }
+    },
+    "nodeDeadlines": [],
+    "runtime": {
+      "harness": "codex",
+      "provider": "gateway",
+      "size": "small"
+    },
+    "runtimeOnlyNodes": []
   }
 }

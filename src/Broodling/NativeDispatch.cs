@@ -259,11 +259,9 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// The complete frozen task: admitted Contract, exact entitled bytes and original B1, from retained authority only.
-    /// A bundle-bound Contract also carries its compact manifest and on-demand reference access; without
-    /// <paramref name="referenceAccess"/> it is the projection earlier releases froze for the same authority.
+    /// A bundle-bound Contract also carries its compact manifest and on-demand reference access.
     /// </summary>
-    private (string Task, WorkUnit Work, DeliveryAuthorization Authorization) AdmittedTask(AttemptRecord attempt, SqliteTransaction transaction,
-        bool referenceAccess = true)
+    private (string Task, WorkUnit Work, DeliveryAuthorization Authorization) AdmittedTask(AttemptRecord attempt, SqliteTransaction transaction)
     {
         var revision = ReadRevision(attempt.ContractRevisionId, transaction) ?? throw new UnknownRecord("Unknown Contract revision.");
         if (ReadDecision(attempt.ContractRevisionId, transaction)?.Admitted != true)
@@ -295,7 +293,7 @@ public sealed partial class BroodlingStore
             + "Candidate edits cannot amend that authority. Implement the criteria and run declared/relevant checks; independently verify the actual outcome. "
             + (delivery == "none" ? "The required-effect set is empty. Keep changes in this assigned worktree."
                 : "The sole authorized external effect is native pull-request delivery. Do not publish, push, create or update a PR, merge, change issues, deploy, or perform other authoritative effects yourself; the native delivery node alone owns the authorized PR effect.");
-        if (referenceAccess && revision.Contract.RequestBundle is { } binding)
+        if (revision.Contract.RequestBundle is { } binding)
         {
             authority["requestBundle"] = CompactManifest(binding, transaction);
             task += " The requestBundle below lists the available references of this Work Unit's RequestBundle without their bodies. "

@@ -57,9 +57,42 @@ internal sealed class CompletionFixture : IDisposable
     }
     internal static JsonElement Receipt(string id = "50", string? head = null) => JsonSerializer.SerializeToElement(new
     {
-        version = "v1", mode = "pr", outcome = "opened", repository = "acme/widget", targetBranch = "main",
+        version = "v2", mode = "pr", outcome = "ready", repository = "acme/widget", targetBranch = "main",
         headRevision = head ?? new string('b', 40), pullRequestId = id
     });
+
+    /// <summary>
+    /// The one table of receipts that both <c>AcceptedReceipt</c> and SQL's <c>completion_bound</c> refuse, each
+    /// derived from the valid receipt for <paramref name="head"/> of an Attempt at <paramref name="b1"/> authorized
+    /// to deliver a PR to <c>acme/widget</c>'s <c>main</c>.
+    /// </summary>
+    internal static IEnumerable<(string Case, string Json)> RefusedReceipts(string b1, string head)
+    {
+        foreach (var json in new[] { "null", "[]", "true", "42", "\"receipt\"", "{}" }) yield return ("not a receipt object: " + json, json);
+        var valid = JsonNode.Parse(Receipt(head: head).GetRawText())!.AsObject();
+        JsonObject With(string field, JsonNode? value) { var changed = valid.DeepClone().AsObject(); changed[field] = value; return changed; }
+        foreach (var field in valid.Select(pair => pair.Key).ToArray())
+        {
+            var missing = valid.DeepClone().AsObject(); missing.Remove(field);
+            yield return ("missing " + field, missing.ToJsonString());
+            foreach (var value in new[] { "null", "1", "false", "[]", "{}" })
+                yield return ($"non-string {field} {value}", With(field, JsonNode.Parse(value)).ToJsonString());
+        }
+        var extra = valid.DeepClone().AsObject(); extra["extra"] = "value";
+        yield return ("extra field", extra.ToJsonString());
+        var legacy = With("version", "v1"); legacy["outcome"] = "opened";
+        yield return ("v1/opened", legacy.ToJsonString());
+        foreach (var (field, value) in new[] {
+            ("version", "v1"), ("version", "v3"), ("version", "V2"), ("mode", "push"), ("mode", "merge"),
+            ("outcome", "opened"), ("outcome", "ci_failed"), ("outcome", "conflict"), ("outcome", "repair_required"),
+            ("outcome", "pushed"), ("outcome", "merged"), ("outcome", "Ready"), ("outcome", "ready "),
+            ("repository", "other/project"), ("repository", "acme/Widget"), ("targetBranch", "release"),
+            ("headRevision", b1), ("headRevision", head.ToUpperInvariant()), ("headRevision", new string('g', 40)),
+            ("headRevision", head[..39]), ("headRevision", head + "0"), ("headRevision", head[..39] + "\0"),
+            ("pullRequestId", ""), ("pullRequestId", "-1"), ("pullRequestId", "+1"), ("pullRequestId", " 1"),
+            ("pullRequestId", "1 "), ("pullRequestId", "١"), ("pullRequestId", "1.0"), ("pullRequestId", "1\0") })
+            yield return ($"{field} {JsonSerializer.Serialize(value)}", With(field, value).ToJsonString());
+    }
     internal Task<AttemptCompletion> Wait() => Store.WaitAsync(Attempt.AttemptId, null);
     public void Dispose() { Target.DisposeAsync().AsTask().GetAwaiter().GetResult(); http.Dispose(); }
 }
@@ -92,38 +125,20 @@ public sealed class AttemptCompletionTests
     }
 
     [Test]
-    public async Task IncompleteForeignAndWrongTypeReceiptsRefuseWithoutLosingAuthority()
+    public async Task RefusedReceiptTableRefusesWithoutLosingAuthority()
     {
         using var fixture = new CompletionFixture();
         await fixture.Dispatch();
-        var invalid = new List<string> { "null", "[]", "true", "42", "\"receipt\"", "{}" };
-        var valid = JsonNode.Parse(CompletionFixture.Receipt().GetRawText())!.AsObject();
-        foreach (var field in valid.Select(pair => pair.Key).ToArray())
-        {
-            var missing = valid.DeepClone().AsObject(); missing.Remove(field); invalid.Add(missing.ToJsonString());
-            foreach (var value in new[] { "null", "1", "false", "[]", "{}" })
-            {
-                var changed = valid.DeepClone().AsObject(); changed[field] = JsonNode.Parse(value); invalid.Add(changed.ToJsonString());
-            }
-        }
-        foreach (var (field, value) in new[] {
-            ("version", "v2"), ("mode", "merge"), ("outcome", "closed"), ("repository", "other/project"),
-            ("targetBranch", "release"), ("headRevision", fixture.Attempt.B1.CommitOid),
-            ("headRevision", new string('A', 40)), ("headRevision", new string('g', 40)), ("headRevision", new string('b', 39)),
-            ("pullRequestId", ""), ("pullRequestId", "-1"), ("pullRequestId", "+1"), ("pullRequestId", " 1"),
-            ("pullRequestId", "1 "), ("pullRequestId", "١"), ("pullRequestId", "1.0"), ("pullRequestId", "1\0") })
-        {
-            var changed = valid.DeepClone().AsObject(); changed[field] = value; invalid.Add(changed.ToJsonString());
-        }
-        var extra = valid.DeepClone().AsObject(); extra["extra"] = "value"; invalid.Add(extra.ToJsonString());
         // Duplicate properties never reach the receipt: the status reader refuses them (DirectTargetSessionTests).
-        foreach (var json in invalid)
+        foreach (var (name, json) in CompletionFixture.RefusedReceipts(fixture.Attempt.B1.CommitOid, fixture.Accepted))
         {
             fixture.Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, JsonSerializer.Deserialize<JsonElement>(json), null));
-            await Assert.That(async () => await fixture.Wait()).Throws<SubmissionConflict>();
+            await Assert.That(async () => await fixture.Wait()).Throws<ReceiptRefused>().Because(name);
             await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
             fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
         }
+        fixture.Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: fixture.Accepted), null));
+        await Assert.That((await fixture.Wait()).AcceptedRevision).IsEqualTo(fixture.Accepted);
     }
 
     [Test]

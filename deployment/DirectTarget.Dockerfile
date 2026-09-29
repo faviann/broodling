@@ -2,12 +2,13 @@
 # deployment directory as context:
 #   docker build -f deployment/DirectTarget.Dockerfile -t broodling-target:REVISION deployment
 
-# The DirectTarget binding's native executable (src/Broodling/DirectTargetBinding.cs and
-# execution-assets/approval.json), taken from the official SDK wheel that carries it. This pin is
-# independent of the LocalTarget bridge's bridge/requirements.txt; both currently name this wheel.
-FROM scratch AS wheel
-ADD --checksum=sha256:f3629459837a27b7496f98fe0034e7b47a00079d93d3374922c2960952b8ace9 \
-    https://github.com/the-open-engine/zeroshot/releases/download/zeroshot-python-v10.3.0_1/the_open_engine_zeroshot-10.3.0.post1-py3-none-manylinux_2_17_x86_64.whl /zeroshot.whl
+# The DirectTarget binding's native release (src/Broodling/DirectTargetBinding.cs and
+# execution-assets/approval.json): the official Linux x86-64 release archive, pinned by checksum. It
+# carries the zeroshot executable and the restic executable native run allocation requires beside it.
+# This pin is independent of the LocalTarget bridge's SDK wheel in bridge/requirements.txt.
+FROM scratch AS native
+ADD --checksum=sha256:ca7305a0a165f3909481ccfcccce367d3bc2c40a9ab65760f6d6cad2a38d002d \
+    https://github.com/the-open-engine/zeroshot/releases/download/v10.9.0/zeroshot-v10.9.0-x86_64-unknown-linux-musl.tar.gz /zeroshot.tar.gz
 
 FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,11 +21,12 @@ ADD --checksum=sha256:f876a3b87bf67c94f773d17becca4dc7340b056dab901473a9260ee2a7
 RUN dpkg --install /tmp/gh.deb && rm /tmp/gh.deb \
     && /usr/bin/gh --version \
     && /usr/bin/gh api graphql --paginate --slurp --help > /dev/null
-RUN --mount=type=bind,from=wheel,source=/zeroshot.whl,target=/tmp/zeroshot.whl \
-    python3 -c 'import shutil, zipfile; shutil.copyfileobj(zipfile.ZipFile("/tmp/zeroshot.whl").open("the_open_engine_zeroshot-10.3.0.post1.data/purelib/zeroshot/_bin/zeroshot"), open("/usr/local/bin/zeroshot", "wb"))' \
-    && chmod 755 /usr/local/bin/zeroshot \
-    && echo 'afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06  /usr/local/bin/zeroshot' | sha256sum --check \
-    && zeroshot --version && zeroshot target serve --help > /dev/null
+RUN --mount=type=bind,from=native,source=/zeroshot.tar.gz,target=/tmp/zeroshot.tar.gz \
+    tar -xzf /tmp/zeroshot.tar.gz -C /usr/local/bin --no-same-owner zeroshot restic \
+    && chmod 755 /usr/local/bin/zeroshot /usr/local/bin/restic \
+    && printf '%s  %s\n' f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94 /usr/local/bin/zeroshot \
+        90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf /usr/local/bin/restic | sha256sum --check \
+    && zeroshot --version && zeroshot target serve --help > /dev/null && restic version
 # The native hosted allocator needs root to assign its isolated process UIDs.
 # Docker's default capabilities are sufficient; no privileged container is used.
 ENV HOME=/home/node

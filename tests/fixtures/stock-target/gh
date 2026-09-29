@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """Controlled forge API: only the gh api calls native pull-request delivery makes."""
-import fcntl, json, os, subprocess, sys
+import fcntl, json, os, re, subprocess, sys
 
 REPOSITORY = "acme/widget"
 PREFIX = f"repos/{REPOSITORY}/"
@@ -24,6 +24,12 @@ def reply(value):
     raise SystemExit(0)
 
 
+def save(pulls):
+    with open(STATE + ".new", "w") as saved:
+        json.dump(pulls, saved)
+    os.replace(STATE + ".new", STATE)
+
+
 arguments = sys.argv[1:]
 if arguments[:1] != ["api"] or len(arguments) < 2:
     raise SystemExit("unsupported gh command")
@@ -43,10 +49,18 @@ with open("/forge/pulls.lock", "a") as lock:
         reply([pull(entry) for entry in pulls if entry["head"] == head and entry["base"] == fields["base"]])
     if path == PREFIX + "pulls" and method == "POST":
         entry = {"number": len(pulls) + 1, **{name: fields[name] for name in ("title", "body", "head", "base")}}
-        with open(STATE + ".new", "w") as saved:
-            json.dump(pulls + [entry], saved)
-        os.replace(STATE + ".new", STATE)
+        save(pulls + [entry])
         reply(pull(entry))
+    single = re.fullmatch(re.escape(PREFIX) + r"pulls/(\d+)", path)
+    if single and method in ("GET", "PATCH"):
+        entry = next(entry for entry in pulls if entry["number"] == int(single[1]))
+        if method == "PATCH":
+            entry.update({name: fields[name] for name in ("title", "body") if name in fields})
+            save(pulls)
+        reply(pull(entry))
+    # PR feedback, read with --paginate --slurp: one page each, with no comments or reviews.
+    if re.fullmatch(re.escape(PREFIX) + r"(issues/\d+/comments|pulls/\d+/reviews|pulls/\d+/comments)\?per_page=100", path):
+        reply([[]])
     if path.startswith(PREFIX + "git/ref/heads/"):
         branch = path.removeprefix(PREFIX + "git/ref/heads/")
         if revision(branch) is None:
@@ -54,13 +68,15 @@ with open("/forge/pulls.lock", "a") as lock:
             raise SystemExit(1)
         reply({"ref": f"refs/heads/{branch}", "object": {"type": "commit", "sha": revision(branch)}})
     if path == "graphql":
+        # The readiness policy query: an open, clean PR on a branch with no protection and no checks.
         entry = next(entry for entry in pulls if entry["number"] == int(fields["number"]))
         reply([{"data": {"repository": {
             "nameWithOwner": REPOSITORY, "mergeCommitAllowed": True, "squashMergeAllowed": True, "rebaseMergeAllowed": True,
             "pullRequest": {
                 "id": f"PR_{entry['number']}", "number": entry["number"], "state": "OPEN", "merged": False,
-                "mergeCommit": None, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "isDraft": False,
-                "isInMergeQueue": False, "isMergeQueueEnabled": False, "baseRefName": entry["base"],
+                "mergeCommit": None, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": None,
+                "isDraft": False, "isInMergeQueue": False, "isMergeQueueEnabled": False, "baseRefName": entry["base"],
+                "baseRef": {"name": entry["base"], "refUpdateRule": None},
                 "headRefName": entry["head"], "headRefOid": revision(entry["head"]),
                 "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]}}}}}])
 sys.stderr.write(f"unexpected gh api call: {method} {path}\n")

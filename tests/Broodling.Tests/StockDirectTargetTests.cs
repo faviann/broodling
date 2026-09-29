@@ -48,10 +48,12 @@ public sealed class StockDirectTargetTests
         await Assert.That(completion.DeliveryReceipt.GetRawText()).IsEqualTo(reference.GetRawText());
         await Assert.That(string.Join(",", reference.EnumerateObject().Select(field => field.Name == "headRevision"
                 ? field.Name : $"{field.Name}={field.Value}").Order()))
-            .IsEqualTo("headRevision,mode=pr,outcome=opened,pullRequestId=1,repository=acme/widget,targetBranch=main,version=v1");
+            .IsEqualTo("headRevision,mode=pr,outcome=ready,pullRequestId=1,repository=acme/widget,targetBranch=main,version=v2");
         var accepted = completion.AcceptedRevision;
         await Assert.That(git.Git("rev-parse", "refs/broodling/accepted/" + accepted).Trim()).IsEqualTo(accepted);
-        await Assert.That(git.Git("rev-parse", accepted + "^").Trim()).IsEqualTo(b1);
+        // The candidate commit starts from exact B1; native then integrates the moved target branch before publishing.
+        await Assert.That(git.Git("rev-parse", accepted + "^1^").Trim()).IsEqualTo(b1);
+        await Assert.That(git.Git("rev-parse", accepted + "^2").Trim()).IsEqualTo(moved);
         await Assert.That(AttemptFixture.RunGit(target.Forge, "rev-parse", "main").Trim()).IsEqualTo(moved);
 
         await target.DisposeAsync();
@@ -71,24 +73,38 @@ public sealed class StockDirectTargetTests
         // B1 exists in local custody but was never published to the forge.
         var b1 = git.Commit("never published\n");
         var invocation = new Invocation(store, new InvocationTarget.Direct(target.Origin));
-
-        // The stock target records the failed checkout but does not acknowledge the send.
-        await Assert.That(async () => await invocation.ResumeAsync(revision, git.Repository, b1, Credentials)).Throws<NativeTransportError>();
-        var attempt = store.Status(revision).Attempts.Single();
-        var unresolved = store.FindSubmission(attempt.AttemptId)!;
-        await Assert.That(unresolved.State).IsEqualTo("dispatched");
-        await Assert.That(unresolved.RunId).IsNull();
+        var unresolved = await LoseAcknowledgementAsync(store, git, invocation, revision, b1, target);
 
         // Exact replay with rotated credentials converges on the same key and run.
         var replayed = await invocation.ResumeAsync(revision, credentials: new("rotated-github-token", NativeProfile.GatewayBaseUrl, "rotated-key"));
         await Assert.That(replayed.Submissions.Single().RunId).IsEqualTo(unresolved.IntendedRunId);
         await Assert.That(await target.RunCountAsync()).IsEqualTo(1);
-        await Finished(store, attempt.AttemptId);
-        await Assert.That(async () => await store.WaitAsync(attempt.AttemptId, null)).Throws<SubmissionNotReady>();
-        await Assert.That(store.GetAttempt(attempt.AttemptId).Abandonment!.Reason).IsEqualTo("Zeroshot run failed: native_failed");
-        await Assert.That(store.FindCompletion(attempt.AttemptId)).IsNull();
+        var attempt = unresolved.AttemptId;
+        await Finished(store, attempt);
+        await Assert.That(async () => await store.WaitAsync(attempt, null)).Throws<SubmissionNotReady>();
+        await Assert.That(store.GetAttempt(attempt).Abandonment!.Reason).IsEqualTo("Zeroshot run failed: native_failed");
+        await Assert.That(store.FindCompletion(attempt)).IsNull();
         // No delivery branch: the target never substituted the branch tip.
         await Assert.That(AttemptFixture.RunGit(target.Forge, "for-each-ref", "--format=%(refname)").Trim()).IsEqualTo("refs/heads/main");
+    }
+
+    /// <summary>
+    /// An Unresolved dispatch whose send reached the target: Resume without dispatch credentials prepares the
+    /// Attempt at <paramref name="b1"/> and sends nothing; the dispatch intent is then committed and the exact
+    /// retained request sent, and its acknowledgement discarded, as when a reply is lost.
+    /// </summary>
+    internal static async Task<NativeSubmission> LoseAcknowledgementAsync(BroodlingStore store, AttemptFixture git,
+        Invocation invocation, string revision, string b1, StockDirectTarget target)
+    {
+        await Assert.That(async () => await invocation.ResumeAsync(revision, git.Repository, b1, null)).Throws<UnsupportedRuntime>();
+        var attempt = store.Status(revision).Attempts.Single().AttemptId;
+        git.State.Execute($"UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = '{attempt}'");
+        var record = store.FindSubmission(attempt)!;
+        await DirectTargetSubmission.SubmitAsync(new Uri(target.Origin), null, record.RequestJson, record.IntendedRunId!,
+            Credentials.Environment(), TimeProvider.System, default);
+        await Assert.That(record.State).IsEqualTo("dispatched");
+        await Assert.That(record.RunId).IsNull();
+        return record;
     }
 
     [Test]

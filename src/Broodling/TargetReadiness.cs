@@ -154,7 +154,9 @@ public sealed class TargetReadiness
             var gh = (await Execute("/usr/bin/gh", "--version")).Trim().Split('\n')[0];
             Require(gh.StartsWith("gh version 2.101.0 ", StringComparison.Ordinal), "Target GitHub CLI version differs from supported pin.");
             versions["gh"] = "gh version 2.101.0"; // Do not return arbitrary trailing process output.
-            foreach (var (program, expected) in new[] { ("/usr/local/bin/zeroshot", DirectTargetBinding.NativeExecutableSha256), ("/usr/bin/gh", GhSha256) })
+            foreach (var (program, expected) in new[] {
+                ("/usr/local/bin/zeroshot", DirectTargetBinding.NativeExecutableSha256),
+                ("/usr/local/bin/restic", DirectTargetBinding.ResticExecutableSha256), ("/usr/bin/gh", GhSha256) })
                 Require((await Execute("sha256sum", program)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() == expected,
                     "Target executable bytes differ from supported pin.");
             var help = await Execute("/usr/bin/gh", "api", "graphql", "--paginate", "--slurp", "--help");

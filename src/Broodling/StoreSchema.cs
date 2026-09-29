@@ -352,9 +352,9 @@ internal static class StoreSchema
               AND (SELECT count(*) FROM json_each(NEW.receipt_json)) = 7
               AND (SELECT count(*) FROM json_each(NEW.receipt_json) WHERE type = 'text'
                   AND key IN ('version', 'mode', 'outcome', 'repository', 'targetBranch', 'headRevision', 'pullRequestId')) = 7
-              AND json_extract(NEW.receipt_json, '$.version') = 'v1'
+              AND json_extract(NEW.receipt_json, '$.version') = 'v2'
               AND json_extract(NEW.receipt_json, '$.mode') = 'pr'
-              AND json_extract(NEW.receipt_json, '$.outcome') = 'opened'
+              AND json_extract(NEW.receipt_json, '$.outcome') = 'ready'
               AND json_extract(NEW.receipt_json, '$.repository') = w.owner || '/' || w.repository
               AND json_extract(NEW.receipt_json, '$.targetBranch')
                   = json_extract(CAST(c.canonical_bytes AS TEXT), '$.requiredEffects[0].targetBranch')

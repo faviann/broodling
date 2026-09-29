@@ -52,11 +52,15 @@ contents never supply a substitute accepted revision.
 
 For PR success the receipt is an object with exactly seven string fields:
 `version`, `mode`, `outcome`, `repository`, `targetBranch`, `headRevision`,
-`pullRequestId`. Require `v1`/`pr`/`opened`, the exact authorized repository and
-target branch, and a 40-character lowercase hexadecimal revision different from
-original B1. PR ID is a nonempty ASCII digit **string**, not a number: `"0"`,
-leading zeros and arbitrarily long strings are valid. There is no positivity or
-numeric range rule.
+`pullRequestId`. Require `v2`/`pr`/`ready`, the approved asset's successful
+delivery receipt, the exact authorized repository and target branch, and a
+40-character lowercase hexadecimal revision different from original B1. PR ID is
+a nonempty ASCII digit **string**, not a number: `"0"`, leading zeros and
+arbitrarily long strings are valid. There is no positivity or numeric range rule.
+`v1`/`opened` and the non-ready outcomes (`ci_failed`, `conflict`,
+`repair_required`) refuse. The C# check and SQL's `completion_bound` trigger
+enforce the same predicate; `AttemptCompletionTests` and
+`CompletionPersistenceTests` drive one table of refused receipts through each.
 
 [#115](https://github.com/faviann/broodling/issues/115) then retains the exact
 accepted commit before any successful disposition, outside any SQLite writer.

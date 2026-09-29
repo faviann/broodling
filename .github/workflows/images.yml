@@ -1,6 +1,7 @@
 # Builds the Broodling and DirectTarget images, demonstrates them together in a disposable ADR 0001
-# stack, checks that the DirectTarget image serves native state written by each published target
-# image listed in deployment/native-state-transitions.json, then publishes exactly those images to
+# stack, checks that the DirectTarget image serves native state it wrote itself across a restart and
+# state written by each published target image listed in deployment/native-state-transitions.json
+# (all with the binding's native release), then publishes exactly those images to
 # GHCR with a release record. Every push publishes immutable sha-<commit> candidates; a v* tag
 # publishes that version, only with a frozen application schema. Fork pull requests only build and check; same-repository pull requests
 # are covered by the push run of their head.
@@ -89,7 +90,7 @@ jobs:
 
       # The release record states these transitions only for the target image checked here. The frozen
       # application schemas are checked against this revision's code on every push.
-      - name: Check native-state transitions from the listed published target images and the frozen schemas
+      - name: Check native-state restart and transitions from the listed published target images, and the frozen schemas
         env:
           BROODLING_TEST_TARGET_IMAGE: broodling-target:candidate
         run: |

@@ -29,13 +29,13 @@ dotnet build Broodling.sln --configuration Release
 `BROODLING_TEST_PYTHON` can point to an existing pinned SDK environment shared
 across worktrees; its default is the repository's `.venv/bin/python`.
 Missing SDK/native dependencies fail rather than skip.
-The candidate asset check downloads native 10.9.0's pinned Linux x86-64 release
-archive from GitHub into `native-releases/` under the test workspace root (below)
+The asset check downloads the DirectTarget binding's pinned native 10.9.0 Linux
+x86-64 release archive from GitHub into `native-releases/` under the test workspace root (below)
 when it is absent there, and fails without that access. A cached archive is
 verified by checksum and needs no network.
 The image startup tests also require rootful Docker access. They build the actual
-`deployment/DirectTarget.Dockerfile`, which fetches the pinned SDK wheel for its
-native binary, so an uncached build needs access to the pinned image/package sources.
+`deployment/DirectTarget.Dockerfile`, which fetches the pinned native release
+archive, so an uncached build needs access to the pinned image/package sources.
 `BROODLING_TEST_TARGET_IMAGE` names a prebuilt DirectTarget image to use instead;
 the run keeps it. The [transition check](#native-state-transition-check) pulls the
 listed published target images by digest from GHCR when absent. They also use the pinned
@@ -75,10 +75,10 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Controlled GitHub issue and service-owned repository acquisition; v1 request grammar, bounded reference closure and retained capture refusals; a stalled metadata read ending retryable with its process killed | `GitHubAdmissionTests`, `RepositoryPreparationTests`, `RequestCaptureTests`, [retained issue fixtures](fixtures/ingress/README.md): [ingress](../docs/implementation/dotnet-github-ingress.md) |
 | LocalTarget bridge: frozen dispatch, caller death, launcher policy, released SDK/native transport, the bridge dependency file pinned to the handshake SDK apart from the DirectTarget binding, and refusal of a direct locator | `NativeDispatchTests`, `DispatchProcessTests`, `NativePolicyTests`, `NativeTransportTests`: [dispatch](../docs/implementation/dotnet-native-dispatch.md) |
 | Offline HTTP preparation, retained asset/request reopen, a bundle-bound task's compact manifest without reference bodies, corrupt-content refusal and HTTP submission SQL guards | `HttpSubmissionTests`: [HTTP preparation](../docs/implementation/zeroshot-native-integration.md#http-submission-preparation) |
-| HTTP send gates, intent before discovery, exact acknowledgement, retained conflict, concurrent replies, late acknowledgement stop, killed HTTP callers, a buffered request accepted after caller death and exact replay of a bundle-bound request frozen before reference access | `HttpDispatchTests`, `DispatchProcessTests`: loopback stock-target stand-in, [HTTP dispatch](../docs/implementation/zeroshot-native-integration.md#http-dispatch-and-acknowledgement) |
-| Approved execution asset: build-output inclusion, loader refusals, pinned-tool regeneration and native admission; the 10.9.0 candidate asset's reproduction and admission from its own pinned release archive | `ExecutionAssetTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset), [candidate](../docs/implementation/zeroshot-native-integration.md#native-1090-candidate-asset) |
+| HTTP send gates, intent before discovery, exact acknowledgement, retained conflict, concurrent replies, late acknowledgement stop, killed HTTP callers and a buffered request accepted after caller death | `HttpDispatchTests`, `DispatchProcessTests`: loopback stock-target stand-in, [HTTP dispatch](../docs/implementation/zeroshot-native-integration.md#http-dispatch-and-acknowledgement) |
+| Approved execution asset: build-output inclusion; loader refusal of a missing, changed or differently hashed asset, a changed native or policy binding and the superseded 10.3.0 approval; the manifest policy read from the asset's own runtime; reproduction, structure and native admission from the binding's pinned release archive | `ExecutionAssetTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset), [recipe](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset) |
 | Bounded native progress observation, unavailable/timeout mapping and unchanged retained facts | `NativeObservationTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#dispatch-recovery-and-completion) |
-| Receipt validation, atomic exact-Attempt completion, late results (correlated HTTP Attempts over the loopback stand-in) | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
+| Receipt validation, with one table of refused receipts (non-object, missing, extra or non-string fields, `v1`/`opened`, non-ready outcomes, wrong repository or branch, unchanged or malformed head, malformed PR ID) driven through both the application and SQL's `completion_bound`; atomic exact-Attempt completion, offline reads and late results (correlated HTTP Attempts over the loopback stand-in) | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
 | Automatic completion without a reader: startup/running discovery that never dispatches, per-scan retry of temporary failures, retained receipt and accepted-pin refusal, detachment after authority loss, shutdown and restart, no rediscovery of retained results | `CompletionObserverTests`: [automatic observation](../docs/implementation/dotnet-receipt-completion.md#automatic-completion-observation) |
 | Stop/quarantine, safe undispatched retirement (including HTTP Attempts), verified stopped-target maintenance retirement, original-B1 replacement, including after that maintenance retirement | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
 | Predecessor-linked revisions over real capture, Git and SQLite with controlled GitHub and gateway peers and the stock-target stand-in: refusal of active work, a current Attempt and unretired dispatched work; concurrent requests converging on one successor, exact replay after later history and ordinary submission creating nothing; material without a committed Contract, or whose admitted Contract was cancelled before any Attempt, seeking admission; an unchanged successor ending with its retained link without proposal or execution although the issue, a referenced issue and a referenced comment gained GitHub bookkeeping, while a moved starting commit, or a changed issue body with the same Executable Request, proceeds; an ordinary first Attempt after maintenance retirement with predecessor stop replay unable to reach it; and two revisions retaining each result, with the later revision's failed Attempt still replaceable | `RevisionTests`: [revised work](../docs/implementation/invocation.md#revised-work) |
@@ -92,7 +92,7 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | DirectTarget session setup, JSON-RPC envelope and run status projection validation | `DirectTargetSessionTests`: loopback stock-target stand-in, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
 | DirectTarget wait polling cadence, per-read deadlines and cancellation; stop precheck, single force and shared deadline | `DirectTargetRunTests`: the same loopback stand-in with a controlled clock, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
 | Unmodified native HTTP/OECP boundary with the approved asset, through the application: controlled PR delivery from exact B1 without a client checkout, receipt consumption, restart and offline replay, unavailable-B1 failure and same-run replay, and on-demand frozen-reference reads through the installed helper | `StockDirectTargetTests`: [witness](#controlled-stock-directtarget-witness) |
-| Native state written by each listed published target image and served by this revision's image on the same mounts and origin: the recorded native version, the retained correlation and its completed result, and exact replay of an unacknowledged submission onto its recorded run | `TargetImageTransitionTests`: [transition check](#native-state-transition-check) |
+| Native state written by this revision's target image, or by each listed published image of the same native, and served by this revision's image on the same mounts and origin: the recorded native version, the retained correlation and its completed result, and exact replay of an unacknowledged submission onto its recorded run | `TargetImageTransitionTests`: [transition check](#native-state-transition-check) |
 
 `Broodling.ProcessWitness` is a test-only caller for real process-death and
 Git-lock boundaries. Ordinary build/test/publish copies the C administrative
@@ -109,12 +109,12 @@ readiness case on actual images inspects only its own disposable stack.
 
 ## Controlled stock DirectTarget witness
 
-`StockDirectTargetTests` runs the selected unmodified native: `zeroshot 10.3.0`
-(source `054ad3fd6c763b98d12f5b2e90830b97116561ad`, Linux x86-64 executable
-SHA-256 `afeb4372eaa63c3d88b308bd32afa5b888297fc0a82aa879542daf1437a6ee06`) from
-the pinned SDK 10.3.0.post1 wheel, as `zeroshot target serve` inside the actual
-DirectTarget image, with the approved asset
-`sha256:10f410b4a3ba06f69ead07b5d281d289fd6e378854bcb0600b1d963bdfce55d8`. Only
+`StockDirectTargetTests` runs the selected unmodified native: `zeroshot 10.9.0`
+(source `75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa`, Linux x86-64 executable
+SHA-256 `f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94`) from
+the pinned `v10.9.0` release archive, as `zeroshot target serve` inside the
+actual DirectTarget image, with the approved asset
+`sha256:258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc`. Only
 the [controlled provider and forge](fixtures/README.md#controlled-stock-directtarget)
 are replaced. Each test uses fresh volumes, fake credentials and a new target.
 The host-side application needs an origin it reaches without `zeroshot-tls`, so
@@ -126,13 +126,17 @@ observes and consumes:
 
 - With the forge branch moved past B1, Invocation with a Direct target admits,
   prepares and correlates the HTTP Attempt without Python or a client checkout.
-  The delivered commit descends from exact B1. Wait validates the receipt,
+  The candidate commit's parent is exact B1, and native merges the moved target
+  branch into it before publishing. Native reports the PR `ready`
+  (the controlled forge has no checks, protection or feedback), and Wait
+  validates its `v2`/`pr`/`ready` receipt,
   fetches and pins the accepted commit from the forge and disposes atomically.
   The consumed receipt equals the target's terminal output after a target
   restart, and the retained completion replays with the target gone.
-- An exact B1 missing from the forge leaves the first send unresolved. The stock
-  target records the failed checkout but replies `503 target.unavailable`. An
-  exact replay with rotated credentials correlates the same single run, whose
+- A send of an exact B1 missing from the forge reaches the target, which records
+  the run, but its acknowledgement is lost: the test commits the dispatch intent
+  and sends the retained request itself, discarding the reply. An exact replay
+  with rotated credentials correlates the same single run, whose checkout
   failure abandons the Attempt with no delivery branch.
 - A bundle-bound Attempt's controlled agent reads every reference listed in its
   task through the image's `broodling-reference` helper, using only the bundle
@@ -143,12 +147,10 @@ observes and consumes:
   native execution environment's read, not Compose service-name networking
   (homelab-iac#353).
 
-On the development host, the first Resume through acknowledgement took about
-0.4 s with the checkout from the local forge, and about 2.5–2.9 s to the 503 for
-an unavailable B1, including the target's checkout retries. These figures
-describe a local forge only. The target acknowledges after its checkout, so a
-slow real fetch can exceed the 60-second submit budget and leave the send
-unresolved until exact replay.
+Native 10.9.0 acknowledges a submission once it has recorded the run, then
+prepares the execution environment, including the checkout, in the background.
+A missing B1 therefore fails the correlated run rather than the send, and a
+slow real fetch no longer holds the 60-second submit budget.
 
 The provider, forge and PR receipt are controlled. The run is not a real GitHub
 PR, semantic-quality result, image publication or production topology check.
@@ -156,28 +158,32 @@ PR, semantic-quality result, image publication or production topology check.
 ## Native-state transition check
 
 `TargetImageTransitionTests` checks the
-[established native-state transitions](../deployment/README.md#native-state-transitions),
-one case per source listed in `deployment/native-state-transitions.json`. It first
-requires the published image, pulled by digest, to carry the listed native version
-and executable SHA-256. Then it runs the stock witness's controlled layer over that
-published image, initializes it the same way and serves it through its own
-entrypoint. On it, one Attempt's run finishes, with its target's terminal output
-read, not consumed. Another Attempt's send with an unavailable B1 leaves the run
-recorded but unacknowledged. The target is then stopped and the same state and
-home volumes, forge and loopback origin are served by the controlled layer over
-this revision's DirectTarget image, through the entrypoint's ordinary startup
-without initialization. Through the application alone:
+[established native-state transitions](../deployment/README.md#native-state-transitions):
+one case restarts this revision's target image over native state it wrote
+itself, and one case per source listed in `deployment/native-state-transitions.json`
+(currently none) updates from it. Every source must carry the DirectTarget
+binding's native version and executable SHA-256, which the case first checks in
+the image, pulling a listed image by digest. Then it runs the stock witness's
+controlled layer over that source image, initializes it the same way and serves
+it through its own entrypoint. On it, one Attempt's run finishes, with its
+target's terminal output read, not consumed. Another Attempt's send with an
+acknowledgement is lost as in the witness, leaving the run recorded but
+unacknowledged. The target is then
+stopped and the same state and home volumes, forge and loopback origin are
+served by the controlled layer over this revision's DirectTarget image, through
+the entrypoint's ordinary startup without initialization. Through the
+application alone:
 
 - Wait reconnects by the retained run identity and disposes the Attempt with a
-  receipt equal to the terminal output that the published image produced.
+  receipt equal to the terminal output that the source image produced.
 - Resume's exact replay of the unacknowledged submission correlates the run the
-  published image recorded, and the native ledger gains no run.
+  source image recorded, and the native ledger gains no run.
 
 The images workflow runs it with `BROODLING_TEST_TARGET_IMAGE` naming the image it
 is about to publish. Like the witness, it uses Docker volumes, a literal-loopback
 origin rather than `zeroshot-tls`, and controlled provider, forge and receipt. It
-does not cover a run active during the swap, a reverse transition or other native
-versions.
+does not cover a run active during the swap, a reverse transition or another
+native version.
 
 ## Image demonstration
 

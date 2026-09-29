@@ -84,65 +84,6 @@ internal sealed class BundleHttpFixture : IDisposable
         }
     }
 
-    /// <summary>
-    /// Commit the prepared record the release before reference access (#114) froze for this Attempt, built
-    /// the way it built it: the stock request whose task carries only the Contract, Executable Request and B1.
-    /// </summary>
-    internal string PrepareAsEarlierRelease(Uri target)
-    {
-        var status = Store.Status(Attempt.ContractRevisionId);
-        var request = status.Sources.Single();
-        var authority = new JsonObject
-        {
-            ["contract"] = JsonNode.Parse(status.Revision.CanonicalBytes),
-            ["admittedInstructions"] = new JsonArray(new JsonObject
-            {
-                ["sourceId"] = request.SourceId, ["kind"] = request.Kind, ["locator"] = request.Locator,
-                ["mediaType"] = request.MediaType, ["contentSha256"] = request.ContentSha256, ["encoding"] = "utf-8",
-                ["content"] = Encoding.UTF8.GetString(request.Content)
-            }),
-            ["comparisonBase"] = Attempt.B1.CommitOid
-        };
-        var asset = ExecutionAsset.LoadBundled();
-        var intended = Guid.CreateVersion7().ToString();
-        var key = "broodling:http:v1:" + Attempt.AttemptId;
-        var json = new JsonObject
-        {
-            ["runId"] = intended,
-            ["submission"] = new JsonObject
-            {
-                ["title"] = "Broodling Attempt " + Attempt.AttemptId, ["graph"] = asset.Graph(), ["runtime"] = asset.Runtime(),
-                ["initialInput"] = new JsonObject
-                {
-                    ["task"] = "Complete this admitted software-development Work Unit. The frozen Contract and entitled source material below govern scope and acceptance. "
-                        + "Candidate edits cannot amend that authority. Implement the criteria and run declared/relevant checks; independently verify the actual outcome. "
-                        + "The sole authorized external effect is native pull-request delivery. Do not publish, push, create or update a PR, merge, change issues, deploy, or perform other authoritative effects yourself; the native delivery node alone owns the authorized PR effect."
-                        + "\n\n" + authority.ToJsonString()
-                },
-                ["source"] = new JsonObject { ["repository"] = "acme/widget", ["branch"] = "main", ["revision"] = Attempt.B1.CommitOid },
-                ["submissionKey"] = key
-            }
-        }.ToJsonString();
-        var binding = new JsonObject
-        {
-            ["protocol"] = "zeroshot.native-v2-target/v2", ["origin"] = target.GetLeftPart(UriPartial.Authority),
-            ["repository"] = Attempt.B1.Repository, ["resultOrigin"] = "https://github.com/acme/widget.git",
-            ["native"] = DirectTargetBinding.Native()
-        }.ToJsonString();
-        using var connection = Git.State.Connect();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO execution_assets VALUES ($sha, $content);
-            INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state, intended_run_id,
-                asset_sha256, binding_json) VALUES ($attempt, 'http.v1', $key, $request, 'prepared', $intended, $sha, $binding);
-            """;
-        foreach (var (name, value) in new (string, object)[] { ("$sha", asset.Sha256), ("$content", asset.Content()),
-            ("$attempt", Attempt.AttemptId), ("$key", key), ("$request", json), ("$intended", intended), ("$binding", binding) })
-            command.Parameters.AddWithValue(name, value);
-        command.ExecuteNonQuery();
-        return json;
-    }
-
     public void Dispose() { Store?.Dispose(); Git.Dispose(); }
 }
 
@@ -167,7 +108,7 @@ public sealed class HttpSubmissionTests
 
         var request = JsonNode.Parse(prepared.RequestJson)!.AsObject();
         var submission = request["submission"]!.AsObject();
-        var asset = JsonNode.Parse(File.ReadAllBytes(Path.Combine(fixture.Assets, "software-change-pr-codex-gateway.json")))!;
+        var asset = JsonNode.Parse(File.ReadAllBytes(Path.Combine(fixture.Assets, DirectTargetBinding.AssetFile)))!;
         await Assert.That(string.Join(",", request.Select(field => field.Key))).IsEqualTo("runId,submission");
         await Assert.That(string.Join(",", submission.Select(field => field.Key)))
             .IsEqualTo("title,graph,runtime,initialInput,source,submissionKey");
@@ -188,7 +129,7 @@ public sealed class HttpSubmissionTests
         {
             command.CommandText = "SELECT content FROM execution_assets";
             await Assert.That(((byte[])command.ExecuteScalar()!).SequenceEqual(
-                File.ReadAllBytes(Path.Combine(fixture.Assets, "software-change-pr-codex-gateway.json")))).IsTrue();
+                File.ReadAllBytes(Path.Combine(fixture.Assets, DirectTargetBinding.AssetFile)))).IsTrue();
         }
         await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(prepared.BindingJson!), new JsonObject
         {
@@ -300,7 +241,7 @@ public sealed class HttpSubmissionTests
         var prepared = fixture.Prepare();
         fixture.Store.Dispose();
 
-        var installed = Path.Combine(fixture.Assets, "software-change-pr-codex-gateway.json");
+        var installed = Path.Combine(fixture.Assets, DirectTargetBinding.AssetFile);
         File.WriteAllText(installed, File.ReadAllText(installed).Replace("gpt-5.6-sol", "gpt-5.7-sol"));
         using (var reopened = fixture.Git.State.Open())
         {

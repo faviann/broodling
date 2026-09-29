@@ -47,7 +47,7 @@ internal sealed class ExecutionAsset
         return new(bytes);
     }
 
-    private static readonly JsonObject Approval = new()
+    internal static readonly JsonObject Approval = new()
     {
         ["native"] = DirectTargetBinding.Native(),
         ["policy"] = new JsonObject
@@ -58,7 +58,7 @@ internal sealed class ExecutionAsset
             {
                 ["gateway"] = new JsonArray("GATEWAY_API_KEY", "GATEWAY_BASE_URL"), ["github"] = new JsonArray("GH_TOKEN")
             },
-            ["gatewayBaseUrl"] = NativeProfile.GatewayBaseUrl
+            ["pullRequestFeedback"] = "consider", ["gatewayBaseUrl"] = NativeProfile.GatewayBaseUrl
         }
     };
 }
