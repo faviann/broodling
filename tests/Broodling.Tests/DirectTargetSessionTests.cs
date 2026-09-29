@@ -65,6 +65,37 @@ public sealed class DirectTargetSessionTests
         if (succeeded) await Assert.That(read.Result.Output.GetRawText()).IsEqualTo(JsonNode.Parse(terminal)!["output"]?.ToJsonString() ?? "null");
     }
 
+    /// <summary>
+    /// Native 10.9.0 adds its successor-recovery facts to a run that failed with a retained workspace, as
+    /// the stock witness's repair exhaustion and PR-identity refusal do: the failure is read and they are dropped.
+    /// </summary>
+    [Test]
+    [Arguments("""{"recoverable":true,"connectionRequirements":{"gateway":["GATEWAY_API_KEY","GATEWAY_BASE_URL"],"github":["GH_TOKEN"]}}""", null)]
+    [Arguments("""{"recoverable":false,"resumedFrom":"01996f2e-7a4b-7c3d-8e5f-0123456789aa","successorRunId":"01996f2e-7a4b-7c3d-8e5f-0123456789ac"}""", null)]
+    [Arguments("""{"connectionRequirements":{}}""", "invalid_response")]
+    [Arguments("""{"recoverable":"yes"}""", "invalid_response")]
+    [Arguments("""{"recoverable":true,"connectionRequirements":[]}""", "invalid_response")]
+    [Arguments("""{"recoverable":true,"successorRunId":7}""", "invalid_response")]
+    [Arguments("""{"recoverable":true,"checkpoint":"bytes"}""", "invalid_response")]
+    [Arguments("null", "invalid_response")]
+    public async Task WorkspaceRecoveryFactsAreValidatedAndDropped(string recovery, string? kind)
+    {
+        var projection = Projection(new JsonObject
+        {
+            ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "failed", ["reason"] = "change_attempts_exhausted" }
+        });
+        projection["workspaceRecovery"] = JsonNode.Parse(recovery);
+        await using var target = new StockTarget();
+        target.Projections.Enqueue(projection);
+        if (kind is not null)
+        {
+            await Fails(() => Read(target), kind);
+            return;
+        }
+        var read = await Read(target);
+        await Assert.That((read.Result!.Succeeded, read.Result.Failure)).IsEqualTo((false, "native_failed"));
+    }
+
     [Test]
     [Arguments("run", "foreign_run")]
     [Arguments("revision", "foreign_run")]

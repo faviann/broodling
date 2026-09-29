@@ -89,9 +89,10 @@ root outside temporary paths if needed. Only disposable native state/sockets use
 | Selected ADR stack configuration, dependency and discovery decisions; a stale Caddy intermediate after incomplete root rotation | `TargetReadinessTests`: controlled inspection and discovery, plus one actual-image stack, [readiness](../docs/implementation/dotnet-target-readiness.md) |
 | Shared DirectTarget HTTP/WebSocket bounds, budgets and stock discovery I/O | `DirectTargetExchangeTests`: [transport limits](../docs/implementation/zeroshot-native-integration.md#directtarget-http-transport-limits) |
 | HTTPS/WSS DirectTarget trust in exactly the configured private root, refusal of another root, system trust or a mismatched host name, root re-read per TLS connection within one operation, a missing root failing only its operation with no dispatch intent, and HTTPS completion wait | `DirectTargetTrustTests`: the loopback stand-in serving TLS from an in-process private authority, [transport limits](../docs/implementation/zeroshot-native-integration.md#directtarget-http-transport-limits) |
-| DirectTarget session setup, JSON-RPC envelope and run status projection validation | `DirectTargetSessionTests`: loopback stock-target stand-in, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
+| DirectTarget session setup, JSON-RPC envelope and run status projection validation, including native's validated and dropped workspace-recovery facts | `DirectTargetSessionTests`: loopback stock-target stand-in, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
 | DirectTarget wait polling cadence, per-read deadlines and cancellation; stop precheck, single force and shared deadline | `DirectTargetRunTests`: the same loopback stand-in with a controlled clock, [status reader](../docs/implementation/zeroshot-native-integration.md#directtarget-run-status-reader) |
 | Unmodified native HTTP/OECP boundary with the approved asset, through the application: controlled PR delivery from exact B1 without a client checkout, receipt consumption, restart and offline replay, unavailable-B1 failure and same-run replay, and on-demand frozen-reference reads through the installed helper | `StockDirectTargetTests`: [witness](#controlled-stock-directtarget-witness) |
+| The approved asset's stock PR readiness, repair and feedback contract on the same boundary: `ready` and accepted pinning despite a failing optional check or a missing approval native may hand off; a required check in progress or missing, or an approval it may not hand off, pending across polls until an explicit stop while a bounded Wait invents no receipt; behind-head advancement; CI-failure and conflict repair; ten-iteration repair exhaustion; new and edited versus unchanged feedback in one live run; exact PR identity refusal; no merge request in native's recorded forge requests, with the native and asset identities | `StockPullRequestDeliveryTests`: [witness](#pr-readiness-repair-and-feedback) |
 | Native state written by this revision's target image, or by each listed published image of the same native, and served by this revision's image on the same mounts and origin: the recorded native version, the retained correlation and its completed result, and exact replay of an unacknowledged submission onto its recorded run | `TargetImageTransitionTests`: [transition check](#native-state-transition-check) |
 
 `Broodling.ProcessWitness` is a test-only caller for real process-death and
@@ -126,8 +127,9 @@ observes and consumes:
 
 - With the forge branch moved past B1, Invocation with a Direct target admits,
   prepares and correlates the HTTP Attempt without Python or a client checkout.
-  The candidate commit's parent is exact B1, and native merges the moved target
-  branch into it before publishing. Native reports the PR `ready`
+  The candidate commit's parent is exact B1. Before publishing, native merges
+  the moved target branch into it and routes that integration to delivery
+  repair as `repair_required`, whose commit follows the merge. Native reports the PR `ready`
   (the controlled forge has no checks, protection or feedback), and Wait
   validates its `v2`/`pr`/`ready` receipt,
   fetches and pins the accepted commit from the forge and disposes atomically.
@@ -154,6 +156,65 @@ slow real fetch no longer holds the 60-second submit budget.
 
 The provider, forge and PR receipt are controlled. The run is not a real GitHub
 PR, semantic-quality result, image publication or production topology check.
+
+### PR readiness, repair and feedback
+
+`StockPullRequestDeliveryTests` runs the same native, image and approved asset,
+one fresh target per case. Each case scripts the
+[controlled forge](fixtures/README.md#controlled-stock-directtarget) through its
+scenario file, and the application alone dispatches, waits, observes and stops.
+The asset's delivery node is `builtin.git-delivery.pr@2` with native's default
+`Consider` feedback policy. `ci_failed`, `conflict` and `repair_required` route
+to its delivery repair node inside the ten-iteration change loop. Delivery polls
+every 20 seconds with no deadline. Evidence comes from three places: native's
+forge requests as the forge traced them, the delivery repair inputs that the
+controlled provider appends to `delivery-repairs.jsonl` in the next candidate
+commit, and, where the application reduces a failure to `native_failed`,
+native's own ledger read inside the target:
+
+- Ready: GitHub reports `UNSTABLE` because an optional check failed while the
+  required one passed. Or `BLOCKED`, `REVIEW_REQUIRED` under a rule requiring
+  only an approving review, which native's approval handoff permits. Wait
+  accepts the `v2`/`pr`/`ready` receipt and pins exactly the PR head native last
+  assessed.
+- Pending: a required check in progress, a required check missing, or an
+  approval missing where the rule also requires conversation resolution. Native
+  reports `deliver` active and keeps polling at its interval. A Wait cancelled
+  after 5 seconds leaves no completion and no abandonment. The explicit stop
+  abandons the Attempt, native records `force_stopped`, and nothing completes.
+- Behind: main moves without conflict once the PR opens. Native requests
+  GitHub's branch update from the published head, adopts the forge's merge
+  commit and hands off that head on the next poll.
+- CI failure: the first head's required check fails. The repair receives the
+  check and its job-log excerpt, and the repaired head is ready.
+- Conflict: main changes the candidate's file once the PR opens. Native
+  materializes the conflict, the repair receives `conflictedPaths`, and the
+  repaired head integrates main.
+- Exhaustion: the required check always fails. Ten deliveries of ten heads, each
+  followed by a repair, end the run as `change_attempts_exhausted`. The Attempt
+  is abandoned without completion.
+- Feedback: two pages of discussion comments, a bodiless changes-requested
+  review and an inline comment exist when the PR opens. The first delivery sends
+  all four to repair. The second reads them unchanged and goes on to readiness.
+  Once it has, the test edits one comment. Only that comment returns to repair,
+  and the third delivery is ready. This is native's in-memory checkpoint within
+  one live run. It proves nothing about deduplication after a target restart.
+- Identity: the forge reports the created PR's head in another repository.
+  Native refuses it as `delivery_failed` without assessing readiness, reading
+  feedback or repairing.
+
+Every case also requires the binding's native version and executable SHA-256,
+as read in the running target, and the approved asset SHA-256 retained by the
+Attempt. It requires no merge request (`gh pr merge`, a REST merge route or a
+merge/auto-merge/queue mutation), no forge request outside the fixture, and
+nothing on main but B1 and the forge's own scripted change. Each case prints
+those identities, its result and native's forge requests to its test output,
+which `--report-trx` retains. The cases run in parallel. A case takes 15 to 60
+seconds, most of it native's poll interval.
+
+The scenarios are controlled GitHub responses, not a live forge. Future human
+reviews, resolution of every comment, merge and PR quality are outside what the
+stock `ready` contract promises and what these cases show.
 
 ## Native-state transition check
 

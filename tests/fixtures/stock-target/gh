@@ -1,27 +1,109 @@
 #!/usr/bin/python3
-"""Controlled forge API: only the gh api calls native pull-request delivery makes."""
+"""Controlled forge API: only the gh api calls native pull-request delivery makes, each traced.
+
+Every invocation is appended to /forge/gh-trace.jsonl. A test may script the forge through
+/forge/scenario.json, read on every call (all keys optional):
+
+  checks          list, per distinct PR head in the order the readiness query first sees it (the last
+                  entry repeats), of check runs: {"name", "required", "conclusion"} with a null
+                  conclusion still in progress and an optional "job" whose log the forge serves
+  protection      the target branch's update rule: requiredApprovingReviewCount,
+                  requiredStatusCheckContexts, requiresConversationResolution, ...
+  reviewDecision  the PR's review decision
+  feedback        {"issueComments", "reviews", "reviewComments"}: each a list of pages of REST items
+  onOpen          {"path", "content"}: commit this change to main once the PR is opened
+  foreignHead     report the PR head as coming from this other repository
+
+Mergeability comes from the forge repository itself: a head that does not merge cleanly with main
+conflicts, and one that does not contain main is behind.
+"""
 import fcntl, json, os, re, subprocess, sys
 
 REPOSITORY = "acme/widget"
 PREFIX = f"repos/{REPOSITORY}/"
+FORGE = "/forge/widget.git"
 STATE = "/forge/pulls.json"
+POLICY = "<readiness policy query>"
+UPDATE = "<updatePullRequestBranch mutation>"
+arguments = sys.argv[1:]
 
 
-def revision(branch):
-    found = subprocess.run(["/usr/bin/git", "--git-dir=/forge/widget.git", "rev-parse", "--verify", "--quiet",
-                            f"refs/heads/{branch}^{{commit}}"], capture_output=True, text=True)
-    return found.stdout.strip() if found.returncode == 0 else None
+def label(argument):
+    """The graphql documents are fixed native text: the trace names the two it recognizes."""
+    if argument.startswith("query=") and "updatePullRequestBranch" in argument:
+        return "query=" + UPDATE
+    if argument.startswith("query=") and "statusCheckRollup" in argument:
+        return "query=" + POLICY
+    return argument
 
 
-def pull(entry):
-    side = lambda branch: {"ref": branch, "sha": revision(branch), "repo": {"full_name": REPOSITORY}}
-    return {"number": entry["number"], "title": entry["title"], "body": entry["body"], "state": "open",
-            "merged": False, "merge_commit_sha": None, "base": side(entry["base"]), "head": side(entry["head"])}
+traced = [label(argument) for argument in arguments]
+observed = None
+
+
+def trace(unexpected=False):
+    with open("/forge/gh-trace.jsonl", "a") as log:
+        log.write(json.dumps({"argv": traced, "observed": observed, "unexpected": unexpected}) + "\n")
 
 
 def reply(value):
-    print(json.dumps(value))
+    trace()
+    print(value if isinstance(value, str) else json.dumps(value))
     raise SystemExit(0)
+
+
+def refuse(message):
+    trace(unexpected=True)
+    sys.stderr.write(message + "\n")
+    raise SystemExit(1)
+
+
+def git(*command, check=True, **options):
+    run = subprocess.run(["/usr/bin/git", f"--git-dir={FORGE}", *command], capture_output=True, text=True, **options)
+    if check and run.returncode != 0:
+        refuse(f"forge git {command} failed: {run.stderr}")
+    return run
+
+
+def revision(branch):
+    found = git("rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}", check=False)
+    return found.stdout.strip() if found.returncode == 0 else None
+
+
+FORGE_IDENTITY = {"GIT_AUTHOR_NAME": "Forge", "GIT_AUTHOR_EMAIL": "forge@example.invalid",
+                  "GIT_COMMITTER_NAME": "Forge", "GIT_COMMITTER_EMAIL": "forge@example.invalid"}
+
+
+def commit(tree, parents, message):
+    arguments = [argument for parent in parents for argument in ("-p", parent)]
+    return git("commit-tree", tree, *arguments, "-m", message, env={**os.environ, **FORGE_IDENTITY}).stdout.strip()
+
+
+def advance_main(change):
+    """Another change lands on main: one file written on top of its tip."""
+    tip = revision("main")
+    index = {**os.environ, "GIT_INDEX_FILE": "/tmp/forge-index"}
+    git("read-tree", tip, env=index)
+    blob = git("hash-object", "-w", "--stdin", input=change["content"]).stdout.strip()
+    git("update-index", "--add", "--cacheinfo", f"100644,{blob},{change['path']}", env=index)
+    tree = git("write-tree", env=index).stdout.strip()
+    git("update-ref", "refs/heads/main", commit(tree, [tip], "upstream change"), tip)
+
+
+def mergeability(entry):
+    base, head = revision(entry["base"]), revision(entry["head"])
+    if git("merge-tree", "--write-tree", head, base, check=False).returncode != 0:
+        return "CONFLICTING", "DIRTY"
+    if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0:
+        return "MERGEABLE", "BEHIND"
+    return "MERGEABLE", None
+
+
+def pull(entry):
+    side = lambda branch, repository: {"ref": branch, "sha": revision(branch), "repo": {"full_name": repository}}
+    return {"number": entry["number"], "title": entry["title"], "body": entry["body"], "state": "open",
+            "merged": False, "merge_commit_sha": None, "base": side(entry["base"], REPOSITORY),
+            "head": side(entry["head"], scenario.get("foreignHead", REPOSITORY))}
 
 
 def save(pulls):
@@ -30,9 +112,67 @@ def save(pulls):
     os.replace(STATE + ".new", STATE)
 
 
-arguments = sys.argv[1:]
+def check_run(check):
+    return {"__typename": "CheckRun", "name": check["name"],
+            "status": "IN_PROGRESS" if check["conclusion"] is None else "COMPLETED", "conclusion": check["conclusion"],
+            "detailsUrl": f"https://github.com/{REPOSITORY}/actions/runs/1/job/{check.get('job', 0)}",
+            "databaseId": check.get("job"), "isRequired": check["required"]}
+
+
+def policy(entry, pulls):
+    """The readiness policy query, answered from the forge repository and the scenario."""
+    head = revision(entry["head"])
+    heads = entry.setdefault("heads", [])
+    if head not in heads:
+        heads.append(head)
+        save(pulls)
+    runs = scenario.get("checks", [[]])
+    checks = runs[min(heads.index(head), len(runs) - 1)]
+    rule = scenario.get("protection")
+    if rule is not None:
+        rule = {"requiredApprovingReviewCount": 0, "requiredStatusCheckContexts": [], "requiresCodeOwnerReviews": False,
+                "requiresConversationResolution": False, "requiresLinearHistory": False, "requiresSignatures": False, **rule}
+    decision = scenario.get("reviewDecision")
+    mergeable, state = mergeability(entry)
+    names = {check["name"] for check in checks}
+    blocked = (any(check["required"] and check["conclusion"] != "SUCCESS" for check in checks)
+               or any(name not in names for name in (rule or {}).get("requiredStatusCheckContexts", []))
+               or decision in ("REVIEW_REQUIRED", "CHANGES_REQUESTED"))
+    unstable = any(not check["required"] and check["conclusion"] not in (None, "SUCCESS") for check in checks)
+    state = state or ("BLOCKED" if blocked else "UNSTABLE" if unstable else "CLEAN")
+    global observed
+    observed = {"head": head, "mergeable": mergeable, "mergeStateStatus": state, "reviewDecision": decision,
+                "checks": checks}
+    rollup = None if not checks else {"contexts": {"pageInfo": {"hasNextPage": False, "endCursor": None},
+                                                   "nodes": [check_run(check) for check in checks]}}
+    return [{"data": {"repository": {
+        "nameWithOwner": REPOSITORY, "mergeCommitAllowed": True, "squashMergeAllowed": True, "rebaseMergeAllowed": True,
+        "pullRequest": {
+            "id": f"PR_{entry['number']}", "number": entry["number"], "state": "OPEN", "merged": False,
+            "mergeCommit": None, "mergeable": mergeable, "mergeStateStatus": state, "reviewDecision": decision,
+            "isDraft": False, "isInMergeQueue": False, "isMergeQueueEnabled": False, "baseRefName": entry["base"],
+            "baseRef": {"name": entry["base"], "refUpdateRule": rule},
+            "headRefName": entry["head"], "headRefOid": head,
+            "commits": {"nodes": [{"commit": {"statusCheckRollup": rollup}}]}}}}}]
+
+
+def update_branch(entry, expected):
+    """GitHub's branch update: merge the base into the head, only from the expected head."""
+    head, base = revision(entry["head"]), revision(entry["base"])
+    if head != expected:
+        refuse("expected head moved")
+    tree = git("merge-tree", "--write-tree", head, base).stdout.split("\n")[0]
+    updated = commit(tree, [head, base], f"Merge branch '{entry['base']}' into {entry['head']}")
+    git("update-ref", f"refs/heads/{entry['head']}", updated, head)
+    global observed
+    observed = {"previous": head, "base": base, "head": updated}
+    return {"data": {"updatePullRequestBranch": {"pullRequest": {
+        "id": f"PR_{entry['number']}", "number": entry["number"], "repository": {"nameWithOwner": REPOSITORY},
+        "baseRefName": entry["base"], "headRefName": entry["head"], "headRefOid": updated}}}}
+
+
 if arguments[:1] != ["api"] or len(arguments) < 2:
-    raise SystemExit("unsupported gh command")
+    refuse("unsupported gh command")
 path, method, fields = arguments[1], "GET", {}
 options = iter(arguments[2:])
 for option in options:
@@ -41,6 +181,7 @@ for option in options:
     elif option in ("-f", "-F"):
         name, value = next(options).split("=", 1)
         fields[name] = value
+scenario = json.load(open("/forge/scenario.json")) if os.path.exists("/forge/scenario.json") else {}
 with open("/forge/pulls.lock", "a") as lock:
     fcntl.flock(lock, fcntl.LOCK_EX)
     pulls = json.load(open(STATE)) if os.path.exists(STATE) else []
@@ -50,6 +191,8 @@ with open("/forge/pulls.lock", "a") as lock:
     if path == PREFIX + "pulls" and method == "POST":
         entry = {"number": len(pulls) + 1, **{name: fields[name] for name in ("title", "body", "head", "base")}}
         save(pulls + [entry])
+        if "onOpen" in scenario:
+            advance_main(scenario["onOpen"])
         reply(pull(entry))
     single = re.fullmatch(re.escape(PREFIX) + r"pulls/(\d+)", path)
     if single and method in ("GET", "PATCH"):
@@ -58,26 +201,25 @@ with open("/forge/pulls.lock", "a") as lock:
             entry.update({name: fields[name] for name in ("title", "body") if name in fields})
             save(pulls)
         reply(pull(entry))
-    # PR feedback, read with --paginate --slurp: one page each, with no comments or reviews.
-    if re.fullmatch(re.escape(PREFIX) + r"(issues/\d+/comments|pulls/\d+/reviews|pulls/\d+/comments)\?per_page=100", path):
-        reply([[]])
+    # PR feedback, read with --paginate --slurp: the list of pages.
+    feedback = re.fullmatch(re.escape(PREFIX) + r"(issues/\d+/comments|pulls/\d+/reviews|pulls/\d+/comments)\?per_page=100", path)
+    if feedback and "--paginate" in arguments and "--slurp" in arguments:
+        surface = {"issues": "issueComments", "reviews": "reviews", "comments": "reviewComments"}[
+            "issues" if feedback[1].startswith("issues") else feedback[1].rsplit("/", 1)[1]]
+        reply(scenario.get("feedback", {}).get(surface, [[]]))
     if path.startswith(PREFIX + "git/ref/heads/"):
         branch = path.removeprefix(PREFIX + "git/ref/heads/")
         if revision(branch) is None:
+            trace()
             sys.stderr.write("gh: Not Found (HTTP 404)\n")
             raise SystemExit(1)
         reply({"ref": f"refs/heads/{branch}", "object": {"type": "commit", "sha": revision(branch)}})
-    if path == "graphql":
-        # The readiness policy query: an open, clean PR on a branch with no protection and no checks.
-        entry = next(entry for entry in pulls if entry["number"] == int(fields["number"]))
-        reply([{"data": {"repository": {
-            "nameWithOwner": REPOSITORY, "mergeCommitAllowed": True, "squashMergeAllowed": True, "rebaseMergeAllowed": True,
-            "pullRequest": {
-                "id": f"PR_{entry['number']}", "number": entry["number"], "state": "OPEN", "merged": False,
-                "mergeCommit": None, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": None,
-                "isDraft": False, "isInMergeQueue": False, "isMergeQueueEnabled": False, "baseRefName": entry["base"],
-                "baseRef": {"name": entry["base"], "refUpdateRule": None},
-                "headRefName": entry["head"], "headRefOid": revision(entry["head"]),
-                "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]}}}}}])
-sys.stderr.write(f"unexpected gh api call: {method} {path}\n")
-raise SystemExit(1)
+    job = re.fullmatch(re.escape(PREFIX) + r"actions/jobs/(\d+)/logs", path)
+    if job:
+        reply(f"Run the controlled check\n##[error]job {job[1]} failed: the controlled check rejected this head\n")
+    if path == "graphql" and fields.get("query", "").lstrip().startswith("query") and "statusCheckRollup" in fields["query"]:
+        reply(policy(next(entry for entry in pulls if entry["number"] == int(fields["number"])), pulls))
+    if path == "graphql" and "updatePullRequestBranch" in fields.get("query", ""):
+        entry = next(entry for entry in pulls if f"PR_{entry['number']}" == fields["pullRequestId"])
+        reply(update_branch(entry, fields["expectedHeadOid"]))
+refuse(f"unexpected gh api call: {method} {path}")

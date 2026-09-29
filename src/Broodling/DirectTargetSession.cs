@@ -166,8 +166,9 @@ internal sealed class DirectTargetSession : IAsyncDisposable
     /// <summary>The pinned status union for exactly the expected run, title, source and size.</summary>
     private DirectTargetRunStatus Projection(JsonElement result)
     {
-        if (!Shape(result, ["runId", "title", "source", "size", "atCursor", "status"], [])
+        if (!Shape(result, ["runId", "title", "source", "size", "atCursor", "status"], ["workspaceRecovery"])
             || !Shape(result.GetProperty("source"), ["repository", "branch", "revision"], [])) throw Invalid();
+        if (result.TryGetProperty("workspaceRecovery", out var recovery)) WorkspaceRecovery(recovery);
         var actual = result.GetProperty("source");
         _ = Text(result, "atCursor"); // Opaque: never compared, incremented or interpreted.
         if (Text(result, "runId") != run.RunId || Text(result, "title") != run.Title || Text(result, "size") != run.Size
@@ -212,6 +213,20 @@ internal sealed class DirectTargetSession : IAsyncDisposable
             default:
                 throw Invalid();
         }
+    }
+
+    /// <summary>
+    /// Validated and dropped: native's successor-recovery facts, present when not empty (as on a run that
+    /// failed with a retained workspace), change no Broodling authority. Broodling never resumes a run.
+    /// </summary>
+    private static void WorkspaceRecovery(JsonElement recovery)
+    {
+        if (!Shape(recovery, ["recoverable"], ["connectionRequirements", "resumedFrom", "successorRunId"])
+            || recovery.GetProperty("recoverable").ValueKind is not (JsonValueKind.True or JsonValueKind.False)
+            || recovery.TryGetProperty("connectionRequirements", out var requirements) && requirements.ValueKind != JsonValueKind.Object)
+            throw Invalid();
+        foreach (var name in new[] { "resumedFrom", "successorRunId" })
+            if (recovery.TryGetProperty(name, out _)) _ = Text(recovery, name);
     }
 
     /// <summary>Validated and dropped: metadata changes no Broodling authority. Absent means empty; null refuses.</summary>

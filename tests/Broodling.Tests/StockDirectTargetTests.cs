@@ -51,9 +51,14 @@ public sealed class StockDirectTargetTests
             .IsEqualTo("headRevision,mode=pr,outcome=ready,pullRequestId=1,repository=acme/widget,targetBranch=main,version=v2");
         var accepted = completion.AcceptedRevision;
         await Assert.That(git.Git("rev-parse", "refs/broodling/accepted/" + accepted).Trim()).IsEqualTo(accepted);
-        // The candidate commit starts from exact B1; native then integrates the moved target branch before publishing.
-        await Assert.That(git.Git("rev-parse", accepted + "^1^").Trim()).IsEqualTo(b1);
-        await Assert.That(git.Git("rev-parse", accepted + "^2").Trim()).IsEqualTo(moved);
+        // The candidate commit starts from exact B1. Before publishing, native integrates the moved target branch
+        // and routes the integration to delivery repair, whose commit follows it.
+        var integration = git.Git("rev-list", "--merges", accepted).Trim();
+        await Assert.That(git.Git("rev-parse", integration + "^1^").Trim()).IsEqualTo(b1);
+        await Assert.That(git.Git("rev-parse", integration + "^2").Trim()).IsEqualTo(moved);
+        await Assert.That(git.Git("rev-parse", accepted + "^").Trim()).IsEqualTo(integration);
+        await Assert.That(git.Git("show", accepted + ":delivery-repairs.jsonl")).Contains("\"outcome\": \"repair_required\"")
+            .And.Contains("integrated captured target revision " + moved);
         await Assert.That(AttemptFixture.RunGit(target.Forge, "rev-parse", "main").Trim()).IsEqualTo(moved);
 
         await target.DisposeAsync();
