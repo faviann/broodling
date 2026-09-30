@@ -37,9 +37,14 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # Restoring Zeroshot.Client from GitHub Packages needs a package-read credential, even for a public
+      # package: this job's token, given to the build only as a secret.
       - name: Build images
+        env:
+          NuGetPackageSourceCredentials_github: Username=${{ github.actor }};Password=${{ github.token }}
         run: |
-          docker build --file deployment/Broodling.Dockerfile --build-arg "REVISION=$REVISION" --tag broodling:candidate .
+          docker build --file deployment/Broodling.Dockerfile --build-arg "REVISION=$REVISION" \
+            --secret id=nuget-github,env=NuGetPackageSourceCredentials_github --tag broodling:candidate .
           docker build --file deployment/DirectTarget.Dockerfile --build-arg "REVISION=$REVISION" --tag broodling-target:candidate deployment
 
       - name: Demonstrate the images in ADR 0001's topology
@@ -93,6 +98,7 @@ jobs:
       - name: Check native-state restart and transitions from the listed published target images, and the frozen schemas
         env:
           BROODLING_TEST_TARGET_IMAGE: broodling-target:candidate
+          NuGetPackageSourceCredentials_github: Username=${{ github.actor }};Password=${{ github.token }}
         run: |
           # The runner configures Git LFS filters, a checkout transformation Broodling refuses in custody.
           sudo git config --system --remove-section filter.lfs || :

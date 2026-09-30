@@ -68,6 +68,8 @@ user `1654:1654`. Only the host-side
 operator must enable Docker nesting and the UID/GID operations rootful Docker
 needs. No installer checks these host prerequisites; the operator owns them.
 
+Restore needs a `read:packages` GitHub credential for the pinned `Zeroshot.Client`,
+supplied outside the repository as in the [test setup](../tests/README.md#run).
 From the repository root, choose a new output directory for each release:
 
 ```bash
@@ -125,7 +127,9 @@ the upstream pinned Caddy image unchanged.
 To build and check them locally from the repository root:
 
 ```bash
-docker build -f deployment/Broodling.Dockerfile -t broodling:REVIEWED_REVISION .
+export NuGetPackageSourceCredentials_github="Username=YOUR_GITHUB_USER;Password=READ_PACKAGES_TOKEN"
+docker build -f deployment/Broodling.Dockerfile \
+  --secret id=nuget-github,env=NuGetPackageSourceCredentials_github -t broodling:REVIEWED_REVISION .
 docker build -f deployment/DirectTarget.Dockerfile -t broodling-target:REVIEWED_REVISION deployment
 tests/images/demonstrate.sh broodling:REVIEWED_REVISION broodling-target:REVIEWED_REVISION
 ```
@@ -241,9 +245,9 @@ as PID 1.
   output copied out with `docker cp` and a host .NET 10 ASP.NET runtime, with a
   configuration that names the host path of `root.crt`.
 
-The image contains no Python, SDK, native client, Codex CLI or C# Codex
-launcher. HTTP DirectTarget submission, observation and control need none of
-them and no client helper process; the processing server runs them in the
+The image contains no Python, Python SDK, native executable, Codex CLI or C#
+Codex launcher; its only Zeroshot client is the pinned `Zeroshot.Client` library.
+HTTP DirectTarget submission, observation and control need no client helper process; the processing server runs them in the
 image, while the CLI invocation commands run from the release artifact as
 described above. The no-effect LocalTarget profile needs
 all of them, so it remains available only from the [release artifact](#build-a-release-artifact).
