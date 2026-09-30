@@ -21,7 +21,7 @@ public sealed partial class BroodlingStore
     internal NativeSubmission PrepareHttpSubmission(string attemptId, string directOrigin, Func<ExecutionAsset> installed)
     {
         if (DirectTargetExchange.CanonicalOrigin(directOrigin) is null)
-            throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or literal-loopback HTTP.");
+            throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1].");
         var attempt = RequireCurrentAttempt(attemptId);
         if (attempt.ResourceKind != AttemptRecord.Http)
             throw new SubmissionNotReady("HTTP submission preparation requires an HTTP Attempt.");
@@ -87,7 +87,7 @@ public sealed partial class BroodlingStore
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
         // Checked before intent: a missing root means nothing can be sent, so it records nothing.
         // Each connection reads the root again.
-        var origin = DirectTargetExchange.CanonicalOrigin(record.Locator.Address)!;
+        var origin = DirectTargetExchange.CanonicalOrigin(record.Locator.Address) ?? throw RetainedDiffers();
         DirectTargetClient.RequireReadableRoot(origin, directTargetRoot);
 
         var conflict = false;

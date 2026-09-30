@@ -247,7 +247,7 @@ all four of `realCodex`, `profileHome`, `codexHome` and `launcher` for
 no-effect work. It contains no secrets. A missing or unknown kind, a field of the
 other kind, an unknown field or a credential field is refused. The DirectTarget
 origin must pass the same rule as `InvocationTarget.Direct`: canonical HTTPS or
-literal-loopback HTTP, without user information, path, query or fragment, and
+HTTP to exactly `127.0.0.1` or `[::1]`, without user information, path, query or fragment, and
 never port 0. The `<checkout>` names the source
 repository whose exact revision becomes B1; it is not an execution checkout.
 The operator command obtains current PR credentials from its environment and

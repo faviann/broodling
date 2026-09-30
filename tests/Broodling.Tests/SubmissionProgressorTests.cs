@@ -247,13 +247,16 @@ public sealed class SubmissionProgressorTests
     }
 
     [Test]
-    public async Task AForeignAcknowledgementIsReportedInTheFailureDetailAndNeverAdopted()
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task AForeignAcknowledgementIsReportedInTheFailureDetailAndNeverAdopted(bool canonical)
     {
         await using var target = new StockTarget();
         using var fixture = new PreparationFixture();
         fixture.SetIssue(12, RequestAdmissionTests.Request());
         var submissionId = Submit(fixture, 12).Single();
-        var foreign = Guid.CreateVersion7().ToString();
+        // Target-controlled text that is no UUID is never echoed, even when it names a credential.
+        var foreign = canonical ? Guid.CreateVersion7().ToString() : "CANARY-TOKEN\\nforged";
         var sends = 0;
         target.Submit = body => Task.FromResult(Interlocked.Increment(ref sends) == 1
             ? (200, $$"""{"runId":"{{foreign}}"}""")
@@ -263,8 +266,9 @@ public sealed class SubmissionProgressorTests
         await Until(() => service.Progressor.Progress() is [{ State: SubmissionProgress.Waiting }]);
         var waiting = service.Progressor.Progress().Single();
         await Assert.That(waiting.Code).IsEqualTo("native_transport_error");
-        await Assert.That(waiting.Message).IsEqualTo(
-            $"The target acknowledged a different run, {foreign}; it was not adopted. (foreign_run)");
+        await Assert.That(waiting.Message).IsEqualTo(canonical
+            ? $"The target acknowledged a different run, {foreign}; it was not adopted. (foreign_run)"
+            : "Native transport did not return a usable response. (foreign_run)");
 
         await service.ScanUntil(() => Correlated(fixture, submissionId));
         using var store = fixture.State.Open();

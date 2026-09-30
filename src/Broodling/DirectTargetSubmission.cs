@@ -26,8 +26,8 @@ internal static class DirectTargetSubmission
     /// <summary>
     /// One <see cref="ZeroshotClient.SubmitAttemptAsync"/> of the exact retained bytes with the current
     /// credentials, within the 60-second submit budget. It never retries. Returns only when a valid
-    /// acknowledgement names exactly the intended run; another named run is <c>foreign_run</c>, reported and
-    /// never adopted. A pinned <c>request.conflict</c> refusal is <see cref="SubmissionConflict"/>; every
+    /// acknowledgement names exactly the intended run; another named run is <c>foreign_run</c>, never adopted,
+    /// and reported only when it is a canonical UUID. A pinned <c>request.conflict</c> refusal is <see cref="SubmissionConflict"/>; every
     /// other outcome is a fixed <see cref="NativeTransportError"/> kind or the caller's cancellation.
     /// </summary>
     internal static async Task SubmitAsync(Uri origin, string? rootCertificate, PreparedSubmission prepared,
@@ -44,7 +44,10 @@ internal static class DirectTargetSubmission
         if (attempt.AcknowledgedRunId is { Value: var acknowledged })
         {
             if (acknowledged == prepared.RunId.Value) return;
-            throw new NativeTransportError("foreign_run", acknowledged);
+            // The ID is target-controlled text: it is reported only in the canonical form Broodling itself
+            // retains (lowercase UUID), never as arbitrary text. A re-cased intended ID is foreign too.
+            throw new NativeTransportError("foreign_run",
+                Guid.TryParseExact(acknowledged, "D", out var id) && id.ToString() == acknowledged ? acknowledged : null);
         }
         caller.ThrowIfCancellationRequested();
         throw attempt.Failure switch

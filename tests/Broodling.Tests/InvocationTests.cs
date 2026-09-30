@@ -300,10 +300,13 @@ public sealed class InvocationTests
 
     [Test]
     [NotInParallel]
-    public async Task DirectOperatorErrorRecordReportsAForeignAcknowledgementWithoutAdoptingIt()
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task DirectOperatorErrorRecordReportsAForeignAcknowledgementWithoutAdoptingIt(bool canonical)
     {
         await using var target = new StockTarget();
-        var foreign = Guid.CreateVersion7().ToString();
+        // Target-controlled text that is no UUID, echoing the dispatch credential, is never reported.
+        var foreign = canonical ? Guid.CreateVersion7().ToString() : "github-canary\\nforged";
         target.Submit = _ => Task.FromResult((200, $$"""{"runId":"{{foreign}}"}"""));
         using var fixture = new NativeFixture();
         string revision;
@@ -331,7 +334,8 @@ public sealed class InvocationTests
         await Assert.That(code).IsEqualTo(1);
         using var record = JsonDocument.Parse(error.ToString());
         await Assert.That(record.RootElement.GetProperty("error").GetString()).IsEqualTo("native_transport_error");
-        await Assert.That(record.RootElement.GetProperty("acknowledgedRunId").GetString()).IsEqualTo(foreign);
+        await Assert.That(record.RootElement.TryGetProperty("acknowledgedRunId", out var reported) ? reported.GetString() : null)
+            .IsEqualTo(canonical ? foreign : null);
         await Assert.That(error.ToString().Contains("canary")).IsFalse();
         using var reopened = fixture.Git.State.Open();
         var submission = reopened.Status(revision).Submissions.Single();

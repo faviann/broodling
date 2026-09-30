@@ -160,6 +160,7 @@ public sealed class HttpDispatchTests
     [Test]
     [Arguments(200, "foreign", "foreign_run")]
     [Arguments(200, "uppercase", "foreign_run")]
+    [Arguments(200, "canary-id", "foreign_run")]
     [Arguments(200, "extra", "invalid_response")]
     [Arguments(409, "conflict-run-id", "invalid_response")]
     [Arguments(409, "conflict-missing-message", "invalid_response")]
@@ -179,6 +180,8 @@ public sealed class HttpDispatchTests
             // The stock target answers a same-key submission with its original ID, never this Attempt's.
             "foreign" => $$"""{"runId":"{{foreign}}"}""",
             "uppercase" => $$"""{"runId":"{{intended.ToUpperInvariant()}}"}""",
+            // Target-controlled text that is no canonical UUID, echoing a credential and a newline.
+            "canary-id" => """{"runId":"github-canary-CANARY\nforged"}""",
             "extra" => $$"""{"runId":"{{intended}}","accepted":true}""",
             "conflict-run-id" => $$"""{"code":"request.conflict","message":"conflict","runId":"{{intended}}"}""",
             "conflict-missing-message" => """{"code":"request.conflict"}""",
@@ -195,7 +198,7 @@ public sealed class HttpDispatchTests
         // A valid acknowledgement of another run stays visible to the caller; nothing adopts it.
         await Assert.That(error.AcknowledgedRunId).IsEqualTo(variant switch
         {
-            "foreign" => foreign, "uppercase" => intended.ToUpperInvariant(), _ => null
+            "foreign" => foreign, _ => null
         });
         await Assert.That(error.Message.Contains("CANARY")).IsFalse();
         var unresolved = fixture.Store.FindSubmission(prepared.AttemptId)!;

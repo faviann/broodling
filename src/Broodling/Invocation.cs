@@ -13,14 +13,14 @@ public abstract record InvocationTarget
 
     /// <summary>
     /// Authorized PR work over HTTP/OECP; no Python, SDK client state, workspace root or launcher. The
-    /// origin must be canonical HTTPS or literal-loopback HTTP, the rule the native target applies.
+    /// origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1], the rule the native target and SDK apply.
     /// </summary>
     public sealed record Direct : InvocationTarget
     {
         public Direct(string origin)
         {
             if (DirectTargetExchange.CanonicalOrigin(origin) is null)
-                throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or literal-loopback HTTP.");
+                throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1].");
             Origin = origin;
         }
 

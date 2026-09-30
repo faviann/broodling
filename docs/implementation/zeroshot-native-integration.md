@@ -274,9 +274,10 @@ identity nor the request bytes.
 
 Broodling classifies the SDK's attempt. Only an acknowledgement naming exactly
 the intended run ID correlates; one that names another or re-cased ID is
-`foreign_run`. Its message, and so the progression failure detail, names that
-ID, as does the `acknowledgedRunId` of the CLI and HTTP error records; it is
-neither adopted nor retained. A captured valid acknowledgement counts even when cancellation
+`foreign_run`. When the named ID is a canonical lowercase UUID, the error's
+message, and so the progression failure detail, names it, as does the
+`acknowledgedRunId` of the CLI and HTTP error records; any other target text is
+never echoed. It is neither adopted nor retained. A captured valid acknowledgement counts even when cancellation
 raced it. The SDK's pinned `request.conflict` refusal (HTTP 409) is a submission
 conflict; it carries no run ID and nothing is adopted from it. Other valid
 problems are `TargetError`; a malformed reply is `invalid_response`. Timeouts, cancellation,
@@ -330,7 +331,7 @@ target contact. `WaitAsync` routes on the retained record and passes the bridge
 transport only to a LocalTarget record.
 
 `InvocationTarget.Direct` refuses an origin that is not canonical HTTPS or
-literal-loopback HTTP. The operator configuration names `"target": "direct"` with
+HTTP to exactly `127.0.0.1` or `[::1]`. The operator configuration names `"target": "direct"` with
 a `directOrigin` that passes that rule and an optional absolute
 `directRootCertificate`, or `"target": "local"` with only the bridge, state,
 workspace and all four Codex-profile paths. Mixed, unknown or secret fields
@@ -444,7 +445,7 @@ protocol shape. It does not attest native or image bytes or durable target state
 [`DirectTargetSession.cs`](../../src/Broodling/DirectTargetSession.cs) is the one
 validated status reader that progress, wait and stop share. Its input is a `NativeRunBinding`: the direct
 locator's retained origin, the run ID, frozen title, size and PR source. The origin
-must be canonical HTTPS or literal-loopback HTTP, with no path, query, fragment or
+must be canonical HTTPS or HTTP to exactly `127.0.0.1` or `[::1]`, with no path, query, fragment or
 user information. The binding carries no credentials.
 
 Opening a session validates discovery and posts exactly `{runId}` to

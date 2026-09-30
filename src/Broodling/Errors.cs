@@ -27,7 +27,8 @@ public sealed class NativeTransportError(string kind = "transport_failed", strin
 {
     public string Kind { get; } = kind;
     /// <summary>
-    /// For <c>foreign_run</c> from a submission: the different run a valid acknowledgement named. The
+    /// For <c>foreign_run</c> from a submission: the different run a valid acknowledgement named, when it is a
+    /// canonical UUID (never other target text). The
     /// message, progression detail and operator error records report it; it is never adopted or retained.
     /// </summary>
     public string? AcknowledgedRunId { get; } = acknowledgedRunId;
