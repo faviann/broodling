@@ -40,6 +40,8 @@ internal sealed class StockTarget : IAsyncDisposable
     /// <summary>Accepted runs by submission key.</summary>
     internal ConcurrentDictionary<string, string> Runs { get; } = new();
     internal List<JsonObject> Bodies { get; } = [];
+    /// <summary>The exact bytes of each complete submission body.</summary>
+    internal List<byte[]> RawBodies { get; } = [];
     internal (int Status, string Body)? Session { get; set; }
     internal Queue<JsonObject?> Projections { get; } = new();
     /// <summary>A raw reply for a request, or null for the stock reply.</summary>
@@ -134,7 +136,11 @@ internal sealed class StockTarget : IAsyncDisposable
                 }
                 await stream.ReadExactlyAsync(body, stop.Token);
                 var request = JsonNode.Parse(body)!.AsObject();
-                lock (Bodies) Bodies.Add(request);
+                lock (Bodies)
+                {
+                    Bodies.Add(request);
+                    RawBodies.Add(body);
+                }
                 await Reached("run");
                 var (status, reply) = await Submit(request).WaitAsync(stop.Token);
                 await Respond(stream, status, reply);

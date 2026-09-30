@@ -41,11 +41,8 @@ internal static class HttpApi
                 };
                 if (status == 500)
                     app.Logger.LogError(exception, "Request failed.");
-                return Results.Json(new
-                {
-                    error = exception is BroodlingException known ? known.Code : "request_failed",
-                    message = "Request refused. Inspect retained state before retrying."
-                }, Json, statusCode: status);
+                return Results.Json(InvocationCommands.ErrorRecord(exception, "request_failed",
+                    "Request refused. Inspect retained state before retrying."), Json, statusCode: status);
             }
         }
         Task<IResult> Read(Func<BroodlingStore, object> read) => Respond(store => Task.FromResult(Results.Json(read(store), Json)));

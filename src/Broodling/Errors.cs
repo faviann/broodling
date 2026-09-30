@@ -20,9 +20,18 @@ public class SubmissionConflict(string message, string? existingRunId = null) : 
 /// <summary>A terminal native result that cannot complete this Attempt; the same run always returns it again.</summary>
 public sealed class ReceiptRefused(string message) : SubmissionConflict(message);
 public sealed class UnsupportedRuntime(string message) : BroodlingException("unsupported_runtime", message);
-public sealed class NativeTransportError(string kind = "transport_failed") : BroodlingException("native_transport_error", "Native transport did not return a usable response.")
+public sealed class NativeTransportError(string kind = "transport_failed", string? acknowledgedRunId = null)
+    : BroodlingException("native_transport_error", acknowledgedRunId is null
+        ? "Native transport did not return a usable response."
+        : $"The target acknowledged a different run, {acknowledgedRunId}; it was not adopted.")
 {
     public string Kind { get; } = kind;
+    /// <summary>
+    /// For <c>foreign_run</c> from a submission: the different run a valid acknowledgement named, when it is a
+    /// canonical UUID (never other target text). The
+    /// message, progression detail and operator error records report it; it is never adopted or retained.
+    /// </summary>
+    public string? AcknowledgedRunId { get; } = acknowledgedRunId;
 }
 
 public sealed class WorktreeProvisioningError(string message) : BroodlingException("worktree_provisioning_error", message);

@@ -60,7 +60,8 @@ cannot amend stored authority.
 
 Source: [admission/delivery policy](../../src/Broodling/Closability.cs),
 [target selection](../../src/Broodling/Invocation.cs),
-[HTTP submission](../../src/Broodling/HttpSubmission.cs),
+[HTTP submission](../../src/Broodling/HttpSubmission.cs) through the
+[SDK client](../../src/Broodling/DirectTargetClient.cs),
 [LocalTarget dispatch](../../src/Broodling/NativeDispatch.cs),
 [SDK bridge transport](../../src/Broodling/NativeTransport.cs),
 [completion](../../src/Broodling/AttemptCompletion.cs), and
@@ -160,7 +161,10 @@ target image, and records those
 #215 replaced the initial DirectTarget native, asset, receipt and store
 definition with native 10.9.0's and removed the 10.3.0 sources; the check now
 restarts the candidate image over its own native state, and transitions are
-established only within one native release. #219 witnesses that asset's stock
+established only within one native release. #216 submits and explicitly replays
+the retained request through the pinned `Zeroshot.Client` 0.1.0-preview.1 SDK, one
+attempt with current credentials and no automatic resend; Broodling keeps the
+durable facts, and the run reader and stopper keep their own transport for now. #219 witnesses that asset's stock
 PR readiness, repair and feedback contract against controlled forge scenarios
 ([witness](../../tests/README.md#pr-readiness-repair-and-feedback)), and the
 status reader now drops native's workspace-recovery facts on failed runs.

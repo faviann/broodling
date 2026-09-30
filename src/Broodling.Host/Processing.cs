@@ -32,7 +32,7 @@ internal sealed record ProcessingSettings(InvocationConfiguration.Direct Target,
         // operation reads the credentials again; nothing is retained.
         var current = credentials();
         _ = current.Gateway.ApiKey();
-        _ = current.Dispatch.Environment();
+        _ = current.Dispatch.TargetRun();
         return new(target, repositoryRoot, credentials, peers);
     }
 

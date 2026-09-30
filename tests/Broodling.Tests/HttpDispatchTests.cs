@@ -8,8 +8,8 @@ using TUnit.Core;
 namespace Broodling.Tests;
 
 /// <summary>
-/// HTTP submission and acknowledgement recovery through real SQLite/Git and a controlled loopback target.
-/// Wire framing and discovery bounds belong to DirectTargetExchangeTests.
+/// HTTP submission and acknowledgement recovery through real SQLite/Git, the pinned SDK and a controlled
+/// loopback target. Broodling's policy over each SDK attempt outcome is tested here; the SDK owns its wire.
 /// </summary>
 public sealed class HttpDispatchTests
 {
@@ -19,14 +19,14 @@ public sealed class HttpDispatchTests
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     [Test]
-    public async Task IntentCommitsBeforeDiscoveryAndOnlyTheExactAcknowledgementCorrelates()
+    public async Task IntentCommitsBeforeContactAndOnlyTheExactAcknowledgementCorrelates()
     {
         await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var prepared = fixture.PrepareAt(target.Origin);
         var reached = Signal();
         var release = Signal();
-        target.Discovery = async () => { reached.TrySetResult(); await release.Task; };
+        target.Submit = async body => { reached.TrySetResult(); await release.Task; return target.Accept(body); };
         // The frozen result-fetch origin survives later mutable remote configuration.
         fixture.Git.Git("remote", "set-url", "origin", "https://github.com/acme/other.git");
 
@@ -136,15 +136,20 @@ public sealed class HttpDispatchTests
         await Assert.That(correlated.RunId).IsEqualTo(prepared.IntendedRunId);
         await Assert.That(correlated.RequestJson).IsEqualTo(prepared.RequestJson);
         await Assert.That(target.Runs.Count).IsEqualTo(1);
+        // Each send carries exactly the retained bytes, with only the current credentials appended.
+        var retained = Encoding.UTF8.GetBytes(prepared.RequestJson);
         foreach (var (body, suffix) in target.Bodies.Zip(["first", "rotated"]))
         {
-            await Assert.That(body["connections"]!.ToJsonString()).IsEqualTo(
-                $$$"""{"gateway":{"GATEWAY_BASE_URL":"{{{NativeProfile.GatewayBaseUrl}}}","GATEWAY_API_KEY":"gateway-canary-{{{suffix}}}"},"github":{"GH_TOKEN":"github-canary-{{{suffix}}}"}}""");
+            await Assert.That(JsonNode.DeepEquals(body["connections"], JsonNode.Parse($$$"""
+                {"gateway":{"GATEWAY_BASE_URL":"{{{NativeProfile.GatewayBaseUrl}}}","GATEWAY_API_KEY":"gateway-canary-{{{suffix}}}"},"github":{"GH_TOKEN":"github-canary-{{{suffix}}}"}}
+                """))).IsTrue();
             await Assert.That((string)body["githubToken"]!).IsEqualTo("github-canary-" + suffix);
             body.Remove("connections");
             body.Remove("githubToken");
             await Assert.That(JsonNode.DeepEquals(body, JsonNode.Parse(prepared.RequestJson))).IsTrue();
         }
+        foreach (var raw in target.RawBodies)
+            await Assert.That(raw.AsSpan(0, retained.Length - 1).SequenceEqual(retained.AsSpan(0, retained.Length - 1))).IsTrue();
         foreach (var head in target.Heads.Where(head => head.StartsWith("POST /native-v2/run ", StringComparison.Ordinal)))
             await Assert.That(head.Contains("Content-Length:") && !head.Contains("Transfer-Encoding", StringComparison.OrdinalIgnoreCase)).IsTrue();
         fixture.Store.Dispose();
@@ -155,6 +160,7 @@ public sealed class HttpDispatchTests
     [Test]
     [Arguments(200, "foreign", "foreign_run")]
     [Arguments(200, "uppercase", "foreign_run")]
+    [Arguments(200, "canary-id", "foreign_run")]
     [Arguments(200, "extra", "invalid_response")]
     [Arguments(409, "conflict-run-id", "invalid_response")]
     [Arguments(409, "conflict-missing-message", "invalid_response")]
@@ -174,6 +180,8 @@ public sealed class HttpDispatchTests
             // The stock target answers a same-key submission with its original ID, never this Attempt's.
             "foreign" => $$"""{"runId":"{{foreign}}"}""",
             "uppercase" => $$"""{"runId":"{{intended.ToUpperInvariant()}}"}""",
+            // Target-controlled text that is no canonical UUID, echoing a credential and a newline.
+            "canary-id" => """{"runId":"github-canary-CANARY\nforged"}""",
             "extra" => $$"""{"runId":"{{intended}}","accepted":true}""",
             "conflict-run-id" => $$"""{"code":"request.conflict","message":"conflict","runId":"{{intended}}"}""",
             "conflict-missing-message" => """{"code":"request.conflict"}""",
@@ -187,6 +195,11 @@ public sealed class HttpDispatchTests
         var error = await Assert.That(async () => await fixture.Store.DispatchHttpAsync(prepared.AttemptId, Credentials()))
             .Throws<NativeTransportError>();
         await Assert.That(error!.Kind).IsEqualTo(kind);
+        // A valid acknowledgement of another run stays visible to the caller; nothing adopts it.
+        await Assert.That(error.AcknowledgedRunId).IsEqualTo(variant switch
+        {
+            "foreign" => foreign, _ => null
+        });
         await Assert.That(error.Message.Contains("CANARY")).IsFalse();
         var unresolved = fixture.Store.FindSubmission(prepared.AttemptId)!;
         await Assert.That(unresolved.State).IsEqualTo("dispatched");
@@ -255,15 +268,15 @@ public sealed class HttpDispatchTests
     public async Task OversizedCredentialBearingBodyIsRefusedBeforeAnyExchange()
     {
         await using var target = new StockTarget();
-        var runId = Guid.CreateVersion7().ToString();
-        var request = new JsonObject { ["runId"] = runId, ["padding"] = "" }.ToJsonString();
-        request = request.Replace("\"padding\":\"\"", "\"padding\":\"" + new string('x', DirectTargetLimits.JsonBytes - request.Length - 16) + "\"");
-        var credentials = new Dictionary<string, string>
-        {
-            ["GH_TOKEN"] = "github-token", ["GATEWAY_BASE_URL"] = NativeProfile.GatewayBaseUrl, ["GATEWAY_API_KEY"] = "gateway-key"
-        };
-        var error = await Assert.That(async () => await DirectTargetSubmission.SubmitAsync(target.Origin, null, request, runId,
-            credentials, TimeProvider.System, CancellationToken.None)).Throws<NativeTransportError>();
+        using var fixture = new HttpFixture();
+        // A retained request that fits, until the current credentials are added.
+        var request = JsonNode.Parse(fixture.PrepareAt(target.Origin).RequestJson)!;
+        var task = request["submission"]!["initialInput"]!["task"]!;
+        var length = Encoding.UTF8.GetByteCount(request.ToJsonString());
+        task.ReplaceWith((string)task! + new string('x', DirectTargetLimits.JsonBytes - length - 16));
+        var prepared = DirectTargetSubmission.Import(request.ToJsonString());
+        var error = await Assert.That(async () => await DirectTargetSubmission.SubmitAsync(target.Origin, null, prepared,
+            Credentials().TargetRun(), TimeProvider.System, CancellationToken.None)).Throws<NativeTransportError>();
         await Assert.That(error!.Kind).IsEqualTo("request_too_large");
         await Assert.That(target.Connections).IsEqualTo(0);
     }

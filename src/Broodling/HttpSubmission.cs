@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
+using Zeroshot;
 
 namespace Broodling;
 
@@ -20,7 +21,7 @@ public sealed partial class BroodlingStore
     internal NativeSubmission PrepareHttpSubmission(string attemptId, string directOrigin, Func<ExecutionAsset> installed)
     {
         if (DirectTargetExchange.CanonicalOrigin(directOrigin) is null)
-            throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or literal-loopback HTTP.");
+            throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1].");
         var attempt = RequireCurrentAttempt(attemptId);
         if (attempt.ResourceKind != AttemptRecord.Http)
             throw new SubmissionNotReady("HTTP submission preparation requires an HTTP Attempt.");
@@ -56,7 +57,7 @@ public sealed partial class BroodlingStore
         Execute("""
             INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state, intended_run_id,
                 asset_sha256, binding_json) VALUES ($p0, 'http.v1', $p1, $p2, 'prepared', $p3, $p4, $p5)
-            """, transaction, attemptId, HttpSubmissionKey(attemptId), HttpRequest(attempt, transaction, intended, asset),
+            """, transaction, attemptId, HttpSubmissionKey(attemptId), RetainedRequest(HttpRequest(attempt, transaction, intended, asset)),
             intended, asset.Sha256, HttpBinding(attempt, directOrigin, resultOrigin!).ToJsonString());
         var result = ReadSubmission(attemptId, transaction)!;
         transaction.Commit();
@@ -67,7 +68,7 @@ public sealed partial class BroodlingStore
     /// First send or exact acknowledgement-loss replay of a prepared HTTP submission. A correlated
     /// record is handed back with no other prerequisite. Otherwise the send needs current authority,
     /// no retained replay block, no pause, current credentials, exact retained B1 custody and a readable
-    /// configured root; dispatch intent commits before discovery and the writer is released before any
+    /// configured root; dispatch intent commits before any target contact and the writer is released before any
     /// network I/O. Only the exact acknowledgement correlates; every other outcome leaves the intent
     /// unresolved. A correlation that arrives after abandonment is retained, then that exact run is stopped.
     /// </summary>
@@ -82,14 +83,15 @@ public sealed partial class BroodlingStore
         if (record.ReplayBlockedReason is not null) throw ReplayBlocked();
         RequireUnpaused();
         // Credential and Git checks may be slow; they never hold the SQLite writer.
-        var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).Environment();
+        var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).TargetRun();
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
         // Checked before intent: a missing root means nothing can be sent, so it records nothing.
         // Each connection reads the root again.
-        var origin = DirectTargetExchange.CanonicalOrigin(record.Locator.Address)!;
-        if (directTargetRoot is not null && origin.Scheme == Uri.UriSchemeHttps) DirectTargetExchange.ReadRoot(directTargetRoot).Dispose();
+        var origin = DirectTargetExchange.CanonicalOrigin(record.Locator.Address) ?? throw RetainedDiffers();
+        DirectTargetClient.RequireReadableRoot(origin, directTargetRoot);
 
         var conflict = false;
+        PreparedSubmission prepared;
         // Held from before the intent commits until this caller can no longer send. It is local only:
         // bytes a target already buffered can still be accepted after it is released.
         using (HoldInitiation())
@@ -103,14 +105,15 @@ public sealed partial class BroodlingStore
                 // A replay can create the run too, so it passes the same gate as a first send.
                 RequireUnpaused(transaction);
                 RequireRetainedHttpSubmission(attempt, record, transaction);
+                // Exactly the retained bytes are sent: an explicit replay regenerates nothing.
+                prepared = DirectTargetSubmission.Import(record.RequestJson);
                 if (record.State == "prepared")
                     Execute("UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = $p0", transaction, attemptId);
                 transaction.Commit();
             }
             try
             {
-                await DirectTargetSubmission.SubmitAsync(origin, directTargetRoot, record.RequestJson, record.IntendedRunId!, ephemeral,
-                    DirectTargetClock, cancellationToken);
+                await DirectTargetSubmission.SubmitAsync(origin, directTargetRoot, prepared, ephemeral, DirectTargetClock, cancellationToken);
             }
             catch (SubmissionConflict) { conflict = true; }
         }
@@ -178,6 +181,16 @@ public sealed partial class BroodlingStore
             || !JsonNode.DeepEquals(binding, HttpBinding(attempt, origin, resultOrigin))
             || HttpRequest(attempt, transaction, record.IntendedRunId, asset) != record.RequestJson)
             throw RetainedDiffers();
+    }
+
+    /// <summary>
+    /// The request exactly as the SDK imports it: preparation retains these UTF-8 bytes, and dispatch imports
+    /// them again, so replay sends the same run ID, submission key, source and asset content.
+    /// </summary>
+    private static string RetainedRequest(string requestJson)
+    {
+        DirectTargetSubmission.Import(requestJson);
+        return requestJson;
     }
 
     private ExecutionAsset? RetainedAsset(string? sha256, SqliteTransaction transaction)

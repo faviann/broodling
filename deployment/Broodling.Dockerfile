@@ -2,9 +2,13 @@
 # reader, or with its processing configuration also submission and automatic processing), with the
 # store-only commands (initialization, inspection, installation pause) and, for the processing
 # server's Attempts, retire-attempt and replace-attempt, and resume to dispatch such a Replacement
-# Attempt. Build from the repository root:
-#   docker build -f deployment/Broodling.Dockerfile -t broodling:REVISION .
-# It carries no Python, SDK, Codex launcher or native client. For Attempts that submit created, the
+# Attempt. Build from the repository root with a read:packages credential for the Zeroshot.Client feed
+# (nuget.config), passed as a build secret so no layer or build argument retains it:
+#   export NuGetPackageSourceCredentials_github="Username=USER;Password=TOKEN"
+#   docker build -f deployment/Broodling.Dockerfile \
+#     --secret id=nuget-github,env=NuGetPackageSourceCredentials_github -t broodling:REVISION .
+# It carries no Python, Python SDK, Codex launcher or native executable; its Zeroshot client is the
+# Zeroshot.Client library. For Attempts that submit created, the
 # invocation commands (submit, resume, wait, stop), retire-attempt and replace-attempt run from the
 # release artifact on a host with gh and the caller checkout's common Git directory.
 
@@ -20,9 +24,12 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0.401-noble@sha256:35d40304542c8689331f8cab
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev python3 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /source
+COPY nuget.config ./
 COPY src/Broodling/ src/Broodling/
 COPY src/Broodling.Host/ src/Broodling.Host/
-RUN dotnet publish src/Broodling.Host --configuration Release --output /app
+RUN --mount=type=secret,id=nuget-github,required=true \
+    NuGetPackageSourceCredentials_github="$(cat /run/secrets/nuget-github)" \
+    dotnet publish src/Broodling.Host --configuration Release --output /app
 # The published output must carry the approved execution asset, or HTTP preparation refuses. The
 # pinned native regenerates it with Zeroshot's own tooling and admits it (generate.sh); the published
 # bytes must equal what it produced, and the published approval must be the reviewed one.

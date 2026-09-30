@@ -118,11 +118,8 @@ public static class InvocationCommands
         catch (Exception exception)
         {
             // Process/provider exceptions can contain private paths or credentials. Never echo their text.
-            error.WriteLine(JsonSerializer.Serialize(new
-            {
-                error = exception is BroodlingException known ? known.Code : "invocation_failed",
-                message = "Invocation refused. Inspect history/status for retained identifiers and resume that exact revision."
-            }));
+            error.WriteLine(JsonSerializer.Serialize(ErrorRecord(exception, "invocation_failed",
+                "Invocation refused. Inspect history/status for retained identifiers and resume that exact revision.")));
             return 1;
         }
     }
@@ -165,4 +162,18 @@ public static class InvocationCommands
     };
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
+    /// A safe error record: the refusal code and a fixed message, never exception text. A foreign
+    /// acknowledgement adds the run ID the target named, which Broodling did not adopt.
+    /// </summary>
+    internal static Dictionary<string, string> ErrorRecord(Exception exception, string fallback, string message)
+    {
+        var record = new Dictionary<string, string>
+        {
+            ["error"] = exception is BroodlingException known ? known.Code : fallback, ["message"] = message
+        };
+        if (exception is NativeTransportError { AcknowledgedRunId: { } foreign }) record["acknowledgedRunId"] = foreign;
+        return record;
+    }
 }

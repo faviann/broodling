@@ -298,6 +298,51 @@ public sealed class InvocationTests
         return changed;
     }
 
+    [Test]
+    [NotInParallel]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task DirectOperatorErrorRecordReportsAForeignAcknowledgementWithoutAdoptingIt(bool canonical)
+    {
+        await using var target = new StockTarget();
+        // Target-controlled text that is no UUID, echoing the dispatch credential, is never reported.
+        var foreign = canonical ? Guid.CreateVersion7().ToString() : "github-canary\\nforged";
+        target.Submit = _ => Task.FromResult((200, $$"""{"runId":"{{foreign}}"}"""));
+        using var fixture = new NativeFixture();
+        string revision;
+        using (var store = fixture.Git.State.Open()) revision = AttemptFixture.PullRequestRevision(store);
+        var config = Path.Combine(fixture.Root, "direct.json");
+        File.WriteAllText(config, new JsonObject
+        {
+            ["target"] = "direct", ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority)
+        }.ToJsonString());
+        var error = new StringWriter();
+        var names = new[] { "GH_TOKEN", "GATEWAY_BASE_URL", "GATEWAY_API_KEY" };
+        var saved = names.Select(Environment.GetEnvironmentVariable).ToArray();
+        int code;
+        try
+        {
+            foreach (var (name, value) in names.Zip(new[] { "github-canary", NativeProfile.GatewayBaseUrl, "gateway-canary" }))
+                Environment.SetEnvironmentVariable(name, value);
+            code = await InvocationCommands.RunAsync(["resume", fixture.Git.State.Path, revision, config, fixture.Git.Repository, fixture.Git.Head],
+                fixture.Git.State.Application, new StringWriter(), error);
+        }
+        finally
+        {
+            foreach (var (name, value) in names.Zip(saved)) Environment.SetEnvironmentVariable(name, value);
+        }
+        await Assert.That(code).IsEqualTo(1);
+        using var record = JsonDocument.Parse(error.ToString());
+        await Assert.That(record.RootElement.GetProperty("error").GetString()).IsEqualTo("native_transport_error");
+        await Assert.That(record.RootElement.TryGetProperty("acknowledgedRunId", out var reported) ? reported.GetString() : null)
+            .IsEqualTo(canonical ? foreign : null);
+        await Assert.That(error.ToString().Contains("canary")).IsFalse();
+        using var reopened = fixture.Git.State.Open();
+        var submission = reopened.Status(revision).Submissions.Single();
+        await Assert.That(submission.State).IsEqualTo("dispatched");
+        await Assert.That(submission.RunId).IsNull();
+    }
+
     /// <summary>
     /// Over HTTPS, the configured private root alone authenticates the target for dispatch (discovery and
     /// the run request) and for stop (session, WSS and OECP); the retained origin decides where stop connects.
@@ -373,7 +418,8 @@ public sealed class InvocationTests
                 fixture.Git.State.Application, output, error)).IsEqualTo(1);
         }
         await Assert.That(store2.GetAttempt(attempt.AttemptId).Abandonment).IsNull();
-        await Assert.That(target.Stages.Count(stage => stage == "discovery")).IsEqualTo(1);
+        // Only the one submission contacted the target; refused configurations never did.
+        await Assert.That(target.Stages.Count(stage => stage == "run")).IsEqualTo(1);
         // Explicit stop forces the confirmed run; a Direct configuration supplies no Python, only the root.
         target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "failed", "force_stopped"));
         output.GetStringBuilder().Clear();

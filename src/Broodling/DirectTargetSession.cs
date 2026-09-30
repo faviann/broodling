@@ -109,7 +109,7 @@ internal sealed class DirectTargetSession : IAsyncDisposable
 
     /// <summary>
     /// The one place a retained binding names its target: the direct locator's canonical origin,
-    /// HTTPS or literal-loopback HTTP, plus the frozen PR source every projection must match.
+    /// HTTPS or HTTP to exactly 127.0.0.1 or [::1], plus the frozen PR source every projection must match.
     /// </summary>
     private static (Uri Origin, NativeSource Source) Target(NativeRunBinding run)
     {

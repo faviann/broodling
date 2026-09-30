@@ -100,6 +100,28 @@ public sealed class DirectTargetTrustTests
         await Assert.That(store.Status(fixture.Attempt.ContractRevisionId).Submissions.Single().State).IsEqualTo("correlated");
     }
 
+    [Test]
+    public async Task SdkDispatchRereadsTheRootForEachNewConnection()
+    {
+        var authority = PrivateAuthority.Create();
+        await using var target = new StockTarget(authority.Server);
+        using var fixture = new HttpFixture();
+        var id = fixture.PrepareAt(target.Origin).AttemptId;
+        var root = Path.Combine(fixture.Git.State.Root, "zeroshot-root.crt");
+        File.WriteAllText(root, PrivateAuthority.Create().RootPem);
+        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, root);
+        // A readable root of another authority: intent commits, then the handshake refuses before any request.
+        var error = await Assert.That(async () => await store.DispatchHttpAsync(id, HttpDispatchTests.Credentials()))
+            .Throws<NativeTransportError>();
+        await Assert.That(error!.Kind).IsEqualTo("transport_failed");
+        await Assert.That(target.Heads.All(head => head == "")).IsTrue();
+        await Assert.That(store.FindSubmission(id)!.State).IsEqualTo("dispatched");
+
+        // The regenerated root is read by the replay's new connection.
+        File.WriteAllText(root, authority.RootPem);
+        await Assert.That((await store.DispatchHttpAsync(id, HttpDispatchTests.Credentials())).State).IsEqualTo("correlated");
+    }
+
     /// <summary>Completion's own path to the reader: trust itself is covered above.</summary>
     [Test]
     public async Task CorrelatedHttpsWaitCompletesThroughTheConfiguredRoot()
