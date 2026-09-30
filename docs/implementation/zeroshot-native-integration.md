@@ -172,7 +172,8 @@ src/Broodling/execution-assets/generate.sh --fetch ~/.cache/broodling-native
 complete request without target contact or dispatch credentials. The
 [prepared record](../../src/Broodling/HttpSubmission.cs) is the preparation fact.
 It implies neither dispatch intent nor native acceptance. The origin must be
-canonical HTTPS or literal-loopback HTTP; the status reader uses the same check.
+canonical HTTPS or HTTP to exactly `127.0.0.1` or `[::1]`, as the SDK also
+requires; the status reader uses the same check.
 
 Preparation first establishes exact B1 custody: the direct
 `refs/broodling/starting/<B1>` pin in the Attempt's common Git directory. It then
@@ -273,8 +274,9 @@ identity nor the request bytes.
 
 Broodling classifies the SDK's attempt. Only an acknowledgement naming exactly
 the intended run ID correlates; one that names another or re-cased ID is
-`foreign_run`, whose `AcknowledgedRunId` reports that ID without adopting or
-retaining it. A captured valid acknowledgement counts even when cancellation
+`foreign_run`. Its message, and so the progression failure detail, names that
+ID, as does the `acknowledgedRunId` of the CLI and HTTP error records; it is
+neither adopted nor retained. A captured valid acknowledgement counts even when cancellation
 raced it. The SDK's pinned `request.conflict` refusal (HTTP 409) is a submission
 conflict; it carries no run ID and nothing is adopted from it. Other valid
 problems are `TargetError`; a malformed reply is `invalid_response`. Timeouts, cancellation,

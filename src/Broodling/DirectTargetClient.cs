@@ -30,8 +30,18 @@ internal static class DirectTargetClient
         handler.UseProxy = false; // An ambient proxy would receive dispatch credentials.
         Trust(handler.SslOptions, origin, rootCertificate);
         var http = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
-        return new ZeroshotClient(NativeClient.ForHttp(new NativeClientOptions { Origin = origin, Transport = transport }, http,
-            ownsHttpClient: true), Binding, ownsClient: true);
+        NativeClient? native = null;
+        try
+        {
+            native = NativeClient.ForHttp(new NativeClientOptions { Origin = origin, Transport = transport }, http, ownsHttpClient: true);
+            return new ZeroshotClient(native, Binding, ownsClient: true);
+        }
+        catch
+        {
+            // Ownership transfers only on success.
+            if (native is null) http.Dispose();
+            throw;
+        }
     }
 
     /// <summary>

@@ -102,15 +102,14 @@ internal static class DirectTargetExchange
         new(shared ?? CreateHandler(), disposeHandler: shared is null) { Timeout = Timeout.InfiniteTimeSpan };
 
     /// <summary>
-    /// A canonical DirectTarget origin, mirroring the native rule: HTTPS, or literal-loopback HTTP,
-    /// spelled exactly as its scheme and authority (a default port omitted), with no userinfo, path,
-    /// query or fragment, and a contactable port. Otherwise null.
+    /// A canonical DirectTarget origin, mirroring the native and SDK rules: HTTPS, or HTTP to exactly
+    /// 127.0.0.1 or [::1], spelled exactly as its scheme and authority (a default port omitted), with no
+    /// userinfo, path, query or fragment, and a contactable port. Otherwise null.
     /// </summary>
     internal static Uri? CanonicalOrigin(string address) =>
         Uri.TryCreate(address, UriKind.Absolute, out var origin) && origin.UserInfo == "" && origin.Port != 0
         && address == origin.GetLeftPart(UriPartial.Authority)
-        && (origin.Scheme == Uri.UriSchemeHttps || origin.Scheme == Uri.UriSchemeHttp
-            && IPAddress.TryParse(origin.DnsSafeHost, out var host) && IPAddress.IsLoopback(host))
+        && (origin.Scheme == Uri.UriSchemeHttps || origin.Scheme == Uri.UriSchemeHttp && origin.Host is "127.0.0.1" or "[::1]")
             ? origin : null;
 
     /// <summary>A JSON request body with a known Content-Length.</summary>

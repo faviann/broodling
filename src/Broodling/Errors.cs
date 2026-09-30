@@ -21,12 +21,14 @@ public class SubmissionConflict(string message, string? existingRunId = null) : 
 public sealed class ReceiptRefused(string message) : SubmissionConflict(message);
 public sealed class UnsupportedRuntime(string message) : BroodlingException("unsupported_runtime", message);
 public sealed class NativeTransportError(string kind = "transport_failed", string? acknowledgedRunId = null)
-    : BroodlingException("native_transport_error", "Native transport did not return a usable response.")
+    : BroodlingException("native_transport_error", acknowledgedRunId is null
+        ? "Native transport did not return a usable response."
+        : $"The target acknowledged a different run, {acknowledgedRunId}; it was not adopted.")
 {
     public string Kind { get; } = kind;
     /// <summary>
-    /// For <c>foreign_run</c> from a submission: the different run a valid acknowledgement named. It is
-    /// reported, never adopted or retained.
+    /// For <c>foreign_run</c> from a submission: the different run a valid acknowledgement named. The
+    /// message, progression detail and operator error records report it; it is never adopted or retained.
     /// </summary>
     public string? AcknowledgedRunId { get; } = acknowledgedRunId;
 }

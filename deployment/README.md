@@ -556,7 +556,7 @@ invocation over the HTTP DirectTarget:
 ```
 
 It needs no Python executable, SDK client state, workspace root or launcher. The
-origin follows the native rule: canonical HTTPS, or literal-loopback HTTP such as
+origin follows the native and SDK rule: canonical HTTPS, or HTTP to exactly `127.0.0.1` or `[::1]` such as
 `http://127.0.0.1:18770`, spelled as scheme and authority only, with a default
 port omitted and never port 0. Anything else refuses.
 

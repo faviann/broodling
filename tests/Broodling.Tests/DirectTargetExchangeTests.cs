@@ -24,6 +24,8 @@ public sealed class DirectTargetExchangeTests
     [Arguments("http://127.0.0.1:9", true)]
     [Arguments("http://[::1]:9", true)]
     [Arguments("http://localhost:9", false)]
+    [Arguments("http://127.0.0.2:9", false)]
+    [Arguments("http://[::ffff:127.0.0.1]:9", false)]
     [Arguments("http://192.0.2.1:9", false)]
     [Arguments("http://127.0.0.1:9/", false)]
     [Arguments("http://127.0.0.1:80", false)]

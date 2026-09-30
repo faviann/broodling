@@ -247,6 +247,32 @@ public sealed class SubmissionProgressorTests
     }
 
     [Test]
+    public async Task AForeignAcknowledgementIsReportedInTheFailureDetailAndNeverAdopted()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new PreparationFixture();
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
+        var submissionId = Submit(fixture, 12).Single();
+        var foreign = Guid.CreateVersion7().ToString();
+        var sends = 0;
+        target.Submit = body => Task.FromResult(Interlocked.Increment(ref sends) == 1
+            ? (200, $$"""{"runId":"{{foreign}}"}""")
+            : target.Accept(body));
+
+        await using var service = new Service(fixture, target, Proposing());
+        await Until(() => service.Progressor.Progress() is [{ State: SubmissionProgress.Waiting }]);
+        var waiting = service.Progressor.Progress().Single();
+        await Assert.That(waiting.Code).IsEqualTo("native_transport_error");
+        await Assert.That(waiting.Message).IsEqualTo(
+            $"The target acknowledged a different run, {foreign}; it was not adopted. (foreign_run)");
+
+        await service.ScanUntil(() => Correlated(fixture, submissionId));
+        using var store = fixture.State.Open();
+        var attemptId = store.GetIssueSubmission(submissionId).AttemptIds.Single();
+        await Assert.That(store.FindSubmission(attemptId)!.RunId).IsEqualTo((string)target.Bodies[0]["runId"]!);
+    }
+
+    [Test]
     public async Task ATemporaryTargetFailureRetriesTheSameFrozenRequest()
     {
         await using var target = new StockTarget();

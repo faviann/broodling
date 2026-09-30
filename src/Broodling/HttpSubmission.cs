@@ -68,7 +68,7 @@ public sealed partial class BroodlingStore
     /// First send or exact acknowledgement-loss replay of a prepared HTTP submission. A correlated
     /// record is handed back with no other prerequisite. Otherwise the send needs current authority,
     /// no retained replay block, no pause, current credentials, exact retained B1 custody and a readable
-    /// configured root; dispatch intent commits before discovery and the writer is released before any
+    /// configured root; dispatch intent commits before any target contact and the writer is released before any
     /// network I/O. Only the exact acknowledgement correlates; every other outcome leaves the intent
     /// unresolved. A correlation that arrives after abandonment is retained, then that exact run is stopped.
     /// </summary>
@@ -184,11 +184,14 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>
-    /// The request as the SDK retains it: preparation fixes these exact UTF-8 bytes, and dispatch imports
+    /// The request exactly as the SDK imports it: preparation retains these UTF-8 bytes, and dispatch imports
     /// them again, so replay sends the same run ID, submission key, source and asset content.
     /// </summary>
-    private static string RetainedRequest(string requestJson) =>
-        Encoding.UTF8.GetString(DirectTargetSubmission.Import(requestJson).ExportUtf8());
+    private static string RetainedRequest(string requestJson)
+    {
+        DirectTargetSubmission.Import(requestJson);
+        return requestJson;
+    }
 
     private ExecutionAsset? RetainedAsset(string? sha256, SqliteTransaction transaction)
     {
