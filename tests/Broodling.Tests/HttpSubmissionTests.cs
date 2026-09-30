@@ -254,6 +254,13 @@ public sealed class HttpSubmissionTests
         }
         using var again = fixture.Git.State.Open();
         await Assert.That(again.FindSubmission(attempt.AttemptId)).IsEqualTo(prepared);
+        // The SDK imports exactly the retained bytes after restart, with the frozen identity and source.
+        var imported = DirectTargetSubmission.Import(again.FindSubmission(attempt.AttemptId)!.RequestJson);
+        await Assert.That(imported.ExportUtf8().SequenceEqual(Encoding.UTF8.GetBytes(prepared.RequestJson))).IsTrue();
+        await Assert.That(imported.RunId.Value).IsEqualTo(prepared.IntendedRunId);
+        await Assert.That(imported.Submission.SubmissionKey.Value).IsEqualTo(prepared.SubmissionKey);
+        await Assert.That((imported.Submission.Source.Repository.Value, imported.Submission.Source.Branch.Value,
+            imported.Submission.Source.Revision.Value)).IsEqualTo(("acme/widget", "main", attempt.B1.CommitOid));
     }
 
     [Test]

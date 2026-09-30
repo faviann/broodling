@@ -125,7 +125,7 @@ public sealed class DispatchProcessTests
     }
 
     [Test]
-    [Arguments("discovery")]
+    [Arguments("received")]
     [Arguments("mid-body")]
     [Arguments("accepted")]
     public async Task KilledHttpCallerRetainsIntentAndReplayConvergesOnTheIntendedRun(string stage)
@@ -136,7 +136,8 @@ public sealed class DispatchProcessTests
         fixture.Store.Dispose();
         var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (stage == "discovery") target.Discovery = async () => { reached.TrySetResult(); await hold.Task; };
+        // The target holds the complete request without creating the run.
+        if (stage == "received") target.Submit = async _ => { reached.TrySetResult(); await hold.Task; return (500, ""); };
         if (stage == "mid-body") _ = target.Stalled.Task.ContinueWith(_ => reached.TrySetResult());
         // The target accepts the complete request, then the acknowledgement is never delivered.
         if (stage == "accepted") target.Submit = async body => { target.Accept(body); reached.TrySetResult(); await hold.Task; return (500, ""); };
@@ -169,7 +170,6 @@ public sealed class DispatchProcessTests
         await Assert.That(target.Runs.Count).IsEqualTo(stage == "accepted" ? 1 : 0);
 
         target.StallMidBody = false;
-        target.Discovery = () => Task.CompletedTask;
         target.Submit = body => Task.FromResult(target.Accept(body));
         var correlated = await reopened.DispatchHttpAsync(prepared.AttemptId, HttpDispatchTests.Credentials());
         await Assert.That(correlated.RunId).IsEqualTo(prepared.IntendedRunId);

@@ -11,7 +11,8 @@ namespace Broodling;
 /// </summary>
 internal static class DirectTargetBinding
 {
-    internal const string NativeVersion = "zeroshot 10.9.0";
+    internal const string NativeRelease = "10.9.0";
+    internal const string NativeVersion = "zeroshot " + NativeRelease;
     internal const string NativeSourceRevision = "75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa";
     internal const string NativeExecutableSha256 = "f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94";
     /// <summary>The release archive's restic, which native run allocation requires beside the executable.</summary>

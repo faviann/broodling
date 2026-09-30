@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
+using Zeroshot;
 
 namespace Broodling;
 
@@ -56,7 +57,7 @@ public sealed partial class BroodlingStore
         Execute("""
             INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state, intended_run_id,
                 asset_sha256, binding_json) VALUES ($p0, 'http.v1', $p1, $p2, 'prepared', $p3, $p4, $p5)
-            """, transaction, attemptId, HttpSubmissionKey(attemptId), HttpRequest(attempt, transaction, intended, asset),
+            """, transaction, attemptId, HttpSubmissionKey(attemptId), RetainedRequest(HttpRequest(attempt, transaction, intended, asset)),
             intended, asset.Sha256, HttpBinding(attempt, directOrigin, resultOrigin!).ToJsonString());
         var result = ReadSubmission(attemptId, transaction)!;
         transaction.Commit();
@@ -82,14 +83,15 @@ public sealed partial class BroodlingStore
         if (record.ReplayBlockedReason is not null) throw ReplayBlocked();
         RequireUnpaused();
         // Credential and Git checks may be slow; they never hold the SQLite writer.
-        var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).Environment();
+        var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).TargetRun();
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
         // Checked before intent: a missing root means nothing can be sent, so it records nothing.
         // Each connection reads the root again.
         var origin = DirectTargetExchange.CanonicalOrigin(record.Locator.Address)!;
-        if (directTargetRoot is not null && origin.Scheme == Uri.UriSchemeHttps) DirectTargetExchange.ReadRoot(directTargetRoot).Dispose();
+        DirectTargetClient.RequireReadableRoot(origin, directTargetRoot);
 
         var conflict = false;
+        PreparedSubmission prepared;
         // Held from before the intent commits until this caller can no longer send. It is local only:
         // bytes a target already buffered can still be accepted after it is released.
         using (HoldInitiation())
@@ -103,14 +105,15 @@ public sealed partial class BroodlingStore
                 // A replay can create the run too, so it passes the same gate as a first send.
                 RequireUnpaused(transaction);
                 RequireRetainedHttpSubmission(attempt, record, transaction);
+                // Exactly the retained bytes are sent: an explicit replay regenerates nothing.
+                prepared = DirectTargetSubmission.Import(record.RequestJson);
                 if (record.State == "prepared")
                     Execute("UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = $p0", transaction, attemptId);
                 transaction.Commit();
             }
             try
             {
-                await DirectTargetSubmission.SubmitAsync(origin, directTargetRoot, record.RequestJson, record.IntendedRunId!, ephemeral,
-                    DirectTargetClock, cancellationToken);
+                await DirectTargetSubmission.SubmitAsync(origin, directTargetRoot, prepared, ephemeral, DirectTargetClock, cancellationToken);
             }
             catch (SubmissionConflict) { conflict = true; }
         }
@@ -179,6 +182,13 @@ public sealed partial class BroodlingStore
             || HttpRequest(attempt, transaction, record.IntendedRunId, asset) != record.RequestJson)
             throw RetainedDiffers();
     }
+
+    /// <summary>
+    /// The request as the SDK retains it: preparation fixes these exact UTF-8 bytes, and dispatch imports
+    /// them again, so replay sends the same run ID, submission key, source and asset content.
+    /// </summary>
+    private static string RetainedRequest(string requestJson) =>
+        Encoding.UTF8.GetString(DirectTargetSubmission.Import(requestJson).ExportUtf8());
 
     private ExecutionAsset? RetainedAsset(string? sha256, SqliteTransaction transaction)
     {

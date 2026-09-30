@@ -373,7 +373,8 @@ public sealed class InvocationTests
                 fixture.Git.State.Application, output, error)).IsEqualTo(1);
         }
         await Assert.That(store2.GetAttempt(attempt.AttemptId).Abandonment).IsNull();
-        await Assert.That(target.Stages.Count(stage => stage == "discovery")).IsEqualTo(1);
+        // Only the one submission contacted the target; refused configurations never did.
+        await Assert.That(target.Stages.Count(stage => stage == "run")).IsEqualTo(1);
         // Explicit stop forces the confirmed run; a Direct configuration supplies no Python, only the root.
         target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "failed", "force_stopped"));
         output.GetStringBuilder().Clear();

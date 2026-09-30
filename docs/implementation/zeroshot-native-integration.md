@@ -58,13 +58,17 @@ dispatch credentials and the approved asset policy require it.
 `NativeProfile.Runtime()` is the bridge's runtime only; an HTTP Attempt's runtime
 is the asset's.
 
-The submission (`DirectTargetSubmission`), reader and stopper
-(`DirectTargetRun`, and the `INativeReader`/`INativeStopper` seams the
-application operations accept) stay unchanged for a later client adapter to
-replace the DirectTarget transport behind them. Broodling keeps authority over
-the Prepared submission, Dispatch intent, Native correlation, Native observation
-and Attempt retirement; the adapter would take its native identity from the
-DirectTarget binding alone.
+Submission (#216) goes through the pinned
+[Zeroshot.Client](https://github.com/faviann/zeroshot-dotnet-sdk) `0.1.0-preview.1`
+SDK. [`DirectTargetClient`](../../src/Broodling/DirectTargetClient.cs) is
+Broodling's one thin configuration of it: the SDK's supported HTTP handler with
+Broodling's TLS trust and no proxy, bound to the DirectTarget binding's native
+release. The reader and stopper (`DirectTargetRun`, and the
+`INativeReader`/`INativeStopper` seams the application operations accept) and
+readiness discovery still use `DirectTargetExchange`; later slices move them onto
+the same client. Broodling keeps authority over the Prepared submission,
+Dispatch intent, Native correlation, Native observation and Attempt retirement.
+The SDK persists nothing.
 
 The bridge uses the official
 [SDK 10.3.0.post1](https://github.com/the-open-engine/zeroshot/releases/tag/zeroshot-python-v10.3.0_1),
@@ -253,24 +257,27 @@ lock or writer held. The operation then takes the installation initiation lock.
 One immediate transaction rechecks authority, the replay block, the pause and
 the retained record against its retained asset and admitted authority. For a
 first send it commits `prepared → dispatched`. The writer is released before
-discovery, and the lock is released when this caller's send ends. The recorded
+any target contact, and the lock is released when this caller's send ends. The recorded
 result-fetch origin is used as retained; remote configuration is not read again.
 
-The adapter validates discovery, then posts the frozen request plus
+Preparation fixes the request as an SDK `PreparedSubmission` and retains its
+exact exported UTF-8 bytes. Dispatch imports those retained bytes again and makes
+one `ZeroshotClient.SubmitAttemptAsync` to `/native-v2/run`, with
 `connections.gateway` (`GATEWAY_BASE_URL`, `GATEWAY_API_KEY`),
-`connections.github` (`GH_TOKEN`) and the outer `githubToken` to
-`/native-v2/run`. The request has a known `Content-Length` and no transfer
-encoding. The final credential-bearing body must fit the 4 MiB limit before any
-exchange starts. The whole operation shares the 60-second submit budget.
-Credentials never enter SQLite, the frozen request or a diagnostic, and rotating
-them changes neither identity nor the request bytes.
+`connections.github` (`GH_TOKEN`) and the outer `githubToken` supplied
+separately; the SDK appends them to the unchanged bytes. It sends once, never
+retries, and refuses a credential-bearing body over 4 MiB before sending. The
+whole operation shares the 60-second submit budget. Credentials never enter
+SQLite, the frozen request or a diagnostic, and rotating them changes neither
+identity nor the request bytes.
 
-Only HTTP 200 whose body is exactly `{runId}`, equal to the intended canonical
-UUIDv7, is an acknowledgement. A different or re-cased ID is `foreign_run`, and
-any other 200 body is `invalid_response`. A valid stock problem `{code, message,
-details?}` with HTTP 409 and `request.conflict` is a submission conflict; it
-carries no run ID and nothing is adopted from it. Other valid problems are
-`TargetError`; malformed ones are `invalid_response`. Timeouts, cancellation,
+Broodling classifies the SDK's attempt. Only an acknowledgement naming exactly
+the intended run ID correlates; one that names another or re-cased ID is
+`foreign_run`, whose `AcknowledgedRunId` reports that ID without adopting or
+retaining it. A captured valid acknowledgement counts even when cancellation
+raced it. The SDK's pinned `request.conflict` refusal (HTTP 409) is a submission
+conflict; it carries no run ID and nothing is adopted from it. Other valid
+problems are `TargetError`; a malformed reply is `invalid_response`. Timeouts, cancellation,
 caller death and every refusal preserve the existing facts, so the intent stays
 unresolved and exact replay remains available while the Attempt is current.
 Native 10.9.0 acknowledges once it has recorded the run and prepares the
@@ -391,8 +398,8 @@ completion. Store errors grant no partial disposition.
 [`DirectTargetExchange.cs`](../../src/Broodling/DirectTargetExchange.cs) holds the
 fixed client bounds of the selected
 [HTTP/OECP contract](https://github.com/faviann/broodling/issues/167#issuecomment-5823939438).
-Target readiness discovery, HTTP submission, the run status reader below and
-public HTTP observation, wait and stop use it. The bounds are internal
+Target readiness discovery, the run status reader below and public HTTP
+observation, wait and stop use it; submission uses the SDK's own bounds. The bounds are internal
 constants, not operator settings:
 
 | Resource | Limit |
@@ -408,7 +415,7 @@ exchange starts. Caller cancellation propagates as cancellation. Expiry, by
 contrast, becomes the fixed `TimeoutError` kind. The budgets limit only client
 operations, never native execution. The HTTP client disables redirects, proxying,
 cookies and ambient credentials. It always verifies TLS, including the host
-name. By default it uses system trust. A store session opened with
+name, with the trust `DirectTargetClient` also gives the SDK. By default it uses system trust. A store session opened with
 `OpenStore(path, directTargetRootCertificate)` instead trusts exactly that PEM
 root for HTTPS and WSS, with custom root trust that ignores the system store.
 Each TLS handshake rereads the root file and accepts only a matching host name

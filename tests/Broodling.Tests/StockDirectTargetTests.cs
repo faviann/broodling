@@ -105,8 +105,8 @@ public sealed class StockDirectTargetTests
         var attempt = store.Status(revision).Attempts.Single().AttemptId;
         git.State.Execute($"UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = '{attempt}'");
         var record = store.FindSubmission(attempt)!;
-        await DirectTargetSubmission.SubmitAsync(new Uri(target.Origin), null, record.RequestJson, record.IntendedRunId!,
-            Credentials.Environment(), TimeProvider.System, default);
+        await DirectTargetSubmission.SubmitAsync(new Uri(target.Origin), null, DirectTargetSubmission.Import(record.RequestJson),
+            Credentials.TargetRun(), TimeProvider.System, default);
         var unresolved = store.FindSubmission(attempt)!;
         await Assert.That(unresolved.State).IsEqualTo("dispatched");
         await Assert.That(unresolved.RunId).IsNull();
