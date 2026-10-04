@@ -180,7 +180,7 @@ public sealed class NativeObservationTests
         }
         // A finished projection is still progress; it consumes no result and correlates nothing.
         var run = prepared.Frozen.Run(prepared.IntendedRunId!);
-        target.Projections.Enqueue(DirectTargetSessionTests.Projection(new JsonObject
+        target.Projections.Enqueue(DirectTargetRunTests.Projection(new JsonObject
         {
             ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "succeeded", ["output"] = null }
         }, run));
@@ -210,22 +210,20 @@ public sealed class NativeObservationTests
             target.Reply = (request, id) => (string)request["method"]! != "run/status" ? null
                 : new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["error"] = new JsonObject
                     { ["code"] = -32000, ["message"] = "run was not found", ["data"] = new JsonObject { ["code"] = "NOT_FOUND" } } }.ToJsonString();
-        // The exact run, but one status string is an undecodable lone surrogate.
+        // The exact run, but in a phase outside the status union.
         if (answer == "malformed")
-            target.Reply = (request, id) => (string)request["method"]! != "run/status" ? null
-                : new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = DirectTargetSessionTests.Running(run) }
-                    .ToJsonString().Replace("opaque-cursor", "\\uDC00");
-        target.Projections.Enqueue(DirectTargetSessionTests.Running(run with { Title = "Another run" }));
+            target.Projections.Enqueue(DirectTargetRunTests.Projection(new JsonObject { ["phase"] = "paused" }, run));
+        target.Projections.Enqueue(DirectTargetRunTests.Running(run with { Title = "Another run" }));
         var clock = new FakeTimeProvider();
         fixture.Store.DirectTargetClock = clock;
 
         var read = fixture.Store.ObserveAsync(fixture.Attempt.AttemptId, null);
         if (answer == "stalled")
         {
-            await target.Stalled.Task.WaitAsync(DirectTargetSessionTests.Patience);
+            await target.Stalled.Task.WaitAsync(DirectTargetRunTests.Patience);
             clock.Advance(DirectTargetLimits.Progress);
         }
-        var observation = await read.WaitAsync(DirectTargetSessionTests.Patience) as NativeObservation.Unavailable;
+        var observation = await read.WaitAsync(DirectTargetRunTests.Patience) as NativeObservation.Unavailable;
         await Assert.That(observation!.Identity).IsEqualTo(NativeRunIdentity.Intended);
         await Assert.That(observation.Reason).IsEqualTo(reason);
         await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)!.State).IsEqualTo("dispatched");

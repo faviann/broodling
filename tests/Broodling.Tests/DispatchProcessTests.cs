@@ -228,12 +228,12 @@ public sealed class DispatchProcessTests
         // Only the bytes already buffered are released; nothing is replayed.
         release.SetResult();
         await accepted.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        target.Projections.Enqueue(DirectTargetSessionTests.Running(run));
+        target.Projections.Enqueue(DirectTargetRunTests.Running(run));
         var progress = await store.ObserveAsync(prepared.AttemptId, null);
         await Assert.That(progress).IsTypeOf<NativeObservation.Available>();
         await Assert.That(progress!.Identity).IsEqualTo(NativeRunIdentity.Intended);
-        target.Projections.Enqueue(DirectTargetSessionTests.Running(run));
-        target.Projections.Enqueue(DirectTargetSessionTests.Projection(new JsonObject
+        target.Projections.Enqueue(DirectTargetRunTests.Running(run));
+        target.Projections.Enqueue(DirectTargetRunTests.Projection(new JsonObject
         {
             ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "failed", ["reason"] = "force_stopped" }
         }, run));

@@ -85,15 +85,15 @@ public sealed partial class BroodlingStore
         // Credential and Git checks may be slow; they never hold the SQLite writer.
         var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).TargetRun();
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
-        // Checked before intent: a missing root means nothing can be sent, so it records nothing.
-        // Each connection reads the root again.
         var origin = DirectTargetExchange.CanonicalOrigin(record.Locator.Address) ?? throw RetainedDiffers();
-        DirectTargetClient.RequireReadableRoot(origin, directTargetRoot);
 
         var conflict = false;
         PreparedSubmission prepared;
-        // Held from before the intent commits until this caller can no longer send. It is local only:
-        // bytes a target already buffered can still be accepted after it is released.
+        // The client is created before intent: a missing root means nothing can be sent, so it records
+        // nothing. Each connection reads the root again. Initiation is held from before the intent commits
+        // until this caller can no longer send. It is local only: bytes a target already buffered can
+        // still be accepted after it is released.
+        await using (var client = DirectTargetClient.Open(origin, directTargetRoot))
         using (HoldInitiation())
         {
             using (var transaction = connection.BeginTransaction(deferred: false))
@@ -113,7 +113,7 @@ public sealed partial class BroodlingStore
             }
             try
             {
-                await DirectTargetSubmission.SubmitAsync(origin, directTargetRoot, prepared, ephemeral, DirectTargetClock, cancellationToken);
+                await DirectTargetSubmission.SubmitAsync(client, prepared, ephemeral, DirectTargetClock, cancellationToken);
             }
             catch (SubmissionConflict) { conflict = true; }
         }

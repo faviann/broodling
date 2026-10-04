@@ -91,7 +91,7 @@ public sealed class HttpProcessingTests
 
         // Retained facts and the bounded native observation are reported separately; an unreachable target makes
         // only the observation unavailable.
-        target.Reply = Status(() => DirectTargetSessionTests.Running(native.Run!));
+        target.Reply = Status(() => DirectTargetRunTests.Running(native.Run!));
         read = server.Get($"/submissions/{submissionId}");
         await Assert.That((string)read["submission"]!["state"]!).IsEqualTo("admitted");
         await Assert.That((bool)read["admission"]!["admitted"]!).IsTrue();
@@ -146,8 +146,8 @@ public sealed class HttpProcessingTests
         target.Discovery = () => discovery.Task;
         target.Reply = (request, id) => (string)request["method"]! switch
         {
-            "run/status" => Rpc(id, DirectTargetSessionTests.Running(native.Run!)),
-            "run/force" => Rpc(id, DirectTargetSessionTests.Projection(new JsonObject
+            "run/status" => Rpc(id, DirectTargetRunTests.Running(native.Run!)),
+            "run/force" => Rpc(id, DirectTargetRunTests.Projection(new JsonObject
             {
                 ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "failed", ["reason"] = "force_stopped" }
             }, native.Run!)),

@@ -105,8 +105,9 @@ public sealed class StockDirectTargetTests
         var attempt = store.Status(revision).Attempts.Single().AttemptId;
         git.State.Execute($"UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = '{attempt}'");
         var record = store.FindSubmission(attempt)!;
-        await DirectTargetSubmission.SubmitAsync(new Uri(target.Origin), null, DirectTargetSubmission.Import(record.RequestJson),
-            Credentials.TargetRun(), TimeProvider.System, default);
+        await using (var client = DirectTargetClient.Open(new Uri(target.Origin), null))
+            await DirectTargetSubmission.SubmitAsync(client, DirectTargetSubmission.Import(record.RequestJson),
+                Credentials.TargetRun(), TimeProvider.System, default);
         var unresolved = store.FindSubmission(attempt)!;
         await Assert.That(unresolved.State).IsEqualTo("dispatched");
         await Assert.That(unresolved.RunId).IsNull();
@@ -159,11 +160,7 @@ public sealed class StockDirectTargetTests
         throw new TimeoutException("The controlled run did not finish.");
     }
 
-    /// <summary>The target's own terminal output, read once as the reference before anything is consumed.</summary>
-    internal static async Task<JsonElement> TerminalAsync(NativeRunBinding run)
-    {
-        using var budget = DirectTargetBudget.Start(DirectTargetLimits.Progress, TimeProvider.System, default);
-        await using var session = await DirectTargetSession.OpenAsync(run, null, budget);
-        return (await session.StatusAsync(budget)).Result!.Output;
-    }
+    /// <summary>The finished run's own terminal output, read as the reference before anything is consumed.</summary>
+    internal static async Task<JsonElement> TerminalAsync(NativeRunBinding run) =>
+        (await DirectTargetRun.WaitAsync(run, null, TimeProvider.System, default)).Output;
 }

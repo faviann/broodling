@@ -30,15 +30,13 @@ internal static class DirectTargetSubmission
     /// and reported only when it is a canonical UUID. A pinned <c>request.conflict</c> refusal is <see cref="SubmissionConflict"/>; every
     /// other outcome is a fixed <see cref="NativeTransportError"/> kind or the caller's cancellation.
     /// </summary>
-    internal static async Task SubmitAsync(Uri origin, string? rootCertificate, PreparedSubmission prepared,
+    internal static async Task SubmitAsync(ZeroshotClient client, PreparedSubmission prepared,
         TargetRunCredentials credentials, TimeProvider clock, CancellationToken caller)
     {
         // Current credentials enter only the SDK's in-memory body, never the retained request or a diagnostic.
         using var deadline = new CancellationTokenSource(DirectTargetLimits.Submit, clock);
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(caller, deadline.Token);
-        TargetSubmissionAttempt attempt;
-        await using (var client = DirectTargetClient.Open(origin, rootCertificate))
-            attempt = await client.SubmitAttemptAsync(prepared, credentials, budget.Token);
+        var attempt = await client.SubmitAttemptAsync(prepared, credentials, budget.Token);
 
         // A captured valid acknowledgement wins a racing cancellation, so it is settled before cancellation.
         if (attempt.AcknowledgedRunId is { Value: var acknowledged })

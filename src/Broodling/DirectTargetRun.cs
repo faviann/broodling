@@ -1,3 +1,8 @@
+using System.Text.Json;
+using Zeroshot;
+using Zeroshot.Native;
+using Zeroshot.Native.Contracts;
+
 namespace Broodling;
 
 /// <summary>Whether a stop sent force: never, possibly without a confirmed outcome, or with a terminal result.</summary>
@@ -10,30 +15,50 @@ internal enum DirectTargetForce { NotSent, Uncertain, Terminal }
 internal sealed record DirectTargetStop(DirectTargetForce Force, string? Reason);
 
 /// <summary>
-/// Persistence-free DirectTarget run operations over one fresh session each. They decide only
-/// budgets and sequencing; what a result or stop means belongs to the application.
+/// Persistence-free DirectTarget run operations, each over its own SDK client reconnected by exactly
+/// the retained target, run ID and native binding. They decide only budgets, sequencing and
+/// Broodling's fixed failure kinds; what a result or stop means belongs to the application.
+/// Reading a run never establishes correlation or consumes a result.
 /// </summary>
 internal static class DirectTargetRun
 {
+    private static readonly string[] PassedFailures = ["force_stopped", "runtime_lost", "runtime_failed"];
+    private static readonly JsonElement Null = JsonDocument.Parse("null").RootElement.Clone();
+
+    /// <summary>One status read within <paramref name="bound"/>, setup included.</summary>
+    internal static async Task<NativeProgress> ProgressAsync(NativeRunBinding run, string? rootCertificate, TimeSpan bound,
+        TimeProvider clock, CancellationToken caller)
+    {
+        using var budget = DirectTargetBudget.Start(bound, clock, caller);
+        var (client, handle) = Reconnect(run, rootCertificate);
+        await using (client) return Progress(await StatusAsync(run, handle, budget));
+    }
+
     /// <summary>
-    /// Setup and the immediate first read share 30 seconds; each later read has its own 10 seconds.
-    /// There is no overall deadline, and the caller may stop observing at any time.
+    /// Setup and a first status read, which must name the retained run, share 30 seconds; a terminal
+    /// status returns at once. Otherwise the SDK's <see cref="Run.WaitAsync(TimeSpan?, CancellationToken)"/>
+    /// waits with no overall deadline, and the caller may stop observing at any time. Cancellation or
+    /// any failure detaches the caller without stopping the run.
     /// </summary>
     internal static async Task<NativeResult> WaitAsync(NativeRunBinding run, string? rootCertificate, TimeProvider clock,
         CancellationToken caller)
     {
-        using var setup = DirectTargetBudget.Start(DirectTargetLimits.WaitSetup, clock, caller);
-        await using var session = await DirectTargetSession.OpenAsync(run, rootCertificate, setup);
-        var first = await session.StatusAsync(setup);
-        using var pacing = setup.Fresh(Timeout.InfiniteTimeSpan);
-        return await session.TerminalAsync(first, pacing, DirectTargetLimits.WaitRead);
+        var (client, handle) = Reconnect(run, rootCertificate);
+        await using (client)
+        {
+            RunStatusResult first;
+            using (var setup = DirectTargetBudget.Start(DirectTargetLimits.WaitSetup, clock, caller))
+                first = await StatusAsync(run, handle, setup);
+            using var waiting = DirectTargetBudget.Start(Timeout.InfiniteTimeSpan, clock, caller);
+            return Result(RunResult.FromStatus(first) ?? await waiting.RunAsync(token => Sdk(() => handle.WaitAsync(null, token))));
+        }
     }
 
     /// <summary>
-    /// One 30-second budget covers discovery, setup, the intended-identity precheck, one force and any
-    /// polling. An intended run is forced only after a valid matching status, even a finished one. A
-    /// failure before force is <see cref="DirectTargetForce.NotSent"/>; from the force request on it is
-    /// <see cref="DirectTargetForce.Uncertain"/>. Caller cancellation propagates.
+    /// One 30-second budget covers setup, the intended-identity precheck, one force and waiting for its
+    /// terminal result. An intended run is forced only after a valid matching status, even a finished one.
+    /// A failure before force is sent is <see cref="DirectTargetForce.NotSent"/>; once it may have been
+    /// sent, <see cref="DirectTargetForce.Uncertain"/>. Caller cancellation propagates.
     /// </summary>
     internal static async Task<DirectTargetStop> StopAsync(NativeRunBinding run, NativeRunIdentity identity, string? rootCertificate,
         TimeProvider clock, CancellationToken caller)
@@ -42,14 +67,107 @@ internal static class DirectTargetRun
         var force = DirectTargetForce.NotSent;
         try
         {
-            await using var session = await DirectTargetSession.OpenAsync(run, rootCertificate, budget);
-            if (identity == NativeRunIdentity.Intended) await session.StatusAsync(budget);
-            force = DirectTargetForce.Uncertain; // Conservatively, from the attempt to send it.
-            var forced = await session.ForceAsync(budget);
-            if (forced.Result is null) await session.TerminalAsync(forced, budget, null);
-            return new(DirectTargetForce.Terminal, null);
+            var (client, handle) = Reconnect(run, rootCertificate);
+            await using (client)
+            {
+                if (identity == NativeRunIdentity.Intended) await StatusAsync(run, handle, budget);
+                var forced = await budget.RunAsync(async token =>
+                {
+                    var attempt = await handle.ForceAttemptAsync(token);
+                    if (attempt.Outcome != NativeAttemptOutcome.NotSent) force = DirectTargetForce.Uncertain;
+                    return attempt.Response ?? throw (Failure(attempt.Failure!) ?? attempt.Failure!);
+                });
+                Require(run, forced.Title, forced.Source, forced.Size);
+                if (RunResult.FromForce(forced) is null) await budget.RunAsync(token => Sdk(() => handle.WaitAsync(null, token)));
+                return new(DirectTargetForce.Terminal, null);
+            }
         }
         catch (NativeTransportError error) { return new(force, error.Kind); }
         catch (UnsupportedRuntime error) { return new(force, error.Code); }
     }
+
+    /// <summary>
+    /// The one place a retained binding names its target: the direct locator's canonical origin, HTTPS or
+    /// HTTP to exactly 127.0.0.1 or [::1], with a frozen PR source, addressed through the DirectTarget binding.
+    /// </summary>
+    private static (ZeroshotClient Client, Run Handle) Reconnect(NativeRunBinding run, string? rootCertificate)
+    {
+        if (run.Locator.Kind != "direct" || run.Source is null
+            || DirectTargetExchange.CanonicalOrigin(run.Locator.Address) is not { } origin)
+            throw new UnsupportedRuntime("The retained DirectTarget binding is unsupported.");
+        var client = DirectTargetClient.Open(origin, rootCertificate);
+        try { return (client, client.GetRun(new RunReference(origin, new RunId(run.RunId), DirectTargetClient.Binding))); }
+        catch
+        {
+            client.Dispose();
+            throw;
+        }
+    }
+
+    private static async Task<RunStatusResult> StatusAsync(NativeRunBinding run, Run handle, DirectTargetBudget budget)
+    {
+        var status = await budget.RunAsync(token => Sdk(() => handle.StatusAsync(token)));
+        Require(run, status.Title, status.Source, status.Size);
+        return status;
+    }
+
+    /// <summary>The SDK checks the run ID; the frozen title, size and PR source must match too.</summary>
+    private static void Require(NativeRunBinding run, RunTitle title, ResolvedSource source, RunSize size)
+    {
+        if (title.Value != run.Title || size.ToString().ToLowerInvariant() != run.Size || source.Repository.Value != run.Source!.Repository
+            || source.Branch.Value != run.Source.Branch || source.Revision.Value != run.Source.Revision)
+            throw new NativeTransportError("foreign_run");
+    }
+
+    private static NativeProgress Progress(RunStatusResult status) => status.Status switch
+    {
+        AdmittedRunStatus => new("admitted", []),
+        RunningRunStatus running => new("running", [.. running.ActiveExecutions.Select(execution => execution.Node.Value)]),
+        StoppingRunStatus stopping => new("stopping", [.. stopping.ActiveExecutions.Select(execution => execution.Node.Value)]),
+        FinishedRunStatus => new("finished", []),
+        _ => throw new NativeTransportError("invalid_response")
+    };
+
+    /// <summary>Native failure labels outside the fixed allowlist become <c>native_failed</c>.</summary>
+    private static NativeResult Result(RunResult result) => result.IsSuccess
+        ? new(result.RunId.Value, true, result.Output ?? Null, null)
+        : new(result.RunId.Value, false, Null, PassedFailures.Contains(result.FailureReason!.Value) ? result.FailureReason.Value : "native_failed");
+
+    private static async Task<T> Sdk<T>(Func<Task<T>> operation)
+    {
+        try { return await operation(); }
+        catch (Exception error) when (Failure(error) is { } fixedKind) { throw fixedKind; }
+    }
+
+    /// <summary>
+    /// Only fixed classifications leave; remote messages and details never do. Caller cancellation and
+    /// budget expiry are decided by <see cref="DirectTargetBudget"/>. Anything else is unexpected and propagates.
+    /// </summary>
+    private static Exception? Failure(Exception error) => error switch
+    {
+        RunWaitException { InnerException: { } inner } => Failure(inner),
+        RunWaitException => new NativeTransportError("invalid_response"), // The watch ended without a terminal result.
+        RunObservationException { Kind: RunObservationFailureKind.Protocol } => new NativeTransportError("invalid_response"),
+        RunObservationException { InnerException: NativeOecpException or NativeHttpException } observation => Failure(observation.InnerException!),
+        RunObservationException => new NativeTransportError(),
+        NativeOecpException { RpcError.Data.Code: "NOT_FOUND" } => new NativeTransportError("RunNotFoundError"),
+        NativeOecpException { RpcError.Data.Code: "UNSUPPORTED_PROTOCOL_VERSION" } =>
+            new UnsupportedRuntime("Target OECP does not support the required protocol."),
+        NativeOecpException oecp => new NativeTransportError(oecp.Kind switch
+        {
+            NativeOecpFailureKind.RpcError => "TargetError",
+            NativeOecpFailureKind.Deadline => "TimeoutError",
+            NativeOecpFailureKind.Protocol or NativeOecpFailureKind.SizeLimit => "invalid_response",
+            _ => "transport_failed"
+        }),
+        NativeHttpException http => new NativeTransportError(http switch
+        {
+            { Kind: NativeHttpFailureKind.HttpStatus, Problem: not null } => "TargetError",
+            { Kind: NativeHttpFailureKind.HttpStatus or NativeHttpFailureKind.Protocol or NativeHttpFailureKind.SizeLimit } => "invalid_response",
+            { Kind: NativeHttpFailureKind.Deadline } => "TimeoutError",
+            _ => "transport_failed"
+        }),
+        NativeBindingException => new UnsupportedRuntime("The SDK refuses the DirectTarget binding's native release."),
+        _ => null
+    };
 }

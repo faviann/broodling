@@ -6,6 +6,7 @@ using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Broodling.Tests;
@@ -13,7 +14,8 @@ namespace Broodling.Tests;
 /// <summary>
 /// A loopback stand-in for the stock target on real HTTP and WebSocket connections: discovery,
 /// full-run submission, session creation and an OECP WebSocket answering initialize, then
-/// run/status and run/force from <see cref="Projections"/>, where a null entry never replies. Like
+/// run/status and run/force from <see cref="Projections"/>, where a null entry never replies, and
+/// run/watch with events from the same source. Like
 /// the stock target, a submission key names at most one run and a replay returns that run's ID.
 /// It records each stage reached and can stall at one, or halfway through a submission body.
 /// With a server certificate it serves HTTPS and WSS at <c>https://localhost:port</c> instead.
@@ -27,6 +29,9 @@ internal sealed class StockTarget : IAsyncDisposable
     private int connections;
     internal Uri Origin { get; }
     internal int Connections => Volatile.Read(ref connections);
+    private int sockets;
+    /// <summary>OECP WebSockets the client still holds open.</summary>
+    internal int OpenSockets => Volatile.Read(ref sockets);
     internal string? StallAt { get; init; }
     /// <summary>Read half of each submission body, then wait without accepting it.</summary>
     internal bool StallMidBody { get; set; }
@@ -163,7 +168,9 @@ internal sealed class StockTarget : IAsyncDisposable
                 await stream.WriteAsync(Encoding.ASCII.GetBytes(
                     $"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n"), stop.Token);
                 using var socket = WebSocket.CreateFromStream(stream, new WebSocketCreationOptions { IsServer = true });
-                await Serve(socket);
+                Interlocked.Increment(ref sockets);
+                try { await Serve(socket); }
+                finally { Interlocked.Decrement(ref sockets); }
             }
             else await Respond(stream, 404, """{"code":"request.not_found","message":"target route was not found"}""");
         }
@@ -173,34 +180,121 @@ internal sealed class StockTarget : IAsyncDisposable
     private async Task Serve(WebSocket socket)
     {
         var buffer = new byte[64 * 1024];
-        while (true)
+        using var sending = new SemaphoreSlim(1);
+        async Task Send(string text)
         {
-            using var message = new MemoryStream();
-            ValueWebSocketReceiveResult received;
-            do
-            {
-                received = await socket.ReceiveAsync(buffer.AsMemory(), stop.Token);
-                if (received.MessageType == WebSocketMessageType.Close) return;
-                message.Write(buffer, 0, received.Count);
-            } while (!received.EndOfMessage);
-            var request = JsonNode.Parse(message.ToArray())!.AsObject();
-            lock (Messages) Messages.Add(request);
-            var method = (string)request["method"]!;
-            var id = (string)request["id"]!;
-            await Reached(method);
-            var reply = Reply(request, id);
-            if (reply is null)
-            {
-                var result = method == "initialize" ? Initialize() : Projections.Dequeue();
-                if (result is null)
-                {
-                    Stalled.TrySetResult();
-                    await Task.Delay(Timeout.Infinite, stop.Token);
-                }
-                reply = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result }.ToJsonString();
-            }
-            await socket.SendAsync(Encoding.UTF8.GetBytes(reply), WebSocketMessageType.Text, true, stop.Token);
+            await sending.WaitAsync(stop.Token);
+            try { await socket.SendAsync(Encoding.UTF8.GetBytes(text), WebSocketMessageType.Text, true, stop.Token); }
+            finally { sending.Release(); }
         }
+        var watches = new List<Task>();
+        using var closed = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+        try
+        {
+            while (true)
+            {
+                using var message = new MemoryStream();
+                ValueWebSocketReceiveResult received;
+                do
+                {
+                    received = await socket.ReceiveAsync(buffer.AsMemory(), stop.Token);
+                    if (received.MessageType == WebSocketMessageType.Close) return;
+                    message.Write(buffer, 0, received.Count);
+                } while (!received.EndOfMessage);
+                var request = JsonNode.Parse(message.ToArray())!.AsObject();
+                lock (Messages) Messages.Add(request);
+                var method = (string)request["method"]!;
+                // Notifications (subscription/cancel, $/cancelRequest) are recorded only.
+                if (request["id"] is not { } requestId) continue;
+                await Reached(method);
+                var id = requestId.GetValueKind() == JsonValueKind.String ? (string)requestId! : requestId.ToJsonString();
+                var reply = Reply(request, id);
+                if (reply is null && method == "run/watch")
+                {
+                    var subscription = "watch-" + watches.Count;
+                    reply = new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject
+                        {
+                            ["subscriptionId"] = subscription, ["runId"] = request["params"]!["runId"]!.DeepClone(),
+                            ["atCursor"] = request["params"]!["fromCursor"]?.DeepClone() ?? "opaque-cursor"
+                        }
+                    }.ToJsonString();
+                    await Send(Answering(reply, requestId));
+                    watches.Add(Watch(request, subscription, Send, closed.Token));
+                    continue;
+                }
+                if (reply is null)
+                {
+                    JsonObject? result;
+                    if (method == "initialize") result = Initialize();
+                    else lock (Projections) result = Projections.Dequeue();
+                    if (result is null)
+                    {
+                        Stalled.TrySetResult();
+                        await Task.Delay(Timeout.Infinite, stop.Token);
+                    }
+                    reply = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result }.ToJsonString();
+                }
+                await Send(Answering(reply, requestId));
+            }
+        }
+        finally
+        {
+            closed.Cancel();
+            await Task.WhenAll(watches);
+        }
+    }
+
+    /// <summary>A reply object carries the request's own ID, of whatever JSON type the client sent.</summary>
+    private static string Answering(string reply, JsonNode id)
+    {
+        try
+        {
+            if (JsonNode.Parse(reply) is JsonObject envelope && envelope.ContainsKey("id"))
+            {
+                envelope["id"] = id.DeepClone();
+                return envelope.ToJsonString();
+            }
+        }
+        catch (JsonException) { }
+        return reply; // Deliberately malformed replies pass unchanged.
+    }
+
+    /// <summary>
+    /// Events for one <c>run/watch</c>: each queued projection in turn, a null one stalling, or, while
+    /// <see cref="Reply"/> answers <c>run/status</c>, its first finished status.
+    /// </summary>
+    private async Task Watch(JsonObject request, string subscription, Func<string, Task> send, CancellationToken closed)
+    {
+        var status = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = "watch", ["method"] = "run/status", ["params"] = request["params"]!.DeepClone() };
+        try
+        {
+            for (var cursor = 1; ; )
+            {
+                JsonObject? next = null;
+                if (Reply(status, "watch") is { } replied)
+                {
+                    if (JsonNode.Parse(replied)?["result"] is JsonObject result && (string?)result["status"]?["phase"] == "finished") next = result;
+                }
+                else
+                    lock (Projections)
+                        if (Projections.Count > 0 && (next = Projections.Dequeue()) is null)
+                        {
+                            Stalled.TrySetResult();
+                            return;
+                        }
+                if (next is not null)
+                {
+                    var @event = new JsonObject { ["subscriptionId"] = subscription, ["cursor"] = $"cursor-{cursor++}" };
+                    foreach (var name in new[] { "runId", "title", "source", "size", "status" }) @event[name] = next[name]?.DeepClone();
+                    await send(new JsonObject { ["jsonrpc"] = "2.0", ["method"] = "event", ["params"] = @event }.ToJsonString());
+                    if ((string?)next["status"]?["phase"] == "finished") return;
+                }
+                await Task.Delay(25, closed);
+            }
+        }
+        catch (Exception) { } // The client may close the watch; tests assert what the client observed.
     }
 
     private async Task Reached(string stage)

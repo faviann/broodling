@@ -48,11 +48,13 @@ public sealed class CompletionObserverTests
         var accepted = fixture.Git.Deliver();
         var finished = false;
         target.Reply = Status(() => finished ? Finished(submission, accepted)
-            : DirectTargetSessionTests.Running(submission.Frozen.Run(submission.IntendedRunId!)));
+            : DirectTargetRunTests.Running(submission.Frozen.Run(submission.IntendedRunId!)));
 
         var first = new Observer(fixture);
-        await Until(() => target.Count("run/status") > 0);
+        await Until(() => target.Count("run/watch") > 0);
         await first.DisposeAsync();
+        // Shutdown closed the SDK's watch rather than abandoning the Attempt or stopping its run.
+        await Until(() => target.OpenSockets == 0);
         var attempt = fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
         await Assert.That(attempt.CompletionRefusal).IsNull();
         await Assert.That(fixture.Store.FindCompletion(attempt.AttemptId)).IsNull();
@@ -174,16 +176,14 @@ public sealed class CompletionObserverTests
         await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var submission = fixture.PrepareAt(target.Origin, "correlated");
-        target.Reply = Status(() => DirectTargetSessionTests.Running(submission.Frozen.Run(submission.IntendedRunId!)));
+        target.Reply = Status(() => DirectTargetRunTests.Running(submission.Frozen.Run(submission.IntendedRunId!)));
         await using var observer = new Observer(fixture);
-        await Until(() => target.Count("run/status") > 0);
+        await Until(() => target.Count("run/watch") > 0);
 
         var abandonment = fixture.Store.AbandonAttempt(fixture.Attempt.AttemptId, "Ended while observed.");
         await observer.Scan();
-        // A still-attached wait reads the running run again after its two-second pause.
-        var reads = target.Count("run/status");
-        await Task.Delay(TimeSpan.FromSeconds(3));
-        await Assert.That(target.Count("run/status")).IsEqualTo(reads);
+        // Detaching closes the SDK's watch of the still-running run.
+        await Until(() => target.OpenSockets == 0);
         await Assert.That(target.Count("run/force")).IsEqualTo(0);
         var attempt = fixture.Store.GetAttempt(fixture.Attempt.AttemptId);
         await Assert.That(attempt.Abandonment).IsEqualTo(abandonment);

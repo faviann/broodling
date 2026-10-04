@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Zeroshot.Native;
 
 namespace Broodling;
 
@@ -223,12 +224,13 @@ public sealed class TargetReadiness
     }
 
     /// <summary>
-    /// Discovery for the origin's name and trust, connected to zeroshot-tls's published port rather than
-    /// whatever the name resolves to on this host (LAN DNS selects Traefik, which terminates TLS itself).
+    /// Discovery for the origin's name and the SDK's trust in the configured root, connected to zeroshot-tls's
+    /// published port rather than whatever the name resolves to on this host (LAN DNS selects Traefik, which
+    /// terminates TLS itself).
     /// </summary>
     private static HttpClient PublishedPortClient(Uri origin, string? rootCertificate, IPEndPoint published)
     {
-        var handler = DirectTargetExchange.CreateHandler(origin, rootCertificate);
+        var handler = NativeClient.CreateHttpHandler(new TransportOptions { TrustedRootCertificatePath = rootCertificate });
         handler.ConnectCallback = async (_, token) =>
         {
             var socket = new Socket(published.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
