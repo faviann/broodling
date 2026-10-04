@@ -66,7 +66,7 @@ public sealed class DirectTargetSessionTests
     }
 
     /// <summary>
-    /// Native 10.9.0 adds its successor-recovery facts to a run that failed with a retained workspace, as
+    /// Native 10.10.0 adds its successor-recovery facts to a run that failed with a retained workspace, as
     /// the stock witness's repair exhaustion and PR-identity refusal do: the failure is read and they are dropped.
     /// </summary>
     [Test]

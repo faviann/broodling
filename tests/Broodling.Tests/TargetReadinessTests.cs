@@ -245,7 +245,7 @@ public sealed class TargetReadinessTests
         foreach (var name in new[] { "privateBootstrapPath", "oauth", "loginSession" }) fixture.Discovery[name] = null;
         fixture.Discovery["extensions"] = new JsonObject();
         await Assert.That((await fixture.Check()).Ready).IsTrue();
-        // Native 10.9.0 advertises capabilities this controller does not use.
+        // Native 10.10.0 advertises capabilities this controller does not use.
         using var advertising = new ReadinessFixture();
         advertising.Discovery["extensions"] = JsonNode.Parse("""
             {"run_history":{"kind":"zeroshot.run-history/v1","baseUrl":"https://zeroshot.dev.faviann.com"},
@@ -537,11 +537,11 @@ public sealed class TargetReadinessTests
             var key = string.Join(' ', args);
             var (label, output) = key switch
             {
-                "/usr/local/bin/zeroshot --version" => ("native", "zeroshot 10.9.0"),
+                "/usr/local/bin/zeroshot --version" => ("native", "zeroshot 10.10.0"),
                 "/usr/local/bin/codex --version" => ("codex", "codex-cli 0.153.4"),
                 "/usr/local/bin/node --version" => ("node", "v22.23.2"),
                 "/usr/bin/gh --version" => ("gh", "gh version 2.101.0 (2026-09-15) " + Secret + "\nignored"),
-                "sha256sum /usr/local/bin/zeroshot" => ("native-hash", "f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94  /usr/local/bin/zeroshot"),
+                "sha256sum /usr/local/bin/zeroshot" => ("native-hash", "d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e  /usr/local/bin/zeroshot"),
                 "sha256sum /usr/local/bin/restic" => ("restic-hash", "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf  /usr/local/bin/restic"),
                 "sha256sum /usr/bin/gh" => ("gh-hash", "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff  /usr/bin/gh"),
                 "/usr/bin/gh api graphql --paginate --slurp --help" => ("slurp", "FLAGS\n    --slurp Wrap pages"),

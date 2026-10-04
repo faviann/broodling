@@ -7,8 +7,8 @@
 # carries the zeroshot executable and the restic executable native run allocation requires beside it.
 # This pin is independent of the LocalTarget bridge's SDK wheel in bridge/requirements.txt.
 FROM scratch AS native
-ADD --checksum=sha256:ca7305a0a165f3909481ccfcccce367d3bc2c40a9ab65760f6d6cad2a38d002d \
-    https://github.com/the-open-engine/zeroshot/releases/download/v10.9.0/zeroshot-v10.9.0-x86_64-unknown-linux-musl.tar.gz /zeroshot.tar.gz
+ADD --checksum=sha256:fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16 \
+    https://github.com/the-open-engine/zeroshot/releases/download/v10.10.0/zeroshot-v10.10.0-x86_64-unknown-linux-musl.tar.gz /zeroshot.tar.gz
 
 FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -24,7 +24,7 @@ RUN dpkg --install /tmp/gh.deb && rm /tmp/gh.deb \
 RUN --mount=type=bind,from=native,source=/zeroshot.tar.gz,target=/tmp/zeroshot.tar.gz \
     tar -xzf /tmp/zeroshot.tar.gz -C /usr/local/bin --no-same-owner zeroshot restic \
     && chmod 755 /usr/local/bin/zeroshot /usr/local/bin/restic \
-    && printf '%s  %s\n' f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94 /usr/local/bin/zeroshot \
+    && printf '%s  %s\n' d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e /usr/local/bin/zeroshot \
         90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf /usr/local/bin/restic | sha256sum --check \
     && zeroshot --version && zeroshot target serve --help > /dev/null && restic version
 # The native hosted allocator needs root to assign its isolated process UIDs.

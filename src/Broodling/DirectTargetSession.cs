@@ -23,7 +23,7 @@ internal sealed class DirectTargetSession : IAsyncDisposable
     private static readonly string[] PassedFailures = ["force_stopped", "runtime_lost", "runtime_failed"];
     private static readonly JsonElement Null = JsonDocument.Parse("null").RootElement.Clone();
     // The pinned stock target always answers this constant (NativeV2CloudController::initialize at
-    // 75ae54b6): the full graph profile, logs, agent attach and an empty controller status.
+    // 3ee1192c): the full graph profile, logs, agent attach and an empty controller status.
     private static readonly JsonElement StockInitialize = JsonDocument.Parse("""
         {"protocolVersion":"openengine.cluster/v1",
          "capabilities":{"graphProfiles":["openengine.graph.full/v1"],"logs":true,"agentAttach":true},
