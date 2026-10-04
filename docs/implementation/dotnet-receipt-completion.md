@@ -34,8 +34,11 @@ its retained format and ignores any bridge transport, so the caller may pass nul
 unacknowledged record refuses with `SubmissionNotReady` before target contact,
 even when progress already shows a finished run. Only authorized Resume can
 establish correlation. A correlated record waits through
-[`DirectTargetRun.WaitAsync`](zeroshot-native-integration.md#directtarget-run-status-reader)
-with a fresh session for the retained binding. It needs no dispatch credentials,
+[`DirectTargetRun.WaitAsync`](zeroshot-native-integration.md#directtarget-run-reader-and-stopper),
+which reconnects a fresh SDK client by the retained binding, checks the run's
+identity with one status read and then waits through the SDK's `Run.WaitAsync`.
+The SDK's generic result is accepted only through Broodling's own run, receipt
+and accepted-revision checks below. It needs no dispatch credentials,
 checkout or source Git to observe. The result then follows the same run,
 receipt, accepted-object and disposition path below. The accepted commit is
 fetched from the frozen result origin into the recorded shared custody
@@ -184,7 +187,7 @@ A wait ends in one of five ways:
 
 Each successful scan also detaches any wait whose Attempt has left that set,
 for example after an independent stop or abandonment ends its authority. Such a
-wait can no longer retain a result and would otherwise poll a still-running
+wait can no longer retain a result and would otherwise watch a still-running
 target indefinitely. Detaching neither stops the run nor changes the Attempt's
 disposition. A scan that cannot read the store detaches nothing. Cancelling
 `RunAsync` detaches every wait without stopping or abandoning the run. The next process rediscovers the same correlated records and reconnects

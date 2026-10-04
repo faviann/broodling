@@ -275,7 +275,8 @@ public sealed class HttpDispatchTests
         var length = Encoding.UTF8.GetByteCount(request.ToJsonString());
         task.ReplaceWith((string)task! + new string('x', DirectTargetLimits.JsonBytes - length - 16));
         var prepared = DirectTargetSubmission.Import(request.ToJsonString());
-        var error = await Assert.That(async () => await DirectTargetSubmission.SubmitAsync(target.Origin, null, prepared,
+        await using var client = DirectTargetClient.Open(target.Origin, null);
+        var error = await Assert.That(async () => await DirectTargetSubmission.SubmitAsync(client, prepared,
             Credentials().TargetRun(), TimeProvider.System, CancellationToken.None)).Throws<NativeTransportError>();
         await Assert.That(error!.Kind).IsEqualTo("request_too_large");
         await Assert.That(target.Connections).IsEqualTo(0);
@@ -352,7 +353,7 @@ public sealed class HttpDispatchTests
             await release.Task;
             return (200, new JsonObject { ["runId"] = (string)body["runId"]! }.ToJsonString());
         };
-        target.Projections.Enqueue(DirectTargetSessionTests.Projection(new JsonObject
+        target.Projections.Enqueue(DirectTargetRunTests.Projection(new JsonObject
         {
             ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "failed", ["reason"] = "force_stopped" }
         }, prepared.Frozen.Run(prepared.IntendedRunId!)));
@@ -360,7 +361,7 @@ public sealed class HttpDispatchTests
         var pending = fixture.Store.DispatchHttpAsync(attempt.AttemptId, Credentials());
         try
         {
-            await arrived.Task.WaitAsync(DirectTargetSessionTests.Patience);
+            await arrived.Task.WaitAsync(DirectTargetRunTests.Patience);
             // Pause, abandonment and custody loss race the acknowledgement already in flight.
             using var observer = fixture.Git.State.Open();
             observer.PauseInstallation();

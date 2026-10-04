@@ -51,7 +51,7 @@ internal sealed class CompletionFixture : IDisposable
         var terminal = result.Succeeded
             ? new JsonObject { ["status"] = "succeeded", ["output"] = JsonNode.Parse(result.Output.GetRawText()) }
             : new JsonObject { ["status"] = "failed", ["reason"] = result.Failure };
-        var projection = DirectTargetSessionTests.Projection(new JsonObject { ["phase"] = "finished", ["terminalResult"] = terminal },
+        var projection = DirectTargetRunTests.Projection(new JsonObject { ["phase"] = "finished", ["terminalResult"] = terminal },
             run! with { RunId = result.RunId });
         return new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = projection }.ToJsonString();
     }
@@ -129,7 +129,7 @@ public sealed class AttemptCompletionTests
     {
         using var fixture = new CompletionFixture();
         await fixture.Dispatch();
-        // Duplicate properties never reach the receipt: the status reader refuses them (DirectTargetSessionTests).
+        // Duplicate properties never reach the receipt: the status reader refuses them (DirectTargetRunTests).
         foreach (var (name, json) in CompletionFixture.RefusedReceipts(fixture.Attempt.B1.CommitOid, fixture.Accepted))
         {
             fixture.Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, JsonSerializer.Deserialize<JsonElement>(json), null));
@@ -154,7 +154,8 @@ public sealed class AttemptCompletionTests
         {
             fixture.Transport.Wait = (_, _, _) => Task.FromResult(new NativeResult("01a00000-0000-7000-8000-000000000000", succeeded,
                 CompletionFixture.Receipt(), "runtime_lost"));
-            await DirectTargetSessionTests.Fails(() => fixture.Wait(), "foreign_run");
+            // The SDK refuses a status naming another run ID before Broodling reads it.
+            await DirectTargetRunTests.Fails(() => fixture.Wait(), "invalid_response");
             fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
         }
         fixture.Store.AbandonAttempt(fixture.Attempt.AttemptId, "operator decision");
@@ -446,7 +447,7 @@ public sealed class AttemptCompletionTests
         if (answer == "unavailable") target.Session = (503, """{"code":"target.unavailable","message":"busy"}""");
         target.Projections.Enqueue(HttpFinished(submission, "failed", "runtime_failed", title: "Another run"));
 
-        await DirectTargetSessionTests.Fails(() => fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null), kind);
+        await DirectTargetRunTests.Fails(() => fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null), kind);
         fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
         await Assert.That(target.Count("run/force")).IsEqualTo(0);
         await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
@@ -458,7 +459,7 @@ public sealed class AttemptCompletionTests
         if (status == "succeeded") terminal["output"] = JsonNode.Parse(((JsonElement)detail).GetRawText());
         else terminal["reason"] = (string)detail;
         var run = submission.Frozen.Run(submission.IntendedRunId!);
-        return DirectTargetSessionTests.Projection(new JsonObject { ["phase"] = "finished", ["terminalResult"] = terminal },
+        return DirectTargetRunTests.Projection(new JsonObject { ["phase"] = "finished", ["terminalResult"] = terminal },
             title is null ? run : run with { Title = title });
     }
 }

@@ -58,17 +58,23 @@ dispatch credentials and the approved asset policy require it.
 `NativeProfile.Runtime()` is the bridge's runtime only; an HTTP Attempt's runtime
 is the asset's.
 
-Submission (#216) goes through the pinned
+Submission (#216), the run reader and the stopper (#217) go through the pinned
 [Zeroshot.Client](https://github.com/faviann/zeroshot-dotnet-sdk) `0.2.0-preview.1`
 SDK. [`DirectTargetClient`](../../src/Broodling/DirectTargetClient.cs) is
-Broodling's one thin configuration of it: the SDK's supported HTTP handler with
-Broodling's TLS trust and no proxy, bound to the DirectTarget binding's native
-release. The reader and stopper (`DirectTargetRun`, and the
-`INativeReader`/`INativeStopper` seams the application operations accept) and
-readiness discovery still use `DirectTargetExchange`; later slices move them onto
-the same client. Broodling keeps authority over the Prepared submission,
-Dispatch intent, Native correlation, Native observation and Attempt retirement.
-The SDK persists nothing.
+Broodling's one thin configuration of it: the SDK's own transport with the
+configured root as `TransportOptions.TrustedRootCertificatePath`, bound to the
+DirectTarget binding's native release. Broodling builds no HTTP handler or
+client of its own for the SDK. Readiness discovery uses the SDK's handler
+factory with the same root (see [readiness](dotnet-target-readiness.md)).
+Broodling keeps authority over the Prepared submission, Dispatch intent, Native
+correlation, Native observation, completion and Attempt retirement. The SDK
+persists nothing.
+
+The SDK keeps .NET's default proxy behaviour. No ambient proxy is a
+**deployment assumption**, not a guarantee in code: Broodling's container must
+not define proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` or their
+lowercase forms), because a proxy would otherwise receive DirectTarget
+connections, including dispatch credentials in the submission body.
 
 The bridge uses the official
 [SDK 10.3.0.post1](https://github.com/the-open-engine/zeroshot/releases/tag/zeroshot-python-v10.3.0_1),
@@ -384,8 +390,8 @@ contacting the target. A dispatched record without acknowledgement is read
 through its intended run ID. A correlated record is read through its confirmed
 ID. Every observation reports that identity as `Intended` or `Confirmed`, so a
 caller cannot infer acknowledgement from available progress. The read is one
-session and status request under the 10-second progress budget, and it is
-validated by the [run status reader](#directtarget-run-status-reader) against
+SDK status request, setup included, under the 10-second progress budget, and it
+is checked by the [run reader](#directtarget-run-reader-and-stopper) against
 the retained title, size and PR source. The read also works while the
 installation is paused or after abandonment. It writes nothing and never
 correlates, completes or abandons. An unknown, foreign or malformed run, a
@@ -397,123 +403,86 @@ exact authorized delivery. Native failure records abandonment; invalid receipts,
 late success after abandonment and no-effect stable-result gaps refuse successful
 completion. Store errors grant no partial disposition.
 
-## DirectTarget HTTP transport limits
+## DirectTarget transport and budgets
 
-[`DirectTargetExchange.cs`](../../src/Broodling/DirectTargetExchange.cs) holds the
-fixed client bounds of the selected
-[HTTP/OECP contract](https://github.com/faviann/broodling/issues/167#issuecomment-5823939438).
-Target readiness discovery, the run status reader below and public HTTP
-observation, wait and stop use it; submission uses the SDK's own bounds. The bounds are internal
-constants, not operator settings:
+The SDK owns the HTTP and OECP wire: discovery, session creation, WebSocket
+connection, initialization, JSON-RPC envelopes, the typed status, force and
+watch contracts and their size limits. Broodling's
+[`DirectTargetRun.cs`](../../src/Broodling/DirectTargetRun.cs) owns
+reconnection, identity checks, operation budgets and the fixed failure kinds,
+and [`DirectTargetExchange.cs`](../../src/Broodling/DirectTargetExchange.cs)
+keeps only the canonical-origin rule, the budgets and readiness discovery's
+bounded read. The budgets are internal constants, not operator settings:
 
-| Resource | Limit |
+| Operation | Budget |
 | --- | --- |
-| HTTP JSON body in either direction; assembled incoming WebSocket message | 4 MiB, counted as bytes arrive regardless of chunking, fragmentation or declared length |
-| Outgoing WebSocket message | 1 MiB, refused before sending |
-| HTTP response headers / JSON nesting | 32 KiB / 64 levels; duplicate properties and undecodable strings refuse at any level |
-| Operation budgets | Progress 10s, submit 60s, stop 30s, wait setup and first status 30s, each later wait read 10s |
+| Progress (one status read, setup included) | 10s |
+| Submit | 60s, also the SDK's per-request ceiling |
+| Stop (setup, precheck, force and waiting for its result) | 30s |
+| Wait setup and first status | 30s; the wait itself has no deadline |
 
-One budget encloses every exchange in an operation: setup, headers, body or
-message assembly and parsing. After caller cancellation or expiry, no further
-exchange starts. Caller cancellation propagates as cancellation. Expiry, by
-contrast, becomes the fixed `TimeoutError` kind. The budgets limit only client
-operations, never native execution. The HTTP client disables redirects, proxying,
-cookies and ambient credentials. It always verifies TLS, including the host
-name, with the trust `DirectTargetClient` also gives the SDK. By default it uses system trust. A store session opened with
-`OpenStore(path, directTargetRootCertificate)` instead trusts exactly that PEM
-root for HTTPS and WSS, with custom root trust that ignores the system store.
-Each TLS handshake rereads the root file and accepts only a matching host name
-and a server-authentication chain from the presented certificates to that root,
-with revocation unchecked as for ordinary TLS. The file is never read when the
-store opens. A missing or unreadable file fails that connection, and so its
-operation, as `transport_failed`. A dispatch also checks that the root is
-readable before its intent commits, so that failure records nothing. A wait
-connects during setup and then polls over one open WebSocket, so a root
-regenerated mid-wait does not affect it. If the TLS proxy restarts, the wait
-detaches with a transport failure, and a new wait connects under the new root.
-It never retries. Failures are fixed `NativeTransportError` kinds (`TimeoutError`,
-`transport_failed`, `invalid_response`, `request_too_large`) and never include
-response bytes. Discovery accepts only the stock
-`zeroshot.native-v2-target/v2` document with `authentication: none`, `audience:
-controller` and the exact run, session and OECP routes. `privateBootstrapPath`,
-`oauth` and `loginSession` may only be absent or null, and `extensions` absent
-or an object, whose optional capabilities (native 10.10.0 advertises run history
-and workspace recovery/checkpoints) this controller ignores. Any other field refuses as an unsupported runtime. Discovery confirms
-protocol shape. It does not attest native or image bytes or durable target state.
+One budget encloses every SDK call in an operation. After caller cancellation
+or expiry, no further call starts. Caller cancellation propagates as
+cancellation. Expiry becomes the fixed `TimeoutError` kind. The budgets limit
+only client operations, never native execution.
 
-### DirectTarget run status reader
+TLS is always verified, including the host name. By default it uses system
+trust. A store session opened with `OpenStore(path, directTargetRootCertificate)`
+passes that PEM root to the SDK, which trusts exactly it for every HTTPS and WSS
+connection, ignoring the system store, and rereads it for each TLS handshake.
+For a loopback HTTP origin the SDK ignores the root. The file is never read when
+the store opens. Each operation creates its own SDK client, which reads the root
+once and refuses a missing or unreadable one as `transport_failed` before
+anything is sent; a dispatch creates its client before its intent commits, so
+that failure records nothing. A root that becomes unreadable later fails the
+handshake, and so its operation, as `transport_failed`. Nothing retries.
 
-[`DirectTargetSession.cs`](../../src/Broodling/DirectTargetSession.cs) is the one
-validated status reader that progress, wait and stop share. Its input is a `NativeRunBinding`: the direct
-locator's retained origin, the run ID, frozen title, size and PR source. The origin
-must be canonical HTTPS or HTTP to exactly `127.0.0.1` or `[::1]`, with no path, query, fragment or
-user information. The binding carries no credentials.
+### DirectTarget run reader and stopper
 
-Opening a session validates discovery and posts exactly `{runId}` to
-`/native-v2/oecp-session`. The reply must be HTTP 200 with an `endpoint` and an
-absent or null `bearerToken`. The endpoint must equal the origin's paired
-`ws`/`wss` authority plus `/native-v2/oecp`, and is checked before connecting.
-The WebSocket upgrade uses the same redirect-, proxy- and cookie-free handler.
-`initialize` must return the pinned stock reply exactly. At native revision
-`3ee1192c` that reply is constant: the full graph profile, logs, agent attach and
-an empty controller status. The stock controller reports that status for every
-connection, and neither the session nor initialization proves that the run exists.
+Every operation reconnects by exactly the retained `NativeRunBinding`: the
+direct locator's origin, which must be canonical HTTPS or HTTP to exactly
+`127.0.0.1` or `[::1]` with no path, query, fragment or user information, the
+run ID and the DirectTarget binding's native release, as an SDK `RunReference`.
+The binding carries no credentials. An unsupported binding refuses as an
+unsupported runtime before contact.
 
-Each `run/status` request names the retained run. The session keeps one
-outstanding JSON-RPC request with string IDs. A reply must be exactly
-`{jsonrpc: "2.0", id, result}` or `{jsonrpc: "2.0", id, error}` for that ID.
-Batches, notifications, stale or wrong IDs and unknown envelope fields refuse.
-The projection must be exactly `{runId, title, source, size, atCursor, status}`,
-with run, title, size, repository, branch and B1 equal to the binding, plus
-native's optional `workspaceRecovery`. Native 10.10.0 adds it to a run that
-failed with a retained workspace, such as repair exhaustion or a refused PR
-identity. It is validated (`recoverable` boolean; optional
-`connectionRequirements` object and `resumedFrom`/`successorRunId` strings) and
-dropped: Broodling never resumes a run. The
-reader accepts only the pinned phase union. `admitted` carries only its phase.
-`running` and `stopping` also list active executions with their nodes.
-`finished` adds a terminal result and optional metadata. Unknown fields and
-contradictory variants refuse. `atCursor` must be a string, never interpreted.
-Output is opaque within the transport bounds. Metadata is validated and dropped:
-absent metadata means empty, explicit null refuses. The reader passes through the
-failure labels `force_stopped`, `runtime_lost` and `runtime_failed`. It maps every
-other valid native label to `native_failed`.
+The SDK checks that a status or force reply names the requested run. Broodling
+then requires its title, size, repository, branch and B1 to equal the binding;
+anything else is `foreign_run`. Progress is the phase (`admitted`, `running`,
+`stopping` or `finished`) and active nodes. The SDK validates and exposes
+native's metadata and workspace-recovery facts; Broodling drops them and never
+resumes a run. A result passes through the failure labels `force_stopped`,
+`runtime_lost` and `runtime_failed` and maps every other native label to
+`native_failed`. Reading a run, finished or not, consumes no completion and
+establishes no acknowledgement or correlation.
 
-The validated read returns progress (phase and active nodes) and, for `finished`,
-a `NativeResult`. Reading a finished status consumes no completion and establishes
-no acknowledgement. Setup and each request run inside the caller's budget, so
-wait and stop can reuse one session under their own remaining deadline. Failures
-are fixed kinds that never contain remote text. `foreign_run` means the
-projection names a different run or source. `RunNotFoundError` is OECP
-`NOT_FOUND`. `TargetError` covers any other valid OECP error or HTTP problem.
-`invalid_response` covers every malformed reply. An unsupported binding,
-discovery or initialization refuses as an unsupported runtime.
+Failures are fixed kinds that never contain remote text. `RunNotFoundError` is
+OECP `NOT_FOUND`. `TargetError` covers any other OECP error or HTTP problem.
+`invalid_response` covers a reply the SDK rejects as malformed, including one
+naming another run ID, and a watch that ends without a terminal result.
+`TimeoutError` is expiry and `transport_failed` connection loss. An
+unsupported OECP protocol or SDK binding refuses as an unsupported runtime.
 
-One polling loop serves wait and stop. A terminal status returns at once.
-After each nonterminal status the loop pauses two seconds, then reads again,
-with one read outstanding. The pause runs under the enclosing budget and
-responds to caller cancellation. It never sends `run/watch`, never retries and
-never compares cursors, so a repeated cursor cannot hide a new terminal result.
-The persistence-free wait operation in
-[`DirectTargetRun.cs`](../../src/Broodling/DirectTargetRun.cs) opens a fresh
-session and reads immediately. Setup and that first read share 30 seconds. Each
-later read then has its own 10 seconds through the complete reply. The wait has
-no overall deadline. Cancellation or any failure detaches the caller without
-stopping the run.
+Progress is one bounded status read. The wait reads status once within its
+30-second setup budget, which also checks identity. A finished status is the
+result at once. Otherwise the SDK's `Run.WaitAsync` waits: it reads status again
+and watches the run from that cursor until a terminal event, reopening an
+interrupted watch itself. There is no client polling and no overall deadline.
+Cancellation or any failure detaches the caller without stopping the run.
 
-The persistence-free stop operation uses one 30-second budget for discovery,
-setup, an optional precheck, force and any polling. For an intended but
-unacknowledged run identity it first requires a valid matching status. Any
-unknown, foreign, malformed or unavailable precheck sends no force. A matching
-precheck, even a finished one, still leads to force. `run/force` names exactly
-the session's run and is sent once. Its reply goes through the same projection
-validator. A nonterminal reply continues through the polling loop within the
-remaining stop budget. The result is a closed value: `NotSent`, `Uncertain` or
-`Terminal` with the validated result. `NotSent` and `Uncertain` carry a fixed
-error kind. Any failure from the force request onward, including expiry, counts
-as `Uncertain`, because force may have been sent. The operation never fabricates
-a stopped result. Caller cancellation propagates as cancellation, even after force.
-No outcome proves physical cessation or establishes correlation.
+The stop uses one 30-second budget for setup, an optional precheck, force and
+waiting for its result. For an intended but unacknowledged run identity it first
+requires a valid matching status. Any unknown, foreign, malformed or unavailable
+precheck sends no force. A matching precheck, even a finished one, still leads
+to force. The SDK's force attempt names exactly the run and is sent once. Its
+reply's identity is checked like a status. A nonterminal reply is followed by the
+SDK's wait within the remaining stop budget. The result is a closed value:
+`NotSent`, `Uncertain` or `Terminal`. `NotSent` and `Uncertain` carry a fixed
+error kind. A failure before the force request is sent, including connection
+setup inside the force attempt, is `NotSent`. Once it may have been sent, any
+failure, including expiry, is `Uncertain`. The operation never fabricates a
+stopped result. Caller cancellation propagates as cancellation, even after
+force. No outcome proves physical cessation or establishes correlation.
 
 ## Local policy and cleanup limitation
 

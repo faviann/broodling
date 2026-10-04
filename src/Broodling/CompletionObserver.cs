@@ -47,7 +47,7 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
                 if (Discover() is { } eligible)
                 {
                     // Eligibility never returns once lost. A wait whose Attempt has lost it can no longer
-                    // retain anything and would poll the target for the process lifetime, so detach it.
+                    // retain anything and would watch the target for the process lifetime, so detach it.
                     foreach (var (attemptId, active) in observing)
                         if (!eligible.Contains(attemptId)) active.Detach.Cancel();
                     foreach (var attemptId in eligible)

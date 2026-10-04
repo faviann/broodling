@@ -137,10 +137,12 @@ resolves to Traefik, which terminates TLS itself. It trusts exactly the
 configuration's `directRootCertificate`, as invocation does, never system
 trust. The chain Caddy serves must therefore reach the configured root, so
 an intermediate that Caddy kept from before a rotation or restore fails
-discovery. Discovery uses the shared bounded exchange
-([limits](zeroshot-native-integration.md#directtarget-http-transport-limits)):
-redirects, proxying, cookies and ambient credentials are disabled, and the
-response is byte-counted and parsed within one 10-second budget. Commands have a
+discovery. Discovery uses the SDK's HTTP handler with that root as its trusted
+root, so redirects and cookies are disabled, and a bounded read
+([transport](zeroshot-native-integration.md#directtarget-transport-and-budgets)):
+the response is byte-counted and parsed within one 10-second budget. Like every
+DirectTarget connection it relies on the deployment assumption that no proxy
+variables are defined. Commands have a
 30-second inspection timeout. Discovery expiry is a safe refusal. Caller
 cancellation remains cancellation and ends only the selected Docker CLI process
 or local HTTP exchange. It never stops the target or asserts cessation of an exec.
@@ -175,10 +177,10 @@ is ready; after a rotation that replaced the root but kept Caddy's stored
 intermediate, discovery and native's own client both refuse; after the
 documented rotation, both succeed again without restarting the target.
 
-`DirectTargetExchangeTests` own the shared bounds over real loopback sockets:
-chunked stock discovery, redirect refusal, header limit, truncated and oversized
-chunked bodies, stall expiry versus caller cancellation, no exchange after expiry,
-and fragmented, binary, closed and oversized WebSocket messages.
+`DirectTargetExchangeTests` own discovery's bounded read over real loopback
+sockets: stock discovery without ambient credentials, truncated and oversized
+chunked bodies, duplicate properties, stall expiry versus caller cancellation and
+no exchange after expiry.
 
 Only the process adapter's safe-error witness runs harmless local shell commands
 and a missing executable. `NativeTargetStartupTests` exercise the actual target

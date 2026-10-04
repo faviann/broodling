@@ -79,7 +79,7 @@ An HTTP (`http.v1`) record routes on its retained format, ignores any bridge
 transport and needs no enclosure, credentials or source custody. A prepared
 record makes no target contact and keeps the `no_dispatch_intent` path below.
 Dispatch intent uses one 30-second
-[DirectTarget stop](zeroshot-native-integration.md#directtarget-run-status-reader).
+[DirectTarget stop](zeroshot-native-integration.md#directtarget-run-reader-and-stopper).
 A correlated record forces its confirmed run. A dispatched but unacknowledged
 record first reads its intended run ID. Force is sent only when the projection
 matches the retained ID, title, repository, branch, B1 and size. Neither the
@@ -88,7 +88,7 @@ surface:
 
 | DirectTarget outcome | Result after committed abandonment |
 | --- | --- |
-| Terminal result from force or its polling | `CessationUnconfirmed` with `NativeStopRequested = true`; still no physical cessation proof |
+| Terminal result from force or the wait that follows it | `CessationUnconfirmed` with `NativeStopRequested = true`; still no physical cessation proof |
 | No force sent (unknown, foreign, malformed or unavailable precheck; setup failure) | `CessationUnconfirmed` with `NativeStopRequested = false` and the fixed kind in its message |
 | Force possibly sent, outcome uncertain (timeout, transport loss, malformed reply) | `NativeTransportError` with the fixed kind, such as `TimeoutError` |
 | Caller cancellation | `OperationCanceledException` |

@@ -289,7 +289,7 @@ public sealed class RetirementTests
         var submission = fixture.PrepareAt(target.Origin, "dispatched");
         var run = submission.Frozen.Run(submission.IntendedRunId!);
         if (precheck == "unknown") target.Reply = NotFound;
-        else target.Projections.Enqueue(DirectTargetSessionTests.Running(precheck == "foreign" ? run with { Title = "Another run" } : run));
+        else target.Projections.Enqueue(DirectTargetRunTests.Running(precheck == "foreign" ? run with { Title = "Another run" } : run));
         target.Projections.Enqueue(HttpForceStopped(run));
         fixture.Store.PauseInstallation(); // Stop remains available while paused.
 
@@ -327,10 +327,10 @@ public sealed class RetirementTests
         fixture.Store.DirectTargetClock = clock;
 
         var stop = fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator stop", null);
-        await target.Stalled.Task.WaitAsync(DirectTargetSessionTests.Patience);
+        await target.Stalled.Task.WaitAsync(DirectTargetRunTests.Patience);
         await Assert.That(fixture.Store.GetAttempt(fixture.Attempt.AttemptId).Abandonment).IsNotNull();
         clock.Advance(DirectTargetLimits.Stop);
-        await DirectTargetSessionTests.Fails(() => stop, "TimeoutError");
+        await DirectTargetRunTests.Fails(() => stop, "TimeoutError");
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
         await HttpQuarantined(fixture, "correlated", "operator stop");
     }
@@ -348,7 +348,7 @@ public sealed class RetirementTests
 
         // The delayed request is accepted later; the same intended ID is now addressable.
         target.Reply = (_, _) => null;
-        target.Projections.Enqueue(DirectTargetSessionTests.Running(run));
+        target.Projections.Enqueue(DirectTargetRunTests.Running(run));
         target.Projections.Enqueue(HttpForceStopped(run));
         var second = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "second stop", null));
         await Assert.That(second.NativeStopRequested).IsTrue();
@@ -368,7 +368,7 @@ public sealed class RetirementTests
         fixture.Store.DirectTargetClock = clock;
 
         var cancel = fixture.Store.CancelIssueSubmissionAsync(submission.SubmissionId, "requester withdrew", null);
-        await target.Stalled.Task.WaitAsync(DirectTargetSessionTests.Patience);
+        await target.Stalled.Task.WaitAsync(DirectTargetRunTests.Patience);
         await Assert.That(fixture.Store.GetAttempt(fixture.Attempt.AttemptId).Abandonment!.Reason).IsEqualTo("requester withdrew");
         clock.Advance(DirectTargetLimits.Stop);
         var refusal = await Refusal<CessationUnconfirmed>(() => cancel);
@@ -543,7 +543,7 @@ public sealed class RetirementTests
         : new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["error"] = new JsonObject
             { ["code"] = -32000, ["message"] = "run was not found", ["data"] = new JsonObject { ["code"] = "NOT_FOUND" } } }.ToJsonString();
 
-    private static JsonObject HttpForceStopped(NativeRunBinding run) => DirectTargetSessionTests.Projection(new JsonObject
+    private static JsonObject HttpForceStopped(NativeRunBinding run) => DirectTargetRunTests.Projection(new JsonObject
     {
         ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "failed", ["reason"] = "force_stopped" }
     }, run);

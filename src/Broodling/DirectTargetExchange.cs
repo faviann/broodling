@@ -1,6 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
-using System.Net.WebSockets;
 using System.Text.Json;
 
 namespace Broodling;
@@ -11,36 +9,28 @@ namespace Broodling;
 /// </summary>
 internal static class DirectTargetLimits
 {
-    /// <summary>Each HTTP JSON body, in either direction, and each assembled incoming WebSocket message.</summary>
+    /// <summary>Each discovery response body.</summary>
     internal const int JsonBytes = 4 * 1024 * 1024;
-    /// <summary>Each outgoing WebSocket message, within the native receive limit.</summary>
-    internal const int OutgoingMessageBytes = 1024 * 1024;
-    internal const int ResponseHeaderKiB = 32;
     internal const int JsonDepth = 64;
 
     internal static readonly TimeSpan Progress = TimeSpan.FromSeconds(10);
     internal static readonly TimeSpan Submit = TimeSpan.FromSeconds(60);
     internal static readonly TimeSpan Stop = TimeSpan.FromSeconds(30);
     internal static readonly TimeSpan WaitSetup = TimeSpan.FromSeconds(30);
-    internal static readonly TimeSpan WaitRead = TimeSpan.FromSeconds(10);
-    /// <summary>The pause after each nonterminal status before the next read; waiting, not retry.</summary>
-    internal static readonly TimeSpan PollDelay = TimeSpan.FromSeconds(2);
 }
 
 /// <summary>
-/// One enclosing deadline shared by every exchange of an operation. Once it ends, no exchange
+/// One enclosing deadline shared by every exchange or SDK call of an operation. Once it ends, none
 /// starts; caller cancellation stays cancellation and expiry is a safe timeout.
 /// </summary>
 internal sealed class DirectTargetBudget : IDisposable
 {
-    private readonly TimeProvider clock;
     private readonly CancellationToken caller;
     private readonly CancellationTokenSource deadline;
     private readonly CancellationTokenSource linked;
 
     private DirectTargetBudget(TimeSpan total, TimeProvider clock, CancellationToken caller)
     {
-        this.clock = clock;
         this.caller = caller;
         deadline = new CancellationTokenSource(total, clock);
         linked = CancellationTokenSource.CreateLinkedTokenSource(caller, deadline.Token);
@@ -48,16 +38,6 @@ internal sealed class DirectTargetBudget : IDisposable
 
     internal static DirectTargetBudget Start(TimeSpan total, TimeProvider clock, CancellationToken caller) =>
         new(total, clock, caller);
-
-    /// <summary>A new budget with the same clock and caller, for an exchange with its own total.</summary>
-    internal DirectTargetBudget Fresh(TimeSpan total) => new(total, clock, caller);
-
-    /// <summary>A pause that the caller can cancel and that never outlasts this budget.</summary>
-    internal Task DelayAsync(TimeSpan delay) => RunAsync(async token =>
-    {
-        await Task.Delay(delay, clock, token);
-        return true;
-    });
 
     internal async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> exchange)
     {
@@ -75,31 +55,10 @@ internal sealed class DirectTargetBudget : IDisposable
     }
 }
 
-/// <summary>Bounded HTTP/WebSocket reads and writes with fixed, secret-free failure kinds.</summary>
+/// <summary>The canonical origin rule, and readiness discovery's bounded HTTP read with fixed, secret-free failure kinds.</summary>
 internal static class DirectTargetExchange
 {
     private static readonly JsonDocumentOptions Json = new() { MaxDepth = DirectTargetLimits.JsonDepth, AllowDuplicateProperties = false };
-
-    /// <summary>
-    /// No redirects, proxy, cookies or ambient credentials, and the trust of <see cref="DirectTargetClient.Trust"/>.
-    /// </summary>
-    internal static SocketsHttpHandler CreateHandler(Uri? origin = null, string? rootCertificate = null)
-    {
-        var handler = new SocketsHttpHandler
-        {
-            AllowAutoRedirect = false,
-            UseProxy = false,
-            UseCookies = false,
-            Credentials = null,
-            PreAuthenticate = false,
-            MaxResponseHeadersLength = DirectTargetLimits.ResponseHeaderKiB
-        };
-        if (origin is not null) DirectTargetClient.Trust(handler.SslOptions, origin, rootCertificate);
-        return handler;
-    }
-
-    internal static HttpClient CreateClient(SocketsHttpHandler? shared = null) =>
-        new(shared ?? CreateHandler(), disposeHandler: shared is null) { Timeout = Timeout.InfiniteTimeSpan };
 
     /// <summary>
     /// A canonical DirectTarget origin, mirroring the native and SDK rules: HTTPS, or HTTP to exactly
@@ -111,15 +70,6 @@ internal static class DirectTargetExchange
         && address == origin.GetLeftPart(UriPartial.Authority)
         && (origin.Scheme == Uri.UriSchemeHttps || origin.Scheme == Uri.UriSchemeHttp && origin.Host is "127.0.0.1" or "[::1]")
             ? origin : null;
-
-    /// <summary>A JSON request body with a known Content-Length.</summary>
-    internal static HttpContent JsonContent(byte[] body)
-    {
-        if (body.Length > DirectTargetLimits.JsonBytes) throw new NativeTransportError("request_too_large");
-        var content = new ByteArrayContent(body);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-        return content;
-    }
 
     internal static Task<(HttpStatusCode Status, JsonElement Body)> SendJsonAsync(HttpClient http, HttpRequestMessage request,
         DirectTargetBudget budget) => budget.RunAsync(async token =>
@@ -144,45 +94,6 @@ internal static class DirectTargetExchange
         catch (Exception error) when (error is HttpRequestException or IOException)
         { throw new NativeTransportError(); }
     });
-
-    internal static Task<JsonElement> ReceiveMessageAsync(WebSocket socket, DirectTargetBudget budget) => budget.RunAsync(async token =>
-    {
-        try
-        {
-            using var message = new MemoryStream();
-            var block = new byte[16 * 1024];
-            ValueWebSocketReceiveResult received;
-            do
-            {
-                received = await socket.ReceiveAsync(block.AsMemory(), token);
-                if (received.MessageType == WebSocketMessageType.Close) throw new NativeTransportError();
-                if (received.MessageType != WebSocketMessageType.Text || message.Length + received.Count > DirectTargetLimits.JsonBytes)
-                    throw new NativeTransportError("invalid_response");
-                message.Write(block, 0, received.Count);
-            } while (!received.EndOfMessage);
-            return ParseJson(message.GetBuffer().AsMemory(0, (int)message.Length));
-        }
-        catch (WebSocketException) { throw new NativeTransportError(); }
-    });
-
-    internal static Task SendMessageAsync(WebSocket socket, ReadOnlyMemory<byte> message, DirectTargetBudget budget)
-    {
-        if (message.Length > DirectTargetLimits.OutgoingMessageBytes) throw new NativeTransportError("request_too_large");
-        return budget.RunAsync(async token =>
-        {
-            try { await socket.SendAsync(message, WebSocketMessageType.Text, endOfMessage: true, token); }
-            catch (WebSocketException) { throw new NativeTransportError(); }
-            return true;
-        });
-    }
-
-    /// <summary>
-    /// The stock HTTP problem <c>{code, message, details?}</c>: its code when the shape is valid, otherwise null.
-    /// The message and details are never read.
-    /// </summary>
-    internal static string? ProblemCode(JsonElement body) =>
-        Shape(body, ["code", "message"], ["details"]) && body.GetProperty("message").ValueKind == JsonValueKind.String
-        && body.GetProperty("code") is { ValueKind: JsonValueKind.String } code ? code.GetString() : null;
 
     /// <summary>
     /// Complete JSON within the depth limit and without duplicate properties at any level. Every string

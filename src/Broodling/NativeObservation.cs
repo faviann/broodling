@@ -18,7 +18,7 @@ public abstract record NativeObservation(DateTimeOffset ObservedAt, NativeRunIde
 
 public sealed partial class BroodlingStore
 {
-    /// <summary>Controls DirectTarget budgets and poll pauses; tests substitute a controlled clock.</summary>
+    /// <summary>Controls DirectTarget budgets; tests substitute a controlled clock.</summary>
     internal TimeProvider DirectTargetClock { get; set; } = TimeProvider.System;
 
     /// <summary>
@@ -46,11 +46,7 @@ public sealed partial class BroodlingStore
         {
             NativeProgress progress;
             if (submission!.Format == NativeSubmission.Http)
-            {
-                using var budget = DirectTargetBudget.Start(bound, DirectTargetClock, cancellationToken);
-                await using var session = await DirectTargetSession.OpenAsync(run, directTargetRoot, budget);
-                progress = (await session.StatusAsync(budget)).Progress;
-            }
+                progress = await DirectTargetRun.ProgressAsync(run, directTargetRoot, bound, DirectTargetClock, cancellationToken);
             else
                 progress = await (transport ?? throw new SubmissionNotReady("Observing a bridge run requires native transport."))
                     .StatusAsync(run, bound, cancellationToken);
