@@ -60,8 +60,11 @@ is the asset's.
 
 Submission (#216), the run reader and the stopper (#217) go through the pinned
 [Zeroshot.Client](https://github.com/faviann/zeroshot-dotnet-sdk) `0.2.0-preview.1`
-SDK. [`DirectTargetClient`](../../src/Broodling/DirectTargetClient.cs) is
-Broodling's one thin configuration of it: the SDK's own transport with the
+SDK, an exact version whose package bytes `packages.lock.json` fixes; the
+[adoption record](../../tests/README.md#sdk-adoption) identifies it and the
+Broodling-owned evidence that accepted it (#220).
+[`DirectTargetClient`](../../src/Broodling/DirectTargetClient.cs) is Broodling's
+one thin configuration of it: the SDK's own transport with the
 configured root as `TransportOptions.TrustedRootCertificatePath`, bound to the
 DirectTarget binding's native release. Broodling builds no HTTP handler or
 client of its own for the SDK. Readiness discovery uses the SDK's handler

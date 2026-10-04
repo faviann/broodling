@@ -70,6 +70,10 @@ needs. No installer checks these host prerequisites; the operator owns them.
 
 Restore needs a `read:packages` GitHub credential for the pinned `Zeroshot.Client`,
 supplied outside the repository as in the [test setup](../tests/README.md#run).
+Restore refuses a package whose bytes differ from the content hash in
+`src/Broodling/packages.lock.json`. Release only a revision whose `Zeroshot.Client`
+version and lock file match the [current adoption record](../tests/README.md#current-adoption-record);
+an SDK upgrade first reruns Broodling's [adoption lane](../tests/README.md#upgrading-the-sdk).
 From the repository root, choose a new output directory for each release:
 
 ```bash

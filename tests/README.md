@@ -332,6 +332,98 @@ store format, schema version and definition SHA-256 and the identities that
 `upgrade-store` upgrades, all from the image's `initialize-store` output, the
 Caddy reference and the readiness facts for the release record.
 
+## SDK adoption
+
+Broodling adopts one exact `Zeroshot.Client` package and owns the evidence that
+its integration works with it. The SDK's own release checks accept the package
+for publication. This lane accepts it for Broodling. A failure here blocks
+Broodling's adoption of that package. It is not a prerequisite for SDK
+publication and does not make a Broodling revision part of the SDK's release.
+
+[`Broodling.csproj`](../src/Broodling/Broodling.csproj) references one exact
+version, written `[VERSION]`, and its [`packages.lock.json`](../src/Broodling/packages.lock.json)
+records the package's NuGet content hash (SHA-512). Restore, including the
+Broodling image build, then refuses other bytes under that version with `NU1403`.
+
+### Adoption lane
+
+The lane runs the compact suites that prove the adapter's consumer contract,
+the stock-native witnesses and the [native-state transition check](#native-state-transition-check)
+as the restart/replay baseline, plus the asset, schema-freeze and fresh-store
+checks that identify the recorded contract. It needs the full [run](#run)
+environment, including Docker. Run it, then the full suite and the Release build:
+
+```bash
+dotnet test --project tests/Broodling.Tests/Broodling.Tests.csproj --treenode-filter '/*/*/(HttpSubmissionTests)|(HttpDispatchTests)|(DispatchProcessTests)|(NativeObservationTests)|(AttemptCompletionTests)|(CompletionPersistenceTests)|(CompletionObserverTests)|(RetirementTests)|(RetirementProcessTests)|(DirectTargetRunTests)|(DirectTargetTrustTests)|(InvocationTests)|(StockDirectTargetTests)|(StockPullRequestDeliveryTests)|(TargetImageTransitionTests)|(ExecutionAssetTests)|(ApplicationSchemaFreezeTests)|(StoreLifecycleTests)/*'
+dotnet test --solution Broodling.sln
+dotnet build Broodling.sln --configuration Release
+```
+
+| Required behavior | Tests |
+| --- | --- |
+| Exact-B1 source in the frozen request; a B1 missing from the forge fails the run without fallback | `HttpSubmissionTests`, `StockDirectTargetTests` |
+| Intent before contact; one SDK attempt of the retained bytes; only the exact acknowledgement correlates and a foreign one is reported, not adopted | `HttpDispatchTests`, `InvocationTests` |
+| Lost, late or concurrent replies and caller death leave intent unresolved; authorized exact replay, with rotated credentials kept apart, converges on the same run without regenerating content | `HttpDispatchTests`, `DispatchProcessTests`, `HttpSubmissionTests`, `StockDirectTargetTests` |
+| Retained run identity across client restart, target restart and a same-native image restart | `CompletionObserverTests`, `DispatchProcessTests`, `StockDirectTargetTests`, `TargetImageTransitionTests` |
+| Observation and wait cancellation or shutdown neither stop nor complete a run; a restarted observer retains the same run | `NativeObservationTests`, `DirectTargetRunTests`, `CompletionObserverTests` |
+| Atomic receipt acceptance, Git pinning and disposition; retained completion and offline reads | `AttemptCompletionTests`, `CompletionPersistenceTests`, `InvocationTests`, `StockDirectTargetTests` |
+| C# and SQL agree on every refused receipt | `AttemptCompletionTests`, `CompletionPersistenceTests` |
+| Stop: intended-ID precheck, single force, uncertain effects, one total stop budget | `DirectTargetRunTests`, `RetirementTests` |
+| Dispatched work stays quarantined; retirement and replacement keep custody across process death | `RetirementTests`, `RetirementProcessTests` |
+| Stock-native readiness, repair and feedback cases | `StockPullRequestDeliveryTests` |
+| One composed application invocation over the unmodified native through the SDK | `StockDirectTargetTests`, with `InvocationTests` and `DirectTargetTrustTests` over the loopback stand-in |
+| Approved asset and native identity; fresh-store definition | `ExecutionAssetTests`, `ApplicationSchemaFreezeTests`, `StoreLifecycleTests` |
+
+Every record in these tests is created fresh under the current contract.
+Submission, status, wait and stop go only through
+[`DirectTargetClient`](../src/Broodling/DirectTargetClient.cs); readiness
+discovery alone is a plain HTTP read, over the SDK's handler.
+
+### Upgrading the SDK
+
+To adopt another `Zeroshot.Client` version, in one change: set the exact
+version in `Broodling.csproj`, regenerate `packages.lock.json` by restoring,
+confirm that the restored `.nupkg` SHA-256 equals the SDK's own publication
+record for that version, adapt Broodling to it, run the lane, the full suite and
+the Release build, and replace the record below. A new native release or asset
+also changes the binding and its approval; see the
+[native integration](../docs/implementation/zeroshot-native-integration.md#pinned-dependencies-and-bridge).
+Never refresh the lock file alone to make a restore pass.
+
+### Current adoption record
+
+- Tested code revision: `838bc34fdc01a3de151759a8279e1a2275a65027`. Later
+  commits that only edit this record or other documentation leave it valid; a
+  code change requires a new run.
+- SDK: `Zeroshot.Client` `0.2.0-preview.1` from
+  `https://nuget.pkg.github.com/faviann/index.json`; `.nupkg` SHA-256
+  `447561e587f5d77d53fa3eb8d794519467af19405a673bebed41f372846866ed`, NuGet
+  content hash `PB2eTaN5R58rp4gUHsLDk32deCh11o4Y4gVTYfcPZnzBAJsY0/yVM3qbIsnpqyiP03K0KEWDqlhvVGK2D9b88A==`.
+  The SHA-256 equals `expectedSha256` and `servedSha256` in the SDK's verified
+  publication record (`faviann/zeroshot-dotnet-sdk` tag `v0.2.0-preview.1`,
+  source `f6af4d5309fa1e991f18a102f30b5eeaa5066014`, qualification run
+  `37153754175`); the SDK publishes no GitHub release for it.
+- Approved asset: SHA-256
+  `258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc`.
+  Native: `zeroshot 10.10.0`, source `3ee1192cec359a0b997f464e703a936e8b67d63c`,
+  Linux x86-64 executable SHA-256
+  `d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e`, from the
+  `v10.10.0` musl archive SHA-256
+  `fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16`.
+- Fresh store, from `initialize-store` at that revision: format
+  `broodling.application`, schema version 1, definition SHA-256
+  `2ef2d8752c19220da9dfaa8800520032ce0982a76de5c59b599884a5dc0d1d60`, upgrading
+  from nothing. The version is not yet frozen.
+- Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.8.1, the
+  transition check building this revision's target image: the lane passed 273 of
+  273 (a first run under load average 48 timed out three `CompletionObserverTests`
+  waits, which passed alone and in the complete rerun); the full suite passed 719
+  of 719; the Release build succeeded with no warnings.
+- Baseline: the transition check ran with its recorded scope unchanged, as a
+  restart of this revision's native 10.10.0 target image over its own state
+  (#215 introduced it for 10.9.0; #226 moved the binding). No transition source
+  is listed.
+
 ## Evidence limits and history
 
 No-effect native success still refuses stable completion. Terminal labels do
