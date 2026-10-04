@@ -248,11 +248,13 @@ public sealed class DirectTargetRunTests
 
     [Test]
     [Arguments("precheck-deadline")]
+    [Arguments("force-deadline")]
+    [Arguments("force-cancel")]
     [Arguments("waiting-deadline")]
     [Arguments("waiting-cancel")]
     public async Task OneStopBudgetCoversPrecheckForceAndWaiting(string end)
     {
-        await using var target = new StockTarget { StallAt = end == "precheck-deadline" ? "run/status" : null };
+        await using var target = new StockTarget { StallAt = end switch { "precheck-deadline" => "run/status", "force-deadline" or "force-cancel" => "run/force", _ => null } };
         target.Projections.Enqueue(Stopping());
         target.Projections.Enqueue(null); // The wait after force never answers.
         var clock = new FakeTimeProvider();
@@ -263,7 +265,7 @@ public sealed class DirectTargetRunTests
         clock.Advance(DirectTargetLimits.Stop - TimeSpan.FromMilliseconds(1));
         await Task.Delay(20);
         await Assert.That(stop.IsCompleted).IsFalse();
-        if (end == "waiting-cancel")
+        if (end is "force-cancel" or "waiting-cancel")
         {
             caller.Cancel();
             await Assert.That(async () => await stop).Throws<OperationCanceledException>();
