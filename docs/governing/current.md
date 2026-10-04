@@ -170,8 +170,9 @@ differing. #217 moves the run reader and stopper onto the same SDK client:
 inspection is one bounded status read, completion waits through the SDK's
 `Run.WaitAsync` instead of client polling, and the configured root reaches every
 connection through the SDK's `TrustedRootCertificatePath`. No ambient proxy is a
-deployment assumption: Broodling's container must not define proxy variables. #219 witnesses that asset's stock
-PR readiness, repair and feedback contract against controlled forge scenarios
+deployment assumption: Broodling's container must not define proxy variables.
+#219 witnesses that asset's stock PR readiness, repair and feedback contract
+against controlled forge scenarios
 ([witness](../../tests/README.md#pr-readiness-repair-and-feedback)), and the
 status reader now drops native's workspace-recovery facts on failed runs.
 The Compose installation

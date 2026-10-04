@@ -88,7 +88,7 @@ surface:
 
 | DirectTarget outcome | Result after committed abandonment |
 | --- | --- |
-| Terminal result from force or its polling | `CessationUnconfirmed` with `NativeStopRequested = true`; still no physical cessation proof |
+| Terminal result from force or the wait that follows it | `CessationUnconfirmed` with `NativeStopRequested = true`; still no physical cessation proof |
 | No force sent (unknown, foreign, malformed or unavailable precheck; setup failure) | `CessationUnconfirmed` with `NativeStopRequested = false` and the fixed kind in its message |
 | Force possibly sent, outcome uncertain (timeout, transport loss, malformed reply) | `NativeTransportError` with the fixed kind, such as `TimeoutError` |
 | Caller cancellation | `OperationCanceledException` |
