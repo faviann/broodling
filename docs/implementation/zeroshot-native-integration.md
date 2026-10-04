@@ -99,7 +99,7 @@ placement remain unsupported.
 ## Approved DirectTarget execution asset
 
 The HTTP DirectTarget path (#163) submits one release-bundled graph/runtime,
-[`execution-assets/software-change-pr-codex-gateway-10.10.0.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway-10.10.0.json):
+[`execution-assets/software-change-pr-codex-gateway.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway.json):
 native 10.10.0's stock `software-change` template with `pull_request` delivery
 (#214; #226 regenerated the same bytes with 10.10.0). Its identity is the
 SHA-256 of the exact file bytes, formatting included:

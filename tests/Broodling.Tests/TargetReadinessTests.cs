@@ -245,7 +245,7 @@ public sealed class TargetReadinessTests
         foreach (var name in new[] { "privateBootstrapPath", "oauth", "loginSession" }) fixture.Discovery[name] = null;
         fixture.Discovery["extensions"] = new JsonObject();
         await Assert.That((await fixture.Check()).Ready).IsTrue();
-        // Native 10.10.0 advertises capabilities this controller does not use.
+        // Native advertises capabilities this controller does not use.
         using var advertising = new ReadinessFixture();
         advertising.Discovery["extensions"] = JsonNode.Parse("""
             {"run_history":{"kind":"zeroshot.run-history/v1","baseUrl":"https://zeroshot.dev.faviann.com"},

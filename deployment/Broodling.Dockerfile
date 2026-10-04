@@ -36,7 +36,7 @@ RUN --mount=type=secret,id=nuget-github,required=true \
 RUN --mount=type=bind,from=native,source=/zeroshot.tar.gz,target=/tmp/zeroshot.tar.gz \
     tar -xzf /tmp/zeroshot.tar.gz -C /tmp zeroshot \
     && src/Broodling/execution-assets/generate.sh /tmp/zeroshot /tmp/execution-asset.json \
-    && cmp /tmp/execution-asset.json /app/execution-assets/software-change-pr-codex-gateway-10.10.0.json \
+    && cmp /tmp/execution-asset.json /app/execution-assets/software-change-pr-codex-gateway.json \
     && cmp src/Broodling/execution-assets/approval.json /app/execution-assets/approval.json \
     && rm /tmp/zeroshot /tmp/execution-asset.json
 

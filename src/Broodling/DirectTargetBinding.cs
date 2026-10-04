@@ -17,10 +17,10 @@ internal static class DirectTargetBinding
     internal const string NativeExecutableSha256 = "d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e";
     /// <summary>The release archive's restic, which native run allocation requires beside the executable.</summary>
     internal const string ResticExecutableSha256 = "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf";
-    internal const string AssetFile = "software-change-pr-codex-gateway-10.10.0.json";
+    internal const string AssetFile = "software-change-pr-codex-gateway.json";
     internal const string AssetSha256 = "258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc";
     /// <summary>SHA-256 of the exact reviewed approval manifest, execution-assets/approval.json.</summary>
-    internal const string ApprovalSha256 = "f643242fc40cc7f61378aca7500e57ff325d7788136a0180fced518f32a5efe0";
+    internal const string ApprovalSha256 = "22416ed8020481a7c99398522c0425a5ad1fa5d87f174f17946b704bfb220d05";
 
     /// <summary>The native identity as the approval manifest and a retained HTTP binding record it.</summary>
     internal static JsonObject Native() => new()

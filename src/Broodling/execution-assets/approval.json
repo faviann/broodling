@@ -3,11 +3,11 @@
   "approval": {
     "issue": "https://github.com/faviann/broodling/issues/226",
     "decision": "https://github.com/faviann/zeroshot-dotnet-sdk/issues/10#issuecomment-5850866440",
-    "candidate": "https://github.com/faviann/broodling/issues/226",
+    "candidate": "https://github.com/faviann/broodling/issues/214",
     "review": "Approved after verifying, as for 10.9.0 (#215), that native 10.10.0 regenerates the same bytes: the v10.10.0 tag names the pinned source commit and the release SHA256SUMS lists the archive; the archive yields both pinned executables; generate.sh reproduces these exact bytes twice in clean environments and native admits them with an exact round trip; the structure below, read from the bytes by describe.py, matches the decision: six executable nodes, builtin.git-delivery.pr@2 with the v2/pr receipt (ready, ci_failed, conflict, repair_required) whose non-ready outcomes route to delivery_repair, the 10-iteration change loop, no node deadlines, gateway connections on every agent node, GH_TOKEN only on delivery, and the default consider pull-request feedback."
   },
   "asset": {
-    "file": "software-change-pr-codex-gateway-10.10.0.json",
+    "file": "software-change-pr-codex-gateway.json",
     "bytes": 79660,
     "sha256": "258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc"
   },
