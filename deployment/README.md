@@ -573,6 +573,13 @@ restarting Broodling. A missing or unreadable file fails only
 that operation, as a transport failure; a dispatch fails before recording any
 dispatch intent. `check-target` trusts this same file for its discovery.
 
+DirectTarget connections use .NET's default proxy behaviour. Broodling's
+container, and any host running `check-target` or the CLI against the target,
+must not define proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` or
+their lowercase forms): a proxy would receive the connections, including
+dispatch credentials. This is a deployment assumption that Broodling does not
+check.
+
 The no-effect LocalTarget alternative uses the SDK bridge:
 
 ```json

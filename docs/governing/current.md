@@ -164,9 +164,13 @@ restarts the candidate image over its own native state, and transitions are
 established only within one native release. #216 submits and explicitly replays
 the retained request through the pinned `Zeroshot.Client` 0.1.0-preview.1 SDK, one
 attempt with current credentials and no automatic resend; Broodling keeps the
-durable facts, and the run reader and stopper keep their own transport for now.
-#226 moved the binding to native 10.10.0 and `Zeroshot.Client` 0.2.0-preview.1;
-an Attempt retained with the 10.9.0 binding refuses as differing. #219 witnesses that asset's stock
+durable facts. #226 moved the binding to native 10.10.0 and `Zeroshot.Client`
+0.2.0-preview.1; an Attempt retained with the 10.9.0 binding refuses as
+differing. #217 moves the run reader and stopper onto the same SDK client:
+inspection is one bounded status read, completion waits through the SDK's
+`Run.WaitAsync` instead of client polling, and the configured root reaches every
+connection through the SDK's `TrustedRootCertificatePath`. No ambient proxy is a
+deployment assumption: Broodling's container must not define proxy variables. #219 witnesses that asset's stock
 PR readiness, repair and feedback contract against controlled forge scenarios
 ([witness](../../tests/README.md#pr-readiness-repair-and-feedback)), and the
 status reader now drops native's workspace-recovery facts on failed runs.

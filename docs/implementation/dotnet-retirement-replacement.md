@@ -79,7 +79,7 @@ An HTTP (`http.v1`) record routes on its retained format, ignores any bridge
 transport and needs no enclosure, credentials or source custody. A prepared
 record makes no target contact and keeps the `no_dispatch_intent` path below.
 Dispatch intent uses one 30-second
-[DirectTarget stop](zeroshot-native-integration.md#directtarget-run-status-reader).
+[DirectTarget stop](zeroshot-native-integration.md#directtarget-run-reader-and-stopper).
 A correlated record forces its confirmed run. A dispatched but unacknowledged
 record first reads its intended run ID. Force is sent only when the projection
 matches the retained ID, title, repository, branch, B1 and size. Neither the
