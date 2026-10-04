@@ -4,9 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- packages.lock.json records each package's content hash: restore refuses other bytes for the
-         adopted Zeroshot.Client (tests/README.md#sdk-adoption). -->
+    <!-- packages.lock.json records each package's version and content hash; every restore refuses
+         other bytes for a locked package (NU1403). A CI build (the Broodling image build) restores in
+         locked mode and also refuses a lock file that no longer matches these references (NU1004);
+         a local restore rewrites it instead (tests/README.md#sdk-adoption). -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
   </PropertyGroup>
 
   <ItemGroup>
