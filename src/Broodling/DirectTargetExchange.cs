@@ -118,11 +118,6 @@ internal static class DirectTargetExchange
     internal static bool Shape(JsonElement value, string[] required, string[] optional) =>
         value.ValueKind == JsonValueKind.Object && required.All(name => value.TryGetProperty(name, out _))
         && value.EnumerateObject().All(property => required.Contains(property.Name) || optional.Contains(property.Name));
-
-    /// <summary>A string property's value; anything else is an invalid response.</summary>
-    internal static string Text(JsonElement value, string name) =>
-        value.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String
-            ? field.GetString()! : throw new NativeTransportError("invalid_response");
 }
 
 /// <summary>The selected stock discovery document; it confirms protocol shape, not native or image identity.</summary>
