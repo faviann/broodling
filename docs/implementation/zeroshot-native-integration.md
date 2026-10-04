@@ -59,7 +59,7 @@ dispatch credentials and the approved asset policy require it.
 is the asset's.
 
 Submission (#216), the run reader and the stopper (#217) go through the pinned
-[Zeroshot.Client](https://github.com/faviann/zeroshot-dotnet-sdk) `0.2.0-preview.1`
+[Zeroshot.Client](https://github.com/faviann/zeroshot-dotnet-sdk) `10.10.0.1-preview.1`
 SDK, an exact version whose package bytes `packages.lock.json` fixes; the
 [adoption record](../../tests/README.md#sdk-adoption) identifies it and the
 Broodling-owned evidence that accepted it (#220).

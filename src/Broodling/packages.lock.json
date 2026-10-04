@@ -15,9 +15,9 @@
       },
       "Zeroshot.Client": {
         "type": "Direct",
-        "requested": "[0.2.0-preview.1, 0.2.0-preview.1]",
-        "resolved": "0.2.0-preview.1",
-        "contentHash": "PB2eTaN5R58rp4gUHsLDk32deCh11o4Y4gVTYfcPZnzBAJsY0/yVM3qbIsnpqyiP03K0KEWDqlhvVGK2D9b88A==",
+        "requested": "[10.10.0.1-preview.1, 10.10.0.1-preview.1]",
+        "resolved": "10.10.0.1-preview.1",
+        "contentHash": "m2+uSkQbhLCDDEdQ3Y397BFgwM1IKNYO3BSnMkMsje0Jr0GSTNAxXW0/HEdHTj5EkXYhxNOI5OmcbfWsmGvxXg==",
         "dependencies": {
           "JsonSchema.Net": "9.4.0"
         }
