@@ -169,7 +169,10 @@ durable facts. #226 moved the binding to native 10.10.0 and `Zeroshot.Client`
 differing. #217 moves the run reader and stopper onto the same SDK client:
 inspection is one bounded status read, completion waits through the SDK's
 `Run.WaitAsync` instead of client polling, and the configured root reaches every
-connection through the SDK's `TrustedRootCertificatePath`. No ambient proxy is a
+connection through the SDK's `TrustedRootCertificatePath`. #220 records
+Broodling's [adoption](../../tests/README.md#sdk-adoption) of that exact package:
+a lock file fixes its bytes, and Broodling's own lane, rerun for every SDK
+upgrade, gates adoption, not SDK publication. No ambient proxy is a
 deployment assumption: Broodling's container must not define proxy variables.
 #219 witnesses that asset's stock PR readiness, repair and feedback contract
 against controlled forge scenarios

@@ -27,9 +27,10 @@ WORKDIR /source
 COPY nuget.config ./
 COPY src/Broodling/ src/Broodling/
 COPY src/Broodling.Host/ src/Broodling.Host/
+# A CI build: the application library restores in locked mode from its packages.lock.json.
 RUN --mount=type=secret,id=nuget-github,required=true \
     NuGetPackageSourceCredentials_github="$(cat /run/secrets/nuget-github)" \
-    dotnet publish src/Broodling.Host --configuration Release --output /app
+    dotnet publish src/Broodling.Host --configuration Release --output /app -p:ContinuousIntegrationBuild=true
 # The published output must carry the approved execution asset, or HTTP preparation refuses. The
 # pinned native regenerates it with Zeroshot's own tooling and admits it (generate.sh); the published
 # bytes must equal what it produced, and the published approval must be the reviewed one.
