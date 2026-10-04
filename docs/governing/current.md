@@ -72,8 +72,8 @@ Source: [admission/delivery policy](../../src/Broodling/Closability.cs),
 The supported source/release profile is single-host Linux x86-64, .NET 10 /
 ASP.NET Core, SQLite through Microsoft.Data.Sqlite, Git and Codex 0.153.4. The
 authorized-PR path talks HTTP/OECP to the stock `zeroshot target serve` of an
-operator-managed DirectTarget running native Zeroshot 10.9.0 (#215). It submits
-the release-bundled approved execution asset (native 10.9.0's standard
+operator-managed DirectTarget running native Zeroshot 10.10.0 (#215, #226). It submits
+the release-bundled approved execution asset (native 10.10.0's standard
 `software-change` PR workflow with one uniform Codex / `gateway` /
 `gpt-5.6-sol` / medium-effort runtime and native's default `consider` PR
 feedback) and uses exactly `https://cliproxy.local.faviann.com/v1`. It needs no
@@ -164,7 +164,9 @@ restarts the candidate image over its own native state, and transitions are
 established only within one native release. #216 submits and explicitly replays
 the retained request through the pinned `Zeroshot.Client` 0.1.0-preview.1 SDK, one
 attempt with current credentials and no automatic resend; Broodling keeps the
-durable facts, and the run reader and stopper keep their own transport for now. #219 witnesses that asset's stock
+durable facts, and the run reader and stopper keep their own transport for now.
+#226 moved the binding to native 10.10.0 and `Zeroshot.Client` 0.2.0-preview.1;
+an Attempt retained with the 10.9.0 binding refuses as differing. #219 witnesses that asset's stock
 PR readiness, repair and feedback contract against controlled forge scenarios
 ([witness](../../tests/README.md#pr-readiness-repair-and-feedback)), and the
 status reader now drops native's workspace-recovery facts on failed runs.

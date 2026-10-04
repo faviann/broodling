@@ -1,25 +1,25 @@
 {
   "kind": "broodling.execution-asset-approval/v1",
   "approval": {
-    "issue": "https://github.com/faviann/broodling/issues/215",
+    "issue": "https://github.com/faviann/broodling/issues/226",
     "decision": "https://github.com/faviann/zeroshot-dotnet-sdk/issues/10#issuecomment-5850866440",
     "candidate": "https://github.com/faviann/broodling/issues/214",
-    "review": "Approved after verifying: the v10.9.0 tag names the pinned source commit and the release SHA256SUMS lists the archive; the archive yields both pinned executables; generate.sh reproduces these exact bytes twice in clean environments and native admits them with an exact round trip; the structure below, read from the bytes by describe.py, matches the decision: six executable nodes, builtin.git-delivery.pr@2 with the v2/pr receipt (ready, ci_failed, conflict, repair_required) whose non-ready outcomes route to delivery_repair, the 10-iteration change loop, no node deadlines, gateway connections on every agent node, GH_TOKEN only on delivery, and the default consider pull-request feedback."
+    "review": "Approved after verifying, as for 10.9.0 (#215), that native 10.10.0 regenerates the same bytes: the v10.10.0 tag names the pinned source commit and the release SHA256SUMS lists the archive; the archive yields both pinned executables; generate.sh reproduces these exact bytes twice in clean environments and native admits them with an exact round trip; the structure below, read from the bytes by describe.py, matches the decision: six executable nodes, builtin.git-delivery.pr@2 with the v2/pr receipt (ready, ci_failed, conflict, repair_required) whose non-ready outcomes route to delivery_repair, the 10-iteration change loop, no node deadlines, gateway connections on every agent node, GH_TOKEN only on delivery, and the default consider pull-request feedback."
   },
   "asset": {
-    "file": "software-change-pr-codex-gateway-10.9.0.json",
+    "file": "software-change-pr-codex-gateway.json",
     "bytes": 79660,
     "sha256": "258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc"
   },
   "native": {
-    "version": "zeroshot 10.9.0",
-    "sourceRevision": "75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa",
-    "linuxX64ExecutableSha256": "f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94",
+    "version": "zeroshot 10.10.0",
+    "sourceRevision": "3ee1192cec359a0b997f464e703a936e8b67d63c",
+    "linuxX64ExecutableSha256": "d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e",
     "release": {
       "repository": "the-open-engine/zeroshot",
-      "tag": "v10.9.0",
-      "archive": "zeroshot-v10.9.0-x86_64-unknown-linux-musl.tar.gz",
-      "archiveSha256": "ca7305a0a165f3909481ccfcccce367d3bc2c40a9ab65760f6d6cad2a38d002d",
+      "tag": "v10.10.0",
+      "archive": "zeroshot-v10.10.0-x86_64-unknown-linux-musl.tar.gz",
+      "archiveSha256": "fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16",
       "resticLinuxX64ExecutableSha256": "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf"
     }
   },

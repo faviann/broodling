@@ -37,7 +37,7 @@ dotnet build Broodling.sln --configuration Release
 `BROODLING_TEST_PYTHON` can point to an existing pinned SDK environment shared
 across worktrees; its default is the repository's `.venv/bin/python`.
 Missing SDK/native dependencies fail rather than skip.
-The asset check downloads the DirectTarget binding's pinned native 10.9.0 Linux
+The asset check downloads the DirectTarget binding's pinned native 10.10.0 Linux
 x86-64 release archive from GitHub into `native-releases/` under the test workspace root (below)
 when it is absent there, and fails without that access. A cached archive is
 verified by checksum and needs no network.
@@ -118,10 +118,10 @@ readiness case on actual images inspects only its own disposable stack.
 
 ## Controlled stock DirectTarget witness
 
-`StockDirectTargetTests` runs the selected unmodified native: `zeroshot 10.9.0`
-(source `75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa`, Linux x86-64 executable
-SHA-256 `f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94`) from
-the pinned `v10.9.0` release archive, as `zeroshot target serve` inside the
+`StockDirectTargetTests` runs the selected unmodified native: `zeroshot 10.10.0`
+(source `3ee1192cec359a0b997f464e703a936e8b67d63c`, Linux x86-64 executable
+SHA-256 `d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e`) from
+the pinned `v10.10.0` release archive, as `zeroshot target serve` inside the
 actual DirectTarget image, with the approved asset
 `sha256:258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc`. Only
 the [controlled provider and forge](fixtures/README.md#controlled-stock-directtarget)
@@ -157,7 +157,7 @@ observes and consumes:
   native execution environment's read, not Compose service-name networking
   (homelab-iac#353).
 
-Native 10.9.0 acknowledges a submission once it has recorded the run, then
+Native 10.10.0 acknowledges a submission once it has recorded the run, then
 prepares the execution environment, including the checkout, in the background.
 A missing B1 therefore fails the correlated run rather than the send, and a
 slow real fetch no longer holds the 60-second submit budget.

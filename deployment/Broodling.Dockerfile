@@ -16,8 +16,8 @@
 # execution-assets/approval.json), the one the DirectTarget image installs. This pin is independent
 # of the LocalTarget bridge's SDK wheel in bridge/requirements.txt.
 FROM scratch AS native
-ADD --checksum=sha256:ca7305a0a165f3909481ccfcccce367d3bc2c40a9ab65760f6d6cad2a38d002d \
-    https://github.com/the-open-engine/zeroshot/releases/download/v10.9.0/zeroshot-v10.9.0-x86_64-unknown-linux-musl.tar.gz /zeroshot.tar.gz
+ADD --checksum=sha256:fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16 \
+    https://github.com/the-open-engine/zeroshot/releases/download/v10.10.0/zeroshot-v10.10.0-x86_64-unknown-linux-musl.tar.gz /zeroshot.tar.gz
 
 # The same Ubuntu 24.04 as the runtime stage, so libbroodling_git.so links against its libc.
 FROM mcr.microsoft.com/dotnet/sdk:10.0.401-noble@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
@@ -36,7 +36,7 @@ RUN --mount=type=secret,id=nuget-github,required=true \
 RUN --mount=type=bind,from=native,source=/zeroshot.tar.gz,target=/tmp/zeroshot.tar.gz \
     tar -xzf /tmp/zeroshot.tar.gz -C /tmp zeroshot \
     && src/Broodling/execution-assets/generate.sh /tmp/zeroshot /tmp/execution-asset.json \
-    && cmp /tmp/execution-asset.json /app/execution-assets/software-change-pr-codex-gateway-10.9.0.json \
+    && cmp /tmp/execution-asset.json /app/execution-assets/software-change-pr-codex-gateway.json \
     && cmp src/Broodling/execution-assets/approval.json /app/execution-assets/approval.json \
     && rm /tmp/zeroshot /tmp/execution-asset.json
 
