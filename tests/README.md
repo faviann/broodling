@@ -342,8 +342,11 @@ publication and does not make a Broodling revision part of the SDK's release.
 
 [`Broodling.csproj`](../src/Broodling/Broodling.csproj) references one exact
 version, written `[VERSION]`, and its [`packages.lock.json`](../src/Broodling/packages.lock.json)
-records the package's NuGet content hash (SHA-512). Restore, including the
-Broodling image build, then refuses other bytes under that version with `NU1403`.
+records its NuGet content hash (SHA-512). Every restore refuses other bytes under
+that version with `NU1403`. The Broodling image build is a CI build
+(`ContinuousIntegrationBuild`), so its restore runs in locked mode and also
+refuses a lock file that no longer matches the references (`NU1004`); a local
+restore rewrites a stale lock file instead.
 
 ### Adoption lane
 
@@ -375,24 +378,34 @@ dotnet build Broodling.sln --configuration Release
 | Approved asset and native identity; fresh-store definition | `ExecutionAssetTests`, `ApplicationSchemaFreezeTests`, `StoreLifecycleTests` |
 
 Every record in these tests is created fresh under the current contract.
-Submission, status, wait and stop go only through
+For HTTP DirectTarget Attempts, submission, status, wait and stop go only through
 [`DirectTargetClient`](../src/Broodling/DirectTargetClient.cs); readiness
-discovery alone is a plain HTTP read, over the SDK's handler.
+discovery alone is a plain HTTP read, over the SDK's handler. The LocalTarget
+cases in these classes, such as `NativeObservationTests`' `ZeroshotTransport`
+cases and the `ControlledTransport` cases in `DispatchProcessTests`,
+`RetirementProcessTests` and `InvocationTests`, run through the bridge and are
+not adoption evidence.
 
 ### Upgrading the SDK
 
 To adopt another `Zeroshot.Client` version, in one change: set the exact
 version in `Broodling.csproj`, regenerate `packages.lock.json` by restoring,
-confirm that the restored `.nupkg` SHA-256 equals the SDK's own publication
-record for that version, adapt Broodling to it, run the lane, the full suite and
+confirm that the restored `.nupkg` SHA-256 equals `expectedSha256` and
+`servedSha256` in the SDK's publication record for that version, adapt Broodling to it, run the lane, the full suite and
 the Release build, and replace the record below. A new native release or asset
 also changes the binding and its approval; see the
 [native integration](../docs/implementation/zeroshot-native-integration.md#pinned-dependencies-and-bridge).
-Never refresh the lock file alone to make a restore pass.
+Never refresh the lock file alone to make a restore pass. The publication
+record is `publication.json` in the `publication` artifact of the
+qualification run for the SDK's version tag in `faviann/zeroshot-dotnet-sdk`:
+
+```bash
+gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
+```
 
 ### Current adoption record
 
-- Tested code revision: `838bc34fdc01a3de151759a8279e1a2275a65027`. Later
+- Tested code revision: `6f5e79d9fd6f2a47e343c0043974dcc809afb972`. Later
   commits that only edit this record or other documentation leave it valid; a
   code change requires a new run.
 - SDK: `Zeroshot.Client` `0.2.0-preview.1` from
@@ -417,16 +430,16 @@ Never refresh the lock file alone to make a restore pass.
 - Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.8.1, the
   transition check building this revision's target image: the lane passed 273 of
   273; the full suite passed 719 of 719; the Release build succeeded with no
-  warnings. The host ran at load average 40 to 55 from unrelated work. Other
-  lane runs of the same code each had one to five bounded waits time out
-  (`CompletionObserverTests`, `DirectTargetTrustTests`, one
-  `DispatchProcessTests` progress read), and one full-suite run hung in an
-  actual-image stack test and was stopped; each failed class passed when rerun,
-  and the full suite passed again.
+  warnings. The host was heavily loaded by unrelated work; on earlier runs
+  some bounded-wait classes timed out and passed on rerun, and the full suite
+  passed.
 - Baseline: the transition check ran with its recorded scope unchanged, as a
   restart of this revision's native 10.10.0 target image over its own state
   (#215 introduced it for 10.9.0; #226 moved the binding). No transition source
-  is listed.
+  is listed. In CI, the Images workflow run `37224685689` at the tested revision
+  built the Broodling image with the locked restore, then passed
+  `TargetImageTransitionTests` and `ApplicationSchemaFreezeTests` (2 of 2)
+  against the candidate target image.
 
 ## Evidence limits and history
 
