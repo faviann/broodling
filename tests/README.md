@@ -416,9 +416,13 @@ Never refresh the lock file alone to make a restore pass.
   from nothing. The version is not yet frozen.
 - Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.8.1, the
   transition check building this revision's target image: the lane passed 273 of
-  273 (a first run under load average 48 timed out three `CompletionObserverTests`
-  waits, which passed alone and in the complete rerun); the full suite passed 719
-  of 719; the Release build succeeded with no warnings.
+  273; the full suite passed 719 of 719; the Release build succeeded with no
+  warnings. The host ran at load average 40 to 55 from unrelated work. Other
+  lane runs of the same code each had one to five bounded waits time out
+  (`CompletionObserverTests`, `DirectTargetTrustTests`, one
+  `DispatchProcessTests` progress read), and one full-suite run hung in an
+  actual-image stack test and was stopped; each failed class passed when rerun,
+  and the full suite passed again.
 - Baseline: the transition check ran with its recorded scope unchanged, as a
   restart of this revision's native 10.10.0 target image over its own state
   (#215 introduced it for 10.9.0; #226 moved the binding). No transition source
