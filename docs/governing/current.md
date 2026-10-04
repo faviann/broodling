@@ -72,8 +72,8 @@ Source: [admission/delivery policy](../../src/Broodling/Closability.cs),
 The supported source/release profile is single-host Linux x86-64, .NET 10 /
 ASP.NET Core, SQLite through Microsoft.Data.Sqlite, Git and Codex 0.153.4. The
 authorized-PR path talks HTTP/OECP to the stock `zeroshot target serve` of an
-operator-managed DirectTarget running native Zeroshot 10.9.0 (#215). It submits
-the release-bundled approved execution asset (native 10.9.0's standard
+operator-managed DirectTarget running native Zeroshot 10.10.0 (#215, #226). It submits
+the release-bundled approved execution asset (native 10.10.0's standard
 `software-change` PR workflow with one uniform Codex / `gateway` /
 `gpt-5.6-sol` / medium-effort runtime and native's default `consider` PR
 feedback) and uses exactly `https://cliproxy.local.faviann.com/v1`. It needs no

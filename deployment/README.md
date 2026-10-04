@@ -107,7 +107,7 @@ python3 -m venv /CHOSEN/NEW/bridge-venv
 ```
 
 This keeps the exact official SDK **10.3.0.post1** wheel URL and SHA-256. Its
-bundled native is **10.3.0**, separate from the DirectTarget's native 10.9.0;
+bundled native is **10.3.0**, separate from the DirectTarget's native 10.10.0;
 Codex is still **0.153.4**. The application refuses
 different SDK/native versions. There is no Python Broodling package, installer
 or importable proposer. Protect and retain the selected release and dependency
@@ -134,13 +134,13 @@ docker build -f deployment/DirectTarget.Dockerfile -t broodling-target:REVIEWED_
 tests/images/demonstrate.sh broodling:REVIEWED_REVISION broodling-target:REVIEWED_REVISION
 ```
 
-Both builds fetch the official Zeroshot `v10.9.0` Linux x86-64 musl release
+Both builds fetch the official Zeroshot `v10.10.0` Linux x86-64 musl release
 archive by its pinned SHA-256
-`ca7305a0a165f3909481ccfcccce367d3bc2c40a9ab65760f6d6cad2a38d002d`, the
+`fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16`, the
 [DirectTarget binding](../docs/implementation/zeroshot-native-integration.md#pinned-dependencies-and-bridge)
-`zeroshot 10.9.0`, source `75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa`. The
+`zeroshot 10.10.0`, source `3ee1192cec359a0b997f464e703a936e8b67d63c`. The
 Broodling build uses only its `zeroshot` executable, SHA-256
-`f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94`, to verify
+`d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e`, to verify
 the asset. The DirectTarget image installs that executable and the archive's
 `restic`, SHA-256
 `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, which native
@@ -294,7 +294,7 @@ read-only public root.
   completion replay, and an agent reading frozen references through the installed
   helper from a real reader. It is not production topology (homelab-iac#353), a
   real GitHub PR or provider quality evidence.
-- Submit timing: native 10.9.0 acknowledges a run once recorded and checks out
+- Submit timing: native 10.10.0 acknowledges a run once recorded and checks out
   exact B1 afterwards, so a slow real fetch does not hold Broodling's fixed
   60-second submit budget and an unavailable B1 fails the correlated run. A send
   whose reply is lost stays unresolved until an exact replay, which converges on
@@ -373,9 +373,9 @@ release establishes exactly these:
 - keeping the deployed target image, which changes no native state.
 
 Transitions are established only within one native release, the DirectTarget
-binding's, so a listed image must carry this revision's native `zeroshot 10.9.0`,
+binding's, so a listed image must carry this revision's native `zeroshot 10.10.0`,
 executable SHA-256
-`f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94`. The list is
+`d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e`. The list is
 empty: #215 replaced the initial native, asset, receipt and store definition, and
 removed the two native 10.3.0 `sha-` candidates published from `main` since #121
 (`sha-ae6fe2baa1beffe083683bddb6ce8cced5eecfc9`,
@@ -383,8 +383,10 @@ removed the two native 10.3.0 `sha-` candidates published from `main` since #121
 `sha-47b4e4b86b1f6ca9af9a1dafae8f34ccc6e4980a`,
 `@sha256:a17d56177d3794eaf19bf22f2040b5b41cac3faf28f52cf08dd43da79a5d645f`). No
 transition from those images, to or from another native version, or from an
-unlisted image is established; their state is not carried forward. Adding a
-published 10.9.0 image to the list is a reviewed change that the next workflow
+unlisted image is established; their state is not carried forward. #226 moved
+the binding to native 10.10.0, so the target images published from `main` with
+native 10.9.0 are not sources either. Adding a
+published 10.10.0 image to the list is a reviewed change that the next workflow
 run checks.
 
 Before publishing, the images workflow runs the
@@ -697,7 +699,7 @@ dispatches zero provider tasks.
 
 The [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
 target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
-**2.101.0** and the native **10.9.0** `zeroshot` and `restic` hashes. Its build
+**2.101.0** and the native **10.10.0** `zeroshot` and `restic` hashes. Its build
 context is `deployment/`; it fetches both from the pinned release archive itself.
 The [images workflow](#publication-and-release-records) builds and publishes
 it. Target provisioning is operator-owned and separately authorized; nothing

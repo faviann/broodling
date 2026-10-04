@@ -49,7 +49,7 @@ HTTP Attempt's Prepared submission is bound to. It leaves the no-effect LocalTar
 bridge, its Python environment and its retained `local` locators unchanged;
 `NativeTransportTests` ties the bridge dependency file to the handshake SDK.
 The pins name different natives: the bridge keeps SDK 10.3.0.post1 and its
-bundled `zeroshot 10.3.0`, while the DirectTarget binding is `zeroshot 10.9.0`
+bundled `zeroshot 10.3.0`, while the DirectTarget binding is `zeroshot 10.10.0`
 from its official release archive.
 The target image's Codex is likewise its own readiness pin, apart from the
 LocalTarget host's `CodexProfile`. The gateway URL remains one shared constant:
@@ -59,7 +59,7 @@ dispatch credentials and the approved asset policy require it.
 is the asset's.
 
 Submission (#216) goes through the pinned
-[Zeroshot.Client](https://github.com/faviann/zeroshot-dotnet-sdk) `0.1.0-preview.1`
+[Zeroshot.Client](https://github.com/faviann/zeroshot-dotnet-sdk) `0.2.0-preview.1`
 SDK. [`DirectTargetClient`](../../src/Broodling/DirectTargetClient.cs) is
 Broodling's one thin configuration of it: the SDK's supported HTTP handler with
 Broodling's TLS trust and no proxy, bound to the DirectTarget binding's native
@@ -75,7 +75,7 @@ The bridge uses the official
 whose Linux x86-64 wheel bundles native 10.3.0; its exact URL and SHA-256 are in
 [bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt). The
 DirectTarget uses the official
-[v10.9.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.9.0)'s
+[v10.10.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.10.0)'s
 Linux x86-64 musl archive; its URL and SHA-256 are in the two image recipes and
 the approval manifest's `native.release`.
 
@@ -99,18 +99,19 @@ placement remain unsupported.
 ## Approved DirectTarget execution asset
 
 The HTTP DirectTarget path (#163) submits one release-bundled graph/runtime,
-[`execution-assets/software-change-pr-codex-gateway-10.9.0.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway-10.9.0.json):
-native 10.9.0's stock `software-change` template with `pull_request` delivery
-(#214). Its identity is the SHA-256 of the exact file bytes, formatting included:
+[`execution-assets/software-change-pr-codex-gateway-10.10.0.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway-10.10.0.json):
+native 10.10.0's stock `software-change` template with `pull_request` delivery
+(#214; #226 regenerated the same bytes with 10.10.0). Its identity is the
+SHA-256 of the exact file bytes, formatting included:
 `258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc` (79,660
 bytes). This identity is Broodling's approval. It is not a stock `profileId` or a
 native digest. The [approval manifest](../../src/Broodling/execution-assets/approval.json)
 (#215) records the review that approved it and binds:
 
 - The asset's bytes and SHA-256.
-- Native `zeroshot 10.9.0` from source `75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa`,
-  the Linux x86-64 executable `f39952b9…2fad94`, and the official `v10.9.0`
-  musl release archive (`ca7305a0…d002d`) with its `restic` executable
+- Native `zeroshot 10.10.0` from source `3ee1192cec359a0b997f464e703a936e8b67d63c`,
+  the Linux x86-64 executable `d0c84ffb…bb923e`, and the official `v10.10.0`
+  musl release archive (`fbc13b23…28d6f16`) with its `restic` executable
   (`90ab22a5…8a8cf`).
 - The policy: Codex / `gateway` / `gpt-5.6-sol` / medium / small / execution
   sessions, the symbolic `gateway` connection on every agent node, native's
@@ -283,7 +284,7 @@ conflict; it carries no run ID and nothing is adopted from it. Other valid
 problems are `TargetError`; a malformed reply is `invalid_response`. Timeouts, cancellation,
 caller death and every refusal preserve the existing facts, so the intent stays
 unresolved and exact replay remains available while the Attempt is current.
-Native 10.9.0 acknowledges once it has recorded the run and prepares the
+Native 10.10.0 acknowledges once it has recorded the run and prepares the
 execution environment, including the checkout of exact B1, afterwards; a
 missing B1 fails that correlated run. A lost reply or a target error after the
 run was recorded leaves the intent unresolved, and an exact replay returns the
@@ -436,7 +437,7 @@ response bytes. Discovery accepts only the stock
 `zeroshot.native-v2-target/v2` document with `authentication: none`, `audience:
 controller` and the exact run, session and OECP routes. `privateBootstrapPath`,
 `oauth` and `loginSession` may only be absent or null, and `extensions` absent
-or an object, whose optional capabilities (native 10.9.0 advertises run history
+or an object, whose optional capabilities (native 10.10.0 advertises run history
 and workspace recovery/checkpoints) this controller ignores. Any other field refuses as an unsupported runtime. Discovery confirms
 protocol shape. It does not attest native or image bytes or durable target state.
 
@@ -454,7 +455,7 @@ absent or null `bearerToken`. The endpoint must equal the origin's paired
 `ws`/`wss` authority plus `/native-v2/oecp`, and is checked before connecting.
 The WebSocket upgrade uses the same redirect-, proxy- and cookie-free handler.
 `initialize` must return the pinned stock reply exactly. At native revision
-`75ae54b6` that reply is constant: the full graph profile, logs, agent attach and
+`3ee1192c` that reply is constant: the full graph profile, logs, agent attach and
 an empty controller status. The stock controller reports that status for every
 connection, and neither the session nor initialization proves that the run exists.
 
@@ -464,7 +465,7 @@ outstanding JSON-RPC request with string IDs. A reply must be exactly
 Batches, notifications, stale or wrong IDs and unknown envelope fields refuse.
 The projection must be exactly `{runId, title, source, size, atCursor, status}`,
 with run, title, size, repository, branch and B1 equal to the binding, plus
-native's optional `workspaceRecovery`. Native 10.9.0 adds it to a run that
+native's optional `workspaceRecovery`. Native 10.10.0 adds it to a run that
 failed with a retained workspace, such as repair exhaustion or a refused PR
 identity. It is validated (`recoverable` boolean; optional
 `connectionRequirements` object and `resumedFrom`/`successorRunId` strings) and
@@ -572,7 +573,7 @@ stopped-target and mount verification belong to the host procedure
 The [TUnit suite](../../tests/README.md) covers Broodling authority, Git/SQLite
 durability and controlled released-SDK/native behavior. The
 [stock DirectTarget witness](../../tests/README.md#controlled-stock-directtarget-witness)
-runs the unmodified native 10.9.0 HTTP/OECP target and the approved asset with a
+runs the unmodified native 10.10.0 HTTP/OECP target and the approved asset with a
 controlled Codex provider and forge. Its PR receipt is controlled, not a real
 GitHub PR. None of these establishes provider quality, hostile sandbox resistance
 or physical cessation. [P5 remains scoped FAIL](../../evaluation/p5/README.md),

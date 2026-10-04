@@ -113,11 +113,11 @@ bridge and its host Codex profile:
 
 | Probe | Required observation |
 | --- | --- |
-| `/usr/local/bin/zeroshot --version` | `zeroshot 10.9.0` |
+| `/usr/local/bin/zeroshot --version` | `zeroshot 10.10.0` |
 | `/usr/local/bin/codex --version` | `codex-cli 0.153.4` |
 | `/usr/local/bin/node --version` | `v22.23.2` |
 | `/usr/bin/gh --version` | First line begins `gh version 2.101.0 ` |
-| `sha256sum /usr/local/bin/zeroshot` | `f39952b98652301db58a89c4132a0476ae4ec570749b5945cc5200c2d22fad94` |
+| `sha256sum /usr/local/bin/zeroshot` | `d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e` |
 | `sha256sum /usr/local/bin/restic` | `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, the release archive's `restic` that native run allocation requires |
 | `sha256sum /usr/bin/gh` | `ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff` |
 | `/usr/bin/gh api graphql --paginate --slurp --help` | Declares the `--slurp` flag |
