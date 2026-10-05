@@ -1,7 +1,7 @@
 # .NET stop, safe retirement and explicit replacement
 
 [H #139](https://github.com/faviann/broodling/issues/139) adds lifecycle operations
-over B's abandonment, C's owned materialization and F's native transport. The
+over B's abandonment and native stop. The
 frozen Python reference is `b3f61a96c40401722ec16fc361958d1690982e02`. The
 [release guide](../../deployment/README.md) separates current .NET source support
 from the future owner-approved operational switch.
@@ -10,19 +10,14 @@ from the future owner-approved operational switch.
 
 ```csharp
 using var store = new BroodlingApplication().OpenStore(storePath);
-await store.StopAsync(attemptId, "Operator ended this Attempt", transport);
+await store.StopAsync(attemptId, "Operator ended this Attempt");
 var retirement = store.RetireAttempt(attemptId);
-// Dispatched DirectTarget work, only during verified stopped-target maintenance.
+// Dispatched work, only during verified stopped-target maintenance.
 var maintained = store.RetireStoppedTargetAttempt(attemptId, stoppedTargetCheck);
-// A no-effect worktree predecessor keeps its kind and the SDK bridge.
-var successor = store.AdmitRetry(attemptId, retryKey, workspaceRoot, profile);
-var prepared = store.PrepareRetry(attemptId, retryKey, workspaceRoot, profile);
-var submitted = await store.RetryAsync(attemptId, retryKey, workspaceRoot,
-    profile, transport);
-// An HTTP predecessor's successor is prepared and dispatched as an HTTP Attempt.
-var httpSuccessor = store.AdmitRetry(httpAttemptId, retryKey);
+// The successor is admitted from original B1 and owns no local directory.
+var successor = store.AdmitRetry(attemptId, retryKey);
 // Admit and prepare it at the predecessor's retained origin; never dispatches.
-var httpPrepared = store.PrepareRetry(httpAttemptId, retryKey);
+var prepared = store.PrepareRetry(attemptId, retryKey);
 ```
 
 These are explicit operations, not an automatically executed sequence. Each
@@ -34,7 +29,7 @@ cannot be reversed. `FindRetirement` and `FindRetry` inspect durable facts witho
 Git/native access. `AttemptRecord.Retirement` and `.Retry` expose them through
 status/history.
 
-`CancelIssueSubmissionAsync(submissionId, reason, transport, token)` is the
+`CancelIssueSubmissionAsync(submissionId, reason, token)` is the
 callable submission-level handback. It commits the immutable cancellation fact
 and, when this exact cancellation owns the last relevant shared Contract
 authority, abandonment of that fact's exact Attempt before entering this stop
@@ -43,8 +38,7 @@ the submission, not a replacement for the shared Contract's derived Attempt
 lineage; a sibling cancellation therefore leaves the current Attempt alone. A
 no-stop or safely undispatched cancellation returns the cancelled
 `IssueSubmission`; a dispatched Attempt may return
-`CessationUnconfirmed`, `SubmissionNotReady` when a known run has no stop
-transport, `NativeTransportError`, or `OperationCanceledException`. These
+`CessationUnconfirmed`, `NativeTransportError` or `OperationCanceledException`. These
 outcomes retain the cancellation/abandonment facts and neither means physical
 cessation nor grants replacement authority.
 
@@ -52,13 +46,9 @@ The thin host command is `stop <store> <attempt-id> <reason> [config.json]`.
 It returns the exact Attempt, a compact submission summary, the quarantine flag
 and safe handback even when stop fails. Cessation refusal returns exit 1;
 cancellation returns 130 and retains abandonment. The configuration is the
-invocation `config.json`, but stop uses neither its dispatch settings nor
-credentials. A LocalTarget configuration selects the pinned SDK bridge, and only
-a LocalTarget record needs it. An HTTP record stops through its retained binding,
-using a Direct configuration only for its root certificate. Safe undispatched
-stop needs no functioning SDK. Without a LocalTarget configuration, a dispatched
-LocalTarget record is refused before abandonment with `python_required`, because
-its native stop could not be requested.
+invocation `config.json`; stop uses only its root certificate, never
+credentials, and stops the record through its retained binding. Safe
+undispatched stop makes no target contact.
 Submit still reacquires/proposes its explicit issue, then hands back abandonment;
 resume/status/history inspect retained facts without automatic replacement.
 `QuarantinedAttemptIds` identifies every dispatched Attempt, even if current,
@@ -67,17 +57,15 @@ is not native execution status. The stop command's `quarantined` flag follows it
 
 ## Stop and retirement authority
 
-Abandonment commits before host inspection or native stop; its first reason wins.
-Stop checks physical allocation, enclosure marker and acknowledged enclosure
-presence, but requires no live checkout, live Git inspection or dispatch
-configuration. Known runs use only frozen locator and retained run identity.
-Unknown dispatched identity is never discovered by replay. Success,
+Abandonment commits before native stop; its first reason wins. Stop requires
+no Git inspection, credentials or dispatch configuration. A known run is
+addressed only through its retained binding and run identity. Unknown dispatched
+identity is never discovered by replay. Success,
 `force_stopped`, `runtime_lost`, transport failure and cancellation grant no
 retirement/replacement authority. Native labels are not cessation receipts.
 
-An HTTP (`http.v1`) record routes on its retained format, ignores any bridge
-transport and needs no enclosure, credentials or source custody. A prepared
-record makes no target contact and keeps the `no_dispatch_intent` path below.
+A prepared record makes no target contact and keeps the `no_dispatch_intent`
+path below.
 Dispatch intent uses one 30-second
 [DirectTarget stop](zeroshot-native-integration.md#directtarget-run-reader-and-stopper).
 A correlated record forces its confirmed run. A dispatched but unacknowledged
@@ -97,42 +85,20 @@ Force is never reissued automatically. A later explicit Stop may address an
 intended run that was unknown earlier, for example after delayed acceptance.
 Every outcome leaves dispatch intent quarantined; only the verified maintenance
 retirement below can end that.
-`StopAsync(attemptId, reason, transport: null)` is also the late-acknowledgement
-stop path for abandoned HTTP work: abandonment is idempotent, and routing follows
-the retained record. The thin host `stop` command still selects the bridge;
-HTTP operator routing follows separately.
+`StopAsync(attemptId, reason)` is also the late-acknowledgement stop path for
+abandoned work: abandonment is idempotent, and routing follows the retained
+record.
 
-Safe proof requires submission absent or merely prepared, and one of:
+Safe proof (`no_dispatch_intent`) requires abandonment and a submission that is
+absent or merely prepared. An Attempt owns no local resource to inspect. The
+proof rests on abandonment plus the absence of any committed dispatch intent,
+checked under the SQLite writer after abandonment commits, so no new dispatch
+can start; a missing directory, unknown run or failed request never supplies it.
+SQL accepts only the `no_dispatch_intent` and `stopped_target` bases.
 
-- no enclosure and no provisioning acknowledgment (`never_materialized`);
-- an owned existing enclosure and provisioning acknowledgment (`never_dispatched`);
-- an HTTP resource-kind Attempt (`no_dispatch_intent`), which owns no local
-  resource to inspect.
-
-A marker alone, an actual checkout without durable acknowledgment, or a missing
-acknowledged enclosure cannot establish safe cessation. The HTTP proof rests on
-abandonment plus the absence of any committed dispatch intent, checked under the
-same writer; a missing directory, unknown run or failed request never supplies
-it. SQL ties each basis to its resource kind. Proof commits under the
-SQLite writer after abandonment excludes queued provisioners/new dispatch.
-An orphan provisioner's unacknowledged host state remains ambiguous and refused.
-
-Retirement rechecks retained proof under the writer. It validates physical paths,
-original common Git, marker, registration and assigned branch, refusing branches
-attached elsewhere, symbolic aliases, foreign Git and unregistered extant paths.
-All ownership checks precede destructive Git. The exact safe dirty checkout may
-be forcibly removed, followed by its assigned branch. Source/siblings, enclosure,
-marker, stable lock inode and store remain. An absent never-materialized enclosure
-needs no mutation; unexpected Git state there refuses acknowledgment.
-
-C's stable enclosure lock precedes the SQLite writer. The exact Git child
-inherits that same lock description; parent disposal never unlocks it. Retirement
-acknowledgment follows both administrative commands. Caller death after removal
-loses acknowledgment; replay recognizes missing owned path/branch and finishes.
-A surviving Git child blocks followers before settled inspection/acknowledgment.
-There is no execution supervisor or native cleanup mechanism. Retiring an HTTP
-Attempt only acknowledges its retained proof under the writer: no filesystem or
-Git mutation, and B1/accepted pins, source and history remain.
+Retirement rechecks the retained proof under the writer and acknowledges it. It
+mutates no file or Git state: B1 and accepted pins, source and history remain.
+There is no execution supervisor or native cleanup mechanism.
 
 ## Verified maintenance retirement
 
@@ -183,8 +149,7 @@ stays `dispatched` and counted in `unresolvedDispatches`. An already
 acknowledged retirement (`retired_at` set) is returned unchanged on repeat,
 whatever its basis, so the host procedure must check the returned `basis` rather
 than treat exit 0 as its own verified retirement. An unacknowledged safe proof
-goes through the normal checks, which refuse it. LocalTarget worktree Attempts
-keep the policy above.
+goes through the normal checks, which refuse it.
 
 An abandoned Attempt retired this way can then be replaced (#123), still within
 the maintenance pause, with the same image or release command:
@@ -241,27 +206,23 @@ sender assumption depends on the unresolved topology in #155.
 ## Explicit replacement and schema
 
 New retry requires abandonment, completed retirement and no competing
-current Attempt. The retirement is either a safe never-dispatched proof or, for an
-HTTP predecessor only, [verified maintenance](#verified-maintenance-retirement)
+current Attempt. The retirement is either a safe never-dispatched proof
+(`no_dispatch_intent`) or [verified maintenance](#verified-maintenance-retirement)
 with basis `stopped_target` (#123). The predecessor keeps its dispatched history,
 including an unresolved dispatch still counted in `unresolvedDispatches`; its
 successor gets its own Attempt identity, submission key and intended run ID. It
 validates original object custody and source bytes, never resolving today's HEAD
 or original requested spelling anew, and never salvaging candidate edits. The
-successor preserves Work Unit, Contract and original B1/source bindings with a new branch/enclosure/worktree. One SQLite transaction
-retains its key, lineage, chosen root/full target and allocation before host setup.
-A deferred FK prevents lineage-only commits; triggers check safe predecessor,
-original bindings and allocation. Same key/parameters converge across callers
-and reopen. Changed predecessor/root/target or a second predecessor key refuses.
+successor preserves Work Unit, Contract and original B1/source bindings and,
+like every Attempt, owns no local directory. One SQLite transaction retains its
+key and lineage. A deferred FK prevents lineage-only commits; triggers check the
+safe predecessor and original bindings. The same key converges across callers
+and reopen. A changed predecessor or a second key for one predecessor refuses.
 An old key returns its historical successor after replacement without reviving
-authority. A successor keeps its predecessor's resource kind: an HTTP
-predecessor takes `AdmitRetry(predecessorId, retryKey)` and its successor also
-has no local directory. Its retry records no root or target; the successor's own
+authority. The retry records no root or target; the successor's own
 `PrepareHttpSubmission` freezes its target binding and a new intended run ID.
-A prepared-only HTTP record keeps the `no_dispatch_intent`
-basis; any later phase quarantines. Provision/prepare/dispatch independently guard currentness. Direct
-`PrepareSubmission` enforces the frozen retry target too. Dispatched retry
-recovery reuses F's correlation seam without reprovisioning candidate material.
+A prepared-only record keeps the `no_dispatch_intent` basis; any later phase
+quarantines. Preparation and dispatch independently guard currentness.
 
 H integrates with G in historical schema **7**, retaining the exact G schema-6
 DDL and all v1–v6 definition hashes. Issue-submission persistence extends the
@@ -275,9 +236,8 @@ of never-dispatched work may be allocated and prepared while paused or not;
 replacement after `stopped_target` retirement requires the pause for both.
 Replacement dispatch always requires explicit release.
 Retirement/retry facts resist update, delete and `INSERT OR REPLACE`; SQL refuses
-dispatched cleanup authority outside the `stopped_target` conditions, retry of a
-dispatched predecessor with any other retirement basis and missing/changed retry
-submission targets.
+dispatched cleanup authority outside the `stopped_target` conditions and retry
+of a dispatched predecessor with any other retirement basis.
 No Python database/import compatibility was added. G's
 completed-Work-Unit refusal remains in admission/retry/API/SQL, with completed-Attempt
 abandonment refusal, factual current-authority-loss guard and Attempt
@@ -294,13 +254,13 @@ bound to the Contract nor ended `unchanged` with a link to it.
 
 ## Evidence and limits
 
-`RetirementTests` owns safe/ambiguous proof, stop ordering and all dispatched
-outcomes, ownership refusals, dirty deletion, lock inode and lifecycle SQL, plus
+`RetirementTests` owns safe never-dispatched proof, stop ordering, all
+dispatched outcomes and SQL refusal of manufactured cleanup authority, plus
 verified maintenance retirement: abandoned unresolved/correlated and successful
-HTTP Attempts, each pause/check/drainage/currentness/retention refusal, the
-LocalTarget refusal and the `retire-attempt` command.
-`ReplacementTests` owns original material, atomic allocation, same-key
-concurrency, historical replay, target enforcement and SQL binding refusals, plus
+Attempts, each pause/check/drainage/currentness/retention refusal and the
+`retire-attempt` command.
+`ReplacementTests` owns replacement lineage, same-key convergence, missing
+original material, historical replay and SQL lineage guards, plus
 replacement of an unresolved DirectTarget predecessor after `stopped_target`
 retirement: admission and first preparation refused outside the pause, the same
 bundle-bound task, origin and B1, same-key handback, dispatch refused until release
@@ -315,15 +275,15 @@ stopped target, then dispatches the successor after release with the image's
 at API and SQL boundaries, plus completed retry-key identity handback without
 renewed authority. Its historical seed bypasses only ordinary admission while
 constructing the fixture; every guard is restored before testing safe retry.
-`RetirementProcessTests` drives real SQLite/Git with the test-only caller: SIGKILL
-before/after retirement removal, orphan exclusion, premature retry refusal and
-retry allocation/preparation transaction deaths. `InvocationTests` adds one
+`RetirementProcessTests` drives real SQLite/Git with the test-only caller,
+SIGKILLed during and after a replacement's admission and preparation writes; a
+later `PrepareRetry` converges on one successor from original B1.
+`InvocationTests` adds one
 composed stop/quarantine/abandonment handback.
 
 Before G integration, on 22 September 2026, `dotnet test --solution Broodling.sln` passed **238 tests,
 0 failed, 0 skipped**, using SDK 10.0.401, runtime 10.0.12 and TUnit 1.68.17.
-`BROODLING_TEST_PYTHON=/home/faviann/repos/broodling/.venv/bin/python` selects the
-pinned SDK. Build-node reuse/shared compilation were disabled to avoid reusing
+Build-node reuse/shared compilation were disabled to avoid reusing
 another sandbox's build processes. Test roots are owned disposable subdirectories
 of `/home/faviann/.cache/broodling-tests`.
 
@@ -385,7 +345,6 @@ these outcomes; production remains identical to that reviewed candidate.
 
 Controlled transport/PR receipt stubs do not establish real DirectTarget PR
 delivery. No live gateway/GitHub mutation/provider/deployment/evaluation or
-production-state operation occurred. The native no-effect stable-result gap and
-dispatched quarantine remain. The [P5 human-review limit](../governing/current.md#first-use-limitation)
+production-state operation occurred. Dispatched quarantine remains. The [P5 human-review limit](../governing/current.md#first-use-limitation)
 still governs every proposed PR; green checks certify neither semantic quality
 nor permission to merge.

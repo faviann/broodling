@@ -53,8 +53,9 @@ schema still defines the structures that #233 removed in place
 (`worktree_provisions`, the `attempts` allocation columns and `resource_kind`,
 the `bridge` submission format and the `blocked` state), so its definition and
 manifest hashes differ from the current schema 1. `StoreLifecycleTests` restores
-it and checks that ordinary open, explicit upgrade and initialization refuse it
-with `incompatible_store` without changing any file. No upgrade exists; nothing
+it and checks that ordinary open and explicit upgrade refuse it with
+`incompatible_store`, and initialization refuses its path with `store_exists`,
+without changing any file. No upgrade exists; nothing
 had been deployed. Python's `sqlite3.Connection.iterdump` produced the dump.
 
 - Application assembly SHA-256: `3ee1fa9604eaa955f0f4eec097100955635b0a79df3038044346c703c68bc005`.

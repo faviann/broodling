@@ -30,9 +30,9 @@ binds its host check to. The last two are independent facts:
   it; only exact correlation settles a submission. An HTTP submission's retained
   conflict does not settle it, and neither do abandonment, stop, a terminal or
   unknown-run observation, local drainage or verified maintenance retirement.
-  A LocalTarget bridge conflict (`blocked`) is not counted. A counted entry whose
-  Attempt has a `stopped_target` retirement is one the host procedure recorded as
-  stopped with its target; restart over the same ledger ends any such run.
+  A counted entry whose Attempt has a `stopped_target` retirement is one the
+  host procedure recorded as stopped with its target; restart over the same
+  ledger ends any such run.
 - `inFlightInitiationDrained` is true when no local process holds the
   installation initiation lock at the moment of the reading. It is a local fact
   only; it does not prove that no external submission can still create a run.
@@ -40,8 +40,8 @@ binds its host check to. The last two are independent facts:
 `isPaused: true` together with `inFlightInitiationDrained: true` means that the
 paused fact is committed, no new admission, preparation or dispatch
 transition can commit before an explicit release, and no local Broodling
-dispatch or submit bridge is still initiating. It does not fence requests
-already sent. An HTTP caller holds the lock only in its own process, so the
+dispatch is still initiating. It does not fence requests already sent. A
+caller holds the lock only in its own process, so the
 lock is released when the caller returns or dies, while a request the target
 already buffered can still be accepted and create a run. A nonzero
 `unresolvedDispatches` at that point therefore still names possibly executing
@@ -55,10 +55,8 @@ concern.
 
 Each initiating operation checks `installation_control` in the authoritative
 immediate SQLite transaction that commits its effect: the admission decision,
-Attempt allocation, provisioning acknowledgment, `prepared` submission, and
-the `prepared → dispatched` intent. Provisioning may do its existing
-pre-commit filesystem work, but its acknowledgment is guarded by that final
-transaction. The pause transaction serializes with those writers. If the
+Attempt admission, `prepared` submission, and the `prepared → dispatched`
+intent. The pause transaction serializes with those writers. If the
 effect commits first, it is complete; if the pause commits first, the effect is
 refused with `installation_paused`. An operation already in flight when the
 pause commits is refused at its next such transition, leaving only its earlier
@@ -68,33 +66,31 @@ reaches the proposer while paused.
 
 The only initiation that can continue after a pause commits is an external
 submission whose intent is already durably `dispatched`. The SQLite writer
-is never held across that call. An HTTP `DispatchHttpAsync` takes the shared
-initiation lock described below before its dispatch transaction and releases it
-when its own send returns, fails or is cancelled; nothing inherits it, so caller
-death releases it too. Bytes that already reached the target are not recalled.
-The bridge `DispatchAsync` also takes a shared
-`flock` on the already-existing SQLite store file before its dispatch
-transaction and holds it until the transport returns. `ZeroshotTransport`
-spawns the submit bridge with that lock description inherited, so the lock
-stays held while the bridge runs even if its caller dies. Existing lock targets
-are opened read-only, because `flock` needs no write access: the bridge
-inherits a descriptor that cannot write the store. The bridge is the
-submit authority and remains alive while `Client.submit` awaits its bundled
-native submit subprocess. That child does not inherit the initiation lock, but
-the bridge retains it until the native submit command finishes and the bridge
-exits; ordinary native execution after submission is outside this boundary.
-Status probes the store file with a non-blocking exclusive `flock`; any shared
-holder makes it undrained. Concurrent dispatches share the lock and never block
-each other.
+is never held across that call. `DispatchHttpAsync` takes a shared `flock` on
+the already existing SQLite store file before its dispatch transaction and
+releases it when its own send returns, fails or is cancelled; nothing inherits
+it, so caller death releases it too. Bytes that already reached the target are
+not recalled. Status probes the store file with a non-blocking exclusive
+`flock`; any shared holder makes it undrained. Concurrent dispatches share the
+lock and never block each other.
 A child that a Broodling process forks shares the description until its `exec`
 closes it, so a single undrained reading can be transient; query again before
-acting on it. A drained reading is never premature for bridge initiation. The
-bridge's explicit version probe is separate and non-submitting. After the
-submit request is handed to the bridge, caller cancellation detaches from it;
-it does not kill the bridge or its active native submit child.
+acting on it.
+
+`InitiationLock` owns this lock: `AcquireExisting(store, shared: true)` holds
+it across a dispatch, and `IsFree(store)` is the status probe that drain status
+and [stopped-target retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement)
+read. It opens the existing store file read-only and close-on-exec, because
+`flock` needs no write access, and it never creates the file. The opener,
+`broodling_open_lock`, is the only export of the small C library
+`libbroodling_git.so`, built from `native/git_spawn.c`. Ordinary
+`dotnet build`, `dotnet test` and host `dotnet publish` compile it with `cc` and
+copy it beside the managed assemblies, so a build needs a C compiler and libc
+headers, and no `LD_LIBRARY_PATH` is required. A failure to open or lock the
+store file raises `initiation_lock_error`.
 
 Abandonment does not release the lock. `StopAsync` can commit abandonment
-while a `SubmitAsync` for that Attempt is still running, and that call can
+while a send for that Attempt is still running, and that send can
 still create the run, so status stays undrained until it returns. Replaying a
 `dispatched` submission can also create its run, so replay is a dispatch and
 refuses while paused. Every replay carries the same persisted `submission_key`,
@@ -110,7 +106,7 @@ correlation write cannot leave the installation permanently undrained. They
 leave the submission `dispatched`, because the target may have accepted it.
 For a current Attempt, release and replay converge it through submission-key
 correlation. An abandoned Attempt with no known run is quarantined:
-`DispatchAsync` refuses it and `StopAsync` never replays it to discover a
+`DispatchHttpAsync` refuses it and `StopAsync` never replays it to discover a
 run, so its submission stays `dispatched` and counted in
 `unresolvedDispatches` while status reports drained. Explicit release changes
 only the pause fact.

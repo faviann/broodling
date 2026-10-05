@@ -3,8 +3,8 @@
 [A2 #133](https://github.com/faviann/broodling/issues/133) adds supplied-source
 admission and retained revision inspection to the [A1 store session](dotnet-identity-custody.md).
 It ends at an immutable admission decision. [B adds Attempt allocation and Git
-custody](dotnet-attempt-allocation.md). GitHub acquisition, Git materialization
-and execution belong to their owning seams. See the
+custody](dotnet-attempt-allocation.md). GitHub acquisition and execution belong
+to their owning seams. See the
 [release/cutover guide](../../deployment/README.md) for current operations.
 
 ## Callable application path
@@ -28,8 +28,8 @@ var revisionId = status.Revision.ContractRevisionId;
 Console.WriteLine(status.Decision!.Outcome);
 ```
 
-`requiredEffects` is mandatory, including an explicit empty collection for no
-effect. Every supplied source requires caller origin and an explicit caller
+`requiredEffects` is mandatory. An empty collection is recorded and then
+refused at admission, as described below. Every supplied source requires caller origin and an explicit caller
 grant with a nonempty basis. Exactly one primary issue must name the Work Unit's
 canonical issue locator. Supplied bytes are not upstream-verified; there is no
 implicit fetching of links, comments or repository guidance.
@@ -49,9 +49,12 @@ Broodling neither executes nor requires that guidance. Unsupported obligations
 and effects, every effect-dependent evidence declaration, unsatisfied
 prerequisites, unsupported/PR-contradictory host assumptions and any selected-final-
 material request (including an empty selection) produce preserved rejection
-findings. Delivery admission supports no effect or one GitHub `pull_request`
-effect naming a nonempty target branch. This grants no implicit merge, deployment
-or wider effect authority and does not resolve the no-effect stable-result gap.
+findings. Delivery admission supports exactly one GitHub `pull_request` effect
+naming a nonempty target branch. An empty required-effect set produces a
+`no_required_effect` finding: the revision and its rejected decision stay
+readable, and no Attempt can be allocated for it. Stable no-effect results are
+future work ([#78](https://github.com/faviann/broodling/issues/78)). Admission
+grants no implicit merge, deployment or wider effect authority.
 
 ## Bundle-bound admission
 
@@ -237,7 +240,8 @@ shutdown.
 
 `RecordContractRevision(contract)` atomically records the canonical Contract and
 all entitled-source bindings. `Admit(revisionId)` separately records or replays
-the immutable decision. An interruption between these steps leaves an undecided
+the immutable decision, with its policy version
+`broodling.application.admission.v2`. An interruption between these steps leaves an undecided
 revision; `IsAdmitted` is false for both undecided and rejected revisions. Calling
 `Admit` after reopening can decide that exact revision. Admission creates no
 Attempt or execution.

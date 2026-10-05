@@ -41,3 +41,7 @@ semantic-quality result. Credentials are fixed fake values. The only network
 call a fixture makes is the helper's read from the test's own Broodling reader
 on the host.
 
+This is deliberately not an independent implementation of review, repair, or
+graph semantics. Historical custom-graph, evidence and supervisor fixtures and
+qualification campaigns are available only in Git history.
+

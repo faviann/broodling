@@ -55,12 +55,9 @@ Build from a reviewed full source revision on a compatible Linux x86-64 host.
 Use a .NET 10 SDK (tested with 10.0.401), Git, `cc` and libc development
 headers. The native shim uses the build host's libc; this is not a portable
 glibc/musl or arbitrary-host binary qualification. Runtime host requirements
-include .NET 10 / ASP.NET Core 10, Git, the GitHub CLI `gh` for issue and
-repository acquisition by `submit` and the processing server, Python 3.13+ only for the no-effect
-LocalTarget bridge, and ordinary
-non-PID-1 child ownership as described by
-[materialization](../docs/implementation/dotnet-worktree-materialization.md).
-Run Broodling as an unprivileged dedicated account; with the
+include .NET 10 / ASP.NET Core 10, Git and the GitHub CLI `gh` for issue and
+repository acquisition by `submit` and the processing server. No Python is
+needed. Run Broodling as an unprivileged dedicated account; with the
 [Broodling image](#broodling-image), commands that share its store run as its
 user `1654:1654`. Only the host-side
 `check-target` command needs access to the local rootful Docker socket; the
@@ -86,39 +83,21 @@ export UseSharedCompilation=false
 export NUGET_HTTP_CACHE_PATH="$PWD/tmp/nuget-http"
 dotnet build Broodling.sln --configuration Release
 dotnet publish src/Broodling.Host --configuration Release --output out/release/host
-dotnet publish src/Broodling.Codex --configuration Release --output out/release/codex
 git rev-parse HEAD > out/release/source-revision.txt
-tar -C out/release -czf out/broodling-linux-x64.tar.gz host codex source-revision.txt
+tar -C out/release -czf out/broodling-linux-x64.tar.gz host source-revision.txt
 ```
 
-Keep both complete publish directories. `host/` contains the framework-dependent
+Keep the complete publish directory. `host/` contains the framework-dependent
 `Broodling.Host` entrypoint, managed assemblies, runtime/dependency manifests,
-SQLite native assets, `libbroodling_git.so`, `bridge/zeroshot_bridge.py`,
-`bridge/requirements.txt` and the approved DirectTarget execution asset with its
-manifest under `execution-assets/`. `codex/` is the complete self-contained C# launcher,
-with its pinned .NET **10.0.12** runtime; copying only its `codex` apphost is
-insufficient. Preserve executable modes and package paths. Invoke the host with
+SQLite native assets, `libbroodling_git.so` and the approved DirectTarget
+execution asset with its manifest under `execution-assets/`. Preserve executable
+modes and package paths. Invoke the host with
 `dotnet /RELEASE/host/Broodling.Host.dll`; its optional `Broodling.Host` apphost
 requires a registered .NET installation or the appropriate `DOTNET_ROOT` when
 the runtime lives in a nonstandard location. Publish neither
-creates application state nor installs a target.
-
-Only the no-effect LocalTarget bridge needs a Python environment; authorized PR
-work over the HTTP DirectTarget does not. For development, or a separately
-approved installation, create a dedicated environment and install its dependency
-using the published file:
-
-```bash
-python3 -m venv /CHOSEN/NEW/bridge-venv
-/CHOSEN/NEW/bridge-venv/bin/python -m pip install -r /RELEASE/host/bridge/requirements.txt
-```
-
-This keeps the exact official SDK **10.3.0.post1** wheel URL and SHA-256. Its
-bundled native is **10.3.0**, separate from the DirectTarget's native 10.10.0;
-Codex is still **0.153.4**. The application refuses
-different SDK/native versions. There is no Python Broodling package, installer
-or importable proposer. Protect and retain the selected release and dependency
-environment for replay; do not relocate a launcher already frozen in an invocation.
+creates application state nor installs a target. There is no Python Broodling
+package, installer or importable proposer. Protect and retain the selected
+release for replay.
 
 ## Images
 
@@ -144,16 +123,14 @@ tests/images/demonstrate.sh broodling:REVIEWED_REVISION broodling-target:REVIEWE
 Both builds fetch the official Zeroshot `v10.10.0` Linux x86-64 musl release
 archive by its pinned SHA-256
 `fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16`, the
-[DirectTarget binding](../docs/implementation/zeroshot-native-integration.md#pinned-dependencies-and-bridge)
+[DirectTarget binding](../docs/implementation/zeroshot-native-integration.md#pinned-dependencies)
 `zeroshot 10.10.0`, source `3ee1192cec359a0b997f464e703a936e8b67d63c`. The
 Broodling build uses only its `zeroshot` executable, SHA-256
 `d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e`, to verify
 the asset. The DirectTarget image installs that executable and the archive's
 `restic`, SHA-256
 `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, which native
-run allocation requires beside it. That pin is separate from the LocalTarget
-bridge's [bridge/requirements.txt](../src/Broodling/bridge/requirements.txt),
-which keeps SDK 10.3.0.post1. Neither image contains the SDK. Base images are pinned by digest; apt packages come from
+run allocation requires beside it. Base images are pinned by digest; apt packages come from
 the base distribution at build time, so select a published image by digest, not
 by rebuilding.
 
@@ -165,14 +142,14 @@ runtime's libc. The image holds the published host output at `/app`, including
 `execution-assets/`, plus Git, gh 2.101.0 (the DirectTarget image's pin, also
 Git's credential helper for `https://github.com`), curl and tini. It runs
 `dotnet /app/Broodling.Host.dll` under tini as the image's non-root `app` user,
-`1654:1654`. Administrative Git refuses a PID-1 process, so the host never runs
-as PID 1.
+`1654:1654`; tini is PID 1, forwards signals to the host and reaps orphaned
+child processes.
 
 - With no arguments it serves HTTP on port **8080** over
   `Broodling__Store=/var/lib/broodling/state.sqlite3`: the read-only reader, or
   the [processing server](#processing-server) when the service also sets
   `Broodling__Invocation` and `Broodling__RepositoryRoot` and supplies
-  credentials. For the ADR 0001 stack, mount a Direct `config.json` read-only
+  credentials. For the ADR 0001 stack, mount the invocation `config.json` read-only
   (for example at `/etc/broodling/invocation.json`) naming
   `https://zeroshot.dev.faviann.com` and `/tls-root/root.crt`, and use
   `Broodling__RepositoryRoot=/var/lib/broodling/repositories`, a directory the
@@ -209,7 +186,7 @@ as PID 1.
   and mounts; do not add credentials with `-e`. `CONTRACT_REVISION_ID` is the replaced Attempt's `contractRevisionId`, from
   `GET /attempts/{id}` or `history`. The command needs what the server has: the
   state mount, whose repository root holds the successor's B1 custody at its
-  recorded container path; the Direct `config.json`, whose origin must be the
+  recorded container path; the invocation `config.json`, whose origin must be the
   successor's retained one and whose root it trusts; `GH_TOKEN`,
   `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` from the service's own environment;
   and the project network to the origin. It refuses while the installation is
@@ -252,12 +229,11 @@ as PID 1.
   output copied out with `docker cp` and a host .NET 10 ASP.NET runtime, with a
   configuration that names the host path of `root.crt`.
 
-The image contains no Python, Python SDK, native executable, Codex CLI or C#
-Codex launcher; its only Zeroshot client is the pinned `Zeroshot.Client` library.
-HTTP DirectTarget submission, observation and control need no client helper process; the processing server runs them in the
-image, while the CLI invocation commands run from the release artifact as
-described above. The no-effect LocalTarget profile needs
-all of them, so it remains available only from the [release artifact](#build-a-release-artifact).
+The image contains no Python, native executable or Codex CLI; its only
+Zeroshot client is the pinned `Zeroshot.Client` library. DirectTarget
+submission, observation and control need no client helper process; the
+processing server runs them in the image, while the CLI invocation commands run
+from the [release artifact](#build-a-release-artifact) as described above.
 Like the release, the image initializes and opens only the current store
 format, `broodling.application` schema 1. Under
 [#169's fresh-state decision](https://github.com/faviann/broodling/issues/169#issuecomment-5824930913)
@@ -499,8 +475,8 @@ such candidates apart by `storeDefinitionSha256`.
 
 The examples below describe a future approved fresh installation. Replace
 `/RELEASE` and `/NEW` with its chosen absolute durable paths; they are not
-instructions to switch an existing installation. Keep state, source Git, Attempt
-root and runtime directories separate from the release and source checkout.
+instructions to switch an existing installation. Keep state and source Git
+directories separate from the release and source checkout.
 
 ```bash
 dotnet /RELEASE/host/Broodling.Host.dll initialize-store /NEW/state.sqlite3
@@ -553,21 +529,22 @@ and the retained facts still answer.
 
 ### Invocation configuration
 
-A secret-free `config.json` names exactly one target kind. For authorized PR
-invocation over the HTTP DirectTarget:
+A secret-free `config.json` names the DirectTarget:
 
 ```json
 {
-  "target": "direct",
   "directOrigin": "https://zeroshot.dev.faviann.com",
   "directRootCertificate": "/NEW/zeroshot-tls/root/root.crt"
 }
 ```
 
-It needs no Python executable, SDK client state, workspace root or launcher. The
+It needs no Python executable, SDK client state, workspace root or launcher. Any
+other member, including a `target` member or a credential field, refuses. The
 origin follows the native and SDK rule: canonical HTTPS, or HTTP to exactly `127.0.0.1` or `[::1]` such as
 `http://127.0.0.1:18770`, spelled as scheme and authority only, with a default
-port omitted and never port 0. Anything else refuses.
+port omitted and never port 0. Anything else refuses. An existing Attempt
+continues only through its retained origin, and a configuration naming a
+different origin refuses before any target contact.
 
 The optional `directRootCertificate` is the absolute path of a PEM root
 certificate: for the homelab stack, the `root.crt` that
@@ -587,36 +564,12 @@ their lowercase forms): a proxy would receive the connections, including
 dispatch credentials. This is a deployment assumption that Broodling does not
 check.
 
-The no-effect LocalTarget alternative uses the SDK bridge:
-
-```json
-{
-  "target": "local",
-  "pythonExecutable": "/NEW/bridge-venv/bin/python",
-  "stateDirectory": "/NEW/runtime",
-  "workspaceRoot": "/NEW/attempts",
-  "realCodex": "/NEW/codex-cli/codex",
-  "profileHome": "/NEW/profile-home",
-  "codexHome": "/NEW/codex-home",
-  "launcher": "/RELEASE/codex/codex"
-}
-```
-
-A missing or unknown kind, a field of the other kind, an unknown field or a
-credential field refuses. All four Codex-profile paths are required.
-See [dispatch policy](../docs/implementation/dotnet-native-dispatch.md#fixed-policy-and-transport).
-Local HOME starts empty and CODEX_HOME auth-only. The trusted-host prerequisite
-excludes operator-managed effect-capable MCP/extensions. This profile still
-cannot produce a stable successful local disposition. A new Attempt takes the
-configured kind; an existing Attempt continues only through its retained kind,
-and a mismatch refuses before any contact.
-
 ### Processing server
 
 The server accepts, resumes and stops exact work and processes accepted work
 unattended when it is configured with both:
 
-- `Broodling:Invocation` (`Broodling__Invocation`): the path of a Direct
+- `Broodling:Invocation` (`Broodling__Invocation`): the path of the
   [`config.json`](#invocation-configuration). Its origin is where new Attempts
   are sent and its root certificate is trusted for every target connection.
 - `Broodling:RepositoryRoot` (`Broodling__RepositoryRoot`): an existing absolute,
@@ -628,8 +581,8 @@ Its process environment must hold `GH_TOKEN`, `GATEWAY_API_KEY` and exactly
 `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`. They are read for each
 operation and never retained or echoed; in Compose, supply them only to
 `broodling` through its own protected env file. Startup refuses, with a safe
-code and before listening, one setting without the other, a LocalTarget
-configuration, a missing repository root or missing or invalid credentials. The
+code and before listening, one setting without the other, a missing
+repository root or missing or invalid credentials. The
 host also needs Git and `gh` (the image has both). Completion fetches each
 accepted commit from the repository's GitHub origin with plain Git, using the
 service user's Git credential configuration. The image configures
@@ -647,7 +600,7 @@ trusted callers.
 | `POST /submissions/{id}/revisions` | [`ReviseIssueSubmission`](../docs/implementation/invocation.md#revised-work) | `202` with `{submission}` and `Location: /submissions/{id}` of the successor once it is committed, and the same successor on replay. `409 issue_submission_conflict` while the predecessor is unfinished or not the latest, an Attempt is current, or a dispatched Attempt is not yet retired under verified maintenance. An `unchanged` successor's read carries its explanation and the linked submission and Contract. |
 | `POST /submissions/{id}/resume` | [`SubmissionProgressor.Resume`](../docs/implementation/invocation.md#automatic-progression) | `202` with `Location` when that unfinished submission is continued at the next scan, forgetting an in-process stop or wait. `200` with `resumed: false` when its end or native correlation is retained. Never a Replacement Attempt. |
 | `POST /submissions/{id}/stop` with `{"reason": "…"}` | `CancelIssueSubmissionAsync` | `200` with `{submission, attempt, error}` once the cancellation is committed: `attempt` is the stop report of the Attempt it abandoned, if any. `409` for completed work. |
-| `POST /attempts/{id}/stop` with `{"reason": "…"}` | `StopAsync` | The `stop` command's report: `200` once abandonment is committed, with `error` naming what ended the native stop (such as `cessation_unconfirmed`, a transport timeout, or `caller_detached` at shutdown); `409` when nothing was abandoned. A dispatched LocalTarget run refuses with `python_required`, unabandoned. |
+| `POST /attempts/{id}/stop` with `{"reason": "…"}` | `StopAsync` | The `stop` command's report: `200` once abandonment is committed, with `error` naming what ended the native stop (such as `cessation_unconfirmed`, a transport timeout, or `caller_detached` at shutdown); `409` when nothing was abandoned. |
 
 A stop without a reason answers `400 reason_required`. A reader answers
 `503 processing_not_configured` to all five.
@@ -900,9 +853,7 @@ Comments and links require separate explicit entitlement. The source repository
 must have an `origin` naming the admitted GitHub repository and contain the
 selected full B1 commit, which Broodling pins in its common Git directory; no
 execution checkout is created from it. B1 must also be fetchable by the target,
-which fails the run rather than substituting the branch tip. A no-effect
-LocalTarget worktree additionally needs a clean committed source that supports
-the checkout policy.
+which fails the run rather than substituting the branch tip.
 
 Initial PR dispatch and acknowledgement replay require current `GH_TOKEN`,
 `GATEWAY_API_KEY` and exactly
@@ -916,7 +867,7 @@ The GitHub identity needs repository/source access and native PR delivery
 permissions; broad credential privileges do not authorize broader effects.
 
 ```text
-Broodling.Host submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer>
+Broodling.Host submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch> <reviewed-issue.json> <producer>
 Broodling.Host status <store> <contract-revision-id>
 Broodling.Host history <store> <repository> <issue>
 Broodling.Host resume <store> <contract-revision-id> [config.json [checkout [revision]]]
@@ -925,11 +876,11 @@ Broodling.Host stop <store> <attempt-id> <reason> [config.json]
 ```
 
 Here `Broodling.Host` abbreviates `dotnet /RELEASE/host/Broodling.Host.dll`.
-`producer` normally is `caller`; `-` explicitly
-authorizes no effect. Retain JSON `revision.contractRevisionId`,
+`producer` normally is `caller`, and `submit` authorizes exactly one
+`pull_request` effect to `<target-branch>`. Retain JSON `revision.contractRevisionId`,
 `attempts[].attemptId` and `submissions[].runId`. The `submit`, `resume` and
 `stop` handback reports each submission only as its status facts (Attempt,
-format, phase, intended and confirmed run IDs, replay block); `status` and
+phase, intended and confirmed run IDs, replay block); `status` and
 `history` show the complete retained record, including the frozen request. Source/canonical bytes are
 base64; inspect the exact retained material. Errors can follow committed facts:
 use history/status to find handles before choosing recovery.
@@ -937,13 +888,10 @@ use history/status to find handles before choosing recovery.
 Resume the same revision after interruption; repeating submit reacquires bytes.
 Uncorrelated replay needs the same target configuration and current credentials.
 Correlated resume and retained status/history need neither. `wait` and `stop`
-take the same optional `config.json`, and the retained record decides what they
-use from it. A LocalTarget record needs a LocalTarget configuration for its
-pinned SDK Python. An HTTP record connects to its retained origin, and uses a
-Direct configuration only for its root certificate. A configuration of the other
-kind, or a Direct origin that differs from the retained one, refuses before any
-target contact or abandonment. For an HTTPS target with a
-private root, pass the Direct `config.json` to `wait` and `stop`. Without it,
+take the same optional `config.json` and use only its root certificate: the
+record connects to its retained origin, and a configuration naming a different
+origin refuses before any target contact or abandonment. For an HTTPS target
+with a private root, pass the `config.json` to `wait` and `stop`. Without it,
 system trust applies and the connection fails. `stop` then records the
 abandonment and reports native stop as not sent (`transport_failed`); running
 `stop` again with the configuration requests it. Retained completion works offline. Until completion
@@ -957,7 +905,7 @@ stop. Unknown correlation is never redispatched to discover a run. Explicit
 never-dispatched retirement and replacement remain
 [callable operations](../docs/implementation/dotnet-retirement-replacement.md),
 not an automatic CLI recovery sequence. `replace-attempt` replaces an abandoned,
-retired HTTP predecessor at its retained origin; only a `stopped_target`
+retired predecessor at its retained origin; only a `stopped_target`
 predecessor requires the pause.
 
 ### Bundled Contract proposer
@@ -1000,9 +948,9 @@ the gateway.
 ## Retention and limitations
 
 Keep the authoritative SQLite store/sidecars, original source common Git and
-B1 objects, Attempt enclosures/worktrees, runtime state, native target state/home,
+B1 objects, native target state/home,
 exact target image (changed only by an [established transition](#native-state-transitions))
-and origin, release/dependency environment and operator inventory
+and origin, release and operator inventory
 at their retained paths. Protect native session state and private content as
 sensitive. Retain exact accepted Git objects and full receipts for independent
 review; moving PR branch tips are insufficient.

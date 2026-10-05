@@ -61,9 +61,8 @@ modification. A new bare repository is initialized with that canonical origin,
 and every acquisition refresh forwards the explicit
 `+refs/heads/*:refs/broodling/upstream/*` refspec, including for bare
 repositories. That acquisition-owned namespace is separate from
-`refs/heads/broodling/*`, which materialized Attempts own, and from
-`refs/broodling/starting/*`, which existing Git custody retains. Refresh pruning
-therefore cannot delete or move an active Attempt or a B1 pin. Git HTTPS
+`refs/broodling/starting/*` and `refs/broodling/accepted/*`, which Git custody
+retains. Refresh pruning therefore cannot delete or move a B1 or accepted pin. Git HTTPS
 credentials are supplied only to the child process as a process-only,
 process-scoped Basic `http.extraHeader` using `x-access-token:<token>`; token
 values are not persisted in SQLite, Git config or the retained preparation.
