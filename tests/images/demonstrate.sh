@@ -147,7 +147,7 @@ jq -n --arg origin "$origin" --arg root "$root" --arg network "${project}_defaul
       rootKeyMount: "\($root)/tls-root-key", rootCertificateMount: "\($root)/tls-root", broodlingContainerName: $broodling}' \
     >"$root/target-inventory.json"
 jq -n --arg origin "$origin" --arg root "$root" \
-    '{target: "direct", directOrigin: $origin, directRootCertificate: "\($root)/tls-root/root.crt"}' >"$root/config.json"
+    '{directOrigin: $origin, directRootCertificate: "\($root)/tls-root/root.crt"}' >"$root/config.json"
 readiness="$(dotnet "$root/host/Broodling.Host.dll" check-target "$root/target-inventory.json" "$root/config.json")" \
     || fail "check-target: $readiness"
 printf '%s\n' "$readiness"
