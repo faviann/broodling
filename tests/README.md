@@ -394,9 +394,9 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 
 ### Current adoption record
 
-- Tested code revision: `0283c4d667200e85286149f7be093d4f47a9d583`. Later
-  commits that only edit this record or other documentation leave it valid; a
-  code change requires a new run.
+- Tested code revision: `4de1c2a05ae71a19b1688c4e3c18d0ce1249293a` (#233). Later commits that only
+  edit this record or other documentation leave it valid; a code change
+  requires a new run.
 - SDK: `Zeroshot.Client` `10.10.0.1-preview.1` from
   `https://nuget.pkg.github.com/faviann/index.json`; `.nupkg` SHA-256
   `b6edd08c0054a057460a69b245d11e242e34737245b33ee51d7f2cd893fc7d10`, NuGet
@@ -414,25 +414,25 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
   `fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16`.
 - Fresh store, from `initialize-store` at that revision: format
   `broodling.application`, schema version 1, definition SHA-256
-  `2ef2d8752c19220da9dfaa8800520032ce0982a76de5c59b599884a5dc0d1d60`, upgrading
-  from nothing. The version is not yet frozen.
-- Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.8.1, the
-  transition check building this revision's target image: the lane passed 273 of
-  273 on two consecutive runs; the full suite passed 719 of 719; the Release
-  build succeeded with no warnings. The host was heavily loaded by unrelated
-  work (load average 10 to 13). Under that load, earlier runs at this revision
-  failed bounded-wait cases that pass on rerun: `CompletionObserverTests`
-  timeouts and, once, `TimeoutError` budget expiries in `DirectTargetRunTests`,
-  `DirectTargetTrustTests` and `AttemptCompletionTests` in the lane, and
-  `ReplacementTests`' `A local dispatch is still initiating` in the full suite.
-  Those three classes then passed five consecutive runs. The
-  `CompletionObserverTests` and `ReplacementTests` cases fail the same way at
-  the previous revision `708aec6` on the same host.
+  `5db82936e167e9dd7c68b4f392d1ff7e350dce3e239ed9ce214c39ce34ac2075`, upgrading
+  from nothing. #233 redefined the unreleased version in place; it is not yet
+  frozen.
+- Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.8.1, with no
+  Python environment and the transition check building this revision's target
+  image: the full suite passed 597 of 597; the Release build succeeded with no
+  warnings; the lane passed 238 of 238 on one run and failed 6 bounded-wait
+  cases on the next. The host was heavily loaded by unrelated work (load
+  average 9 to 20). The failures were `CompletionObserverTests` "did not
+  settle" timeouts, one `CompletionPersistenceTests` case and, in earlier runs
+  at this change, `DirectTargetTrustTests` and `AttemptCompletionTests`
+  `transport_failed` reads. Those classes passed five consecutive isolated runs
+  at this revision, and the lane at `9127fda` failed the same
+  `CompletionObserverTests` cases on the same host at the same time.
 - Baseline: the transition check ran with its recorded scope unchanged, as a
   restart of this revision's native 10.10.0 target image over its own state
   (#215 introduced it for 10.9.0; #226 moved the binding). No transition source
-  is listed. The native binding, approved asset and fresh-store definition are
-  unchanged from the `0.2.0-preview.1` adoption.
+  is listed. The native binding and approved asset are unchanged from the
+  `0.2.0-preview.1` adoption; the fresh-store definition changed with #233.
 
 ## Evidence limits and history
 
