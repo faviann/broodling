@@ -14,20 +14,18 @@ public sealed class ReplacementTests
     [Arguments("admit")]
     public async Task MalformedRetryKeyCannotReturnLegitimateReplacementCharacterHistory(string operation)
     {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var original = fixture.Git.Admit(store);
+        using var fixture = new AttemptFixture();
+        using var store = fixture.State.Open();
+        var original = fixture.Admit(store);
         await SafeRetire(store, original);
-        var successor = store.AdmitRetry(original.AttemptId, "retry-\ufffd", fixture.Git.Workspaces, fixture.Profile);
-        using var reopened = fixture.Git.State.Open();
+        var successor = store.AdmitRetry(original.AttemptId, "retry-\ufffd");
+        using var reopened = fixture.State.Open();
         if (operation == "find")
             await Assert.That(() => reopened.FindRetry("retry-\ud800")).Throws<BroodlingException>();
         else
-            await Assert.That(() => reopened.AdmitRetry(original.AttemptId, "retry-\ud800",
-                fixture.Git.Workspaces, fixture.Profile)).Throws<BroodlingException>();
+            await Assert.That(() => reopened.AdmitRetry(original.AttemptId, "retry-\ud800")).Throws<BroodlingException>();
         await Assert.That(reopened.FindRetry("retry-\ufffd")!.AttemptId).IsEqualTo(successor.AttemptId);
-        await Assert.That(reopened.AdmitRetry(original.AttemptId, "retry-\ufffd", fixture.Git.Workspaces, fixture.Profile))
-            .IsEqualTo(successor);
+        await Assert.That(reopened.AdmitRetry(original.AttemptId, "retry-\ufffd")).IsEqualTo(successor);
         await Assert.That(reopened.Status(original.ContractRevisionId).Attempts.Count).IsEqualTo(2);
     }
 
@@ -70,35 +68,31 @@ public sealed class ReplacementTests
     [Test]
     public async Task SameKeyConvergesAndHistoricalReplayReturnsIdentityWithoutRevivingAuthority()
     {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var original = fixture.Git.Admit(store);
+        using var fixture = new HttpFixture();
+        var store = fixture.Store;
+        var original = fixture.Attempt;
         await SafeRetire(store, original);
         var results = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
         {
             using var other = fixture.Git.State.Open();
-            return other.AdmitRetry(original.AttemptId, "same-key", fixture.Git.Workspaces, fixture.Profile);
+            return other.AdmitRetry(original.AttemptId, "same-key");
         })));
         await Assert.That(results.Distinct().Count()).IsEqualTo(1);
         var successor = results[0];
-        foreach (var request in new (string Id, string Key, string Root, NativeProfile Profile)[] {
-            (original.AttemptId, "other-key", fixture.Git.Workspaces, fixture.Profile),
-            (successor.AttemptId, "same-key", fixture.Git.Workspaces, fixture.Profile),
-            (original.AttemptId, "same-key", fixture.Git.Workspaces + "-changed", fixture.Profile),
-            (original.AttemptId, "same-key", fixture.Git.Workspaces, new NativeProfile(fixture.NativeState + "-changed", fixture.Codex, toolPath: "/usr/bin:/bin")) })
-            await Assert.That(() => store.AdmitRetry(request.Id, request.Key, request.Root, request.Profile)).Throws<AttemptConflict>();
+        foreach (var (id, key) in new[] { (original.AttemptId, "other-key"), (successor.AttemptId, "same-key") })
+            await Assert.That(() => store.AdmitRetry(id, key)).Throws<AttemptConflict>();
         await SafeRetire(store, successor);
-        var third = store.AdmitRetry(successor.AttemptId, "next-key", fixture.Git.Workspaces, fixture.Profile);
+        var third = store.AdmitRetry(successor.AttemptId, "next-key");
         using var reopened = fixture.Git.State.Open();
-        var historical = reopened.AdmitRetry(original.AttemptId, "same-key", fixture.Git.Workspaces, fixture.Profile);
+        var historical = reopened.AdmitRetry(original.AttemptId, "same-key");
         await Assert.That(historical.AttemptId).IsEqualTo(successor.AttemptId);
         await Assert.That(historical.IsCurrent).IsFalse();
         await Assert.That(reopened.CurrentAttempt(original.WorkUnitId)!.AttemptId).IsEqualTo(third.AttemptId);
-        await Assert.That(() => reopened.PrepareRetry(original.AttemptId, "same-key", fixture.Git.Workspaces, fixture.Profile)).Throws<StaleAttempt>();
-        await Assert.That(() => reopened.PrepareSubmission(historical.AttemptId, fixture.Profile)).Throws<SubmissionNotReady>();
-        await Assert.That(async () => await reopened.DispatchAsync(historical.AttemptId, fixture.Profile, new ControlledTransport())).Throws<StaleAttempt>();
+        await Assert.That(() => fixture.Prepare(reopened, historical.AttemptId)).Throws<StaleAttempt>();
+        await Assert.That(async () => await reopened.DispatchHttpAsync(historical.AttemptId, HttpDispatchTests.Credentials()))
+            .Throws<StaleAttempt>();
+        await Assert.That(reopened.FindSubmission(historical.AttemptId)).IsNull();
         await Assert.That(() => fixture.Git.Admit(reopened)).Throws<StaleAttempt>();
-        await Assert.That(Directory.Exists(historical.Allocation.Enclosure)).IsFalse();
     }
 
     [Test]
@@ -127,22 +121,21 @@ public sealed class ReplacementTests
     }
 
     [Test]
-    public async Task AllocationFailureRollsBackRetryIdentityAndAllocationTogether()
+    public async Task AllocationFailureRollsBackRetryIdentityAndAttemptTogether()
     {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var original = fixture.Git.Admit(store);
+        using var fixture = new AttemptFixture();
+        using var store = fixture.State.Open();
+        var original = fixture.Admit(store);
         await SafeRetire(store, original);
         var connection = Connection(store);
         using var command = connection.CreateCommand();
         command.CommandText = "CREATE TEMP TRIGGER fail_retry AFTER INSERT ON attempts BEGIN SELECT RAISE(ABORT, 'allocation failure'); END";
         command.ExecuteNonQuery();
-        await Assert.That(() => store.AdmitRetry(original.AttemptId, "rollback", fixture.Git.Workspaces, fixture.Profile)).Throws<SqliteException>();
+        await Assert.That(() => store.AdmitRetry(original.AttemptId, "rollback")).Throws<SqliteException>();
         await Assert.That(store.FindRetry("rollback")).IsNull();
         await Assert.That(store.Status(original.ContractRevisionId).Attempts.Count).IsEqualTo(1);
-        await Assert.That(Directory.Exists(fixture.Git.Workspaces)).IsFalse();
         command.CommandText = "DROP TRIGGER fail_retry"; command.ExecuteNonQuery();
-        await Assert.That(store.AdmitRetry(original.AttemptId, "rollback", fixture.Git.Workspaces, fixture.Profile).IsCurrent).IsTrue();
+        await Assert.That(store.AdmitRetry(original.AttemptId, "rollback").IsCurrent).IsTrue();
     }
 
     [Test]
@@ -150,49 +143,47 @@ public sealed class ReplacementTests
     [Arguments("source-bytes")]
     public async Task MissingOriginalMaterialRefusesBeforeAnyAllocation(string corruption)
     {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var original = fixture.Git.Admit(store);
+        using var fixture = new AttemptFixture();
+        using var store = fixture.State.Open();
+        var original = fixture.Admit(store);
         await SafeRetire(store, original);
-        if (corruption == "original-object") fixture.Git.DeleteObject(original.B1.CommitOid);
-        else fixture.Git.State.Execute("DROP TRIGGER sources_no_update; UPDATE entitled_sources SET content = X'1234'");
+        if (corruption == "original-object") fixture.DeleteObject(original.B1.CommitOid);
+        else fixture.State.Execute("DROP TRIGGER sources_no_update; UPDATE entitled_sources SET content = X'1234'");
         if (corruption == "original-object")
-            await Assert.That(() => store.AdmitRetry(original.AttemptId, "bad", fixture.Git.Workspaces, fixture.Profile)).Throws<UnsupportedStartingState>();
+            await Assert.That(() => store.AdmitRetry(original.AttemptId, "bad")).Throws<UnsupportedStartingState>();
         else
-            await Assert.That(() => store.AdmitRetry(original.AttemptId, "bad", fixture.Git.Workspaces, fixture.Profile)).Throws<SourceAttributionError>();
+            await Assert.That(() => store.AdmitRetry(original.AttemptId, "bad")).Throws<SourceAttributionError>();
         await Assert.That(store.FindRetry("bad")).IsNull();
         await Assert.That(store.Status(original.ContractRevisionId).Attempts.Count).IsEqualTo(1);
-        await Assert.That(Directory.Exists(fixture.Git.Workspaces)).IsFalse();
     }
 
     [Test]
-    public async Task SqlCannotBypassRetirementRewriteLineageRebindOriginalOrDropChosenTarget()
+    public async Task SqlCannotBypassRetirementRewriteLineageOrRebindOriginal()
     {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var original = fixture.Git.Admit(store);
-        await Assert.That(() => fixture.Git.State.Execute($"INSERT INTO attempt_retries VALUES ('unsafe', '{original.AttemptId}', 'forged', '/', '{{}}', 'now')")).Throws<SqliteException>();
+        using var fixture = new AttemptFixture();
+        using var store = fixture.State.Open();
+        var original = fixture.Admit(store);
+        await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retries VALUES ('unsafe', '{original.AttemptId}', 'forged', NULL, NULL, 'now')")).Throws<SqliteException>();
         await SafeRetire(store, original);
-        using (var connection = fixture.Git.State.Connect())
+        using (var connection = fixture.State.Connect())
         using (var transaction = connection.BeginTransaction())
         {
             using var command = connection.CreateCommand(); command.Transaction = transaction;
-            command.CommandText = $"INSERT INTO attempt_retries VALUES ('forged', '{original.AttemptId}', 'forged', '/durable', '{{}}', 'now')";
+            command.CommandText = $"INSERT INTO attempt_retries VALUES ('forged', '{original.AttemptId}', 'forged', NULL, NULL, 'now')";
             command.ExecuteNonQuery();
             command.CommandText = $"""
                 INSERT INTO attempts SELECT 'forged', work_unit_id, contract_revision_id, 1,
                 b1_repository, '{new string('f', 40)}', b1_material_sha256, b1_requested_revision,
-                '/durable', '/durable/forged', '/durable/forged/worktree', 'broodling/forged', 'now', resource_kind FROM attempts
+                NULL, NULL, NULL, NULL, 'now', resource_kind FROM attempts
                 """;
             await Assert.That(() => command.ExecuteNonQuery()).Throws<SqliteException>();
             // A lineage-only commit cannot leave an orphan reservation.
             await Assert.That(() => transaction.Commit()).Throws<SqliteException>();
         }
-        var successor = store.AdmitRetry(original.AttemptId, "valid", fixture.Git.Workspaces, fixture.Profile);
-        foreach (var sql in new[] { "DELETE FROM attempt_retries", "UPDATE attempt_retries SET target_json = '{}'", "INSERT OR REPLACE INTO attempt_retries SELECT * FROM attempt_retries" })
-            await Assert.That(() => fixture.Git.State.Execute(sql)).Throws<SqliteException>();
-        store.ProvisionAttempt(successor.AttemptId);
-        await Assert.That(() => fixture.Git.State.Execute($"INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state) VALUES ('{successor.AttemptId}', 'bridge', 'key', '{{}}', 'prepared')")).Throws<SqliteException>();
+        store.AdmitRetry(original.AttemptId, "valid");
+        foreach (var sql in new[] { "DELETE FROM attempt_retries", "UPDATE attempt_retries SET retry_key = 'changed'",
+            "INSERT OR REPLACE INTO attempt_retries SELECT * FROM attempt_retries" })
+            await Assert.That(() => fixture.State.Execute(sql)).Throws<SqliteException>();
     }
 
     [Test]
@@ -219,6 +210,7 @@ public sealed class ReplacementTests
         using var fixture = new AttemptFixture();
         string local;
         AttemptRecord original, successor;
+        AdmissionStatus originalStatus;
         using (var store = fixture.State.Open())
         {
             original = fixture.AdmitHttp(store, revision: "main");
@@ -242,6 +234,7 @@ public sealed class ReplacementTests
                     """;
                 await Assert.That(() => command.ExecuteNonQuery()).Throws<SqliteException>();
             }
+            originalStatus = store.Status(original.ContractRevisionId);
             fixture.Commit("today's HEAD must not become B1\n");
             local = fixture.LocalResources();
             store.PauseInstallation(); // Explicit safe replacement allocation remains permitted while paused.
@@ -260,7 +253,11 @@ public sealed class ReplacementTests
         }
         using var reopened = fixture.State.Open();
         await Assert.That(reopened.AdmitRetry(original.AttemptId, "replace")).IsEqualTo(successor);
-        await Assert.That(reopened.Status(original.ContractRevisionId).Attempts.Count).IsEqualTo(2);
+        // The successor shares the original Contract and source snapshots, never today's.
+        var status = reopened.Status(original.ContractRevisionId);
+        await Assert.That(status.Attempts.Count).IsEqualTo(2);
+        await Assert.That(status.Revision.CanonicalBytes.SequenceEqual(originalStatus.Revision.CanonicalBytes)).IsTrue();
+        await Assert.That(status.Sources.Select(source => source.SourceId).SequenceEqual(originalStatus.Sources.Select(source => source.SourceId))).IsTrue();
         await Assert.That(fixture.Git("rev-parse", original.B1.RetentionRef).Trim()).IsEqualTo(original.B1.CommitOid);
         await Assert.That(fixture.LocalResources()).IsEqualTo(local);
     }
@@ -364,7 +361,7 @@ public sealed class ReplacementTests
 
     internal static async Task SafeRetire(BroodlingStore store, AttemptRecord attempt)
     {
-        await store.StopAsync(attempt.AttemptId, "explicit replacement", new ControlledTransport());
+        await store.StopAsync(attempt.AttemptId, "explicit replacement", null);
         store.RetireAttempt(attempt.AttemptId);
     }
 }

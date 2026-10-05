@@ -9,16 +9,6 @@ namespace Broodling.Tests;
 public sealed class NativePolicyTests
 {
     [Test]
-    public async Task GitRemoteAuthorityDoesNotTreatCallerShorthandAsAGitHubOrigin()
-    {
-        foreach (var origin in new[] { "https://github.com/acme/widget.git", "git@github.com:acme/widget.git", "ssh://git@github.com/acme/widget" })
-            await Assert.That(NativeProfile.GitHubOriginRepository(origin)).IsEqualTo("acme/widget");
-        foreach (var origin in new[] { "acme/widget", "github.com/acme/widget", "/acme/widget", "https://other.invalid/acme/widget", "" })
-            await Assert.That(NativeProfile.GitHubOriginRepository(origin)).IsNull();
-        await Assert.That(NativeProfile.GitHubOriginRepository("https://github.com/ACME/Widget.git")).IsEqualTo("ACME/Widget");
-    }
-
-    [Test]
     public async Task FrozenLauncherIdentityIncludesTheManagedPolicyNotJustItsApphost()
     {
         using var fixture = new NativeFixture();

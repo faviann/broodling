@@ -183,7 +183,7 @@ public sealed class RequestCaptureTests
 
         // A refused bundle blocks Contract association and keeps its captures readable.
         var admitted = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()],
-            ContractIngressTests.Propose, [], "caller");
+            ContractIngressTests.Propose, ContractIngressTests.PullRequest, "caller");
         await Assert.That(() => store.AssociateIssueSubmission(bundle.SubmissionId, admitted.Revision.ContractRevisionId))
             .Throws<IssueSubmissionConflict>();
         await Assert.That(store.ReadRequestBundleReference(bundle.BundleId, "primary").Content

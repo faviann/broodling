@@ -158,7 +158,7 @@ public sealed class GitCustodyTests
         if (OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("The qualified Git profile requires Linux.");
         File.SetUnixFileMode(hook, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         using var store = fixture.State.Open();
-        var attempt = store.AdmitAttempt(fixture.RevisionId, bare, fixture.Workspaces);
+        var attempt = store.AdmitHttpAttempt(fixture.RevisionId, bare);
         await Assert.That(attempt.B1.CommitOid).IsEqualTo(fixture.Head);
         await Assert.That(attempt.B1.Repository).IsEqualTo(bare);
         await Assert.That(File.Exists(sentinel)).IsFalse();
@@ -191,7 +191,7 @@ public sealed class GitCustodyTests
     [Test]
     public async Task WorkspaceRootsRefuseTemporaryRepositoryCommonDirectoryAndDisposableLocationsIncludingLinks()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         var disposable = System.IO.Path.Combine(fixture.State.Root, "disposable");
         Directory.CreateDirectory(disposable);
         File.WriteAllText(System.IO.Path.Combine(disposable, ".broodling-disposable-worktree"), "another-attempt");
@@ -224,7 +224,7 @@ public sealed class GitCustodyTests
     }
 
     [Test]
-    public async Task LinkedSourceAndSymlinkSpellingsShareCommonGitIdentityAndRejectNestedRoots()
+    public async Task LinkedSourceAndSymlinkSpellingsShareCommonGitIdentity()
     {
         using var fixture = new AttemptFixture();
         var linked = System.IO.Path.Combine(fixture.State.Root, "linked-source");
@@ -232,10 +232,8 @@ public sealed class GitCustodyTests
         var alias = System.IO.Path.Combine(fixture.State.Root, "source-alias");
         Directory.CreateSymbolicLink(alias, fixture.Repository);
         using var store = fixture.State.Open();
-        foreach (var root in new[] { linked, fixture.GitDirectory })
-            await Assert.That(() => store.AdmitAttempt(fixture.RevisionId, linked, root)).Throws<UnsupportedWorkspaceRoot>();
-        var first = store.AdmitAttempt(fixture.RevisionId, linked, fixture.Workspaces);
+        var first = store.AdmitHttpAttempt(fixture.RevisionId, linked);
         await Assert.That(first.B1.Repository).IsEqualTo(fixture.GitDirectory);
-        await Assert.That(store.AdmitAttempt(fixture.RevisionId, alias, fixture.Workspaces)).IsEqualTo(first);
+        await Assert.That(store.AdmitHttpAttempt(fixture.RevisionId, alias)).IsEqualTo(first);
     }
 }

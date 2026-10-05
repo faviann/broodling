@@ -11,39 +11,47 @@ public sealed class InvocationTests
     [Test]
     public async Task ThinStopHandsBackQuarantineAndSubmitResumeStatusHistoryRetainAbandonment()
     {
-        using var fixture = new NativeFixture();
-        using var gh = new IssueFixture(fixture.Root);
-        using var store = fixture.Git.State.Open();
-        var submissionTransport = new ControlledTransport();
-        var invocation = new Invocation(store, Local(fixture, submissionTransport));
+        var target = new StockTarget();
+        using var fixture = GitHubRepository();
+        using var gh = new IssueFixture(fixture.State.Root);
+        using var store = fixture.State.Open();
+        var invocation = new Invocation(store, new InvocationTarget.Direct(target.Origin.GetLeftPart(UriPartial.Authority)));
         var submitted = await invocation.SubmitAsync(ContractIngressTests.Reference, new ReviewedIssueProposal(Issue).Propose,
-            [], fixture.Git.Repository, source: gh.Source);
+            ContractIngressTests.PullRequest, fixture.Repository, credentials: HttpDispatchTests.Credentials(), source: gh.Source);
         var attempt = submitted.Attempts.Single();
+        // The stop cannot reach the target, so native stop is never confirmed.
+        await target.DisposeAsync();
         var output = new StringWriter();
         var error = new StringWriter();
-        var stopTransport = new ControlledTransport { Stop = (_, _, _) => throw new NativeTransportError() };
-        var code = await InvocationCommands.RunAsync(["stop", fixture.Git.State.Path, attempt.AttemptId, "operator requested stop"],
-            fixture.Git.State.Application, output, error, transport: stopTransport);
+        var code = await InvocationCommands.RunAsync(["stop", fixture.State.Path, attempt.AttemptId, "operator requested stop"],
+            fixture.State.Application, output, error);
         await Assert.That(code).IsEqualTo(1);
         using var handback = JsonDocument.Parse(output.ToString());
         await Assert.That(handback.RootElement.GetProperty("quarantined").GetBoolean()).IsTrue();
         await Assert.That(handback.RootElement.GetProperty("attempt").GetProperty("abandonment").GetProperty("reason").GetString()).IsEqualTo("operator requested stop");
         var repeated = await invocation.SubmitAsync(ContractIngressTests.Reference, new ReviewedIssueProposal(Issue).Propose,
-            [], fixture.Git.Repository, source: gh.Source);
+            ContractIngressTests.PullRequest, fixture.Repository, source: gh.Source);
         await Assert.That(repeated.Attempts.Single().AttemptId).IsEqualTo(attempt.AttemptId);
-        await Assert.That(submissionTransport.Calls).IsEqualTo(1);
+        await Assert.That(target.Bodies.Count).IsEqualTo(1);
         output.GetStringBuilder().Clear();
-        await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.Git.State.Path, attempt.ContractRevisionId],
-            fixture.Git.State.Application, output, error)).IsEqualTo(0);
+        await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.State.Path, attempt.ContractRevisionId],
+            fixture.State.Application, output, error)).IsEqualTo(0);
         using var resumed = JsonDocument.Parse(output.ToString());
         await Assert.That(resumed.RootElement.GetProperty("quarantinedAttemptIds")[0].GetString()).IsEqualTo(attempt.AttemptId);
         gh.RemoveExecutable();
-        Directory.Delete(attempt.Allocation.WorktreePath, true);
-        using var reopened = fixture.Git.State.Open();
+        using var reopened = fixture.State.Open();
         var status = reopened.Status(attempt.ContractRevisionId);
         await Assert.That(status.Attempts.Single().Abandonment!.Reason).IsEqualTo("operator requested stop");
         await Assert.That(reopened.History(ContractIngressTests.Reference).Last().Attempts.Single()).IsEqualTo(status.Attempts.Single());
         await Assert.That(reopened.CurrentAttempt(attempt.WorkUnitId)).IsNull();
+    }
+
+    /// <summary>A source repository whose origin names the admitted GitHub repository, as HTTP preparation requires.</summary>
+    private static AttemptFixture GitHubRepository()
+    {
+        var fixture = new AttemptFixture();
+        fixture.Git("remote", "add", "origin", "https://github.com/acme/widget.git");
+        return fixture;
     }
 
     private static InvocationTarget Local(NativeFixture fixture, INativeTransport transport) =>
@@ -139,98 +147,117 @@ public sealed class InvocationTests
     }
 
     [Test]
-    public async Task CallableSubmitResumeAndHandbackComposeExistingAuthorityWithoutReacquisitionOrReprovision()
+    public async Task CallableSubmitResumeAndHandbackComposeExistingAuthorityWithoutReacquisition()
     {
-        using var fixture = new NativeFixture();
-        using var gh = new IssueFixture(fixture.Root);
-        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
+        await using var target = new StockTarget();
+        using var fixture = GitHubRepository();
+        using var gh = new IssueFixture(fixture.State.Root);
+        var origin = target.Origin.GetLeftPart(UriPartial.Authority);
+        target.Submit = _ => Task.FromResult((503, """{"code":"target.unavailable","message":"unavailable"}"""));
         string revisionId;
         string attemptId;
-        using (var store = fixture.Git.State.Open())
+        using (var store = fixture.State.Open())
         {
-            var invocation = new Invocation(store, Local(fixture, transport));
+            var invocation = new Invocation(store, new InvocationTarget.Direct(origin));
             await Assert.That(async () => await invocation.SubmitAsync(ContractIngressTests.Reference, new ReviewedIssueProposal(Issue).Propose,
-                [], fixture.Git.Repository, source: gh.Source)).Throws<NativeTransportError>();
+                ContractIngressTests.PullRequest, fixture.Repository, credentials: HttpDispatchTests.Credentials(), source: gh.Source))
+                .Throws<NativeTransportError>();
             var status = store.History(ContractIngressTests.Reference).Last();
             revisionId = status.Revision.ContractRevisionId;
             attemptId = status.Attempts.Single().AttemptId;
             await Assert.That(status.Submissions.Single().State).IsEqualTo("dispatched");
         }
         gh.RemoveExecutable();
-        transport.Submit = _ => Task.FromResult("callable-run");
-        using var reopened = fixture.Git.State.Open();
-        var recovered = await new Invocation(reopened, new InvocationTarget.Local("/unused", fixture.Profile, transport)).ResumeAsync(revisionId);
+        target.Submit = body => Task.FromResult(target.Accept(body));
+        using var reopened = fixture.State.Open();
+        var recovered = await new Invocation(reopened, new InvocationTarget.Direct(origin))
+            .ResumeAsync(revisionId, credentials: HttpDispatchTests.Credentials("rotated"));
         await Assert.That(recovered.Attempts.Single().AttemptId).IsEqualTo(attemptId);
-        await Assert.That(recovered.Submissions.Single().RunId).IsEqualTo("callable-run");
-        Directory.Delete(recovered.Attempts.Single().Allocation.WorktreePath, true);
-        Directory.Delete(fixture.Home);
-        // Correlated handback needs no matching configuration, not even the same target kind.
+        var correlated = recovered.Submissions.Single();
+        await Assert.That(correlated.RunId).IsEqualTo(correlated.IntendedRunId);
+        // Correlated handback needs no matching configuration or credentials.
         var rebound = await new Invocation(reopened, new InvocationTarget.Direct("http://127.0.0.1:9")).ResumeAsync(revisionId);
-        await Assert.That(rebound.Submissions.Single().RunId).IsEqualTo("callable-run");
+        await Assert.That(rebound.Submissions.Single().RunId).IsEqualTo(correlated.RunId);
         reopened.AbandonAttempt(attemptId, "operator handback");
-        var abandoned = await new Invocation(reopened, new InvocationTarget.Local("/unused", fixture.Profile, transport)).ResumeAsync(revisionId);
+        var abandoned = await new Invocation(reopened, new InvocationTarget.Direct(origin)).ResumeAsync(revisionId);
         await Assert.That(abandoned.Attempts.Single().Abandonment!.Reason).IsEqualTo("operator handback");
-        await Assert.That(transport.Calls).IsEqualTo(2);
+        await Assert.That(target.Bodies.Count).IsEqualTo(2);
+        await Assert.That(target.Runs.Count).IsEqualTo(1);
     }
 
     [Test]
-    public async Task ResumeCompletesInterruptedProvisionAndReturnsRejectionWhileChangedEffectsCannotDisplaceCurrentAttempt()
+    public async Task ResumeReturnsRejectionAndAChangedContractCannotDisplaceTheCurrentAttempt()
     {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var attempt = fixture.Git.Admit(store);
-        var transport = new ControlledTransport();
-        var invocation = new Invocation(store, new InvocationTarget.Local("/unused", fixture.Profile, transport));
-        var resumed = await invocation.ResumeAsync(attempt.ContractRevisionId);
-        await Assert.That(resumed.Attempts.Single().Provision).IsNotNull();
+        using var fixture = new AttemptFixture();
+        using var store = fixture.State.Open();
+        var attempt = fixture.Admit(store);
+        var invocation = new Invocation(store, new InvocationTarget.Direct("http://127.0.0.1:9"));
         var rejected = store.AdmitSources(WorkReference.Parse("acme/widget", 99),
             [new("primary_issue", "https://github.com/acme/widget/issues/99", Issue, entitlement: new("caller", "reviewed"))],
             ContractIngressTests.Propose, [new("merge", "Merge upstream", "merge")]);
         var handback = await invocation.ResumeAsync(rejected.Revision.ContractRevisionId);
         await Assert.That(handback.Decision!.Admitted).IsFalse();
         await Assert.That(handback.Attempts.Count).IsEqualTo(0);
-        var changed = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose,
-            [new("pr", "Open PR", "pull_request", "main")]);
-        await Assert.That(async () => await new Invocation(store, new InvocationTarget.Direct("http://127.0.0.1:9"))
-            .ResumeAsync(changed.Revision.ContractRevisionId, fixture.Git.Repository)).Throws<AttemptConflict>();
-        await Assert.That(transport.Calls).IsEqualTo(1);
+        var changed = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary("A changed request."u8.ToArray())],
+            ContractIngressTests.Propose, ContractIngressTests.PullRequest);
+        await Assert.That(async () => await invocation.ResumeAsync(changed.Revision.ContractRevisionId, fixture.Repository))
+            .Throws<AttemptConflict>();
+        await Assert.That(store.Status(changed.Revision.ContractRevisionId).Attempts.Count).IsEqualTo(0);
+        await Assert.That(store.FindSubmission(attempt.AttemptId)).IsNull();
     }
 
     [Test]
+    [NotInParallel]
     public async Task ThinOperatorSubmitAndResumeRetainIdentifiersWithSafeErrorsAndInterruptHandback()
     {
-        using var fixture = new NativeFixture();
-        using var gh = new IssueFixture(fixture.Root);
-        var reviewed = Path.Combine(fixture.Root, "reviewed.json");
+        await using var target = new StockTarget();
+        using var fixture = GitHubRepository();
+        using var gh = new IssueFixture(fixture.State.Root);
+        var reviewed = Path.Combine(fixture.State.Root, "reviewed.json");
         File.WriteAllBytes(reviewed, Issue);
-        var config = Path.Combine(fixture.Root, "config.json");
-        File.WriteAllText(config, JsonSerializer.Serialize(new
+        var config = Path.Combine(fixture.State.Root, "config.json");
+        File.WriteAllText(config, new JsonObject
         {
-            target = "local", pythonExecutable = NativeFixture.Python, stateDirectory = fixture.NativeState, workspaceRoot = fixture.Git.Workspaces,
-            realCodex = fixture.Codex.RealCodex, profileHome = fixture.Home, codexHome = fixture.CodexHome, launcher = NativeFixture.Launcher
-        }));
-        var args = new[] { "submit", fixture.Git.State.Path, config, "acme/widget", "12", fixture.Git.Repository, fixture.Git.Head, "-", reviewed, "caller" };
+            ["target"] = "direct", ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority)
+        }.ToJsonString());
+        var args = new[] { "submit", fixture.State.Path, config, "acme/widget", "12", fixture.Repository, fixture.Head, "main", reviewed, "caller" };
         var output = new StringWriter();
         var error = new StringWriter();
-        var transport = new ControlledTransport { Submit = _ => throw new System.ComponentModel.Win32Exception("SECRET_CANARY") };
-        await Assert.That(await InvocationCommands.RunAsync(args, fixture.Git.State.Application, output, error, source: gh.Source, transport: transport)).IsEqualTo(1);
-        await Assert.That(error.ToString().Contains("SECRET_CANARY")).IsFalse();
-        await Assert.That(error.ToString().Contains("history/status")).IsTrue();
-        using var store = fixture.Git.State.Open();
-        var retained = store.History(ContractIngressTests.Reference).Last();
-        transport.Submit = _ => throw new OperationCanceledException();
-        await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.Git.State.Path, retained.Revision.ContractRevisionId, config],
-            fixture.Git.State.Application, output, error, transport: transport)).IsEqualTo(130);
-        transport.Submit = _ => Task.FromResult("operator-run");
-        await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.Git.State.Path, retained.Revision.ContractRevisionId, config],
-            fixture.Git.State.Application, output, error, transport: transport)).IsEqualTo(0);
-        using var result = JsonDocument.Parse(output.ToString());
-        await Assert.That(result.RootElement.GetProperty("submissions")[0].GetProperty("runId").GetString()).IsEqualTo("operator-run");
-        output.GetStringBuilder().Clear();
-        File.Delete(config);
-        gh.RemoveExecutable();
-        await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.Git.State.Path, retained.Revision.ContractRevisionId],
-            fixture.Git.State.Application, output, error)).IsEqualTo(0);
+        target.Submit = _ => Task.FromResult((503, """{"code":"target.unavailable","message":"SECRET_CANARY"}"""));
+        var names = new[] { "GH_TOKEN", "GATEWAY_BASE_URL", "GATEWAY_API_KEY" };
+        var saved = names.Select(Environment.GetEnvironmentVariable).ToArray();
+        try
+        {
+            foreach (var (name, value) in names.Zip(new[] { "github-canary", NativeProfile.GatewayBaseUrl, "gateway-canary" }))
+                Environment.SetEnvironmentVariable(name, value);
+            await Assert.That(await InvocationCommands.RunAsync(args, fixture.State.Application, output, error, source: gh.Source)).IsEqualTo(1);
+            await Assert.That(error.ToString().Contains("SECRET_CANARY")).IsFalse();
+            await Assert.That(error.ToString().Contains("history/status")).IsTrue();
+            using var store = fixture.State.Open();
+            var retained = store.History(ContractIngressTests.Reference).Last();
+            target.Submit = body => Task.FromResult(target.Accept(body));
+            using (var detached = new CancellationTokenSource())
+            {
+                detached.Cancel();
+                await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.State.Path, retained.Revision.ContractRevisionId, config],
+                    fixture.State.Application, output, error, detached.Token)).IsEqualTo(130);
+            }
+            await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.State.Path, retained.Revision.ContractRevisionId, config],
+                fixture.State.Application, output, error)).IsEqualTo(0);
+            using var result = JsonDocument.Parse(output.ToString());
+            var summary = result.RootElement.GetProperty("submissions")[0];
+            await Assert.That(summary.GetProperty("runId").GetString()).IsEqualTo(summary.GetProperty("intendedRunId").GetString());
+            output.GetStringBuilder().Clear();
+            File.Delete(config);
+            gh.RemoveExecutable();
+            await Assert.That(await InvocationCommands.RunAsync(["resume", fixture.State.Path, retained.Revision.ContractRevisionId],
+                fixture.State.Application, output, error)).IsEqualTo(0);
+            await Assert.That(target.Runs.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            foreach (var (name, value) in names.Zip(saved)) Environment.SetEnvironmentVariable(name, value);
+        }
     }
 
     [Test]

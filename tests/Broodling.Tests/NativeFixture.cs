@@ -11,7 +11,7 @@ internal sealed class NativeFixture : IDisposable
         "Release",
 #endif
         "net10.0", "linux-x64", "codex");
-    internal AttemptFixture Git { get; } = new();
+    internal AttemptFixture Git { get; } = new(noEffect: true);
     internal string Root => Git.State.Root;
     internal string Home => Path.Combine(Root, "home");
     internal string CodexHome => Path.Combine(Root, "codex-home");

@@ -13,7 +13,7 @@ public sealed class ProvisioningProcessTests
     [Test]
     public async Task IndependentCallersSeeSettledGitAndObservationDoesNotTakeProvisioningWriter()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         using var held = new HeldGit(fixture);
@@ -53,7 +53,7 @@ public sealed class ProvisioningProcessTests
     [Arguments(true)]
     public async Task OrphanGitRetainsExclusionAndAbandonmentCannotAcknowledgeStaleAuthority(bool abandon)
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         using var held = new HeldGit(fixture);
@@ -86,7 +86,7 @@ public sealed class ProvisioningProcessTests
     [Test]
     public async Task KillingCallerAfterRealGitCompletionBeforeAcknowledgmentReplaysSameAttempt()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         using var held = new HeldGit(fixture, after: true);
@@ -106,7 +106,7 @@ public sealed class ProvisioningProcessTests
     [Test]
     public async Task OrdinaryDisposalRetainsSelectedGitLockButUnrelatedProcessDoesNotDelayRelease()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         using var held = new HeldGit(fixture);
@@ -129,7 +129,7 @@ public sealed class ProvisioningProcessTests
     [Test]
     public async Task IgnoredSigchldRefusesBeforeEnclosureMutation()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         using var held = new HeldGit(fixture);
@@ -143,7 +143,7 @@ public sealed class ProvisioningProcessTests
     [Test]
     public async Task SelectedSpawnFailureClosesPipesAndLockAndSignalExitIsNotSuccess()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         WorktreeMaterialization.ClaimEnclosure(attempt);
@@ -166,7 +166,7 @@ public sealed class ProvisioningProcessTests
     [Arguments(true)]
     public async Task GitNulRefusalPrecedesSpawnAndPreservesEnclosureLock(bool inEnvironment)
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         WorktreeMaterialization.ClaimEnclosure(attempt);
@@ -190,7 +190,7 @@ public sealed class ProvisioningProcessTests
     [Test]
     public async Task SelectedSpawnFailureClosesDescriptorsAndBothOutputPipesDrainPastCapacity()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         using var held = new HeldGit(fixture);

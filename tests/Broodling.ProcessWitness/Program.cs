@@ -45,6 +45,27 @@ try
         await httpStore.DispatchHttpAsync(args[2], new DispatchCredentials("witness-github-token", NativeProfile.GatewayBaseUrl, "witness-gateway-key"));
         return 99;
     }
+    if (args[0] == "replacement-crash")
+    {
+        // The parent kills this caller at the printed boundary of one HTTP replacement.
+        using var replacementStore = new BroodlingApplication().OpenStore(args[1]);
+        var mode = args[3];
+        if (mode is "allocation-write" or "prepare-write")
+        {
+            var connection = (Microsoft.Data.Sqlite.SqliteConnection)typeof(BroodlingStore)
+                .GetField("connection", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(replacementStore)!;
+            connection.CreateFunction("crash_gate", () => { CrashTransport.Gate(mode); return 1; });
+            using var command = connection.CreateCommand();
+            command.CommandText = mode == "allocation-write"
+                ? "CREATE TEMP TRIGGER crash_gate AFTER INSERT ON attempts BEGIN SELECT crash_gate(); END;"
+                : "CREATE TEMP TRIGGER crash_gate AFTER INSERT ON native_submissions BEGIN SELECT crash_gate(); END;";
+            command.ExecuteNonQuery();
+        }
+        if (mode is "allocation-write" or "allocated") replacementStore.AdmitRetry(args[2], "process-retry");
+        else replacementStore.PrepareRetry(args[2], "process-retry");
+        CrashTransport.Gate(mode);
+        return 99;
+    }
     if (args[0] == "repository-preparation-crash")
     {
         using var preparationStore = new BroodlingApplication().OpenStore(args[1]);

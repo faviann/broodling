@@ -150,6 +150,49 @@ public sealed class HttpSubmissionTests
     }
 
     [Test]
+    public async Task FrozenTaskCarriesExactTextBinaryContractAndOriginalB1AcrossNewCaptureAndReplay()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new HttpFixture();
+        var text = "Complete authority — café\r\nNo newline normalization.\r\n";
+        var status = fixture.Store.AdmitSources(WorkReference.Parse("acme/widget", 13),
+            [new("primary_issue", WorkReference.Parse("acme/widget", 13).IssueLocator, Encoding.UTF8.GetBytes(text),
+                entitlement: new("caller", "Reviewed supplied issue bytes")), ContractIngressTests.Supplement],
+            ContractIngressTests.Propose, ContractIngressTests.PullRequest);
+        var attempt = fixture.Store.AdmitHttpAttempt(status.Revision.ContractRevisionId, fixture.Git.Repository);
+        var prepared = fixture.Prepare(attemptId: attempt.AttemptId, target: target.Origin.GetLeftPart(UriPartial.Authority));
+        var task = (string)JsonNode.Parse(prepared.RequestJson)!["submission"]!["initialInput"]!["task"]!;
+        var authority = JsonNode.Parse(task[(task.IndexOf("\n\n", StringComparison.Ordinal) + 2)..])!;
+        await Assert.That(authority["comparisonBase"]!.GetValue<string>()).IsEqualTo(fixture.Git.Head);
+        await Assert.That(JsonNode.DeepEquals(authority["contract"], JsonNode.Parse(status.Revision.CanonicalBytes))).IsTrue();
+        var sources = authority["admittedInstructions"]!.AsArray();
+        await Assert.That((string)sources.Single(value => (string?)value!["kind"] == "primary_issue")!["content"]!).IsEqualTo(text);
+        var binary = sources.Single(value => (string?)value!["kind"] == "referenced_document")!;
+        await Assert.That((string)binary["encoding"]!).IsEqualTo("base64");
+        await Assert.That(Convert.FromBase64String((string)binary["content"]!).SequenceEqual(ContractIngressTests.Supplement.Content)).IsTrue();
+        fixture.Store.AdmitSources(WorkReference.Parse("acme/widget", 13),
+            [new("primary_issue", WorkReference.Parse("acme/widget", 13).IssueLocator, "newer source"u8.ToArray(),
+                entitlement: new("caller", "Reviewed supplied issue bytes"))],
+            ContractIngressTests.Propose, ContractIngressTests.PullRequest);
+
+        using var reopened = fixture.Git.State.Open();
+        var correlated = await reopened.DispatchHttpAsync(attempt.AttemptId, HttpDispatchTests.Credentials());
+        await Assert.That(correlated.RequestJson).IsEqualTo(prepared.RequestJson);
+        await Assert.That(correlated.SubmissionKey).IsEqualTo(prepared.SubmissionKey);
+        await Assert.That((string)target.Bodies.Single()["submission"]!["initialInput"]!["task"]!).IsEqualTo(task);
+    }
+
+    [Test]
+    public async Task GitRemoteAuthorityDoesNotTreatCallerShorthandAsAGitHubOrigin()
+    {
+        foreach (var origin in new[] { "https://github.com/acme/widget.git", "git@github.com:acme/widget.git", "ssh://git@github.com/acme/widget" })
+            await Assert.That(NativeProfile.GitHubOriginRepository(origin)).IsEqualTo("acme/widget");
+        foreach (var origin in new[] { "acme/widget", "github.com/acme/widget", "/acme/widget", "https://other.invalid/acme/widget", "" })
+            await Assert.That(NativeProfile.GitHubOriginRepository(origin)).IsNull();
+        await Assert.That(NativeProfile.GitHubOriginRepository("https://github.com/ACME/Widget.git")).IsEqualTo("ACME/Widget");
+    }
+
+    [Test]
     public async Task BundleBoundTaskListsItsReferencesForOnDemandReadsWithoutTheirBodies()
     {
         using var fixture = await BundleHttpFixture.CreateAsync();

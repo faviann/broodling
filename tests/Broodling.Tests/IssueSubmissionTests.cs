@@ -61,7 +61,7 @@ public sealed class IssueSubmissionTests
         var foreignReference = WorkReference.Parse("acme/widget", 13);
         var foreign = store.AdmitSources(foreignReference,
             [new SourceSubmission("primary_issue", foreignReference.IssueLocator, "Foreign work unit."u8.ToArray(),
-                entitlement: new("caller", "Reviewed foreign request"))], ContractIngressTests.Propose, []);
+                entitlement: new("caller", "Reviewed foreign request"))], ContractIngressTests.Propose, ContractIngressTests.PullRequest);
         await Assert.That(() => store.AssociateIssueSubmission(submission.SubmissionId, foreign.Revision.ContractRevisionId))
             .Throws<IssueSubmissionConflict>();
         var unbound = store.GetIssueSubmission(submission.SubmissionId);
@@ -93,7 +93,7 @@ public sealed class IssueSubmissionTests
             .IsEquivalentTo(secondLinked.AttemptIds);
 
         var revised = store.AdmitSources(ContractIngressTests.Reference,
-            [ContractIngressTests.Primary("A revised retained request."u8.ToArray())], ContractIngressTests.Propose, []);
+            [ContractIngressTests.Primary("A revised retained request."u8.ToArray())], ContractIngressTests.Propose, ContractIngressTests.PullRequest);
         await Assert.That(revised.Revision.ContractRevisionId).IsNotEqualTo(fixture.RevisionId);
         await Assert.That(() => store.AssociateIssueSubmission(submission.SubmissionId, revised.Revision.ContractRevisionId))
             .Throws<IssueSubmissionConflict>();
@@ -161,7 +161,7 @@ public sealed class IssueSubmissionTests
             var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
             store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId);
             cancelled = await store.CancelIssueSubmissionAsync(submission.SubmissionId,
-                "caller withdrew the request", new ControlledTransport());
+                "caller withdrew the request", null);
 
             await Assert.That(cancelled.State).IsEqualTo("cancelled");
             await Assert.That(cancelled.ContractRevisionId).IsEqualTo(fixture.RevisionId);
@@ -231,73 +231,61 @@ public sealed class IssueSubmissionTests
     [Test]
     public async Task CancellingSharedContractSubmissionAfterDispatchPreservesSurvivorAndLastCancellationStopsExactly()
     {
-        using var fixture = new NativeFixture();
+        await using var target = new StockTarget();
+        using var fixture = new HttpFixture();
+        var attempt = fixture.Attempt;
+        var dispatched = fixture.PrepareAt(target.Origin, "correlated");
         IssueSubmission first;
         IssueSubmission firstCancelled;
-        string survivorState;
-        string[] survivorAttemptIds;
         const string secondSubmissionId = "issue-sub-dispatched-survivor";
-        AttemptRecord attempt;
-        NativeSubmission dispatched;
 
         using (var store = fixture.Git.State.Open())
         {
             first = store.SubmitIssue("https://github.com/acme/widget/issues/12");
-            store.AssociateIssueSubmission(first.SubmissionId, fixture.Git.RevisionId);
+            store.AssociateIssueSubmission(first.SubmissionId, attempt.ContractRevisionId);
             fixture.Git.State.Execute($"INSERT INTO issue_submissions (submission_id, work_unit_id, submission_sequence, issue_url, state, contract_revision_id, received_at) "
-                + $"VALUES ('{secondSubmissionId}', '{first.WorkUnitId}', 2, '{first.IssueUrl}', 'accepted', '{fixture.Git.RevisionId}', '{first.ReceivedAt}')");
-
-            attempt = fixture.Provision(store);
-            var transport = new ControlledTransport { Submit = _ => Task.FromResult("shared-run") };
-            dispatched = await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
+                + $"VALUES ('{secondSubmissionId}', '{first.WorkUnitId}', 2, '{first.IssueUrl}', 'accepted', '{attempt.ContractRevisionId}', '{first.ReceivedAt}')");
             var survivorBeforeCancellation = store.GetIssueSubmission(secondSubmissionId);
-            survivorState = survivorBeforeCancellation.State;
-            survivorAttemptIds = survivorBeforeCancellation.AttemptIds.ToArray();
 
-            firstCancelled = await store.CancelIssueSubmissionAsync(first.SubmissionId,
-                "withdraw first shared ticket", transport);
+            firstCancelled = await store.CancelIssueSubmissionAsync(first.SubmissionId, "withdraw first shared ticket", null);
             await Assert.That(firstCancelled.State).IsEqualTo("cancelled");
             await Assert.That(firstCancelled.Cancellation!.AttemptId).IsNull();
             var survivorAfterCancellation = store.GetIssueSubmission(secondSubmissionId);
-            await Assert.That(survivorAfterCancellation.State).IsEqualTo(survivorState);
-            await Assert.That(survivorAfterCancellation.AttemptIds).IsEquivalentTo(survivorAttemptIds);
+            await Assert.That(survivorAfterCancellation.State).IsEqualTo(survivorBeforeCancellation.State);
+            await Assert.That(survivorAfterCancellation.AttemptIds).IsEquivalentTo(survivorBeforeCancellation.AttemptIds);
             await Assert.That(store.GetAttempt(attempt.AttemptId).IsCurrent).IsTrue();
             await Assert.That(store.GetAttempt(attempt.AttemptId).Abandonment).IsNull();
-            await Assert.That(transport.StopCalls).IsEqualTo(0);
+            await Assert.That(target.Count("run/force")).IsEqualTo(0);
         }
 
         using var reopened = fixture.Git.State.Open();
-        var transportAfterReopen = new ControlledTransport
+        var committedFirst = false;
+        target.Reply = (request, _) =>
         {
-            Stop = (locator, runId, _) =>
+            if ((string)request["method"]! == "run/force")
             {
+                // The force addresses the exact correlated run only after the cancellation and abandonment commit.
                 using var observer = fixture.Git.State.Open();
                 var cancelled = observer.GetIssueSubmission(secondSubmissionId);
-                if (cancelled.State != "cancelled" || cancelled.Cancellation?.AttemptId != attempt.AttemptId)
-                    throw new Exception("Native stop observed before exact cancellation binding committed.");
-                if (observer.GetAttempt(attempt.AttemptId).Abandonment?.Reason != "withdraw last shared ticket")
-                    throw new Exception("Native stop observed before exact Attempt abandonment committed.");
-                if (locator != dispatched.Locator || runId != dispatched.RunId)
-                    throw new Exception("Native stop did not receive the exact dispatched locator and run.");
-                return Task.FromResult(new NativeResult(runId, true, default, null));
+                committedFirst = cancelled.State == "cancelled" && cancelled.Cancellation?.AttemptId == attempt.AttemptId
+                    && observer.GetAttempt(attempt.AttemptId).Abandonment?.Reason == "withdraw last shared ticket"
+                    && (string)request["params"]!["runId"]! == dispatched.RunId;
             }
+            return null;
         };
+        target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(dispatched, "failed", "force_stopped"));
 
         await Assert.That(async () => await reopened.CancelIssueSubmissionAsync(secondSubmissionId,
-            "withdraw last shared ticket", transportAfterReopen)).Throws<CessationUnconfirmed>();
-        await Assert.That(transportAfterReopen.StopCalls).IsEqualTo(1);
-        var stopCallsBeforeFirstReplay = transportAfterReopen.StopCalls;
-        var replayedFirst = await reopened.CancelIssueSubmissionAsync(first.SubmissionId,
-            "replayed first shared ticket", transportAfterReopen);
+            "withdraw last shared ticket", null)).Throws<CessationUnconfirmed>();
+        await Assert.That(committedFirst).IsTrue();
+        await Assert.That(target.Count("run/force")).IsEqualTo(1);
+        var replayedFirst = await reopened.CancelIssueSubmissionAsync(first.SubmissionId, "replayed first shared ticket", null);
         await Assert.That(replayedFirst.State).IsEqualTo(firstCancelled.State);
         await Assert.That(replayedFirst.Cancellation!.AttemptId).IsNull();
-        await Assert.That(transportAfterReopen.StopCalls).IsEqualTo(stopCallsBeforeFirstReplay);
-        var firstRecovered = reopened.GetIssueSubmission(first.SubmissionId);
-        await Assert.That(firstRecovered.Cancellation!.AttemptId).IsNull();
-        await Assert.That(reopened.GetIssueSubmission(secondSubmissionId).Cancellation!.AttemptId)
-            .IsEqualTo(attempt.AttemptId);
-        await Assert.That(reopened.GetAttempt(attempt.AttemptId).Abandonment!.Reason)
-            .IsEqualTo("withdraw last shared ticket");
+        await Assert.That(target.Count("run/force")).IsEqualTo(1);
+        await Assert.That(reopened.GetIssueSubmission(first.SubmissionId).Cancellation!.AttemptId).IsNull();
+        await Assert.That(reopened.GetIssueSubmission(secondSubmissionId).Cancellation!.AttemptId).IsEqualTo(attempt.AttemptId);
+        await Assert.That(reopened.GetAttempt(attempt.AttemptId).Abandonment!.Reason).IsEqualTo("withdraw last shared ticket");
         await Assert.That(reopened.GetAttempt(attempt.AttemptId).IsCurrent).IsFalse();
     }
 
@@ -327,17 +315,17 @@ public sealed class IssueSubmissionTests
     [Test]
     public async Task CancellationReplayRetainsOriginalAttemptAcrossLegitimateSafeReplacement()
     {
-        using var fixture = new NativeFixture();
+        using var fixture = new AttemptFixture();
         IssueSubmission first;
         AttemptRecord original;
         const string secondSubmissionId = "issue-sub-final-stop";
-        using (var store = fixture.Git.State.Open())
+        using (var store = fixture.State.Open())
         {
             first = store.SubmitIssue("https://github.com/acme/widget/issues/12");
-            store.AssociateIssueSubmission(first.SubmissionId, fixture.Git.RevisionId);
-            fixture.Git.State.Execute($"INSERT INTO issue_submissions (submission_id, work_unit_id, submission_sequence, issue_url, state, contract_revision_id, received_at) "
-                + $"VALUES ('{secondSubmissionId}', '{first.WorkUnitId}', 2, '{first.IssueUrl}', 'accepted', '{fixture.Git.RevisionId}', '{first.ReceivedAt}')");
-            original = fixture.Git.Admit(store);
+            store.AssociateIssueSubmission(first.SubmissionId, fixture.RevisionId);
+            fixture.State.Execute($"INSERT INTO issue_submissions (submission_id, work_unit_id, submission_sequence, issue_url, state, contract_revision_id, received_at) "
+                + $"VALUES ('{secondSubmissionId}', '{first.WorkUnitId}', 2, '{first.IssueUrl}', 'accepted', '{fixture.RevisionId}', '{first.ReceivedAt}')");
+            original = fixture.Admit(store);
 
             var cancelledFirst = await store.CancelIssueSubmissionAsync(first.SubmissionId, "withdraw first");
             await Assert.That(cancelledFirst.Cancellation!.AttemptId).IsNull();
@@ -345,23 +333,20 @@ public sealed class IssueSubmissionTests
             await Assert.That(store.GetAttempt(original.AttemptId).Abandonment).IsNull();
         }
 
-        using var reopened = fixture.Git.State.Open();
+        using var reopened = fixture.State.Open();
         var cancelledLast = await reopened.CancelIssueSubmissionAsync(secondSubmissionId, "withdraw last");
         await Assert.That(cancelledLast.Cancellation!.AttemptId).IsEqualTo(original.AttemptId);
         await Assert.That(reopened.GetAttempt(original.AttemptId).Abandonment!.Reason).IsEqualTo("withdraw last");
         reopened.RetireAttempt(original.AttemptId);
-        var successor = reopened.AdmitRetry(original.AttemptId, "after-cancellation", fixture.Git.Workspaces, fixture.Profile);
-        reopened.ProvisionAttempt(successor.AttemptId);
+        var successor = reopened.AdmitRetry(original.AttemptId, "after-cancellation");
 
-        var replayed = await reopened.CancelIssueSubmissionAsync(first.SubmissionId, "replayed first cancellation",
-            new ControlledTransport());
+        var replayed = await reopened.CancelIssueSubmissionAsync(first.SubmissionId, "replayed first cancellation", null);
         await Assert.That(replayed.Cancellation!.AttemptId).IsNull();
         await Assert.That(reopened.GetAttempt(original.AttemptId).Abandonment!.Reason).IsEqualTo("withdraw last");
         await Assert.That(reopened.GetAttempt(successor.AttemptId).IsCurrent).IsTrue();
         await Assert.That(reopened.FindRetirement(successor.AttemptId)).IsNull();
 
-        var replayedLast = await reopened.CancelIssueSubmissionAsync(secondSubmissionId, "replayed last cancellation",
-            new ControlledTransport());
+        var replayedLast = await reopened.CancelIssueSubmissionAsync(secondSubmissionId, "replayed last cancellation", null);
         await Assert.That(replayedLast.Cancellation!.AttemptId).IsEqualTo(original.AttemptId);
         await Assert.That(reopened.GetAttempt(successor.AttemptId).IsCurrent).IsTrue();
         await Assert.That(reopened.FindRetirement(successor.AttemptId)).IsNull();

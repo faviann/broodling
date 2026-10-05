@@ -31,7 +31,7 @@ public sealed class CompletionPersistenceTests
         var otherWork = fixture.Store.ResolveWorkUnit(WorkReference.Parse("acme/widget", 99));
         // These foreign identities exist: foreign keys alone cannot explain the refusal.
         var otherRevision = fixture.Store.AdmitSources(ContractIngressTests.Reference,
-            [ContractIngressTests.Primary("A different request"u8.ToArray())], ContractIngressTests.Propose, []).Revision.ContractRevisionId;
+            [ContractIngressTests.Primary("A different request"u8.ToArray())], ContractIngressTests.Propose, ContractIngressTests.PullRequest).Revision.ContractRevisionId;
         await Assert.That(() => Insert(fixture, work: otherWork.WorkUnitId)).Throws<SqliteException>();
         await Assert.That(() => Insert(fixture, contract: otherRevision)).Throws<SqliteException>();
         await Assert.That(() => Insert(fixture, attempt: "foreign-attempt")).Throws<SqliteException>();
@@ -52,8 +52,8 @@ public sealed class CompletionPersistenceTests
         await fixture.Dispatch();
         var completed = await fixture.Wait();
         var newer = fixture.Store.AdmitSources(ContractIngressTests.Reference,
-            [ContractIngressTests.Primary("Later request"u8.ToArray())], ContractIngressTests.Propose, []).Revision.ContractRevisionId;
-        await Assert.That(() => fixture.Store.AdmitAttempt(newer, fixture.Git.Repository, fixture.Git.Workspaces)).Throws<StaleAttempt>();
+            [ContractIngressTests.Primary("Later request"u8.ToArray())], ContractIngressTests.Propose, ContractIngressTests.PullRequest).Revision.ContractRevisionId;
+        await Assert.That(() => fixture.Store.AdmitHttpAttempt(newer, fixture.Git.Repository)).Throws<StaleAttempt>();
         var clone = $"""
             INSERT INTO attempts SELECT 'another-attempt', work_unit_id, '{newer}', 1, b1_repository, b1_commit_oid,
                 b1_material_sha256, b1_requested_revision, workspace_root, enclosure || '-other', worktree_path || '-other',

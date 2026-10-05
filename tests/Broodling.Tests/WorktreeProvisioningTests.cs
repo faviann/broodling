@@ -9,7 +9,7 @@ public sealed class WorktreeProvisioningTests
     [Test]
     public async Task InterruptedMarkerPublicationConvergesButForeignPendingMaterialRefuses()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         Directory.CreateDirectory(attempt.Allocation.Enclosure);
@@ -27,7 +27,7 @@ public sealed class WorktreeProvisioningTests
     [Test]
     public async Task OriginalB1IsMaterializedAndOwnedCandidateReplayPreservesLaterWork()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         fixture.Commit("current HEAD is not B1\n");
@@ -55,7 +55,7 @@ public sealed class WorktreeProvisioningTests
     [Test]
     public async Task BranchOnlyAndLostAcknowledgmentConvergeAndMissingOwnedCheckoutRebuildsAtB1()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         WorktreeMaterialization.ClaimEnclosure(attempt);
@@ -89,8 +89,8 @@ public sealed class WorktreeProvisioningTests
     [Arguments("detached")]
     public async Task ForeignOwnershipIsRefusedWithoutAdoption(string kind)
     {
-        using var fixture = new AttemptFixture();
-        using var foreign = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
+        using var foreign = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         var a = attempt.Allocation;
@@ -130,7 +130,7 @@ public sealed class WorktreeProvisioningTests
     [Test]
     public async Task EnclosureCannotEncloseAnAlreadyOpenDurableStore()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         var nestedPath = System.IO.Path.Combine(attempt.Allocation.Enclosure, "state.sqlite3");
@@ -150,7 +150,7 @@ public sealed class WorktreeProvisioningTests
     [Test]
     public async Task ProvisioningRechecksCheckoutPolicyAndSuppressesHooks()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         var hook = System.IO.Path.Combine(fixture.GitDirectory, "hooks", "post-checkout");
@@ -172,7 +172,7 @@ public sealed class WorktreeProvisioningTests
     [Test]
     public async Task AbandonedAuthorityCannotMaterializeOrGainAcknowledgment()
     {
-        using var fixture = new AttemptFixture();
+        using var fixture = new AttemptFixture(noEffect: true);
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
         store.AbandonAttempt(attempt.AttemptId, "ended");
