@@ -20,8 +20,8 @@ public sealed class ContractPolicyTests
                     "  seam  ", "arbitrary command\n", "  counterexample\n", mechanicalEvidence: new(argv, "nested", ["file"]))],
                 obligations: [new("change", "Change the candidate.", "candidate_change"), new("check", "Check locally.", "local_validation")],
                 prerequisites: [new("ready", "Already available.", true)],
-                hostAssumptions: ["single_host", "one_attempt_one_dedicated_worktree", "disposable_worktree", "local_filesystem_only", "no_authoritative_effects"],
-                constructedBy: input.ConstructedBy, notes: "caller notes ✓"), []);
+                requiredEffects: input.RequiredEffects, hostAssumptions: ["single_host", "one_attempt_one_dedicated_worktree", "disposable_worktree"],
+                constructedBy: input.ConstructedBy, notes: "caller notes ✓"), ContractIngressTests.PullRequest);
             members[0] = "mutated";
             argv[0] = "mutated";
             await Assert.That(status.Decision!.Admitted).IsTrue();
@@ -98,7 +98,7 @@ public sealed class ContractPolicyTests
     }
 
     [Test]
-    [Arguments("none", true)]
+    [Arguments("none", false)]
     [Arguments("pr", true)]
     [Arguments("missing-target", false)]
     [Arguments("mixed", false)]
@@ -135,6 +135,56 @@ public sealed class ContractPolicyTests
             await Assert.That(status.Decision.Findings.Count).IsEqualTo(2);
         if (profile is "mixed" or "multiple-pr")
             await Assert.That(status.Decision.Findings.Count(finding => finding.Code == "unsupported_required_effect")).IsEqualTo(2);
+        if (profile == "none")
+            await Assert.That(status.Decision.Findings.Single().Code).IsEqualTo("no_required_effect");
+    }
+
+    /// <summary>
+    /// Every admission entry point refuses an empty required-effect set the same way: the revision and its
+    /// rejected decision are retained and readable, the one effect finding is <c>no_required_effect</c>, and
+    /// no Attempt can be allocated for the revision.
+    /// </summary>
+    [Test]
+    [Arguments("sources")]
+    [Arguments("github")]
+    [Arguments("recorded")]
+    public async Task EmptyRequiredEffectSetIsRefusedAtAdmissionAndAllocatesNoAttempt(string entry)
+    {
+        using var fixture = new AttemptFixture();
+        using var gh = new InvocationTests.IssueFixture(fixture.State.Root);
+        using var store = fixture.State.Open();
+        var reference = WorkReference.Parse("acme/widget", 13);
+        var primary = new SourceSubmission("primary_issue", reference.IssueLocator, InvocationTests.Issue, entitlement: new("caller", "reviewed"));
+        string revisionId;
+        switch (entry)
+        {
+            case "sources":
+                revisionId = store.AdmitSources(reference, [primary], ContractIngressTests.Propose, []).Revision.ContractRevisionId;
+                break;
+            case "github":
+                revisionId = (await store.AdmitGitHubAsync(ContractIngressTests.Reference, ContractIngressTests.Propose, [], source: gh.Source))
+                    .Revision.ContractRevisionId;
+                break;
+            default:
+                var work = store.ResolveWorkUnit(reference);
+                var source = store.EntitleSource(work.WorkUnitId, primary);
+                revisionId = store.RecordContractRevision(new(work.WorkUnitId, [new(source.SourceId, source.ContentSha256)],
+                    [new("acceptance", "Preserve the complete request.")])).ContractRevisionId;
+                store.Admit(revisionId);
+                break;
+        }
+
+        var status = store.Status(revisionId);
+        await Assert.That(status.Revision.Contract.RequiredEffects.Count).IsEqualTo(0);
+        await Assert.That(status.Decision!.Admitted).IsFalse();
+        await Assert.That(status.Decision.PolicyVersion).IsEqualTo("broodling.application.admission.v2");
+        var finding = status.Decision.Findings.Single();
+        await Assert.That((finding.Code, finding.Subject)).IsEqualTo(("no_required_effect", "requiredEffects"));
+        await Assert.That(() => store.AdmitHttpAttempt(revisionId, fixture.Repository, fixture.Head)).Throws<AttemptAdmissionError>();
+        var handback = await new Invocation(store, new InvocationTarget("http://127.0.0.1:9")).ResumeAsync(revisionId, fixture.Repository, fixture.Head);
+        await Assert.That(handback.Decision!.Admitted).IsFalse();
+        await Assert.That(handback.Attempts.Count).IsEqualTo(0);
+        await Assert.That(store.Status(revisionId).Attempts.Count).IsEqualTo(0);
     }
 
     [Test]
@@ -146,7 +196,7 @@ public sealed class ContractPolicyTests
         var empty = new Contract(work.WorkUnitId, [], []);
         var first = store.RecordContractRevision(empty);
         var decision = store.Admit(first.ContractRevisionId);
-        await Assert.That(decision.Findings.Select(finding => finding.Code).SequenceEqual(new[] { "no_entitled_source_attribution", "no_criteria" })).IsTrue();
+        await Assert.That(decision.Findings.Select(finding => finding.Code).SequenceEqual(new[] { "no_entitled_source_attribution", "no_required_effect", "no_criteria" })).IsTrue();
         var source = store.EntitleSource(work.WorkUnitId, ContractIngressTests.Primary());
         SourceAttribution[] pins = [new(source.SourceId, source.ContentSha256)];
         var second = store.RecordContractRevision(new(work.WorkUnitId, pins, [new("a", "First."), new("b", "Second.")]));

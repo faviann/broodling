@@ -12,14 +12,6 @@ internal static class PhysicalPaths
     internal static bool IsWithinTemporaryRoot(string path) =>
         new[] { "/tmp", "/var/tmp", "/dev/shm", "/run" }.Any(root => Contains(root, path));
 
-    internal static bool IsWithinDisposable(string path)
-    {
-        for (DirectoryInfo? ancestor = new(path); ancestor is not null; ancestor = ancestor.Parent)
-            if (File.Exists(System.IO.Path.Combine(ancestor.FullName, ".broodling-disposable-worktree")))
-                return true;
-        return false;
-    }
-
     // Resolve components before '..', including links introduced by other link targets.
     // ResolveLinkTarget(true) can leave symlinks in a target's parent path.
     internal static string Resolve(string path)

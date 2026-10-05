@@ -97,7 +97,7 @@ public sealed class AdmissionStatus(WorkUnit workUnit, IEnumerable<EntitledSourc
 public sealed partial class BroodlingStore
 {
     // Versioned admission semantics, separate from physical schema and future execution configuration.
-    private const string AdmissionPolicyVersion = "broodling.dotnet.admission.v1/zeroshot-10.3.0";
+    private const string AdmissionPolicyVersion = "broodling.application.admission.v2";
 
     /// <summary>
     /// Capture explicitly granted caller bytes and admit the caller's typed proposal.

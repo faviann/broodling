@@ -53,7 +53,7 @@ internal sealed class TargetStack : IAsyncDisposable
     /// <summary>zeroshot-tls's user, capabilities, root mounts, Caddyfile and pinned image, as the package runs it.</summary>
     internal async Task<string[]> TlsOptions() => ["--user", TargetReadiness.TlsUser, "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE",
         .. Bind(RootKey, "/tls-root-key", true), .. Bind(RootCertificate, "/tls-root", true), "--mount", $"type=volume,src={id}-tls-data,dst=/data",
-        .. Bind(Path.Combine(NativeFixture.RepositoryRoot, "deployment", "zeroshot-tls.Caddyfile"), "/etc/caddy/Caddyfile", true),
+        .. Bind(Path.Combine(TestRepository.Root, "deployment", "zeroshot-tls.Caddyfile"), "/etc/caddy/Caddyfile", true),
         await TargetImage.Tls.Value];
 
     internal async Task StartTls()

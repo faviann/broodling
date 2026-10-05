@@ -12,7 +12,7 @@ internal sealed record ProcessingPeers(Func<ProgressionCredentials> Credentials,
 /// <see cref="InvocationConfiguration"/>, an existing durable root for service-owned repositories and current
 /// credentials. Without <c>Broodling:Invocation</c> and <c>Broodling:RepositoryRoot</c> the server only reads.
 /// </summary>
-internal sealed record ProcessingSettings(InvocationConfiguration.Direct Target, string RepositoryRoot,
+internal sealed record ProcessingSettings(InvocationConfiguration Configuration, string RepositoryRoot,
     Func<ProgressionCredentials> Credentials, ProcessingPeers? Peers)
 {
     /// <summary>Null selects the read-only server. Anything else that cannot process refuses startup.</summary>
@@ -23,8 +23,7 @@ internal sealed record ProcessingSettings(InvocationConfiguration.Direct Target,
         if (invocation is null && repositoryRoot is null) return null;
         if (string.IsNullOrEmpty(invocation) || string.IsNullOrEmpty(repositoryRoot))
             throw new UnsupportedRuntime("Submission needs both Broodling:Invocation and Broodling:RepositoryRoot.");
-        if (InvocationConfiguration.Read(invocation) is not InvocationConfiguration.Direct target)
-            throw new UnsupportedRuntime("Submitted work continues only through a DirectTarget.");
+        var target = InvocationConfiguration.Read(invocation);
         if (!Path.IsPathFullyQualified(repositoryRoot) || !Directory.Exists(repositoryRoot))
             throw new UnsupportedRuntime("Broodling:RepositoryRoot must name an existing absolute directory.");
         var credentials = peers?.Credentials ?? FromEnvironment;
@@ -63,13 +62,13 @@ internal sealed class Processing : BackgroundService
     {
         this.lifetime = lifetime;
         this.logger = logger;
-        var root = settings.Target.DirectRootCertificate;
+        var root = settings.Configuration.DirectRootCertificate;
         var peers = settings.Peers;
         var preparer = new IssueSubmissionPreparer(application, storePath, settings.RepositoryRoot, lifetime.ApplicationStopping)
         {
             IssueSource = peers?.IssueSource, RepositorySource = peers?.RepositorySource, Gateway = peers?.Gateway
         };
-        Progressor = new SubmissionProgressor(application, storePath, root, new InvocationTarget.Direct(settings.Target.DirectOrigin),
+        Progressor = new SubmissionProgressor(application, storePath, root, settings.Configuration.Target,
             preparer, settings.Credentials, Stopped) { Clock = peers?.Clock ?? TimeProvider.System };
         observer = new CompletionObserver(application, storePath, root, (attemptId, failure) =>
             logger.LogError(failure, "Completion observation of Attempt {AttemptId} failed unexpectedly; it is not observed again until restart.", attemptId))

@@ -82,7 +82,7 @@ public sealed class GitHubAdmissionTests
         foreach (var bytes in invalid)
         {
             using var gh = new GhFixture(bytes);
-            await Assert.That(async () => await store.AdmitGitHubAsync(Reference, ContractIngressTests.Propose, [], source: gh.Source))
+            await Assert.That(async () => await store.AdmitGitHubAsync(Reference, ContractIngressTests.Propose, ContractIngressTests.PullRequest, source: gh.Source))
                 .Throws<GitHubSourceError>();
         }
         await Assert.That(store.FindWorkUnit(Reference)).IsNull();
@@ -100,20 +100,20 @@ public sealed class GitHubAdmissionTests
         using (var store = fixture.Initialize())
         {
             var pinned = WorkReference.Parse("acme/widget", 75, repositoryIdentity: "repo-id", issueIdentity: "I_example75");
-            var result = await store.AdmitGitHubAsync(pinned, new ReviewedIssueProposal(bytes).Propose, [], source: gh.Source);
+            var result = await store.AdmitGitHubAsync(pinned, new ReviewedIssueProposal(bytes).Propose, ContractIngressTests.PullRequest, source: gh.Source);
             await Assert.That(result.Revision.Contract.Criteria.Single().Statement).IsEqualTo("Keep the request\n\n");
             await Assert.That(result.WorkUnit.RepositoryIdentity).IsEqualTo("repo-id");
         }
         using var reopened = fixture.Open();
         await Assert.That(async () => await reopened.AdmitGitHubAsync(
-            WorkReference.Parse("acme/widget", 75, issueIdentity: "other"), ContractIngressTests.Propose, [], source: gh.Source))
+            WorkReference.Parse("acme/widget", 75, issueIdentity: "other"), ContractIngressTests.Propose, ContractIngressTests.PullRequest, source: gh.Source))
             .Throws<GitHubSourceError>();
         await Assert.That(async () => await reopened.AdmitGitHubAsync(
-            WorkReference.Parse("acme/widget", 75, repositoryIdentity: "other"), ContractIngressTests.Propose, [], source: gh.Source))
+            WorkReference.Parse("acme/widget", 75, repositoryIdentity: "other"), ContractIngressTests.Propose, ContractIngressTests.PullRequest, source: gh.Source))
             .Throws<WorkUnitIdentityConflict>();
         issue["node_id"] = "I_recreated75";
         gh.SetResponse(Encoding.UTF8.GetBytes(issue.ToJsonString()));
-        await Assert.That(async () => await reopened.AdmitGitHubAsync(Reference, ContractIngressTests.Propose, [], source: gh.Source))
+        await Assert.That(async () => await reopened.AdmitGitHubAsync(Reference, ContractIngressTests.Propose, ContractIngressTests.PullRequest, source: gh.Source))
             .Throws<WorkUnitIdentityConflict>();
         await Assert.That(reopened.History(Reference).Count).IsEqualTo(1);
         await Assert.That(reopened.ListEntitledSources(Reference.WorkUnitId).Count).IsEqualTo(1);
@@ -131,7 +131,7 @@ public sealed class GitHubAdmissionTests
             new("referenced_document", "caller://decision", [], origin: "broodling_policy", entitlement: new("caller", "claimed")),
             new("referenced_document", "caller://decision", [], entitlement: new("broodling_policy", "claimed"))
         })
-            await Assert.That(async () => await store.AdmitGitHubAsync(Reference, ContractIngressTests.Propose, [], [source], source: gh.Source))
+            await Assert.That(async () => await store.AdmitGitHubAsync(Reference, ContractIngressTests.Propose, ContractIngressTests.PullRequest, [source], source: gh.Source))
                 .Throws<SourceNotEntitled>();
         await Assert.That(gh.Calls.Count).IsEqualTo(0);
         var supplement = ContractIngressTests.Supplement;
@@ -263,13 +263,13 @@ public sealed class GitHubAdmissionTests
         using var fixture = new StoreFixture();
         using var store = fixture.Initialize();
         using var cancellation = new CancellationTokenSource();
-        var pending = store.AdmitGitHubAsync(Reference, ContractIngressTests.Propose, [], source: gh.Source,
+        var pending = store.AdmitGitHubAsync(Reference, ContractIngressTests.Propose, ContractIngressTests.PullRequest, source: gh.Source,
             cancellationToken: cancellation.Token);
         cancellation.Cancel();
         await Assert.That(async () => await pending).Throws<OperationCanceledException>();
         await Assert.That(store.FindWorkUnit(Reference)).IsNull();
         gh.Release();
-        var status = await store.AdmitGitHubAsync(Reference, ContractIngressTests.Propose, [], source: gh.Source);
+        var status = await store.AdmitGitHubAsync(Reference, ContractIngressTests.Propose, ContractIngressTests.PullRequest, source: gh.Source);
         await Assert.That(status.Decision!.Admitted).IsTrue();
     }
 

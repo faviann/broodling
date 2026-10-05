@@ -5,7 +5,6 @@
 # The DirectTarget binding's native release (src/Broodling/DirectTargetBinding.cs and
 # execution-assets/approval.json): the official Linux x86-64 release archive, pinned by checksum. It
 # carries the zeroshot executable and the restic executable native run allocation requires beside it.
-# This pin is independent of the LocalTarget bridge's SDK wheel in bridge/requirements.txt.
 FROM scratch AS native
 ADD --checksum=sha256:fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16 \
     https://github.com/the-open-engine/zeroshot/releases/download/v10.10.0/zeroshot-v10.10.0-x86_64-unknown-linux-musl.tar.gz /zeroshot.tar.gz

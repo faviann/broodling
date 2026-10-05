@@ -2,22 +2,19 @@
 
 [B #134](https://github.com/faviann/broodling/issues/134) extends the
 [Contract admission API](dotnet-contract-admission.md) with local Git custody,
-one current Attempt, immutable workspace allocation and basic abandonment.
+one current Attempt and basic abandonment. Every Attempt is an HTTP DirectTarget
+Attempt that retains B1 but owns no local directory.
 See the [release/cutover guide](../../deployment/README.md) for current operations.
 
 ## Callable API
 
 ```csharp
 using var store = new BroodlingApplication().OpenStore("/srv/broodling-dotnet/state.sqlite3");
-var attempt = store.AdmitAttempt(revisionId,
+var attempt = store.AdmitHttpAttempt(revisionId,
     repository: "/srv/broodling-dotnet/repositories/widget",
-    workspaceRoot: "/srv/broodling-dotnet/attempts",
     revision: "HEAD");
-
-// HTTP DirectTarget Attempts retain B1 but own no local directory.
-var http = store.AdmitHttpAttempt(revisionId, repository: "/srv/broodling-dotnet/repositories/widget");
 // A bundle-bound submission supplies the retained repository and B1.
-var preparedHttp = store.AdmitHttpAttempt(submissionId);
+var prepared = store.AdmitHttpAttempt(submissionId);
 
 var current = store.RequireCurrentAttempt(attempt.AttemptId);
 var status = store.Status(revisionId); // exact revision, including Attempts
@@ -25,7 +22,7 @@ var history = store.History(WorkReference.Parse("acme/widget", 123));
 var abandoned = store.AbandonAttempt(attempt.AttemptId, "Operator ended authority");
 ```
 
-`AdmitAttempt` is the public admission path; callers cannot supply an unchecked
+`AdmitHttpAttempt` is the public admission path; callers cannot supply an unchecked
 starting-state object to bypass Git custody. It requires a committed admitted
 Contract decision. B1 records the physical common Git directory, exact SHA-1
 commit, original requested revision spelling and a fingerprint of the Contract's
@@ -42,8 +39,9 @@ revision-based ones and replacement, applies the store's
 [bundle authority rule](dotnet-contract-admission.md#bundle-bound-admission). A
 later repository default, caller input or moving branch therefore cannot retarget
 a bound Contract. An unbound association with a completed bundle cannot start an
-Attempt. A submission without a RequestBundle is refused with `UnknownRecord`. The explicit local overload
-validates its original caller checkout path before the shared admission core.
+Attempt. A submission without a RequestBundle is refused with `UnknownRecord`. The explicit-repository
+overload resolves its caller checkout and revision before the shared admission
+core.
 
 The supported checkout profile is checked before status can invoke conversion
 drivers. Configured external filters, unsupported byte conversions, sparse
@@ -61,54 +59,33 @@ the Attempt can be acknowledged. Existing identical pins converge; symbolic or
 conflicting pins refuse. The source repository and retained refs remain durable
 operating state; this operation neither fetches nor copies them elsewhere.
 
-The workspace root must be absolute and physically outside `/tmp`, `/var/tmp`,
-`/dev/shm`, `/run`, the source checkout/common Git directory and any marked
-disposable enclosure, including through symlinks. Admission creates no workspace
-directory, branch, marker or checkout. It reserves an enclosure named by the full
-Attempt ID, its `worktree` child and a `broodling/<attempt-id>` branch.
+## No local directory
 
-## HTTP resource kind
-
-[#173](https://github.com/faviann/broodling/issues/173) adds a second, explicit
-Attempt resource kind. `AttemptRecord.ResourceKind` is `worktree` for the
-allocation above and `http` for an HTTP DirectTarget Attempt. The kind is
-stored in the Attempt row and never inferred: a worktree Attempt whose directory
-disappeared remains a worktree Attempt with its existing ownership refusals.
-
-`AdmitHttpAttempt` has an explicit-repository overload and a prepared-submission
-overload. Both share the admission core above: committed admitted Contract,
-cancellation, pause, completed-work and one-current-Attempt checks, supported
-checkout profile and the create-only `refs/broodling/starting/<commit>` pin in
-the canonical common Git directory before the SQLite acknowledgement. The
-prepared overload keeps the retained default-branch check. HTTP DirectTarget is
-the authorized-PR path, so the admitted Contract must authorize exactly one
-supported `pull_request` effect; no-effect work keeps the LocalTarget worktree.
-There is no workspace root, enclosure, marker, lock, branch, worktree or runtime
-directory, and none is created. The HTTP Attempt ID uses a separate identity
-domain, so an HTTP request for a current worktree Attempt's B1 conflicts rather
-than returning it, and vice versa.
-
-`AttemptRecord.WorktreeAllocation` is null for HTTP Attempts and is serialized
-as `allocation`; the non-null `Allocation` accessor used by worktree operations
-refuses with `worktree_provisioning_error`. SQL requires all four allocation
-columns for `worktree` and none for `http`, refuses a kind rewrite and refuses
-provisioning an HTTP Attempt. Bridge preparation/dispatch therefore cannot bind
-an HTTP Attempt. HTTP submission records, preparation and dispatch are added by
-later #163 slices.
+[#173](https://github.com/faviann/broodling/issues/173) added the HTTP
+DirectTarget Attempt, which owns no local directory, and #233 made it the only
+kind. `AdmitHttpAttempt` has an explicit-repository overload and a
+prepared-submission overload. Both share the admission core above: committed
+admitted Contract, cancellation, pause, completed-work and one-current-Attempt
+checks, supported checkout profile and the create-only
+`refs/broodling/starting/<commit>` pin in the canonical common Git directory
+before the SQLite acknowledgement. The prepared overload keeps the retained
+default-branch check. The admitted Contract must authorize exactly one supported
+`pull_request` effect; Contract admission already refuses an empty
+required-effect set. There is no workspace root, enclosure, marker, lock,
+branch, worktree or runtime directory, and none is created. Zeroshot checks out
+B1 in its own execution workspace.
 
 ## Atomicity, replay and observation
 
 Direct `Microsoft.Data.Sqlite` remains sufficient. One Attempt row contains all
-B1 and allocation fields, so an allocation cannot be partially committed.
-SQLite serializes admissions and enforces one current Attempt per Work Unit,
-unique enclosure/path and unique branch per common Git directory. Triggers
+B1 fields, so an admission cannot be partially committed.
+SQLite serializes admissions and enforces one current Attempt per Work Unit. Triggers
 protect immutable bindings, admitted Contract ownership and irreversible
 authority loss. Git retention precedes the SQLite transaction: interruption can
 leave an extra retention pin, but cannot acknowledge an unretained Attempt.
 
-Identical requests return the original Attempt, allocation and timestamps. A
-different workspace root or equivalent revision spelling does not relocate or
-rename it. Different Contract/source, repository or commit bindings conflict.
+Identical requests return the original Attempt and timestamps. An equivalent
+revision spelling does not rename it. Different Contract/source, repository or commit bindings conflict.
 Reopen uses the retained IDs; a later `HEAD` never changes stored B1. Re-admission
 still validates the supplied starting state and its Git custody; status and
 `GetAttempt` observe retained facts without accessing Git.
@@ -121,7 +98,7 @@ cannot resurrect it. Abandonment makes no claim about native cessation and
 grants no cleanup or replacement authority.
 
 `Status(revisionId).Attempts` contains only Attempts bound to that exact revision,
-including B1, allocation and nullable abandonment. `History` and existing JSON
+including B1 and nullable abandonment. `History` and existing JSON
 status/history commands expose the same facts. Observation uses a coherent
 deferred snapshot without reserving the writer; an admitted later revision does
 not inherit another revision's Attempt.
@@ -150,11 +127,9 @@ the supported Python suite on merged main `cc300e4` passed **404 tests in 117.88
 this is distinct from the independently recorded
 [exact-baseline run](../migration/130-baseline-validation.md).
 
-- [C materialization](dotnet-worktree-materialization.md) now supplies
-  `ProvisionAttempt`, retained provisioning facts, ownership checks and Git
-  exclusion surviving caller death. It reuses the checkout-profile and retention
-  seam. The schema-3 and 102-test evidence above describes B's original landing.
-- F must check current authority inside dispatch-intent writes; observing current
+- The schema-3 and 102-test evidence above describes B's original landing.
+- [Dispatch](zeroshot-native-integration.md#http-dispatch-and-acknowledgement)
+  checks current authority inside its dispatch-intent write; observing current
   authority here does not authorize a later unguarded dispatch.
 - [G completion](dotnet-receipt-completion.md) adds the baseline's Work-Unit-wide
   completed-result admission refusal in both the store and schema. Exact-Attempt

@@ -29,7 +29,8 @@ public sealed class AdmissionPersistenceTests
         {
             var work = store.ResolveWorkUnit(ContractIngressTests.Reference);
             var source = store.EntitleSource(work.WorkUnitId, ContractIngressTests.Primary());
-            contract = new(work.WorkUnitId, [new(source.SourceId, source.ContentSha256)], [new("c", "Preserve this outcome.")]);
+            contract = new(work.WorkUnitId, [new(source.SourceId, source.ContentSha256)], [new("c", "Preserve this outcome.")],
+                requiredEffects: ContractIngressTests.PullRequest);
             // Fail after the source binding insertion, inside the real revision transaction.
             fixture.Execute("CREATE TRIGGER interrupt_revision AFTER INSERT ON contract_sources BEGIN SELECT RAISE(ABORT, 'interrupted revision'); END;");
             await Assert.That(() => store.RecordContractRevision(contract)).Throws<SqliteException>();
@@ -76,7 +77,7 @@ public sealed class AdmissionPersistenceTests
         {
             using var store = fixture.Open();
             start.SignalAndWait();
-            return store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose, []);
+            return store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose, ContractIngressTests.PullRequest);
         });
         var statuses = await Task.WhenAll(Submit(), Submit());
         await Assert.That(statuses[0].Revision.ContractRevisionId).IsEqualTo(statuses[1].Revision.ContractRevisionId);
@@ -91,7 +92,7 @@ public sealed class AdmissionPersistenceTests
     {
         using var fixture = new StoreFixture();
         using var store = fixture.Initialize();
-        var status = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose, []);
+        var status = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose, ContractIngressTests.PullRequest);
         var before = store.ListWorkSubmissions(status.WorkUnit.WorkUnitId).Count;
         using (var writer = fixture.Connect())
         using (var transaction = writer.BeginTransaction(deferred: false))
@@ -126,7 +127,7 @@ public sealed class AdmissionPersistenceTests
     {
         using var fixture = new StoreFixture();
         using var store = fixture.Initialize();
-        var status = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose, []);
+        var status = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose, ContractIngressTests.PullRequest);
         var unused = store.EntitleSource(status.WorkUnit.WorkUnitId, ContractIngressTests.Supplement);
         foreach (var sql in new[]
         {
@@ -145,7 +146,7 @@ public sealed class AdmissionPersistenceTests
     {
         using var fixture = new StoreFixture();
         using var store = fixture.Initialize();
-        var status = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose, []);
+        var status = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose, ContractIngressTests.PullRequest);
         fixture.Execute("DROP TRIGGER revisions_no_update; UPDATE contract_revisions SET canonical_bytes = X'7B7D'");
         await Assert.That(() => store.GetContractRevision(status.Revision.ContractRevisionId)).Throws<ContractImmutabilityError>();
         await Assert.That(() => store.Admit(status.Revision.ContractRevisionId)).Throws<ContractImmutabilityError>();

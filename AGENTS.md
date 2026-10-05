@@ -24,7 +24,8 @@ use current authority and open issues for present requirements. Restore or rerun
 archived machinery only under an explicit current scope.
 
 Run `dotnet test --solution Broodling.sln` for the supported TUnit suite; use
-`tests/README.md` for the pinned bridge dependency and test-host requirements.
-The only production Python source file is `src/Broodling/bridge/zeroshot_bridge.py`;
-target readiness also runs a short inline `python3` UID probe inside the target.
+`tests/README.md` for the pinned SDK package and test-host requirements.
+There is no production Python source. Target readiness runs a short inline
+`python3` UID probe inside the target, and the execution-asset recipe runs
+`describe.py`; neither is a Broodling runtime dependency.
 Preserve unrelated working tree and operational state.

@@ -2,7 +2,6 @@ using Broodling.Host;
 using Microsoft.Extensions.Time.Testing;
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using TUnit.Assertions;
 using TUnit.Core;
@@ -14,82 +13,23 @@ public sealed class RetirementTests
     [Test]
     [Arguments("absent")]
     [Arguments("prepared")]
-    [Arguments("provisioned")]
-    public async Task SafeNeverDispatchedProofAndRetirementSurviveReopen(string state)
+    public async Task HttpUndispatchedStopAndRetirementNeedNoLocalResourceAndKeepCustody(string submission)
     {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var attempt = fixture.Git.Admit(store);
-        if (state != "absent") store.ProvisionAttempt(attempt.AttemptId);
-        if (state == "prepared") store.PrepareSubmission(attempt.AttemptId, fixture.Profile);
-        var proof = await store.StopAsync(attempt.AttemptId, "first reason", new ControlledTransport());
-        await Assert.That(proof.Basis).IsEqualTo(state == "absent" ? "never_materialized" : "never_dispatched");
-        await Assert.That(proof.RetiredAt).IsNull();
-        using var reopened = fixture.Git.State.Open();
-        await Assert.That(await reopened.StopAsync(attempt.AttemptId, "second reason", new ControlledTransport())).IsEqualTo(proof);
-        var retired = reopened.RetireAttempt(attempt.AttemptId);
-        await Assert.That(retired.RetiredAt).IsNotNull();
-        await Assert.That(reopened.RetireAttempt(attempt.AttemptId)).IsEqualTo(retired);
-        await Assert.That(store.Status(attempt.ContractRevisionId).Attempts.Single().Retirement).IsEqualTo(retired);
-        await Assert.That(store.GetAttempt(attempt.AttemptId).Abandonment!.Reason).IsEqualTo("first reason");
-        await Assert.That(() => store.ProvisionAttempt(attempt.AttemptId)).Throws<StaleAttempt>();
-        await Assert.That(Directory.Exists(attempt.Allocation.WorktreePath)).IsFalse();
-    }
-
-    [Test]
-    [Arguments("enclosure-only")]
-    [Arguments("unacknowledged-checkout")]
-    [Arguments("missing-acknowledged-enclosure")]
-    public async Task AmbiguousProvisioningNeverGrantsSafeProof(string state)
-    {
-        using var fixture = new AttemptFixture();
-        using var store = fixture.State.Open();
-        var attempt = fixture.Admit(store);
-        if (state == "missing-acknowledged-enclosure")
-        {
-            store.ProvisionAttempt(attempt.AttemptId);
-            Directory.Delete(attempt.Allocation.Enclosure, true);
-        }
-        else
-        {
-            WorktreeMaterialization.ClaimEnclosure(attempt);
-            if (state == "unacknowledged-checkout")
-            {
-                using var held = AdministrativeGitProcess.EnclosureLock.Acquire(Path.Combine(attempt.Allocation.Enclosure, WorktreeMaterialization.LockName));
-                WorktreeMaterialization.Materialize(attempt, held);
-            }
-        }
-        await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "stop ambiguous setup", new ControlledTransport())).Throws<CessationUnconfirmed>();
-        await Assert.That(store.GetAttempt(attempt.AttemptId).IsCurrent).IsFalse();
-        // A vanished local directory never reinterprets the record as a no-directory HTTP Attempt.
-        await Assert.That(store.GetAttempt(attempt.AttemptId).ResourceKind).IsEqualTo(AttemptRecord.Worktree);
-        await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ('{attempt.AttemptId}', 'no_dispatch_intent', 'now')"))
-            .Throws<SqliteException>();
-        await Assert.That(store.FindRetirement(attempt.AttemptId)).IsNull();
-        await Assert.That(() => store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
-    }
-
-    [Test]
-    public async Task HttpUndispatchedStopAndRetirementNeedNoLocalResourceAndKeepCustody()
-    {
-        using var fixture = new AttemptFixture();
-        var local = fixture.LocalResources();
-        AttemptRecord attempt;
+        using var fixture = new HttpFixture();
+        var local = fixture.Git.LocalResources();
+        var attempt = fixture.Attempt;
         AttemptRetirement proof;
-        using (var store = fixture.State.Open())
+        if (submission == "prepared") fixture.Prepare();
+        using (var store = fixture.Git.State.Open())
         {
-            attempt = fixture.AdmitHttp(store);
             await Assert.That(() => store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
             store.AbandonAttempt(attempt.AttemptId, "first reason");
-            // A worktree basis cannot describe an Attempt that never owned local material.
-            await Assert.That(() => fixture.State.Execute($"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ('{attempt.AttemptId}', 'never_materialized', 'now')"))
-                .Throws<SqliteException>();
-            proof = await store.StopAsync(attempt.AttemptId, "later reason", transport: null);
+            proof = await store.StopAsync(attempt.AttemptId, "later reason");
             await Assert.That(proof.Basis).IsEqualTo("no_dispatch_intent");
             await Assert.That(proof.RetiredAt).IsNull();
         }
-        using var reopened = fixture.State.Open();
-        await Assert.That(await reopened.StopAsync(attempt.AttemptId, "second reason", transport: null)).IsEqualTo(proof);
+        using var reopened = fixture.Git.State.Open();
+        await Assert.That(await reopened.StopAsync(attempt.AttemptId, "second reason")).IsEqualTo(proof);
         var retired = reopened.RetireAttempt(attempt.AttemptId);
         await Assert.That(retired.RetiredAt).IsNotNull();
         await Assert.That(reopened.RetireAttempt(attempt.AttemptId)).IsEqualTo(retired);
@@ -97,186 +37,90 @@ public sealed class RetirementTests
         await Assert.That(retained.Retirement).IsEqualTo(retired);
         await Assert.That(retained.Abandonment!.Reason).IsEqualTo("first reason");
         await Assert.That(retained.B1).IsEqualTo(attempt.B1);
-        await Assert.That(retained.ResourceKind).IsEqualTo(AttemptRecord.Http);
-        await Assert.That(fixture.Git("rev-parse", attempt.B1.RetentionRef).Trim()).IsEqualTo(attempt.B1.CommitOid);
-        await Assert.That(fixture.LocalResources()).IsEqualTo(local);
+        await Assert.That(reopened.FindSubmission(attempt.AttemptId)?.State).IsEqualTo(submission == "prepared" ? "prepared" : null);
+        await Assert.That(fixture.Git.Git("rev-parse", attempt.B1.RetentionRef).Trim()).IsEqualTo(attempt.B1.CommitOid);
+        await Assert.That(fixture.Git.LocalResources()).IsEqualTo(local);
     }
 
     [Test]
-    [Arguments("success")]
     [Arguments("force_stopped")]
-    [Arguments("runtime_lost")]
-    [Arguments("unavailable")]
+    [Arguments("succeeded")]
+    [Arguments("unreachable")]
     [Arguments("cancelled")]
-    public async Task AbandonmentCommitsBeforeNativeStopAndEveryDispatchedOutcomeStaysQuarantined(string outcome)
+    public async Task AbandonmentCommitsBeforeHttpStopAndEveryOutcomeStaysQuarantined(string outcome)
     {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var attempt = fixture.Provision(store);
-        var submission = await store.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport());
-        // Known-run stop must work from retained identity with source/workspace/configuration unavailable.
-        Directory.Delete(attempt.Allocation.WorktreePath, true);
-        Directory.Delete(fixture.Home);
+        await using var target = new StockTarget();
+        using var fixture = new HttpFixture();
+        // Nothing listens at the fixture's own target.
+        var submission = fixture.PrepareAt(outcome == "unreachable" ? new Uri(HttpFixture.Target) : target.Origin, "correlated");
+        var attempt = fixture.Attempt;
+        // A known run is stopped from retained identity alone, with the source checkout unavailable.
         Directory.Move(fixture.Git.Repository, fixture.Git.Repository + "-offline");
-        var stops = 0;
-        var transport = new StopTransport(async run =>
+        var abandonedFirst = false;
+        target.Reply = (request, _) =>
         {
-            var id = run.RunId;
-            using var observer = fixture.Git.State.Open();
-            await Assert.That(observer.GetAttempt(attempt.AttemptId).Abandonment!.Reason).IsEqualTo("operator stop");
-            await Assert.That(observer.CurrentAttempt(attempt.WorkUnitId)).IsNull();
-            // The exact retained binding, including frozen title/size, not adapter configuration.
-            await Assert.That(run).IsEqualTo(new NativeRunBinding(submission.Locator, submission.RunId!,
-                "Broodling Attempt " + attempt.AttemptId, "small", null));
-            stops++;
-            if (outcome == "unavailable") throw new NativeTransportError();
-            if (outcome == "cancelled") throw new OperationCanceledException();
-            return new(id, outcome == "success", JsonSerializer.SerializeToElement<object?>(null), outcome == "success" ? null : outcome);
+            if ((string)request["method"]! == "run/force")
+            {
+                using var observer = fixture.Git.State.Open();
+                abandonedFirst = observer.GetAttempt(attempt.AttemptId).Abandonment?.Reason == "operator stop"
+                    && observer.CurrentAttempt(attempt.WorkUnitId) is null;
+            }
+            return null;
+        };
+        target.Projections.Enqueue(outcome switch
+        {
+            "succeeded" => AttemptCompletionTests.HttpFinished(submission, "succeeded", CompletionFixture.Receipt()),
+            "cancelled" => null,
+            _ => HttpForceStopped(submission.Run!)
         });
-        if (outcome == "unavailable")
-            await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "operator stop", transport)).Throws<NativeTransportError>();
-        else if (outcome == "cancelled")
-            await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "operator stop", transport)).Throws<OperationCanceledException>();
-        else
-            await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "operator stop", transport)).Throws<CessationUnconfirmed>();
-        await Assert.That(stops).IsEqualTo(1);
-        await Assert.That(store.FindRetirement(attempt.AttemptId)).IsNull();
-        await Assert.That(store.Status(attempt.ContractRevisionId).QuarantinedAttemptIds.Single()).IsEqualTo(attempt.AttemptId);
-        await Assert.That(() => store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
-        await Assert.That(() => store.AdmitRetry(attempt.AttemptId, "unsafe", fixture.Git.Workspaces, fixture.Profile)).Throws<AttemptAdmissionError>();
-        await Assert.That(store.AbandonAttempt(attempt.AttemptId, "late reason").Reason).IsEqualTo("operator stop");
-    }
-
-    [Test]
-    public async Task UnresolvedDispatchNeverReplaysToDiscoverRunOrGrantCleanup()
-    {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var attempt = fixture.Provision(store);
-        var transport = new ControlledTransport { Submit = _ => throw new NativeTransportError() };
-        await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport)).Throws<NativeTransportError>();
-        await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "unresolved", transport)).Throws<CessationUnconfirmed>();
-        await Assert.That(transport.Calls).IsEqualTo(1);
-        await Assert.That(store.FindSubmission(attempt.AttemptId)!.RunId).IsNull();
-        await Assert.That(() => store.ProvisionAttempt(attempt.AttemptId)).Throws<StaleAttempt>();
-        await Assert.That(Directory.Exists(attempt.Allocation.WorktreePath)).IsTrue();
-    }
-
-    [Test]
-    [Arguments("missing-enclosure")]
-    [Arguments("foreign-marker")]
-    [Arguments("physical-alias")]
-    public async Task DispatchedStopPreservesPhysicalEnclosureOwnershipRefusalsAfterAbandonment(string change)
-    {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var attempt = fixture.Provision(store);
-        await store.DispatchAsync(attempt.AttemptId, fixture.Profile, new ControlledTransport());
-        var enclosure = attempt.Allocation.Enclosure;
-        if (change == "missing-enclosure") Directory.Delete(enclosure, true);
-        else if (change == "foreign-marker") File.WriteAllText(Path.Combine(enclosure, WorktreeMaterialization.MarkerName), "foreign");
-        else { Directory.Move(enclosure, enclosure + "-saved"); Directory.CreateSymbolicLink(enclosure, enclosure + "-saved"); }
-        if (change == "missing-enclosure")
-            await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "stop", new ControlledTransport())).Throws<CessationUnconfirmed>();
-        else
-            await Assert.That(async () => await store.StopAsync(attempt.AttemptId, "stop", new ControlledTransport())).Throws<WorktreeOwnershipConflict>();
-        await Assert.That(store.GetAttempt(attempt.AttemptId).Abandonment).IsNotNull();
-        await Assert.That(store.FindRetirement(attempt.AttemptId)).IsNull();
-    }
-
-    [Test]
-    public async Task DirtySafeCheckoutIsDiscardedWhileSourceSiblingsStoreEnclosureAndLockInodeSurvive()
-    {
-        using var fixture = new AttemptFixture();
-        using var store = fixture.State.Open();
-        var attempt = store.ProvisionAttempt(fixture.Admit(store).AttemptId);
-        var sibling = Path.Combine(fixture.State.Root, "sibling");
-        fixture.Git("worktree", "add", "-b", "sibling", sibling);
-        File.WriteAllText(Path.Combine(attempt.Allocation.WorktreePath, "discard-me"), "candidate only");
-        File.WriteAllText(Path.Combine(attempt.Allocation.WorktreePath, "original.txt"), "dirty abandoned bytes");
-        var lockFd = open(Path.Combine(attempt.Allocation.Enclosure, WorktreeMaterialization.LockName), 0x80002);
-        if (lockFd < 0) throw new Exception("Cannot open existing lock");
-        try
+        using var caller = new CancellationTokenSource();
+        var stop = fixture.Store.StopAsync(attempt.AttemptId, "operator stop", caller.Token);
+        if (outcome == "cancelled")
         {
-            await store.StopAsync(attempt.AttemptId, "discard", new ControlledTransport());
-            store.RetireAttempt(attempt.AttemptId);
-            await Assert.That(Directory.Exists(attempt.Allocation.WorktreePath)).IsFalse();
-            await Assert.That(Directory.Exists(attempt.Allocation.Enclosure)).IsTrue();
-            await Assert.That(File.ReadAllText(Path.Combine(attempt.Allocation.Enclosure, WorktreeMaterialization.MarkerName))).IsEqualTo(attempt.AttemptId + "\n");
-            await Assert.That(File.Exists(fixture.State.Path)).IsTrue();
-            await Assert.That(AttemptFixture.RunGit(sibling, "rev-parse", "HEAD").Trim()).IsEqualTo(fixture.Head);
-            await Assert.That(fixture.Git("rev-parse", "HEAD").Trim()).IsEqualTo(fixture.Head);
-            await Assert.That(fixture.Git("branch", "--list", attempt.Allocation.Branch)).IsEqualTo("");
-            // Lock the original open inode. Opening the retained pathname must contend with it.
-            await Assert.That(flock(lockFd, 6)).IsEqualTo(0);
-            await Assert.That(ProvisioningProcessTests.LockIsFree(attempt)).IsFalse();
+            await target.Stalled.Task.WaitAsync(DirectTargetRunTests.Patience);
+            caller.Cancel();
+            await Assert.That(async () => await stop).Throws<OperationCanceledException>();
         }
-        finally { close(lockFd); }
-    }
-
-    [Test]
-    [Arguments("marker")]
-    [Arguments("foreign-branch")]
-    [Arguments("branch-elsewhere")]
-    [Arguments("symbolic-branch")]
-    [Arguments("unregistered")]
-    [Arguments("alias")]
-    [Arguments("foreign-common-git")]
-    public async Task RetirementRefusesChangedPhysicalAndGitOwnershipBeforeDeletion(string change)
-    {
-        using var fixture = new AttemptFixture();
-        using var store = fixture.State.Open();
-        var attempt = store.ProvisionAttempt(fixture.Admit(store).AttemptId);
-        await store.StopAsync(attempt.AttemptId, "stop", new ControlledTransport());
-        var path = attempt.Allocation.WorktreePath;
-        switch (change)
+        else
         {
-            case "marker": File.WriteAllText(Path.Combine(attempt.Allocation.Enclosure, WorktreeMaterialization.MarkerName), "foreign"); break;
-            case "foreign-branch": AttemptFixture.RunGit(path, "checkout", "-b", "foreign"); break;
-            case "branch-elsewhere":
-                AttemptFixture.RunGit(path, "checkout", "--detach");
-                fixture.Git("worktree", "add", Path.Combine(fixture.State.Root, "foreign-checkout"), attempt.Allocation.Branch); break;
-            case "symbolic-branch": fixture.Git("symbolic-ref", "refs/heads/" + attempt.Allocation.Branch, "refs/heads/main"); break;
-            case "unregistered":
-                Directory.Move(path, path + "-saved"); fixture.Git("worktree", "prune"); Directory.Move(path + "-saved", path); break;
-            case "alias": Directory.Move(path, path + "-saved"); Directory.CreateSymbolicLink(path, path + "-saved"); break;
-            case "foreign-common-git": File.WriteAllText(Path.Combine(path, ".git"), "gitdir: " + fixture.GitDirectory + "\n"); break;
+            var refusal = await Refusal<CessationUnconfirmed>(() => stop);
+            await Assert.That(refusal.NativeStopRequested).IsEqualTo(outcome != "unreachable");
         }
-        await Assert.That(() => store.RetireAttempt(attempt.AttemptId)).Throws<WorktreeOwnershipConflict>();
-        await Assert.That(Directory.Exists(path)).IsTrue();
-        await Assert.That(store.FindRetirement(attempt.AttemptId)!.RetiredAt).IsNull();
-        await Assert.That(fixture.Git("rev-parse", "HEAD").Trim()).IsEqualTo(fixture.Head);
+        if (outcome != "unreachable")
+        {
+            await Assert.That(abandonedFirst).IsTrue();
+            await Assert.That(target.Count("run/force")).IsEqualTo(1);
+        }
+        await HttpQuarantined(fixture, "correlated", "operator stop");
+        await Assert.That(fixture.Store.FindCompletion(attempt.AttemptId)).IsNull();
+        await Assert.That(fixture.Store.Status(attempt.ContractRevisionId).QuarantinedAttemptIds.Single()).IsEqualTo(attempt.AttemptId);
+        await Assert.That(() => fixture.Store.AdmitRetry(attempt.AttemptId, "unsafe")).Throws<AttemptAdmissionError>();
+        await Assert.That(fixture.Store.AbandonAttempt(attempt.AttemptId, "late reason").Reason).IsEqualTo("operator stop");
     }
 
     [Test]
-    public async Task SqlRetainsSafeProofAndCannotManufactureDispatchedCleanupAuthority()
+    public async Task SqlRetainsSafeHttpProofAndCannotManufactureDispatchedCleanupAuthority()
     {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var attempt = fixture.Provision(store);
-        await store.StopAsync(attempt.AttemptId, "safe", new ControlledTransport());
+        using var fixture = new HttpFixture();
+        var store = fixture.Store;
+        await store.StopAsync(fixture.Attempt.AttemptId, "safe");
         foreach (var sql in new[] {
-            "UPDATE attempt_retirements SET basis = 'never_materialized'",
+            "UPDATE attempt_retirements SET basis = 'stopped_target'",
             "DELETE FROM attempt_retirements",
             "INSERT OR REPLACE INTO attempt_retirements SELECT * FROM attempt_retirements" })
             await Assert.That(() => fixture.Git.State.Execute(sql)).Throws<SqliteException>();
-        store.RetireAttempt(attempt.AttemptId);
+        store.RetireAttempt(fixture.Attempt.AttemptId);
         await Assert.That(() => fixture.Git.State.Execute("UPDATE attempt_retirements SET retired_at = NULL")).Throws<SqliteException>();
-        var successor = store.AdmitRetry(attempt.AttemptId, "explicit", fixture.Git.Workspaces, fixture.Profile);
-        store.ProvisionAttempt(successor.AttemptId);
-        await store.DispatchAsync(successor.AttemptId, fixture.Profile, new ControlledTransport());
+        var successor = store.AdmitRetry(fixture.Attempt.AttemptId, "explicit");
+        fixture.Prepare(attemptId: successor.AttemptId);
+        fixture.Git.State.Execute($"UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = '{successor.AttemptId}'");
         store.AbandonAttempt(successor.AttemptId, "dispatched");
-        await Assert.That(() => fixture.Git.State.Execute($"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ('{successor.AttemptId}', 'never_dispatched', 'now')"))
+        await Assert.That(() => fixture.Git.State.Execute($"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ('{successor.AttemptId}', 'no_dispatch_intent', 'now')"))
             .Throws<SqliteException>();
-        // Verified maintenance is DirectTarget-only; dispatched LocalTarget work keeps its policy.
-        store.PauseInstallation();
-        await Assert.That(() => store.RetireStoppedTargetAttempt(successor.AttemptId, Check(HttpFixture.Target))).Throws<CessationUnconfirmed>();
+        // Outside the pause, SQL refuses the stopped-target basis too.
         await Assert.That(() => fixture.Git.State.Execute(StoppedTargetInsert(successor.AttemptId))).Throws<SqliteException>();
+        await Assert.That(store.FindRetirement(successor.AttemptId)).IsNull();
     }
-
-    [DllImport("libc")] private static extern int open(string path, int flags);
-    [DllImport("libc")] private static extern int flock(int fd, int flags);
-    [DllImport("libc")] private static extern int close(int fd);
 
     [Test]
     [Arguments("matching")]
@@ -293,11 +137,13 @@ public sealed class RetirementTests
         target.Projections.Enqueue(HttpForceStopped(run));
         fixture.Store.PauseInstallation(); // Stop remains available while paused.
 
-        var refusal = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator stop", null));
+        var refusal = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator stop"));
         await Assert.That(refusal.NativeStopRequested).IsEqualTo(precheck == "matching");
         await Assert.That(target.Count("run/force")).IsEqualTo(precheck == "matching" ? 1 : 0);
         if (precheck == "matching")
             await Assert.That((string)target.Messages.Last()["params"]!["runId"]!).IsEqualTo(submission.IntendedRunId);
+        // Stop never replays the submission to discover or create its run.
+        await Assert.That(target.Bodies.Count).IsEqualTo(0);
         await HttpQuarantined(fixture, "dispatched", "operator stop");
     }
 
@@ -309,7 +155,7 @@ public sealed class RetirementTests
         var submission = fixture.PrepareAt(target.Origin, "correlated");
         target.Projections.Enqueue(HttpForceStopped(submission.Run!));
 
-        var refusal = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator stop", null));
+        var refusal = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator stop"));
         await Assert.That(refusal.NativeStopRequested).IsTrue();
         await Assert.That(target.Count("run/status")).IsEqualTo(0);
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
@@ -326,7 +172,7 @@ public sealed class RetirementTests
         var clock = new FakeTimeProvider();
         fixture.Store.DirectTargetClock = clock;
 
-        var stop = fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator stop", null);
+        var stop = fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator stop");
         await target.Stalled.Task.WaitAsync(DirectTargetRunTests.Patience);
         await Assert.That(fixture.Store.GetAttempt(fixture.Attempt.AttemptId).Abandonment).IsNotNull();
         clock.Advance(DirectTargetLimits.Stop);
@@ -343,14 +189,14 @@ public sealed class RetirementTests
         var submission = fixture.PrepareAt(target.Origin, "dispatched");
         var run = submission.Frozen.Run(submission.IntendedRunId!);
         target.Reply = NotFound;
-        var first = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "first stop", null));
+        var first = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "first stop"));
         await Assert.That(first.NativeStopRequested).IsFalse();
 
         // The delayed request is accepted later; the same intended ID is now addressable.
         target.Reply = (_, _) => null;
         target.Projections.Enqueue(DirectTargetRunTests.Running(run));
         target.Projections.Enqueue(HttpForceStopped(run));
-        var second = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "second stop", null));
+        var second = await Refusal<CessationUnconfirmed>(() => fixture.Store.StopAsync(fixture.Attempt.AttemptId, "second stop"));
         await Assert.That(second.NativeStopRequested).IsTrue();
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
         await HttpQuarantined(fixture, "dispatched", "first stop");
@@ -367,7 +213,7 @@ public sealed class RetirementTests
         var clock = new FakeTimeProvider();
         fixture.Store.DirectTargetClock = clock;
 
-        var cancel = fixture.Store.CancelIssueSubmissionAsync(submission.SubmissionId, "requester withdrew", null);
+        var cancel = fixture.Store.CancelIssueSubmissionAsync(submission.SubmissionId, "requester withdrew");
         await target.Stalled.Task.WaitAsync(DirectTargetRunTests.Patience);
         await Assert.That(fixture.Store.GetAttempt(fixture.Attempt.AttemptId).Abandonment!.Reason).IsEqualTo("requester withdrew");
         clock.Advance(DirectTargetLimits.Stop);
@@ -391,7 +237,7 @@ public sealed class RetirementTests
         var local = fixture.Git.LocalResources();
         await Assert.That(() => fixture.Git.State.Execute(StoppedTargetInsert(id))).Throws<SqliteException>(); // SQL requires the pause.
         fixture.Store.PauseInstallation();
-        var check = Check(submission.Locator.Address);
+        var check = Check(submission.Origin);
         check = check with { VerifiedAt = check.VerifiedAt.ToOffset(TimeSpan.FromHours(-4)) };
 
         var retired = fixture.Store.RetireStoppedTargetAttempt(id, check);
@@ -401,8 +247,8 @@ public sealed class RetirementTests
         await Assert.That(retired.RetiredAt).IsNotNull();
         using var reopened = fixture.Git.State.Open();
         // The retained retirement is returned as recorded; a later check is neither needed nor recorded.
-        await Assert.That(reopened.RetireStoppedTargetAttempt(id, Check(submission.Locator.Address))).IsEqualTo(retired);
-        await Assert.That(await reopened.StopAsync(id, "later stop", null)).IsEqualTo(retired);
+        await Assert.That(reopened.RetireStoppedTargetAttempt(id, Check(submission.Origin))).IsEqualTo(retired);
+        await Assert.That(await reopened.StopAsync(id, "later stop")).IsEqualTo(retired);
         var status = reopened.Status(fixture.Attempt.ContractRevisionId);
         await Assert.That(status.Attempts.Single().Retirement).IsEqualTo(retired);
         await Assert.That(status.Attempts.Single().Abandonment!.Reason).IsEqualTo("operator stop");
@@ -422,16 +268,16 @@ public sealed class RetirementTests
         var submission = fixture.PrepareAt(target.Origin, "correlated");
         var accepted = fixture.Git.Deliver();
         target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "succeeded", CompletionFixture.Receipt(head: accepted)));
-        var completion = await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null);
+        var completion = await fixture.Store.WaitAsync(fixture.Attempt.AttemptId);
         await target.DisposeAsync();
         fixture.Store.PauseInstallation();
         // A successful result whose accepted pin is gone is an unresolved retention condition.
         fixture.Git.Git("update-ref", "-d", "refs/broodling/accepted/" + accepted);
-        await Assert.That(() => fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission.Locator.Address)))
+        await Assert.That(() => fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission.Origin)))
             .Throws<ResultRetentionError>();
         fixture.Git.Git("update-ref", "refs/broodling/accepted/" + accepted, accepted);
 
-        var retired = fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission.Locator.Address));
+        var retired = fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission.Origin));
         await Assert.That(retired.Basis).IsEqualTo("stopped_target");
         // A later operator stop hands back the retirement without abandoning the completed Attempt.
         var output = new StringWriter();
@@ -446,7 +292,7 @@ public sealed class RetirementTests
         await Assert.That(status.Attempts.Single().Retirement).IsEqualTo(retired);
         await Assert.That(status.Attempts.Single().Abandonment).IsNull();
         await Assert.That(status.Completions.Single()).IsEqualTo(completion);
-        await Assert.That(await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null)).IsEqualTo(completion);
+        await Assert.That(await fixture.Store.WaitAsync(fixture.Attempt.AttemptId)).IsEqualTo(completion);
         await Assert.That(fixture.Git.Git("rev-parse", "refs/broodling/accepted/" + accepted).Trim()).IsEqualTo(accepted);
         // Replacement of retired dispatched work still never reopens a completed Work Unit.
         await Assert.That(() => fixture.Store.AdmitRetry(fixture.Attempt.AttemptId, "replacement")).Throws<StaleAttempt>();
@@ -468,7 +314,7 @@ public sealed class RetirementTests
         // A current Attempt stays refused whatever its native label; the others are abandoned.
         if (condition != "current") fixture.Store.AbandonAttempt(id, "operator stop");
         fixture.Store.PauseInstallation();
-        var check = Check(submission.Locator.Address);
+        var check = Check(submission.Origin);
         // A check made before a release and re-pause belongs to the earlier pause epoch.
         if (condition == "check-before-pause") { fixture.Store.ReleaseInstallation(); fixture.Store.PauseInstallation(); }
         if (condition == "unpaused") fixture.Store.ReleaseInstallation();
@@ -477,7 +323,7 @@ public sealed class RetirementTests
         if (condition == "foreign-target") check = check with { DirectOrigin = "http://127.0.0.1:10" };
         if (condition == "missing-b1") fixture.Git.Git("update-ref", "-d", fixture.Attempt.B1.RetentionRef);
         using var initiating = condition == "initiating"
-            ? AdministrativeGitProcess.EnclosureLock.AcquireExisting(fixture.Git.State.Path, shared: true) : null;
+            ? InitiationLock.AcquireExisting(fixture.Git.State.Path, shared: true) : null;
 
         BroodlingException? refusal = null;
         try { fixture.Store.RetireStoppedTargetAttempt(id, check); }
@@ -498,13 +344,13 @@ public sealed class RetirementTests
         var id = fixture.Attempt.AttemptId;
         fixture.Store.AbandonAttempt(id, "operator stop");
         fixture.Store.PauseInstallation();
-        var interrupted = Check(submission.Locator.Address);
+        var interrupted = Check(submission.Origin);
         // The next invocation starts by pausing again; the installation was never released.
         fixture.Store.PauseInstallation();
 
         await Assert.That(() => fixture.Store.RetireStoppedTargetAttempt(id, interrupted)).Throws<MaintenanceUnverified>();
         await Assert.That(fixture.Store.FindRetirement(id)).IsNull();
-        var fresh = Check(submission.Locator.Address);
+        var fresh = Check(submission.Origin);
         await Assert.That(fixture.Store.RetireStoppedTargetAttempt(id, fresh).StoppedTarget).IsEqualTo(fresh);
     }
 
@@ -516,7 +362,7 @@ public sealed class RetirementTests
         var id = fixture.Attempt.AttemptId;
         fixture.Store.AbandonAttempt(id, "operator stop");
         fixture.Store.PauseInstallation();
-        var check = Check(submission.Locator.Address);
+        var check = Check(submission.Origin);
         var json = JsonSerializer.SerializeToNode(check, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
         var incomplete = json.DeepClone().AsObject();
         incomplete["homeMount"] = " ";
@@ -564,10 +410,4 @@ public sealed class RetirementTests
         await Assert.That(fixture.Store.FindRetirement(attempt.AttemptId)).IsNull();
         await Assert.That(() => fixture.Store.RetireAttempt(attempt.AttemptId)).Throws<CessationUnconfirmed>();
     }
-}
-
-/// <summary>Stop needs only the stopper: it can never redispatch, wait or read status.</summary>
-internal sealed class StopTransport(Func<NativeRunBinding, Task<NativeResult>> stop) : INativeStopper
-{
-    public Task<NativeResult> StopAsync(NativeRunBinding run, CancellationToken cancellationToken = default) => stop(run);
 }

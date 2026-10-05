@@ -7,19 +7,19 @@
 #   export NuGetPackageSourceCredentials_github="Username=USER;Password=TOKEN"
 #   docker build -f deployment/Broodling.Dockerfile \
 #     --secret id=nuget-github,env=NuGetPackageSourceCredentials_github -t broodling:REVISION .
-# It carries no Python, Python SDK, Codex launcher or native executable; its Zeroshot client is the
-# Zeroshot.Client library. For Attempts that submit created, the
-# invocation commands (submit, resume, wait, stop), retire-attempt and replace-attempt run from the
-# release artifact on a host with gh and the caller checkout's common Git directory.
+# It carries no Python or native executable; its Zeroshot client is the Zeroshot.Client library. For
+# Attempts that submit created, the invocation commands (submit, resume, wait, stop), retire-attempt
+# and replace-attempt run from the release artifact on a host with gh and the caller checkout's common
+# Git directory.
 
 # The DirectTarget binding's native release archive (src/Broodling/DirectTargetBinding.cs and
-# execution-assets/approval.json), the one the DirectTarget image installs. This pin is independent
-# of the LocalTarget bridge's SDK wheel in bridge/requirements.txt.
+# execution-assets/approval.json), the one the DirectTarget image installs.
 FROM scratch AS native
 ADD --checksum=sha256:fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16 \
     https://github.com/the-open-engine/zeroshot/releases/download/v10.10.0/zeroshot-v10.10.0-x86_64-unknown-linux-musl.tar.gz /zeroshot.tar.gz
 
-# The same Ubuntu 24.04 as the runtime stage, so libbroodling_git.so links against its libc.
+# The same Ubuntu 24.04 as the runtime stage, so libbroodling_git.so links against its libc. python3
+# serves only the asset regeneration check below (generate.sh and describe.py).
 FROM mcr.microsoft.com/dotnet/sdk:10.0.401-noble@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev python3 \
     && rm -rf /var/lib/apt/lists/*
@@ -44,7 +44,8 @@ RUN --mount=type=bind,from=native,source=/zeroshot.tar.gz,target=/tmp/zeroshot.t
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.12-noble@sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f
 LABEL org.opencontainers.image.source=https://github.com/faviann/broodling
 # Git for source/accepted-object custody; curl only for the credential-free health check; tini as
-# PID 1, because administrative Git refuses a PID-1 host process (dotnet-worktree-materialization.md).
+# PID 1 to reap orphaned descendants of the host's gh and git children (a cancelled fetch kills its
+# process tree, and git's remote and credential helpers reparent to PID 1) and to forward signals.
 # The processing server acquires issues and repositories through gh, the DirectTarget image's pin.
 # Completion fetches each accepted commit with plain Git, which asks gh for the current GH_TOKEN, so a
 # private repository's result can be retained; acquisition ignores system Git configuration.

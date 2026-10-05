@@ -1,10 +1,9 @@
 # Caller invocation and recovery
 
-The .NET `Invocation` composes explicit source admission, Attempt allocation and
-native dispatch for one explicitly configured target: `InvocationTarget.Local`
-(worktree materialization and the SDK bridge, for no-effect work) or
-`InvocationTarget.Direct` (an HTTP DirectTarget Attempt for authorized PR work,
-with no Python, SDK client state, workspace root or launcher). It is a callable
+The .NET `Invocation` composes explicit source admission, Attempt admission and
+native dispatch to the one configured DirectTarget, whose origin
+`InvocationTarget` names. An Attempt needs no Python, SDK client state,
+workspace root or launcher. It is a callable
 API; the [HTTP service](#http-service) maps submission, resume and stop onto these
 operations. The [current authority](../governing/current.md) governs scope; the
 [release guide](../../deployment/README.md) supplies operator configuration and
@@ -19,8 +18,8 @@ commands. The retired Python API is preserved at the
 | Prepare a service-owned GitHub repository and consume its retained B1 | `PrepareRequestBundleRepositoryAsync/RegisterRequestBundleRepositoryFile/AdmitHttpAttempt(submissionId)`: [GitHub preparation](dotnet-github-ingress.md), [B1 custody](dotnet-attempt-allocation.md) |
 | Admit a completed RequestBundle under the retained PR authority | `BroodlingStore.AdmitRequestBundle`: [bundle-bound admission](dotnet-contract-admission.md#bundle-bound-admission) |
 | Prepare and admit that Contract with the bundled proposer | `BroodlingStore.AdmitRequestBundleAsync`: [bundled proposer](dotnet-contract-admission.md#bundled-proposer) |
-| Submit an explicit GitHub reference with typed proposer and exact effect authority | `Invocation.SubmitAsync`: [target selection](zeroshot-native-integration.md#composed-invocation-and-target-selection) |
-| Resume the exact recorded revision | `Invocation.ResumeAsync`: [HTTP dispatch](zeroshot-native-integration.md#http-dispatch-and-acknowledgement), [bridge dispatch](dotnet-native-dispatch.md) |
+| Submit an explicit GitHub reference with typed proposer and exact effect authority | `Invocation.SubmitAsync`: [composed invocation](zeroshot-native-integration.md#composed-invocation) |
+| Resume the exact recorded revision | `Invocation.ResumeAsync`: [HTTP dispatch](zeroshot-native-integration.md#http-dispatch-and-acknowledgement) |
 | Request revised work from one named, ended predecessor submission | `BroodlingStore.ReviseIssueSubmission`: [revised work](#revised-work) |
 | Resume one Issue submission's admitted Contract from its retained B1 | `Invocation.ResumeSubmissionAsync`: [automatic progression](#automatic-progression) |
 | Progress unfinished Issue submissions with no caller connected, for one process lifetime; continue one exact submission at the next scan | `SubmissionProgressor.RunAsync/Resume`: [automatic progression](#automatic-progression) |
@@ -31,17 +30,15 @@ commands. The retired Python API is preserved at the
 | Consume the correlated native result or replay retained completion | `Invocation.WaitAsync` / `BroodlingStore.WaitAsync`: [completion](dotnet-receipt-completion.md) |
 | Consume correlated HTTP results with no caller waiting, for one process lifetime | `CompletionObserver.RunAsync`: [automatic observation](dotnet-receipt-completion.md#automatic-completion-observation) |
 | Abandon before requesting native stop | `BroodlingStore.StopAsync`: [lifecycle](dotnet-retirement-replacement.md) |
-| Explicit safe retirement/replacement | `RetireAttempt`, `AdmitRetry`, `PrepareRetry`, `RetryAsync`: [lifecycle](dotnet-retirement-replacement.md) |
+| Explicit safe retirement/replacement | `RetireAttempt`, `AdmitRetry`, `PrepareRetry`: [lifecycle](dotnet-retirement-replacement.md) |
 
-Use one disposable store session per caller. Keep the database, source Git,
-Attempt roots and runtime state at their durable recorded paths. Ordinary open
-never creates or upgrades state.
+Use one disposable store session per caller. Keep the database and source Git
+at their durable recorded paths. Ordinary open never creates or upgrades state.
 
-A new Attempt takes the configured target's kind. An existing Attempt continues
-only through the kind its retained resources name; a mismatched target, or a
-Direct origin that differs from the retained binding, refuses before allocation,
-preparation or target contact. Authorized PR work is always an HTTP Attempt and
-no-effect work always a worktree Attempt; neither falls back to the other.
+Every Attempt is a DirectTarget Attempt for exactly one authorized PR. An
+existing Attempt continues only through its retained origin; a configured origin
+that differs from the retained binding refuses before preparation or target
+contact.
 
 Retain `status.Revision.ContractRevisionId` and the exact Attempt ID from
 `status.Attempts`; `status.Submissions` records native correlation. Status/history
@@ -50,27 +47,26 @@ progress; `ObserveAsync` reads native progress separately. Completion belongs to
 
 Repeating submit reacquires bytes and reruns the proposer; changed bytes or
 proposal meaning can create another immutable revision. Resume continues only
-the retained revision. Before initial allocation it needs the selected repository
-and B1; afterward stored allocation governs. Interrupted pre-dispatch work can
+the retained revision. Before the first Attempt it needs the selected repository
+and B1; afterward the retained B1 governs. Interrupted pre-dispatch work can
 continue, while acknowledgement-loss recovery reuses only the frozen request/key
-and still requires current dispatch credentials (HTTP) and authority.
+and still requires current dispatch credentials and authority.
 
-While paused, new ordinary admission, materialization/preparation and dispatch
-initiation refuse. The explicit replacement path may still allocate and prepare its
+While paused, new ordinary admission, preparation and dispatch initiation
+refuse. The explicit replacement path may still allocate and prepare its
 successor (after verified maintenance retirement, only while paused); execution
 and correlated/result-capture observation remain available.
 Pause status reports two separate facts. `unresolvedDispatches` counts durably
 `dispatched` submissions whose run is unknown; that uncertainty persists until
 correlation and may persist forever for a quarantined abandoned Attempt.
 An HTTP conflict or abandonment does not remove a submission from that count.
-`inFlightInitiationDrained` is false while any local dispatch, HTTP send or
-submit bridge still holds the installation initiation lock, including after
+`inFlightInitiationDrained` is false while any local send still holds the
+installation initiation lock, including after
 abandonment commits. A drained reading is local only: a request a target already buffered can
 still create a run.
 
 After durable correlation, resume needs no dispatch configuration or credentials.
-Wait/stop reconnect using the retained run binding; an HTTP record needs no bridge
-transport or Python. An HTTPS target whose certificate chains to a private root
+Wait and stop reconnect using the retained run binding. An HTTPS target whose certificate chains to a private root
 needs a store session opened with `OpenStore(path, directTargetRootCertificate)`.
 That root is operator configuration and is never retained, and the retained origin
 still decides where each operation connects. A retained completion
@@ -79,7 +75,7 @@ history after an interrupted submit to recover exact handles. Rejected,
 abandoned or completed work is handed back without automatic replacement.
 
 Cancellation/transport loss detaches a waiter. Native failure records abandonment;
-invalid receipts or no-effect stable-result gaps refuse completion. Stop records
+invalid receipts refuse completion. Stop records
 abandonment before requesting native stop. Every dispatched Attempt remains
 quarantined, including unknown-run and terminal cases, until verified maintenance
 retirement; stop does not prove physical cessation. See the owning seams for detailed refusal codes and witnesses.
@@ -92,7 +88,7 @@ caller connected:
 
 ```csharp
 await new SubmissionProgressor(application, databasePath, directTargetRootCertificate,
-    new InvocationTarget.Direct(directOrigin), preparer, () => currentCredentials(),
+    new InvocationTarget(directOrigin), preparer, () => currentCredentials(),
     (progress, failure) => report(progress, failure)).RunAsync(processLifetime);
 ```
 
@@ -104,13 +100,13 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   is `prepared` or `dispatched` without a replay block. For a
   [revision](#revised-work), ended Attempts of the Contracts preceding it do not
   count. Rejected, cancelled, unchanged,
-  completed, abandoned and non-current work, Replacement Attempts, earlier
-  unbound associations, and worktree or bridge records are never selected. The store is the only queue. Each submission has
+  completed, abandoned and non-current work, Replacement Attempts and earlier
+  unbound associations are never selected. The store is the only queue. Each submission has
   at most one operation in flight, and different submissions run independently,
   each in its own store session on the thread pool.
 - **Operation.** It calls `IssueSubmissionPreparer.PrepareAsync` on the
   process's shared preparer. For an admitted decision it then calls
-  `Invocation.ResumeSubmissionAsync` with the Direct target. That call admits the
+  `Invocation.ResumeSubmissionAsync` with the configured target. That call admits the
   first HTTP Attempt from the RequestBundle's retained repository preparation
   (original B1), reopens the retained prepared submission (a different
   configured origin refuses) and sends or exactly replays it through
@@ -223,7 +219,7 @@ URL keeps returning its latest submission; revised work names its predecessor.
 ## HTTP service
 
 [#120](https://github.com/faviann/broodling/issues/120) attaches these services
-to `Broodling.Host`. Configured with a Direct `config.json` (`Broodling:Invocation`)
+to `Broodling.Host`. Configured with an invocation `config.json` (`Broodling:Invocation`)
 and an existing service repository root (`Broodling:RepositoryRoot`), and
 holding current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY`, the server
 constructs one `IssueSubmissionPreparer` whose lifetime ends when the host starts
@@ -234,7 +230,7 @@ submission and an unexpected observation failure. If either `RunAsync` fails
 unexpectedly the server stops and exits unsuccessfully, so it never keeps
 accepting work that nothing would process. Without that configuration it serves
 reads only; a configuration that cannot process, such as one setting alone, a
-LocalTarget configuration, a missing root or missing credentials, refuses startup.
+missing root or missing credentials, refuses startup.
 
 - **Submit** (`POST /submissions`) calls `SubmitIssue` and answers `202` with the
   retained submission and its `Location` once that commits. It contacts no

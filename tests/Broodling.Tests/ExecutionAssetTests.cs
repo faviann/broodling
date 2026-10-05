@@ -7,7 +7,7 @@ namespace Broodling.Tests;
 
 public sealed class ExecutionAssetTests
 {
-    private static string Source => Path.Combine(NativeFixture.RepositoryRoot, "src", "Broodling", "execution-assets");
+    private static string Source => Path.Combine(TestRepository.Root, "src", "Broodling", "execution-assets");
 
     [Test]
     public async Task BuildOutputCarriesTheApprovedAssetAndManifest()
@@ -84,7 +84,7 @@ public sealed class ExecutionAssetTests
             ["bytes"] = ExecutionAsset.LoadBundled().Content().Length, ["sha256"] = DirectTargetBinding.AssetSha256 })).IsTrue();
         await Assert.That(JsonNode.DeepEquals(manifest["native"], DirectTargetBinding.Native())).IsTrue();
         var policy = manifest["policy"]!;
-        await Assert.That((string)policy["gatewayBaseUrl"]!).IsEqualTo(NativeProfile.GatewayBaseUrl);
+        await Assert.That((string)policy["gatewayBaseUrl"]!).IsEqualTo(DirectTargetBinding.GatewayBaseUrl);
         var runtime = ExecutionAsset.LoadBundled().Runtime().AsObject();
         foreach (var field in new[] { "harness", "provider", "size" })
             await Assert.That((string)runtime[field]!).IsEqualTo((string)policy[field]!);
@@ -115,8 +115,8 @@ public sealed class ExecutionAssetTests
     [Test]
     public async Task PinnedReleaseReproducesAndAdmitsTheApprovedAsset()
     {
-        // The binding's own pinned native release, never the bridge's; generate.sh downloads it once into the
-        // test workspace cache and verifies archive, executable, recipe and structure against approval.json.
+        // The binding's own pinned native release; generate.sh downloads it once into the test workspace
+        // cache and verifies archive, executable, recipe and structure against approval.json.
         var cache = Path.Combine(Environment.GetEnvironmentVariable("BROODLING_TEST_WORKSPACE_ROOT")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "broodling-tests"), "native-releases");
         var output = Path.Combine(Directory.CreateTempSubdirectory("broodling-asset-").FullName, "asset.json");

@@ -100,28 +100,8 @@ internal static class GitCustody
         long.Parse(Encoding.ASCII.GetString(Checked(repository, ["cat-file", "-s", blob])).Trim(),
             System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture);
 
-    internal static string WorkspaceRoot(string root, string repository, StartingState state)
-    {
-        if (!System.IO.Path.IsPathFullyQualified(root))
-            throw new UnsupportedWorkspaceRoot("The workspace root must be absolute.");
-        string resolved;
-        try { resolved = PhysicalPaths.Resolve(root); }
-        catch (IOException error) { throw new UnsupportedWorkspaceRoot(error.Message); }
-        if (PhysicalPaths.IsWithinTemporaryRoot(resolved))
-            throw new UnsupportedWorkspaceRoot("The workspace root must be outside temporary or volatile roots.");
-        if (PhysicalPaths.IsWithinDisposable(resolved))
-            throw new UnsupportedWorkspaceRoot("The workspace root cannot be inside a disposable Attempt enclosure.");
-        var source = PhysicalPaths.Resolve(repository);
-        // A caller may name a subdirectory: exclude the whole source checkout too.
-        var top = Text(repository, "rev-parse", "--is-bare-repository").Trim() == "true"
-            ? source : PhysicalPaths.Resolve(Text(repository, "rev-parse", "--show-toplevel").Trim());
-        if (new[] { source, top, state.Repository }.Any(path => PhysicalPaths.Contains(path, resolved)))
-            throw new UnsupportedWorkspaceRoot("The workspace root must be outside the source repository and common Git directory.");
-        return resolved;
-    }
-
-    internal static void Retain(StartingState state, AdministrativeGitProcess.EnclosureLock? enclosureLock = null) =>
-        Pin(state.Repository, state.CommitOid, "refs/broodling/starting/" + state.CommitOid, enclosureLock);
+    internal static void Retain(StartingState state) =>
+        Pin(state.Repository, state.CommitOid, "refs/broodling/starting/" + state.CommitOid);
 
     /// <summary>
     /// The exact retained B1 pin and its snapshot objects, checked without creating or repairing anything.
@@ -186,7 +166,7 @@ internal static class GitCustody
         return new(process.ExitCode, output.ToArray(), await stderr);
     }
 
-    private static void Pin(string repository, string oid, string reference, AdministrativeGitProcess.EnclosureLock? enclosureLock = null)
+    private static void Pin(string repository, string oid, string reference)
     {
         if (Text(repository, "cat-file", "-t", oid).Trim() != "commit")
             throw new RetentionRefused("The retained object is not a commit.");
@@ -196,7 +176,7 @@ internal static class GitCustody
         if (existing == oid) return;
         if (existing is not null)
             throw new RetentionRefused("The retention pin conflicts with the selected commit.");
-        var update = Run(repository, ["update-ref", "--no-deref", reference, oid, new string('0', 40)], enclosureLock: enclosureLock);
+        var update = Run(repository, ["update-ref", "--no-deref", reference, oid, new string('0', 40)]);
         // Concurrent creation is acceptable only if it left precisely the same direct pin.
         if (update.ExitCode != 0 && RetentionOid(repository, reference) != oid)
             throw Failure(update);
@@ -216,7 +196,6 @@ internal static class GitCustody
         return Text(repository, "show-ref", "--verify", "--hash", reference).Trim();
     }
 
-    // This pre-status check is also needed by C at checkout/first dispatch.
     internal static void AssertSupportedCheckout(string repository, string commit)
     {
         var configuration = Text(repository, "config", "--null", "--list");
@@ -256,16 +235,9 @@ internal static class GitCustody
         return result.Output;
     }
 
-    internal static Result Run(string repository, string[] arguments, byte[]? input = null,
-        AdministrativeGitProcess.EnclosureLock? enclosureLock = null)
+    internal static Result Run(string repository, string[] arguments, byte[]? input = null)
     {
-        var start = StartInfo(repository, arguments);
-        if (enclosureLock is not null)
-        {
-            if (input is not null) throw new ArgumentException("Protected administrative commands take no stdin.");
-            return AdministrativeGitProcess.Run(start, enclosureLock);
-        }
-        using var process = Process.Start(start) ?? throw new UnsupportedStartingState("Git could not be started.");
+        using var process = Process.Start(StartInfo(repository, arguments)) ?? throw new UnsupportedStartingState("Git could not be started.");
         using var output = new MemoryStream();
         var stdout = process.StandardOutput.BaseStream.CopyToAsync(output);
         var stderr = process.StandardError.ReadToEndAsync();

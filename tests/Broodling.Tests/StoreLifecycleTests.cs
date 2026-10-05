@@ -8,12 +8,18 @@ namespace Broodling.Tests;
 
 public sealed class StoreLifecycleTests
 {
+    /// <summary>
+    /// Pre-transition <c>broodling.dotnet</c> stores, and the <c>broodling.application</c> schema-1 store of
+    /// the revision before #233 (whose schema still defined the structures #233 removed), are refused the
+    /// same way: unchanged.
+    /// </summary>
     [Test]
     [Arguments("dotnet-v1.sql", false)]
     [Arguments("dotnet-v10.sql", false)]
     [Arguments("dotnet-v12.sql", false)]
     [Arguments("dotnet-v12.sql", true)]
-    public async Task PreTransitionStoreIsRefusedByOpenUpgradeAndInitializeWithoutChangingItsFiles(string name, bool uncheckpointedWal)
+    [Arguments("application-v1-pre-233.sql", false)]
+    public async Task EarlierStoreIsRefusedByOpenUpgradeAndInitializeWithoutChangingItsFiles(string name, bool uncheckpointedWal)
     {
         using var fixture = new StoreFixture();
         if (!uncheckpointedWal)
@@ -247,39 +253,6 @@ public sealed class StoreLifecycleTests
         await Assert.That(refusal!.Message).IsEqualTo("Schema 0 stores are not carried forward.");
         await Assert.That(RefusalCode(() => BroodlingStore.Upgrade(fixture.Path))).IsEqualTo("incompatible_store");
         await Assert.That(File.ReadAllBytes(fixture.Path).SequenceEqual(before)).IsTrue();
-    }
-
-    [Test]
-    public async Task StoreCannotBePlacedInsideDisposableWorktreeEvenThroughParentSymlink()
-    {
-        using var fixture = new StoreFixture();
-        var disposable = System.IO.Path.Combine(fixture.Root, "disposable");
-        var nested = System.IO.Path.Combine(disposable, "nested");
-        Directory.CreateDirectory(nested);
-        var existing = System.IO.Path.Combine(nested, "existing.sqlite3");
-        using (fixture.Application.InitializeStore(existing)) { }
-        File.WriteAllText(System.IO.Path.Combine(disposable, ".broodling-disposable-worktree"), "attempt");
-        var link = System.IO.Path.Combine(fixture.Root, "link");
-        Directory.CreateSymbolicLink(link, disposable);
-        var nestedLink = System.IO.Path.Combine(fixture.Root, "nested-link");
-        Directory.CreateSymbolicLink(nestedLink, nested);
-        var indirectLink = System.IO.Path.Combine(fixture.Root, "indirect-link");
-        Directory.CreateSymbolicLink(indirectLink, System.IO.Path.Combine(link, "nested"));
-        var fileLink = System.IO.Path.Combine(fixture.Root, "file-link.sqlite3");
-        File.CreateSymbolicLink(fileLink, existing);
-        foreach (var root in new[] { disposable, link, nestedLink, indirectLink })
-        {
-            var path = System.IO.Path.Combine(root, "state", "broodling.sqlite3");
-            await Assert.That(() => fixture.Application.InitializeStore(path)).Throws<StoreStateException>();
-            await Assert.That(() => fixture.Application.OpenStore(path)).Throws<StoreStateException>();
-            await Assert.That(File.Exists(path)).IsFalse();
-        }
-        foreach (var path in new[] { existing, System.IO.Path.Combine(nestedLink, "existing.sqlite3"),
-            System.IO.Path.Combine(indirectLink, "existing.sqlite3"), fileLink })
-        {
-            await Assert.That(() => fixture.Application.OpenStore(path)).Throws<StoreStateException>();
-            await Assert.That(() => fixture.Application.UpgradeStore(path)).Throws<StoreStateException>();
-        }
     }
 
     [Test]

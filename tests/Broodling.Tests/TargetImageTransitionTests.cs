@@ -17,7 +17,7 @@ namespace Broodling.Tests;
 public sealed class TargetImageTransitionTests
 {
     public static IEnumerable<Func<SourceTarget>> Sources() =>
-        JsonNode.Parse(File.ReadAllText(Path.Combine(NativeFixture.RepositoryRoot, "deployment", "native-state-transitions.json")))!["from"]!
+        JsonNode.Parse(File.ReadAllText(Path.Combine(TestRepository.Root, "deployment", "native-state-transitions.json")))!["from"]!
             .AsArray().Select(source => (Func<SourceTarget>)(() => new((string)source!["image"]!,
                 (string)source["native"]!["version"]!, (string)source["native"]!["linuxX64ExecutableSha256"]!)))
             .Prepend(() => new(null, DirectTargetBinding.NativeVersion, DirectTargetBinding.NativeExecutableSha256))
@@ -43,14 +43,14 @@ public sealed class TargetImageTransitionTests
         var admitted = Admit(delivered, target);
         using var store = admitted.Store;
         await target.PushAsync(delivered.Repository, "main");
-        var correlated = await new Invocation(store, new InvocationTarget.Direct(target.Origin))
+        var correlated = await new Invocation(store, new InvocationTarget(target.Origin))
             .ResumeAsync(admitted.Revision, delivered.Repository, delivered.Head, Credentials);
         var attempt = correlated.Attempts.Single().AttemptId;
         await Finished(store, attempt);
         var reference = await TerminalAsync(correlated.Submissions.Single().Run!);
         var pending = Admit(unacknowledged, target);
         using var pendingStore = pending.Store;
-        var replay = new Invocation(pendingStore, new InvocationTarget.Direct(target.Origin));
+        var replay = new Invocation(pendingStore, new InvocationTarget(target.Origin));
         // The target records the run, but its acknowledgement is lost.
         var unresolved = await LoseAcknowledgementAsync(pendingStore, unacknowledged, replay, pending.Revision, unacknowledged.Head, target);
         await Assert.That(await target.RunCountAsync()).IsEqualTo(2);
@@ -58,7 +58,7 @@ public sealed class TargetImageTransitionTests
         await target.RestartAsync(await Controlled.Value);
 
         // Wait reconnects by the retained run identity and consumes the result the source image produced.
-        var completion = await store.WaitAsync(attempt, null);
+        var completion = await store.WaitAsync(attempt);
         await Assert.That(completion.Outcome).IsEqualTo("SUCCEEDED");
         await Assert.That(completion.DeliveryReceipt.GetRawText()).IsEqualTo(reference.GetRawText());
         // The exact replay converges on the run the source image recorded for that submission key.

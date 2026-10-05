@@ -14,7 +14,7 @@ namespace Broodling.Tests;
 public sealed class StockDirectTargetTests
 {
     internal static readonly DispatchCredentials Credentials =
-        new("fixture-github-token", NativeProfile.GatewayBaseUrl, "fixture-gateway-key");
+        new("fixture-github-token", DirectTargetBinding.GatewayBaseUrl, "fixture-gateway-key");
 
     [Test]
     public async Task ControlledPullRequestFromExactB1CompletesAndSurvivesTargetRestartAndGoingOffline()
@@ -29,10 +29,9 @@ public sealed class StockDirectTargetTests
         await target.PushAsync(git.Repository, "main");
         var local = git.LocalResources();
 
-        var status = await new Invocation(store, new InvocationTarget.Direct(target.Origin)).ResumeAsync(revision, git.Repository, b1, Credentials);
+        var status = await new Invocation(store, new InvocationTarget(target.Origin)).ResumeAsync(revision, git.Repository, b1, Credentials);
         var attempt = status.Attempts.Single();
         var submission = status.Submissions.Single();
-        await Assert.That(attempt.ResourceKind).IsEqualTo(AttemptRecord.Http);
         await Assert.That(submission.State).IsEqualTo("correlated");
         await Assert.That(submission.RunId).IsEqualTo(submission.IntendedRunId);
         // No client execution checkout, branch or runtime directory was created.
@@ -43,7 +42,7 @@ public sealed class StockDirectTargetTests
         await target.RestartAsync();
         store.Dispose();
         store = git.State.Open();
-        var completion = await store.WaitAsync(attempt.AttemptId, null);
+        var completion = await store.WaitAsync(attempt.AttemptId);
         await Assert.That(completion.Outcome).IsEqualTo("SUCCEEDED");
         await Assert.That(completion.DeliveryReceipt.GetRawText()).IsEqualTo(reference.GetRawText());
         await Assert.That(string.Join(",", reference.EnumerateObject().Select(field => field.Name == "headRevision"
@@ -63,7 +62,7 @@ public sealed class StockDirectTargetTests
 
         await target.DisposeAsync();
         using (var offline = git.State.Open())
-            await Assert.That(await offline.WaitAsync(attempt.AttemptId, null)).IsEqualTo(completion);
+            await Assert.That(await offline.WaitAsync(attempt.AttemptId)).IsEqualTo(completion);
         store.Dispose();
     }
 
@@ -77,16 +76,16 @@ public sealed class StockDirectTargetTests
         await target.PushAsync(git.Repository, "main");
         // B1 exists in local custody but was never published to the forge.
         var b1 = git.Commit("never published\n");
-        var invocation = new Invocation(store, new InvocationTarget.Direct(target.Origin));
+        var invocation = new Invocation(store, new InvocationTarget(target.Origin));
         var unresolved = await LoseAcknowledgementAsync(store, git, invocation, revision, b1, target);
 
         // Exact replay with rotated credentials converges on the same key and run.
-        var replayed = await invocation.ResumeAsync(revision, credentials: new("rotated-github-token", NativeProfile.GatewayBaseUrl, "rotated-key"));
+        var replayed = await invocation.ResumeAsync(revision, credentials: new("rotated-github-token", DirectTargetBinding.GatewayBaseUrl, "rotated-key"));
         await Assert.That(replayed.Submissions.Single().RunId).IsEqualTo(unresolved.IntendedRunId);
         await Assert.That(await target.RunCountAsync()).IsEqualTo(1);
         var attempt = unresolved.AttemptId;
         await Finished(store, attempt);
-        await Assert.That(async () => await store.WaitAsync(attempt, null)).Throws<SubmissionNotReady>();
+        await Assert.That(async () => await store.WaitAsync(attempt)).Throws<SubmissionNotReady>();
         await Assert.That(store.GetAttempt(attempt).Abandonment!.Reason).IsEqualTo("Zeroshot run failed: native_failed");
         await Assert.That(store.FindCompletion(attempt)).IsNull();
         // No delivery branch: the target never substituted the branch tip.
@@ -128,8 +127,8 @@ public sealed class StockDirectTargetTests
         AttemptFixture.RunGit(repository, "config", "url." + target.Forge + ".insteadOf", "https://github.com/acme/widget.git");
         await target.PushAsync(repository, attempt.B1.CommitOid + ":refs/heads/main");
 
-        await new Invocation(store, new InvocationTarget.Direct(target.Origin)).ResumeAsync(attempt.ContractRevisionId, credentials: Credentials);
-        var completion = await store.WaitAsync(attempt.AttemptId, null);
+        await new Invocation(store, new InvocationTarget(target.Origin)).ResumeAsync(attempt.ContractRevisionId, credentials: Credentials);
+        var completion = await store.WaitAsync(attempt.AttemptId);
 
         // The controlled agent committed what the helper printed for each listed reference: the exact retained bytes.
         var accepted = completion.AcceptedRevision;
@@ -154,7 +153,7 @@ public sealed class StockDirectTargetTests
     {
         for (var poll = 0; poll < 90; poll++)
         {
-            if (await store.ObserveAsync(attemptId, null) is NativeObservation.Available { Progress.Phase: "finished" }) return;
+            if (await store.ObserveAsync(attemptId) is NativeObservation.Available { Progress.Phase: "finished" }) return;
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
         throw new TimeoutException("The controlled run did not finish.");

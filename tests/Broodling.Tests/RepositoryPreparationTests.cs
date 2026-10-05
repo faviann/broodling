@@ -32,10 +32,8 @@ public sealed class RepositoryPreparationTests
                 .IsEqualTo(fixture.InitialCommit);
 
             var admitted = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()],
-                ContractIngressTests.Propose, [], "caller");
-            var active = store.AdmitAttempt(admitted.Revision.ContractRevisionId, first.Repository,
-                Path.Combine(fixture.State.Root, "active-attempts"), first.StartingCommit);
-            var materialized = store.ProvisionAttempt(active.AttemptId);
+                ContractIngressTests.Propose, ContractIngressTests.PullRequest, "caller");
+            var active = store.AdmitHttpAttempt(admitted.Revision.ContractRevisionId, first.Repository, first.StartingCommit);
             await GitCustody.RetainAcceptedAsync(first.Repository,
                 RunGit(first.Repository, "remote", "get-url", "origin").Trim(), first.StartingCommit,
                 CancellationToken.None);
@@ -64,10 +62,7 @@ public sealed class RepositoryPreparationTests
             await Assert.That(second.StartingCommit).IsNotEqualTo(first.StartingCommit);
             await Assert.That(store.GetRequestBundle(firstBundle.SubmissionId).Repository!.StartingCommit)
                 .IsEqualTo(fixture.InitialCommit);
-            await Assert.That(RunGit(first.Repository, "show-ref", "--verify", "--hash",
-                "refs/heads/" + materialized.Allocation.Branch).Trim()).IsEqualTo(first.StartingCommit);
-            await Assert.That(RunGit(materialized.Allocation.WorktreePath, "rev-parse", "HEAD").Trim())
-                .IsEqualTo(first.StartingCommit);
+            await Assert.That(RunGit(first.Repository, "rev-parse", active.B1.RetentionRef).Trim()).IsEqualTo(first.StartingCommit);
             await Assert.That(RunGit(first.Repository, "rev-parse", acceptedRef).Trim())
                 .IsEqualTo(first.StartingCommit);
         }
@@ -188,7 +183,6 @@ public sealed class RepositoryPreparationTests
         await Assert.That(() => store.AdmitHttpAttempt(admitted.Revision.ContractRevisionId, prepared.Repository,
             "refs/broodling/upstream/main")).Throws<AttemptAdmissionError>();
         var attempt = store.AdmitHttpAttempt(submission.SubmissionId);
-        await Assert.That(attempt.ResourceKind).IsEqualTo(AttemptRecord.Http);
         await Assert.That(RunGit(prepared.Repository, "rev-parse", "refs/broodling/starting/" + prepared.StartingCommit).Trim())
             .IsEqualTo(prepared.StartingCommit);
         await Assert.That(attempt.B1.Repository).IsEqualTo(prepared.Repository);

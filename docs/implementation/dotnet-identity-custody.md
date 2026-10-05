@@ -60,9 +60,8 @@ shared Contract. Replay uses the original binding even if a later safe
 replacement exists. The call returns the refreshed cancelled `IssueSubmission`
 when no native stop is needed or safe cessation is retained.
 Cancellation and abandonment remain committed when it instead hands back
-`CessationUnconfirmed` (`NativeStopRequested` is true only after the native
-stop transport was actually called), `SubmissionNotReady` for a known run with
-no stop transport, `NativeTransportError`, or caller cancellation. Those
+`CessationUnconfirmed` (`NativeStopRequested` is true only when native stop
+was actually sent), `NativeTransportError`, or caller cancellation. Those
 outcomes do not authorize replacement; inspect the exact cancellation and
 Attempt history for the durable handback.
 
@@ -133,8 +132,7 @@ refuse source updates/deletes, identity rewrites/unpinning and submission rewrit
 Initialization exclusively reserves a new filesystem path and creates a distinct
 `broodling.application` schema (version 1). It refuses existing files and orphan SQLite
 sidecars. A failed initialization retains its partial new state for inspection.
-Store paths inside a marked disposable Attempt enclosure refuse, including paths
-through parent symlinks. Caller paths containing malformed UTF-16 refuse with
+Caller paths containing malformed UTF-16 refuse with
 `invalid_store_path` before physical path resolution or any filesystem access:
 a lone surrogate cannot create, open or upgrade a legitimate U+FFFD filename.
 Well-formed replacement and supplementary characters remain valid path text.

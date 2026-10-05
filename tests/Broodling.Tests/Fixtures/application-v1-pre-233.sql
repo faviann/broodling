@@ -7,7 +7,6 @@ CREATE TABLE admission_decisions (
     policy_version TEXT NOT NULL,
     decided_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "admission_decisions" VALUES('ad-2061d68766e2d44f81457d47becbbff490b6486e8d7dd80bfb3667806bb33c53','cr-3b416d731ee1224e548bb1adc781e5380b7aaba19e95d93c0b0cd1ff3ceb25d8','admitted','[]','broodling.dotnet.admission.v1/zeroshot-10.3.0','2026-09-25T18:54:17.1491404+00:00');
 CREATE TABLE attempt_abandonments (
     attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
     reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
@@ -60,6 +59,16 @@ CREATE TABLE attempts (
         OR (resource_kind = 'http' AND workspace_root IS NULL AND enclosure IS NULL
             AND worktree_path IS NULL AND branch IS NULL))
 ) STRICT;
+CREATE TABLE completion_refusals (
+    attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
+    reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+    refused_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE contract_proposal_refusals (
+    submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
+    findings_json TEXT NOT NULL CHECK (json_valid(findings_json) AND json_array_length(findings_json) > 0),
+    refused_at TEXT NOT NULL
+) STRICT;
 CREATE TABLE contract_revisions (
     contract_revision_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -72,16 +81,12 @@ CREATE TABLE contract_revisions (
     UNIQUE (work_unit_id, revision_number),
     UNIQUE (work_unit_id, contract_sha256)
 ) STRICT;
-INSERT INTO "contract_revisions" VALUES('cr-3b416d731ee1224e548bb1adc781e5380b7aaba19e95d93c0b0cd1ff3ceb25d8','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a',1,'3b416d731ee1224e548bb1adc781e5380b7aaba19e95d93c0b0cd1ff3ceb25d8',X'7B22776F726B556E69744964223A2277752D64623239396566336435316363636431303630666461323262333432646232633332663165356138643236366664313034313939626431363431663638323461222C22736F757263654174747269627574696F6E223A5B7B22736F757263654964223A227372632D34333533323762326135653536633736613165343631356264633665393832366533666664313739366663363861363830633336323265386435616338313166222C22636F6E74656E74536861323536223A2236346662323633646566333261323961316562386561333263386433323339643131323730303237633336373633663533633637346237373264373461353432227D5D2C226372697465726961223A5B7B22637269746572696F6E4964223A22616363657074616E6365222C2273746174656D656E74223A2250726573657276652074686520636F6D706C65746520726571756573742E222C2265766964656E6365506F70756C6174696F6E223A6E756C6C2C2276616C69646174696F6E5365616D223A22222C2276616C69646174696F6E416374696F6E223A22222C2266616C73696679696E674F62736572766174696F6E223A22222C2265766964656E6365456666656374446570656E64656E63696573223A5B5D2C226D656368616E6963616C45766964656E6365223A6E756C6C7D5D2C226F626C69676174696F6E73223A5B5D2C2270726572657175697369746573223A5B5D2C22726571756972656445666665637473223A5B7B226566666563744964223A227072222C2273746174656D656E74223A224F70656E205052222C226B696E64223A2270756C6C5F72657175657374222C227461726765744272616E6368223A226D61696E227D5D2C22686F7374417373756D7074696F6E73223A5B5D2C22636F6E73747275637465644279223A2263616C6C6572222C226E6F746573223A22222C2266696E616C4173737572616E63654D6174657269616C73223A6E756C6C7D','caller',NULL,'2026-09-25T18:54:17.0162990+00:00');
-INSERT INTO "contract_revisions" VALUES('cr-554bd938bd524f6ebb7fb8473097aef68418181857567a4b9db758dacda32308','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f',1,'554bd938bd524f6ebb7fb8473097aef68418181857567a4b9db758dacda32308',X'7B22776F726B556E69744964223A2277752D34656438633830626461313463623530336131393966386138336536316631646463366233626634373733303364373363393366393530336463663435643766222C22736F757263654174747269627574696F6E223A5B7B22736F757263654964223A227372632D64666331356433323361613463616266336634366561356435653035613431316537386264626531613135316637336234366565346663333732356461353039222C22636F6E74656E74536861323536223A2239353261393234626230333532373832336437666633636638353338633961373365633066613434376165346631666436383533343662343566393363343132227D5D2C226372697465726961223A5B7B22637269746572696F6E4964223A22616363657074616E6365222C2273746174656D656E74223A2250726573657276652074686520636F6D706C65746520726571756573742E222C2265766964656E6365506F70756C6174696F6E223A6E756C6C2C2276616C69646174696F6E5365616D223A22222C2276616C69646174696F6E416374696F6E223A22222C2266616C73696679696E674F62736572766174696F6E223A22222C2265766964656E6365456666656374446570656E64656E63696573223A5B5D2C226D656368616E6963616C45766964656E6365223A6E756C6C7D5D2C226F626C69676174696F6E73223A5B5D2C2270726572657175697369746573223A5B5D2C22726571756972656445666665637473223A5B7B226566666563744964223A227072222C2273746174656D656E74223A224F70656E205052222C226B696E64223A2270756C6C5F72657175657374222C227461726765744272616E6368223A226D61696E227D5D2C22686F7374417373756D7074696F6E73223A5B5D2C22636F6E73747275637465644279223A2263616C6C6572222C226E6F746573223A22222C2266696E616C4173737572616E63654D6174657269616C73223A6E756C6C7D','caller',NULL,'2026-09-25T18:54:17.2582872+00:00');
 CREATE TABLE contract_sources (
     contract_revision_id TEXT NOT NULL REFERENCES contract_revisions(contract_revision_id),
     source_id TEXT NOT NULL REFERENCES entitled_sources(source_id),
     content_sha256 TEXT NOT NULL,
     PRIMARY KEY (contract_revision_id, source_id)
 ) STRICT;
-INSERT INTO "contract_sources" VALUES('cr-3b416d731ee1224e548bb1adc781e5380b7aaba19e95d93c0b0cd1ff3ceb25d8','src-435327b2a5e56c76a1e4615bdc6e9826e3ffd1796fc68a680c3622e8d5ac811f','64fb263def32a29a1eb8ea32c8d3239d11270027c36763f53c674b772d74a542');
-INSERT INTO "contract_sources" VALUES('cr-554bd938bd524f6ebb7fb8473097aef68418181857567a4b9db758dacda32308','src-dfc15d323aa4cabf3f46ea5d5e05a411e78bdbe1a151f73b46ee4fc3725da509','952a924bb03527823d7ff3cf8538c9a73ec0fa447ae4f1fd685346b45f93c412');
 CREATE TABLE entitled_sources (
     source_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -97,10 +102,6 @@ CREATE TABLE entitled_sources (
     recorded_at TEXT NOT NULL,
     UNIQUE (work_unit_id, kind, locator, content_sha256)
 ) STRICT;
-INSERT INTO "entitled_sources" VALUES('src-435327b2a5e56c76a1e4615bdc6e9826e3ffd1796fc68a680c3622e8d5ac811f','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','primary_issue','https://github.com/acme/widget/issues/12',X'54686520636F6D706C65746520726576696577656420726571756573742E0A','64fb263def32a29a1eb8ea32c8d3239d11270027c36763f53c674b772d74a542','text/plain; charset=utf-8','caller','caller','Reviewed supplied issue bytes','2026-09-25T18:54:16.7562335+00:00','2026-09-25T18:54:16.7562335+00:00');
-INSERT INTO "entitled_sources" VALUES('src-250b35cee26fe402e7760f4d10e0a521b6a418c2bda22fbf205c95b76494e5bf','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','caller_statement','caller://issue/12',X'436170747572656420726571756573742E0A','348b23f9037ddfd8f1148954558af834f9c68020d3a3f20dcc314839cfbb3fee','text/plain; charset=utf-8','caller','caller','captured request','2026-09-25T18:54:17.2156406+00:00','2026-09-25T18:54:17.2156406+00:00');
-INSERT INTO "entitled_sources" VALUES('src-dfc15d323aa4cabf3f46ea5d5e05a411e78bdbe1a151f73b46ee4fc3725da509','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','primary_issue','https://github.com/acme/widget/issues/13',X'416E6F7468657220726576696577656420726571756573742E0A','952a924bb03527823d7ff3cf8538c9a73ec0fa447ae4f1fd685346b45f93c412','text/plain; charset=utf-8','caller','caller','Reviewed supplied issue bytes','2026-09-25T18:54:17.2570360+00:00','2026-09-25T18:54:17.2570360+00:00');
-INSERT INTO "entitled_sources" VALUES('src-fa365e6f813a46ad6c90960dc6a6b0205c0d0fe8cb6ec257bd9c957832fc602b','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','caller_statement','caller://issue/13',X'436170747572656420726571756573742E0A','348b23f9037ddfd8f1148954558af834f9c68020d3a3f20dcc314839cfbb3fee','text/plain; charset=utf-8','caller','caller','captured request','2026-09-25T18:54:17.2639941+00:00','2026-09-25T18:54:17.2639941+00:00');
 CREATE TABLE execution_assets (
     asset_sha256 TEXT PRIMARY KEY CHECK (length(asset_sha256) = 64 AND asset_sha256 NOT GLOB '*[^0-9a-f]*'),
     content BLOB NOT NULL
@@ -110,12 +111,25 @@ CREATE TABLE installation_control (
     admission_dispatch_paused INTEGER NOT NULL CHECK (admission_dispatch_paused IN (0, 1)),
     changed_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "installation_control" VALUES(1,0,'2026-09-25T18:54:16.6525981+00:00');
+INSERT INTO "installation_control" VALUES(1,0,'2026-10-05T02:52:18.2754597+00:00');
 CREATE TABLE issue_submission_cancellations (
     submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
     attempt_id TEXT REFERENCES attempts(attempt_id),
     reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
     cancelled_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE issue_submission_revisions (
+    successor_submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
+    predecessor_submission_id TEXT NOT NULL UNIQUE REFERENCES issue_submissions(submission_id),
+    requested_at TEXT NOT NULL,
+    CHECK (successor_submission_id <> predecessor_submission_id)
+) STRICT;
+CREATE TABLE issue_submission_unchanged (
+    submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
+    admitted_submission_id TEXT NOT NULL REFERENCES issue_submissions(submission_id),
+    contract_revision_id TEXT NOT NULL REFERENCES contract_revisions(contract_revision_id),
+    explanation TEXT NOT NULL CHECK (length(trim(explanation)) > 0),
+    recorded_at TEXT NOT NULL
 ) STRICT;
 CREATE TABLE issue_submissions (
     submission_id TEXT PRIMARY KEY,
@@ -127,8 +141,6 @@ CREATE TABLE issue_submissions (
     received_at TEXT NOT NULL,
     UNIQUE (work_unit_id, submission_sequence)
 ) STRICT;
-INSERT INTO "issue_submissions" VALUES('issue-sub-0b29562575aa4b82a60c1042f8f1f219','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a',1,'https://github.com/acme/widget/issues/12','capturing','cr-3b416d731ee1224e548bb1adc781e5380b7aaba19e95d93c0b0cd1ff3ceb25d8','2026-09-25T18:54:17.1895752+00:00');
-INSERT INTO "issue_submissions" VALUES('issue-sub-31bb47a15bd24d44b86406c4a7211356','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f',1,'https://github.com/acme/widget/issues/13','capturing','cr-554bd938bd524f6ebb7fb8473097aef68418181857567a4b9db758dacda32308','2026-09-25T18:54:17.2602547+00:00');
 CREATE TABLE native_submissions (
     attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
     format TEXT NOT NULL CHECK (format IN ('bridge', 'http.v1')),
@@ -175,8 +187,6 @@ CREATE TABLE request_bundle_references (
             AND ((git_repository IS NULL AND git_commit_oid IS NULL AND git_blob_oid IS NULL AND content_sha256 IS NULL)
                 OR (git_repository IS NOT NULL AND git_commit_oid IS NOT NULL AND git_blob_oid IS NOT NULL AND content_sha256 IS NOT NULL))))
 ) STRICT;
-INSERT INTO "request_bundle_references" VALUES('bundle-b682c7111943fa515f42c3e5e885b38f862915abb549514cd2f4bed63d4e6f96','primary',0,'source',X'73656C6563746F72','src-250b35cee26fe402e7760f4d10e0a521b6a418c2bda22fbf205c95b76494e5bf','348b23f9037ddfd8f1148954558af834f9c68020d3a3f20dcc314839cfbb3fee',NULL,NULL,NULL,NULL,NULL,NULL);
-INSERT INTO "request_bundle_references" VALUES('bundle-35e38acbdb6baf4202d58e347ba8e5c8b4f3719f0cd743f6f6999cb28c6f0d1b','primary',0,'source',X'73656C6563746F72','src-fa365e6f813a46ad6c90960dc6a6b0205c0d0fe8cb6ec257bd9c957832fc602b','348b23f9037ddfd8f1148954558af834f9c68020d3a3f20dcc314839cfbb3fee',NULL,NULL,NULL,NULL,NULL,NULL);
 CREATE TABLE request_bundle_repositories (
     bundle_id TEXT PRIMARY KEY REFERENCES request_bundles(bundle_id),
     repository TEXT NOT NULL,
@@ -203,8 +213,6 @@ CREATE TABLE request_bundles (
         OR (state = 'refused' AND manifest_json IS NULL AND manifest_sha256 IS NULL AND completed_at IS NULL)),
     CHECK ((state = 'refused') = (findings_json IS NOT NULL))
 ) STRICT;
-INSERT INTO "request_bundles" VALUES('bundle-b682c7111943fa515f42c3e5e885b38f862915abb549514cd2f4bed63d4e6f96','issue-sub-0b29562575aa4b82a60c1042f8f1f219',X'696E70757473',X'706F6C696379',X'6C696D697473','complete','{"version":"v1","bundleId":"bundle-b682c7111943fa515f42c3e5e885b38f862915abb549514cd2f4bed63d4e6f96","submissionId":"issue-sub-0b29562575aa4b82a60c1042f8f1f219","workUnitId":"wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a","acquisitionInputs":"aW5wdXRz","acquisitionPolicy":"cG9saWN5","acquisitionLimits":"bGltaXRz","repository":null,"references":[{"referenceId":"primary","ordinal":0,"captureKind":"source","selector":"c2VsZWN0b3I=","sourceId":"src-250b35cee26fe402e7760f4d10e0a521b6a418c2bda22fbf205c95b76494e5bf","contentSha256":"348b23f9037ddfd8f1148954558af834f9c68020d3a3f20dcc314839cfbb3fee","gitCommitOid":null,"gitPath":null,"gitBlobOid":null}]}','2b21a9a25cb8e280f1bcdadca726583ff996f6d444a73939c6e60fd435d4c8d6','2026-09-25T18:54:17.1990366+00:00','2026-09-25T18:54:17.2506293+00:00',NULL);
-INSERT INTO "request_bundles" VALUES('bundle-35e38acbdb6baf4202d58e347ba8e5c8b4f3719f0cd743f6f6999cb28c6f0d1b','issue-sub-31bb47a15bd24d44b86406c4a7211356',X'696E70757473',X'706F6C696379',X'6C696D697473','complete','{"version":"v1","bundleId":"bundle-35e38acbdb6baf4202d58e347ba8e5c8b4f3719f0cd743f6f6999cb28c6f0d1b","submissionId":"issue-sub-31bb47a15bd24d44b86406c4a7211356","workUnitId":"wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f","acquisitionInputs":"aW5wdXRz","acquisitionPolicy":"cG9saWN5","acquisitionLimits":"bGltaXRz","repository":null,"references":[{"referenceId":"primary","ordinal":0,"captureKind":"source","selector":"c2VsZWN0b3I=","sourceId":"src-fa365e6f813a46ad6c90960dc6a6b0205c0d0fe8cb6ec257bd9c957832fc602b","contentSha256":"348b23f9037ddfd8f1148954558af834f9c68020d3a3f20dcc314839cfbb3fee","gitCommitOid":null,"gitPath":null,"gitBlobOid":null}]}','c77762c74b390f8d07f530965f9299c464899a3bc94be056d29f067c4230be8e','2026-09-25T18:54:17.2613502+00:00','2026-09-25T18:54:17.2657433+00:00',NULL);
 CREATE TABLE store_metadata (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
     format TEXT NOT NULL,
@@ -213,7 +221,7 @@ CREATE TABLE store_metadata (
     manifest_hash TEXT NOT NULL,
     initialized_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'2ef2d8752c19220da9dfaa8800520032ce0982a76de5c59b599884a5dc0d1d60','95a34c26df246c160787dcf2c908ade68acdac019628cbfeb243834cce8ad0a5','2026-09-25T18:54:16.6525981+00:00');
+INSERT INTO "store_metadata" VALUES(1,'broodling.application',1,'2ef2d8752c19220da9dfaa8800520032ce0982a76de5c59b599884a5dc0d1d60','95a34c26df246c160787dcf2c908ade68acdac019628cbfeb243834cce8ad0a5','2026-10-05T02:52:18.2754597+00:00');
 CREATE TABLE work_submissions (
     submission_id TEXT PRIMARY KEY,
     work_unit_id TEXT NOT NULL REFERENCES work_units(work_unit_id),
@@ -221,10 +229,6 @@ CREATE TABLE work_submissions (
     submitted_issue TEXT NOT NULL,
     received_at TEXT NOT NULL
 ) STRICT;
-INSERT INTO "work_submissions" VALUES('sub-f99d1bfb64ee4673bf30812e5d6bc924','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','acme/widget','12','2026-09-25T18:54:16.7500349+00:00');
-INSERT INTO "work_submissions" VALUES('sub-c31c5dfcb3cc41f4ba726468758efdb4','wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','acme/widget','https://github.com/acme/widget/issues/12','2026-09-25T18:54:17.1895752+00:00');
-INSERT INTO "work_submissions" VALUES('sub-202312bf4e0743b4b541bf97b41539cf','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','acme/widget','13','2026-09-25T18:54:17.2565142+00:00');
-INSERT INTO "work_submissions" VALUES('sub-d28c1985479d40279369c0cef337079f','wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','acme/widget','https://github.com/acme/widget/issues/13','2026-09-25T18:54:17.2602547+00:00');
 CREATE TABLE work_units (
     work_unit_id TEXT PRIMARY KEY,
     reference_key TEXT NOT NULL UNIQUE,
@@ -238,8 +242,6 @@ CREATE TABLE work_units (
     first_seen_at TEXT NOT NULL,
     UNIQUE (host, owner, repository, issue_number)
 ) STRICT;
-INSERT INTO "work_units" VALUES('wu-db299ef3d51cccd1060fda22b342db2c32f1e5a8d266fd104199bd1641f6824a','github.com/acme/widget#12','github.com','acme','widget',12,'https://github.com/acme/widget/issues/12',NULL,NULL,'2026-09-25T18:54:16.7453233+00:00');
-INSERT INTO "work_units" VALUES('wu-4ed8c80bda14cb503a199f8a83e61f1ddc6b3bf477303d73c93f9503dcf45d7f','github.com/acme/widget#13','github.com','acme','widget',13,'https://github.com/acme/widget/issues/13',NULL,NULL,'2026-09-25T18:54:17.2563667+00:00');
 CREATE TABLE worktree_provisions (
     attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
     provisioned_at TEXT NOT NULL
@@ -426,6 +428,16 @@ CREATE TRIGGER completion_no_update BEFORE UPDATE ON attempt_completions
 BEGIN SELECT RAISE(ABORT, 'completion is immutable'); END;
 CREATE TRIGGER completion_no_delete BEFORE DELETE ON attempt_completions
 BEGIN SELECT RAISE(ABORT, 'completion is durable'); END;
+CREATE TRIGGER completion_refusal_bound BEFORE INSERT ON completion_refusals
+WHEN NOT EXISTS (
+    SELECT 1 FROM attempts JOIN native_submissions USING (attempt_id)
+    WHERE attempt_id = NEW.attempt_id AND is_current = 1 AND format = 'http.v1' AND state = 'correlated'
+)
+BEGIN SELECT RAISE(ABORT, 'completion refusal requires a current correlated HTTP Attempt'); END;
+CREATE TRIGGER completion_refusal_no_update BEFORE UPDATE ON completion_refusals
+BEGIN SELECT RAISE(ABORT, 'completion refusal is immutable'); END;
+CREATE TRIGGER completion_refusal_no_delete BEFORE DELETE ON completion_refusals
+BEGIN SELECT RAISE(ABORT, 'completion refusal is durable'); END;
 CREATE TRIGGER completion_ends_authority AFTER INSERT ON attempt_completions
 BEGIN UPDATE attempts SET is_current = 0 WHERE attempt_id = NEW.attempt_id; END;
 CREATE TRIGGER attempts_currentness_justified BEFORE UPDATE OF is_current ON attempts
@@ -625,26 +637,6 @@ WHEN OLD.bundle_id <> NEW.bundle_id OR OLD.repository <> NEW.repository
 BEGIN SELECT RAISE(ABORT, 'Repository preparation is immutable'); END;
 CREATE TRIGGER request_bundle_repository_no_delete BEFORE DELETE ON request_bundle_repositories
 BEGIN SELECT RAISE(ABORT, 'Repository preparation history is immutable'); END;
-CREATE TABLE completion_refusals (
-    attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
-    reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
-    refused_at TEXT NOT NULL
-) STRICT;
-CREATE TRIGGER completion_refusal_bound BEFORE INSERT ON completion_refusals
-WHEN NOT EXISTS (
-    SELECT 1 FROM attempts JOIN native_submissions USING (attempt_id)
-    WHERE attempt_id = NEW.attempt_id AND is_current = 1 AND format = 'http.v1' AND state = 'correlated'
-)
-BEGIN SELECT RAISE(ABORT, 'completion refusal requires a current correlated HTTP Attempt'); END;
-CREATE TRIGGER completion_refusal_no_update BEFORE UPDATE ON completion_refusals
-BEGIN SELECT RAISE(ABORT, 'completion refusal is immutable'); END;
-CREATE TRIGGER completion_refusal_no_delete BEFORE DELETE ON completion_refusals
-BEGIN SELECT RAISE(ABORT, 'completion refusal is durable'); END;
-CREATE TABLE contract_proposal_refusals (
-    submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
-    findings_json TEXT NOT NULL CHECK (json_valid(findings_json) AND json_array_length(findings_json) > 0),
-    refused_at TEXT NOT NULL
-) STRICT;
 CREATE TRIGGER contract_proposal_refusal_bound BEFORE INSERT ON contract_proposal_refusals
 WHEN NOT EXISTS (
     SELECT 1 FROM issue_submissions AS s JOIN request_bundles AS b USING (submission_id)
@@ -660,12 +652,6 @@ CREATE TRIGGER contract_proposal_refusal_final BEFORE UPDATE OF contract_revisio
 WHEN NEW.contract_revision_id IS NOT NULL
   AND EXISTS (SELECT 1 FROM contract_proposal_refusals WHERE submission_id = NEW.submission_id)
 BEGIN SELECT RAISE(ABORT, 'A refused Contract proposal is final for its Issue submission'); END;
-CREATE TABLE issue_submission_revisions (
-    successor_submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
-    predecessor_submission_id TEXT NOT NULL UNIQUE REFERENCES issue_submissions(submission_id),
-    requested_at TEXT NOT NULL,
-    CHECK (successor_submission_id <> predecessor_submission_id)
-) STRICT;
 CREATE TRIGGER issue_submission_revision_bound BEFORE INSERT ON issue_submission_revisions
 WHEN NOT EXISTS (
     SELECT 1 FROM issue_submissions AS successor JOIN issue_submissions AS predecessor USING (work_unit_id)
@@ -688,13 +674,16 @@ JOIN issue_submissions AS earlier ON earlier.work_unit_id = successor.work_unit_
     AND earlier.submission_sequence < successor.submission_sequence
 WHERE successor.contract_revision_id IS NOT NULL AND earlier.contract_revision_id IS NOT NULL
   AND earlier.contract_revision_id <> successor.contract_revision_id;
-CREATE TABLE issue_submission_unchanged (
-    submission_id TEXT PRIMARY KEY REFERENCES issue_submissions(submission_id),
-    admitted_submission_id TEXT NOT NULL REFERENCES issue_submissions(submission_id),
-    contract_revision_id TEXT NOT NULL REFERENCES contract_revisions(contract_revision_id),
-    explanation TEXT NOT NULL CHECK (length(trim(explanation)) > 0),
-    recorded_at TEXT NOT NULL
-) STRICT;
+CREATE VIEW superseded_contracts AS
+SELECT DISTINCT bound.contract_revision_id AS contract_revision_id
+FROM issue_submissions AS bound
+JOIN issue_submissions AS latest ON latest.work_unit_id = bound.work_unit_id
+    AND latest.submission_sequence = (SELECT MAX(submission_sequence) FROM issue_submissions
+        WHERE work_unit_id = bound.work_unit_id)
+WHERE bound.contract_revision_id IS NOT NULL
+  AND latest.contract_revision_id IS NOT bound.contract_revision_id
+  AND NOT EXISTS (SELECT 1 FROM issue_submission_unchanged AS u
+      WHERE u.submission_id = latest.submission_id AND u.contract_revision_id = bound.contract_revision_id);
 CREATE TRIGGER issue_submission_unchanged_bound BEFORE INSERT ON issue_submission_unchanged
 WHEN NOT EXISTS (
     SELECT 1 FROM issue_submissions AS s JOIN request_bundles AS b USING (submission_id)
@@ -715,14 +704,4 @@ CREATE TRIGGER issue_submission_unchanged_final BEFORE UPDATE OF contract_revisi
 WHEN NEW.contract_revision_id IS NOT NULL
   AND EXISTS (SELECT 1 FROM issue_submission_unchanged WHERE submission_id = NEW.submission_id)
 BEGIN SELECT RAISE(ABORT, 'An unchanged Issue submission never acquires Contract authority'); END;
-CREATE VIEW superseded_contracts AS
-SELECT DISTINCT bound.contract_revision_id AS contract_revision_id
-FROM issue_submissions AS bound
-JOIN issue_submissions AS latest ON latest.work_unit_id = bound.work_unit_id
-    AND latest.submission_sequence = (SELECT MAX(submission_sequence) FROM issue_submissions
-        WHERE work_unit_id = bound.work_unit_id)
-WHERE bound.contract_revision_id IS NOT NULL
-  AND latest.contract_revision_id IS NOT bound.contract_revision_id
-  AND NOT EXISTS (SELECT 1 FROM issue_submission_unchanged AS u
-      WHERE u.submission_id = latest.submission_id AND u.contract_revision_id = bound.contract_revision_id);
 COMMIT;

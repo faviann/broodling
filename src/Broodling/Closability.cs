@@ -1,7 +1,6 @@
 namespace Broodling;
 
 public sealed record ClosabilityFinding(string Code, string Subject, string PreservedObligation, string Detail);
-public sealed record DeliveryAuthorization(string Mode, string? TargetBranch = null);
 
 public sealed class ClosabilityAssessment(IReadOnlyList<ClosabilityFinding> findings)
 {
@@ -13,14 +12,13 @@ public sealed class ClosabilityAssessment(IReadOnlyList<ClosabilityFinding> find
 /// <summary>Pure supported-profile admission. Findings preserve rather than waive requirements.</summary>
 public static class Closability
 {
-    public static DeliveryAuthorization AuthorizeDelivery(Contract contract)
+    /// <summary>The PR target branch of the one supported delivery: exactly one <c>pull_request</c> effect naming a branch.</summary>
+    public static string AuthorizeDelivery(Contract contract)
     {
-        if (contract.RequiredEffects.Count == 0)
-            return new("none");
         if (contract.RequiredEffects.Count == 1
             && contract.RequiredEffects[0] is { Kind: "pull_request" } effect
             && !string.IsNullOrWhiteSpace(effect.TargetBranch))
-            return new("pull_request", effect.TargetBranch);
+            return effect.TargetBranch;
         throw new InvalidContractProposal("Contract does not authorize one supported result delivery.");
     }
 
@@ -31,15 +29,18 @@ public static class Closability
         if (contract.SourceAttribution.Count == 0)
             findings.Add(new("no_entitled_source_attribution", "contract", "", "A Contract must attribute entitled source material."));
 
-        DeliveryAuthorization? delivery = null;
-        try { delivery = AuthorizeDelivery(contract); }
+        string? targetBranch = null;
+        try { targetBranch = AuthorizeDelivery(contract); }
         catch (InvalidContractProposal)
         {
+            if (contract.RequiredEffects.Count == 0)
+                findings.Add(new("no_required_effect", "requiredEffects", "",
+                    "No-effect work has no supported execution target; a stable no-effect result is future work (#78). The request is preserved."));
             foreach (var effect in contract.RequiredEffects)
                 findings.Add(new("unsupported_required_effect", "requiredEffect:" + effect.EffectId, effect.Statement,
-                    "Only no effect or one pull_request effect naming a target branch is supported; the required effect is preserved."));
+                    "Only one pull_request effect naming a target branch is supported; the required effect is preserved."));
         }
-        if (delivery?.Mode == "pull_request" && workUnitHost != "github.com")
+        if (targetBranch is not null && workUnitHost != "github.com")
             findings.Add(new("unsupported_delivery_host", "workUnitHost:" + workUnitHost, contract.RequiredEffects[0].Statement,
                 "The pinned native pull-request delivery supports GitHub Work Units only."));
 
@@ -68,7 +69,7 @@ public static class Closability
                     "The prerequisite is not satisfied within the supported profile; admission hands back without waiting."));
         foreach (var assumption in contract.HostAssumptions)
         {
-            if (delivery?.Mode == "pull_request" && assumption is "no_authoritative_effects" or "local_filesystem_only")
+            if (targetBranch is not null && assumption is "no_authoritative_effects" or "local_filesystem_only")
                 findings.Add(new("unsupported_host_assumption", "hostAssumption:" + assumption, assumption,
                     "The host assumption contradicts the authorized pull-request delivery."));
             else if (assumption is not ("single_host" or "one_attempt_one_dedicated_worktree" or "disposable_worktree"

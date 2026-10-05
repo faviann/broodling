@@ -220,7 +220,7 @@ public sealed partial class BroodlingStore
     /// Attempt available to the survivor.
     /// </summary>
     public async Task<IssueSubmission> CancelIssueSubmissionAsync(string submissionId, string reason,
-        INativeStopper? transport = null, CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(reason))
             throw new IssueSubmissionConflict("Submission cancellation requires a nonempty reason.");
@@ -278,10 +278,8 @@ public sealed partial class BroodlingStore
 
         if (attemptId is not null)
         {
-            // The existing exact Attempt stop path decides whether an external
-            // request is needed. Safe undispatched retirement needs no transport;
-            // a known native run still requires one, after cancellation commits.
-            await StopAsync(attemptId, stopReason, transport, cancellationToken);
+            // The existing exact Attempt stop path decides whether an external request is needed, after cancellation commits.
+            await StopAsync(attemptId, stopReason, cancellationToken);
         }
         return GetIssueSubmission(submissionId);
     }

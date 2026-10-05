@@ -1,9 +1,9 @@
 # Native Zeroshot integration
 
 The [current architecture](../governing/current.md) governs product responsibility.
-C# owns the application; the [dispatch seam](dotnet-native-dispatch.md) is the
-detailed reference for the LocalTarget bridge's frozen invocation, policy, SDK
-transport and correlation, and this document for the HTTP DirectTarget.
+C# owns the application. This document is the detailed reference for its one
+execution target, the HTTP DirectTarget: frozen invocation, submission, dispatch
+intent, correlation and the SDK transport.
 [Completion](dotnet-receipt-completion.md) and
 [stop/retirement/replacement](dotnet-retirement-replacement.md) own lifecycle
 decisions. The [release guide](../../deployment/README.md) describes packaging,
@@ -12,7 +12,7 @@ target readiness and the separate operational cutover gate.
 ## Responsibility and selected workflow
 
 Broodling freezes one admitted Work Unit/Attempt with complete entitled sources,
-Contract, original B1, source/workspace identity and exact effect authority.
+Contract, original B1, source identity and exact effect authority.
 Zeroshot's standard `software-change` workflow owns implementation, independent
 acceptance/code review, repair, provider sessions and native delivery.
 Broodling consumes public results without reconstructing graph history or adding
@@ -25,8 +25,8 @@ requests still refuse; repository guidance cannot amend stored authority.
 
 | Frozen effects | Native selection and Broodling outcome |
 | --- | --- |
-| Empty | LocalTarget worktree Attempt through the SDK bridge, `delivery=none`. Native success has null output and no stable accepted result; successful disposition refuses. |
-| Exactly one GitHub `pull_request` naming a target branch | HTTP DirectTarget Attempt with the approved `delivery=pull_request` asset and frozen repository, authorized branch and original B1 selectors. A matching `v2/pr/ready` receipt supplies a stable non-B1 `headRevision`. The bridge never carries PR work. |
+| Exactly one GitHub `pull_request` naming a target branch | HTTP DirectTarget Attempt with the approved `delivery=pull_request` asset and frozen repository, authorized branch and original B1 selectors. A matching `v2/pr/ready` receipt supplies a stable non-B1 `headRevision`. |
+| Empty | Refusal at Contract admission with a retained `no_required_effect` finding. No Attempt can be allocated; stable no-effect results are future work ([#78](https://github.com/faviann/broodling/issues/78)). |
 | Other, mixed, multiple or underspecified | Refusal; no implicit fallback or wider effect. |
 
 PR delivery includes native commit, push, open-or-update and native's readiness
@@ -35,28 +35,23 @@ by native's own classification, with PR feedback considered. It promises neither
 human approval, semantic correctness nor merge, and native requests no merge. Broodling retains the full matching receipt and commits
 completion/current-authority loss atomically for the exact Attempt.
 
-## Pinned dependencies and bridge
+## Pinned dependencies
 
-The two execution targets pin their native separately.
-
-| Pin | Owner and consumers |
-| --- | --- |
-| LocalTarget bridge: SDK 10.3.0.post1 and its bundled `zeroshot 10.3.0` | [`NativeProfile`](../../src/Broodling/NativeProfile.cs) `SdkVersion`/`NativeVersion` and [bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt). The bridge version handshake, each `local` locator and the Python environment use only these. |
-| DirectTarget binding: native release, source revision, Linux x86-64 executable and approved execution asset | [`DirectTargetBinding`](../../src/Broodling/DirectTargetBinding.cs), recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json). Asset loading, each prepared submission's retained binding and its reopen/dispatch check, target readiness, [`generate.sh`](../../src/Broodling/execution-assets/generate.sh) and the release record use only these. Both image recipes carry a copy of the binding's release archive pin; the DirectTarget image installs its `zeroshot` and the `restic` native run allocation requires, and target readiness checks both executables' SHA-256. |
+The [`DirectTargetBinding`](../../src/Broodling/DirectTargetBinding.cs) pins the
+native release, source revision, Linux x86-64 executable and approved execution
+asset, recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json).
+Asset loading, each prepared submission's retained binding and its
+reopen/dispatch check, target readiness,
+[`generate.sh`](../../src/Broodling/execution-assets/generate.sh) and the release
+record use only these. Both image recipes carry a copy of the binding's release
+archive pin; the DirectTarget image installs its `zeroshot` and the `restic`
+native run allocation requires, and target readiness checks both executables'
+SHA-256.
 
 A DirectTarget binding change is a change to the Execution asset and native an
-HTTP Attempt's Prepared submission is bound to. It leaves the no-effect LocalTarget
-bridge, its Python environment and its retained `local` locators unchanged;
-`NativeTransportTests` ties the bridge dependency file to the handshake SDK.
-The pins name different natives: the bridge keeps SDK 10.3.0.post1 and its
-bundled `zeroshot 10.3.0`, while the DirectTarget binding is `zeroshot 10.10.0`
-from its official release archive.
-The target image's Codex is likewise its own readiness pin, apart from the
-LocalTarget host's `CodexProfile`. The gateway URL remains one shared constant:
-the bridge does not use it, while the bundled proposer calls it and DirectTarget
-dispatch credentials and the approved asset policy require it.
-`NativeProfile.Runtime()` is the bridge's runtime only; an HTTP Attempt's runtime
-is the asset's.
+HTTP Attempt's Prepared submission is bound to. The gateway URL is one shared
+constant: the bundled proposer calls it, and DirectTarget dispatch credentials
+and the approved asset policy require it. An Attempt's runtime is the asset's.
 
 Submission (#216), the run reader and the stopper (#217) go through the pinned
 [Zeroshot.Client](https://github.com/faviann/zeroshot-dotnet-sdk) `10.10.0.1-preview.1`
@@ -79,31 +74,22 @@ not define proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` or their
 lowercase forms), because a proxy would otherwise receive DirectTarget
 connections, including dispatch credentials in the submission body.
 
-The bridge uses the official
-[SDK 10.3.0.post1](https://github.com/the-open-engine/zeroshot/releases/tag/zeroshot-python-v10.3.0_1),
-whose Linux x86-64 wheel bundles native 10.3.0; its exact URL and SHA-256 are in
-[bridge/requirements.txt](../../src/Broodling/bridge/requirements.txt). The
-DirectTarget uses the official
+The DirectTarget uses the official
 [v10.10.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.10.0)'s
 Linux x86-64 musl archive; its URL and SHA-256 are in the two image recipes and
 the approval manifest's `native.release`.
 
-The sole production Python source file is
-[zeroshot_bridge.py](../../src/Broodling/bridge/zeroshot_bridge.py). It serves
-only no-effect LocalTarget work: it translates one version/submit/wait/stop/status
-request for a `local` locator into the official SDK, returns public fields or
-typed error classification and exits. It owns no Broodling policy, database,
-lifecycle or recovery, and it carries no dispatch credentials. C# validates
-versions and owns authority, same-key reconciliation and receipt validation, and
-refuses a `direct` locator before starting Python. Controlled Python SDK/provider
-fixtures remain test-only.
+Broodling has no production Python source and needs no Python environment.
+Target readiness runs a short inline `python3` UID probe inside the target, and
+the asset recipe runs [`describe.py`](../../src/Broodling/execution-assets/describe.py)
+at build time; neither is a Broodling runtime dependency.
 
 The fixed PR runtime is uniform Codex / `gateway` / `gpt-5.6-sol` / medium /
 small / execution-scoped sessions through exactly
 `https://cliproxy.local.faviann.com/v1`, carried by the approved asset below.
-Codex stays **0.153.4**. The no-effect LocalTarget uses Codex/OpenAI. Per-node
-runtime, model/harness selection, node-local OAuth PR delivery and fleet
-placement remain unsupported.
+The DirectTarget image pins Codex **0.153.4**; Broodling installs no Codex.
+Per-node runtime, model/harness selection, node-local OAuth PR delivery and
+fleet placement remain unsupported.
 
 ## Approved DirectTarget execution asset
 
@@ -198,8 +184,10 @@ commits all of the following together:
 - The stock request `{runId, submission: {title, graph, runtime,
   initialInput: {task}, source: {repository, branch, revision}, submissionKey}}`,
   without `connections` or `githubToken`. `graph` and `runtime` are the approved
-  asset's values, and `task` is the same complete Contract, entitled bytes and B1
-  authority that the bridge freezes. For a bundle-bound Contract, whose only
+  asset's values. `task` carries the complete Contract, every exact entitled
+  source byte and original B1 authority. Valid UTF-8 source content stays exact
+  text, including CRLF; other content is base64 with `"encoding": "base64"`.
+  Construction is deterministic. For a bundle-bound Contract, whose only
   entitled source is the Executable Request, the task adds the bound
   RequestBundle's compact manifest and reference access; see
   [frozen-reference access](#frozen-reference-access). `source` names the
@@ -220,6 +208,13 @@ bytes, the approved identity and native binding, and a rebuild of the request
 from admitted authority. A missing or corrupt asset, a request whose graph,
 runtime or task differs, an unsupported binding or a different target origin
 refuses. Nothing is regenerated or rebound.
+
+The record's retained binding is a `NativeRunBinding`: the target origin, the
+frozen title and runtime size, and the frozen repository, authorized branch and
+B1 source. It carries no credentials or adapter settings. Read and stop add the
+run ID. One internal reader of the retained request supplies that binding and
+the delivery, source and custody facts that dispatch and receipt validation use;
+it never rewrites the saved bytes.
 
 ### Frozen-reference access
 
@@ -246,11 +241,6 @@ Native runs agents with a cleared environment, so this is a file rather than an
 environment variable. The helper is not a client submission process and needs no
 shared execution worktree.
 
-The record's retained binding is a `NativeRunBinding` with a `direct` locator
-whose `SdkVersion` is null, since no bridge SDK is involved. The bridge
-`PrepareSubmission`/`DispatchAsync` refuse HTTP Attempts, and a worktree Attempt
-refuses an authorized-PR Contract at admission, so PR work cannot reach the bridge.
-
 ## HTTP dispatch and acknowledgement
 
 `DispatchHttpAsync(attemptId, credentials)` sends an already prepared HTTP
@@ -264,7 +254,8 @@ no retained replay block and the installation must be unpaused. The current
 common Git directory must hold the direct `refs/broodling/starting/<B1>` pin with
 B1's snapshot objects. These checks never create or repair the pin. An absent,
 symbolic or conflicting pin refuses. The credential and Git checks run with no
-lock or writer held. The operation then takes the installation initiation lock.
+lock or writer held. The operation then takes the shared
+[installation initiation lock](dotnet-installation-pause.md#ordering-boundary).
 One immediate transaction rechecks authority, the replay block, the pause and
 the retained record against its retained asset and admitted authority. For a
 first send it commits `prepared → dispatched`. The writer is released before
@@ -312,7 +303,7 @@ acknowledgement for a request already in flight still correlates. Both orderings
 converge on the same correlation and conflict fact. A caller whose conflict
 arrives after correlation gets the correlated record back. When a correlation
 arrives after abandonment, it is committed first. The ordinary
-`StopAsync(attemptId, reason, null)` then forces exactly the confirmed run, and
+`StopAsync(attemptId, reason)` then forces exactly the confirmed run, and
 the call raises `StaleAttempt` without restoring authority.
 `NativeStopRequested` is true when force was sent, whether it reached a terminal
 result or an uncertain outcome. It is false when setup failed before force; an
@@ -322,89 +313,159 @@ completed the Attempt returns the retained record without abandoning or
 stopping it. Abandoned or replay-blocked work is never sent again to
 discover its run.
 
-## Composed invocation and target selection
+## Composed invocation
 
-`Invocation` takes one explicit `InvocationTarget`. `Local(workspaceRoot, profile,
-transport)` admits a worktree Attempt and dispatches it through the bridge.
-`Direct(origin)` admits an HTTP Attempt, prepares or reopens its submission at
-that origin and dispatches it with the caller's current `DispatchCredentials`.
-It needs no Python executable, SDK client state, workspace root or launcher.
-`ResumeSubmissionAsync(submissionId, credentials)` takes the same Direct path for
-one Issue submission's bundle-bound Contract; its first Attempt starts from the
-RequestBundle's retained B1, and a Local target refuses before any work.
-An existing Attempt continues only through the kind its retained resources name:
-a Direct target on a worktree Attempt, a Local target on an HTTP Attempt, or a
-Direct origin that differs from the retained binding refuses before any
-allocation, preparation or target contact. A correlated, completed or ended
-Attempt is handed back from retained state without configuration, credentials or
-target contact. `WaitAsync` routes on the retained record and passes the bridge
-transport only to a LocalTarget record.
+```csharp
+using var store = new BroodlingApplication().OpenStore(databasePath);
+var invocation = new Invocation(store, new InvocationTarget(directTargetOrigin));
+var credentials = new DispatchCredentials(githubToken, gatewayBaseUrl, gatewayApiKey);
+var status = await invocation.SubmitAsync(reference, propose,
+    [new RequiredEffect("pr", "Deliver a PR to main.", "pull_request", "main")],
+    repositoryPath, revision: originalCommit, credentials: credentials);
+// Retain status.Revision.ContractRevisionId and status.Attempts.Single().AttemptId.
+var resumed = await invocation.ResumeAsync(status.Revision.ContractRevisionId,
+    credentials: credentials);
+```
 
-`InvocationTarget.Direct` refuses an origin that is not canonical HTTPS or
-HTTP to exactly `127.0.0.1` or `[::1]`. The operator configuration names `"target": "direct"` with
-a `directOrigin` that passes that rule and an optional absolute
-`directRootCertificate`, or `"target": "local"` with only the bridge, state,
-workspace and all four Codex-profile paths. Mixed, unknown or secret fields
-refuse. Operator `wait` and `stop` take the same optional configuration: a
-LocalTarget record uses its pinned SDK Python, and an HTTP record uses a Direct
-configuration's root certificate. A supplied configuration of the other kind, or
-a Direct origin that differs from the retained binding, refuses before target
-contact or abandonment. See the [release guide](../../deployment/README.md#invocation-configuration).
+`Invocation` takes one `InvocationTarget`, the DirectTarget origin. It admits an
+HTTP Attempt, prepares or reopens its submission at that origin and dispatches it
+with the caller's current `DispatchCredentials`. It needs no Python, SDK client
+state, workspace root or launcher. `InvocationTarget` refuses an origin that is
+not canonical HTTPS or HTTP to exactly `127.0.0.1` or `[::1]`.
+`ResumeSubmissionAsync(submissionId, credentials)` takes the same path for one
+Issue submission's bundle-bound Contract; its first Attempt starts from the
+RequestBundle's retained B1. An existing Attempt whose retained binding names a
+different origin refuses before any preparation or target contact. A correlated,
+completed or ended Attempt is handed back from retained state without
+configuration, credentials or target contact.
+
+The caller owns the store lifetime and uses a separate session per caller.
+`SubmitAsync` composes `AdmitGitHubAsync`; its proposer, exact required effects,
+additional caller-entitled sources, source boundary and producer are the
+existing [ingress](dotnet-github-ingress.md) inputs. Repetition reacquires
+source bytes and may create a new revision. `ResumeAsync` uses only the specified
+stored revision. Rejected admission or ended Attempt authority returns retained
+status. Before the first Attempt it requires a repository; afterward the original
+B1 governs. Once a submission is prepared, resume reopens that frozen request.
+
+`Status` and `History` include `Submissions`, with each record's
+`IntendedRunId` and `ReplayBlockedReason`; `RunId` stays confirmed correlation
+only. They sit beside the exact revision's sources, Contract, decision and
+Attempts and remain coherent, deferred SQLite reads without native access.
+Exceptions do not undo earlier commits: use history to find the exact revision
+after a failed submit.
+
+## Thin operator commands
+
+The host accepts these commands without starting HTTP:
+
+```text
+submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch> <reviewed-issue.json> <producer>
+resume <store> <contract-revision-id> [config.json [checkout [revision]]]
+wait <store> <attempt-id> [config.json]
+stop <store> <attempt-id> <reason> [config.json]
+```
+
+`submit` authorizes exactly one `pull_request` effect to `<target-branch>`; `-`
+is refused as a usage error. The
+producer normally is `caller`. `ReviewedIssueProposal` requires the complete
+acquired issue to match the operator-reviewed file exactly. The `<checkout>`
+names the source repository whose exact revision becomes B1; it is not an
+execution checkout. The operator command obtains current PR credentials from
+its environment and passes them explicitly to the application.
+
+The configuration is `{"directOrigin": ...}` with an optional absolute
+`directRootCertificate`. It contains no secrets. Any other member, including a
+`target` member or a credential field, is refused. The origin must pass the
+`InvocationTarget` rule above, without user information, path, query or
+fragment, and never port 0. `wait` and `stop` take the same optional
+configuration and use only its root certificate. The retained binding decides
+where they connect, and a configuration naming a different origin refuses before
+target contact or abandonment. See the
+[release guide](../../deployment/README.md#invocation-configuration).
+
+The submit, resume and stop handbacks report each submission only as its status
+facts (Attempt, phase, intended and confirmed run IDs, replay block); `status`
+and `history` remain the full retained-fact inspection, including the frozen
+request. Correlated, rejected or ended resume requires no configuration file.
+Safe failures point to retained history and status; Ctrl+C returns a detached
+handback. The callable proposer API remains available for richer source and
+Contract inputs.
+
+### DirectTarget origin, initialization and readiness
+
+The homelab DirectTarget origin is `https://zeroshot.dev.faviann.com`
+([ADR 0001](../adr/0001-directtarget-https-origin-and-compose-topology.md)).
+The `zeroshot-tls` Caddy container serves it on port 443, signing with the
+stack's own root, and forwards to native at the fixed inner port 18770 on the
+Compose project network. Native itself is never published. The configuration
+names that origin and, as `directRootCertificate`, the public `root.crt`, which
+Broodling rereads for each TLS connection. Explicit first initialization creates
+the root once with the target image's `initialize-tls` helper: the key is
+readable only by `zeroshot-tls`'s user, and the certificate is the only file in
+a public directory. It then records the origin in native state through
+`zeroshot-tls`. Rotation replaces the key and certificate together and removes
+Caddy's stored intermediate and leaf. `check-target` verifies the stack and
+discovers through `zeroshot-tls` with the configured root, which catches an
+intermediate left from before a rotation. See
+[initialization](../../deployment/README.md#explicit-initialization-and-guarded-startup),
+[rotation](../../deployment/README.md#tls-root-rotation) and
+[readiness](dotnet-target-readiness.md).
 
 ## Dispatch, recovery and completion
 
-For the LocalTarget bridge, preparation retains the immutable request and
-submission key. A short transaction commits dispatch intent before the external
-SDK call; no SQLite writer spans it. Concurrent callers submit the identical
-request and converge through native submission-key idempotency. An
-acknowledgement arriving after abandonment is retained as factual correlation
-without restoring authority.
+Each Attempt has at most one `native_submissions` row. Any state after
+`prepared` is committed dispatch intent, the one fact that retirement,
+replacement, quarantine and unresolved-dispatch counting read. SQL guards
+protect the request and key and permit only `prepared → dispatched →
+correlated`, with `run_id` equal to the immutable `intended_run_id`.
+`replay_blocked_reason = submission_conflict` may be recorded once while
+dispatched or correlated and is never cleared. A cross-row guard refuses an
+intended run ID that another Attempt's confirmed `run_id` names, and the reverse.
+The completion trigger accepts only the record's exact source binding.
+Preparation and dispatch require current authority; correlation deliberately
+does not (see [HTTP dispatch](#http-dispatch-and-acknowledgement)).
 
-Bridge acknowledgement-loss replay uses only current authority and the exact
-frozen invocation. Native conflict alone cannot establish safe recovery; the
-narrow owned-source/HEAD-drift case is checked in C#. Abandoned unknown-run work
-is never replayed to discover execution. HTTP dispatch and replay follow the
-[section above](#http-dispatch-and-acknowledgement).
+`CancelIssueSubmissionAsync` uses the same authority, not a parallel execution
+ledger. Its immediate transaction records the exact submission's immutable
+stop/no-stop binding. Only a cancellation that owns the last relevant shared
+Contract authority also commits abandonment against its exact Attempt before any
+native stop. A sibling cancellation records a null binding and leaves the shared
+current Attempt available. If an owned cancellation's Attempt is later
+acknowledged, correlation stores that run identity on the abandoned Attempt and
+the ordinary stop forces it through the retained binding. No replay discovers or
+selects a later replacement. The callable result is either the durable cancelled
+submission or the documented stop or transport exception; every such failure
+leaves the cancellation and any abandonment facts inspectable.
 
-After durable correlation, wait/stop receive the retained run binding (locator,
-run ID, frozen title, size and, for HTTP, PR source) through separate read and
-stop roles. The bridge uses only the frozen local locator and run identity with
-an empty explicit SDK environment. Neither kind needs an old workspace or
-dispatch credentials. Cancelling/killing a waiter detaches that caller rather
-than stopping native execution. Completed receipt replay needs no target.
+After durable correlation, wait and stop receive the retained run binding
+(origin, run ID, frozen title, size and PR source) through the
+[run reader and stopper](#directtarget-run-reader-and-stopper). They need no
+workspace or dispatch credentials. Cancelling or killing a waiter detaches that
+caller rather than stopping native execution. Completed receipt replay needs no
+target.
 
-`BroodlingStore.ObserveAsync` reads a correlated Attempt's current native phase and
-active nodes through the same retained locator and run ID. It returns null
-without native contact when no run is correlated. The 10-second observation bound
-covers the version preflight and native status read. A cancelled or expired
-preflight stops before status starts; the bridge gives the SDK the remaining time
-for status, so the SDK stops its own command on timeout. Once status starts, caller
-cancellation detaches without killing its bridge. Each read is stamped with its
-observation time; it is never persisted
-and never updates admission, abandonment, completion or authority. A timeout,
-transport loss, unknown run or unsupported runtime returns an unavailable
-observation with a safe reason, not an execution failure. Retained status never
-contacts native and is unaffected. A `finished` phase is progress only: result
-consumption and disposition remain `WaitAsync`'s responsibility.
-
-For an HTTP record, `ObserveAsync` routes on the retained `http.v1` format and
-ignores any bridge transport. A merely prepared record returns null without
-contacting the target. A dispatched record without acknowledgement is read
-through its intended run ID. A correlated record is read through its confirmed
-ID. Every observation reports that identity as `Intended` or `Confirmed`, so a
-caller cannot infer acknowledgement from available progress. The read is one
-SDK status request, setup included, under the 10-second progress budget, and it
-is checked by the [run reader](#directtarget-run-reader-and-stopper) against
-the retained title, size and PR source. The read also works while the
-installation is paused or after abandonment. It writes nothing and never
-correlates, completes or abandons. An unknown, foreign or malformed run, a
-timeout or transport loss is an unavailable observation with that fixed kind.
-Bridge observations always report `Confirmed`.
+`BroodlingStore.ObserveAsync` reads an Attempt's current native phase and active
+nodes through its retained binding. A merely prepared record returns null
+without contacting the target. A dispatched record without acknowledgement is
+read through its intended run ID. A correlated record is read through its
+confirmed ID. Every observation reports that identity as `Intended` or
+`Confirmed`, so a caller cannot infer acknowledgement from available progress.
+The read is one SDK status request, setup included, under the 10-second progress
+budget, and it is checked by the [run reader](#directtarget-run-reader-and-stopper)
+against the retained title, size and PR source. The read also works while the
+installation is paused or after abandonment. Each read is stamped with its
+observation time. It is never persisted, writes nothing and never correlates,
+completes, abandons or changes authority. An unknown, foreign or malformed run,
+a timeout or transport loss is an unavailable observation with that fixed kind,
+not an execution failure. Retained status never contacts native and is
+unaffected. A `finished` phase is progress only: result consumption and
+disposition remain `WaitAsync`'s responsibility.
 
 Completion rechecks currentness, admitted Contract, invocation/run binding and
-exact authorized delivery. Native failure records abandonment; invalid receipts,
-late success after abandonment and no-effect stable-result gaps refuse successful
-completion. Store errors grant no partial disposition.
+exact authorized delivery. Native failure records abandonment; invalid receipts
+and late success after abandonment refuse successful completion. Store errors
+grant no partial disposition.
 
 ## DirectTarget transport and budgets
 
@@ -442,8 +503,8 @@ handshake, and so its operation, as `transport_failed`. Nothing retries.
 
 ### DirectTarget run reader and stopper
 
-Every operation reconnects by exactly the retained `NativeRunBinding`: the
-direct locator's origin, which must be canonical HTTPS or HTTP to exactly
+Every operation reconnects by exactly the retained `NativeRunBinding`: its
+origin, which must be canonical HTTPS or HTTP to exactly
 `127.0.0.1` or `[::1]` with no path, query, fragment or user information, the
 run ID and the DirectTarget binding's native release, as an SDK `RunReference`.
 The binding carries no credentials. An unsupported binding refuses as an
@@ -456,8 +517,10 @@ anything else is `foreign_run`. Progress is the phase (`admitted`, `running`,
 native's metadata and workspace-recovery facts; Broodling drops them and never
 resumes a run. A result passes through the failure labels `force_stopped`,
 `runtime_lost` and `runtime_failed` and maps every other native label to
-`native_failed`. Reading a run, finished or not, consumes no completion and
-establishes no acknowledgement or correlation.
+`native_failed`. A `NativeResult` carries the run ID, success, arbitrary JSON
+output (including null) and its failure. A `NativeProgress` carries only
+the phase and the node names of active executions. Reading a run, finished or
+not, consumes no completion and establishes no acknowledgement or correlation.
 
 Failures are fixed kinds that never contain remote text. `RunNotFoundError` is
 OECP `NOT_FOUND`. `TargetError` covers any other OECP error or HTTP problem.
@@ -487,33 +550,16 @@ failure, including expiry, is `Uncertain`. The operation never fabricates a
 stopped result. Caller cancellation propagates as cancellation, even after
 force. No outcome proves physical cessation or establishes correlation.
 
-## Local policy and cleanup limitation
-
-The [C# Codex launcher](../../src/Broodling/CodexLauncher.cs) applies explicit
-workspace-write worker/read-only verifier modes, strips sandbox/approval bypasses,
-disables shell networking, search, apps/plugins/hooks/notifications and excludes
-ambient Codex user config and exec-policy rules. It uses isolated homes, refuses
-app-server probing and `execve`s the configured CLI with the same PID/stdin.
-It interprets no prompts/results and supervises no execution.
-
-Local HOME starts empty and CODEX_HOME auth-only. Launcher/executable/state remain
-outside candidate/shared Git. Current repository guidance can be execution
-context but cannot change frozen Contract/source authority.
-
-**The local profile requires a trusted host with no operator-managed
-effect-capable MCP or extension configuration.** An empty managed
-`[mcp_servers]` allowlist can enforce that precondition. Broodling does not scan
-arbitrary managed settings or prove their enforcement. Shell network restrictions
-are not a universal no-effect guarantee.
+## Cleanup limitation
 
 **Every dispatched Attempt is ineligible for automatic cleanup or
 replacement**, even after native success or force-stop. `StopAsync` commits
 abandonment and requests native stop when known; a terminal result still provides
 no physical-cessation receipt. Operators retain emergency containment
 responsibility. There is no override turning incomplete proof into cleanup
-authority. An exactly owned, proven never-dispatched Attempt can be explicitly
-retired and replaced from original B1 under the lifecycle seam. Dispatched HTTP
-DirectTarget work is retired only by the explicit
+authority. A proven never-dispatched Attempt can be explicitly retired and
+replaced from original B1 under the lifecycle seam. Dispatched work is retired
+only by the explicit
 [verified maintenance retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement),
 after which an abandoned Attempt can be explicitly replaced.
 
@@ -522,16 +568,15 @@ after which an abandoned Attempt can be explicitly replaced.
 [Verified maintenance retirement](dotnet-retirement-replacement.md#verified-maintenance-retirement)
 (#122) consumes these retained facts and invents no client worktree to reclaim:
 
-- The Attempt's `resource_kind` (`http` owns no local directory, branch or
-  worktree; `worktree` keeps its owned enclosure) and its admission, abandonment,
-  retirement and completion records.
+- The Attempt's admission, abandonment, retirement and completion records. An
+  Attempt owns no local directory, branch or worktree.
 - Shared custody: the common Git directory, the direct
   `refs/broodling/starting/<B1>` pin and any `refs/broodling/accepted/<oid>` pin,
   none of which an Attempt cleanup deletes.
-- The HTTP submission: format `http.v1`, phase (`prepared`, `dispatched`,
-  `correlated`), intended and confirmed run IDs, `replay_blocked_reason`, the
-  retained asset identity and the binding (target origin, protocol, native
-  release pins, frozen result-fetch origin).
+- The submission: phase (`prepared`, `dispatched`, `correlated`), intended and
+  confirmed run IDs, `replay_blocked_reason`, the retained asset identity and the
+  binding (target origin, protocol, native release pins, frozen result-fetch
+  origin).
 - Dispatch uncertainty: any phase after `prepared` is dispatch intent and keeps
   the Attempt quarantined until verified maintenance retirement. Correlation
   resolves acceptance uncertainty only; retirement resolves neither.
@@ -543,7 +588,7 @@ stopped-target and mount verification belong to the host procedure
 ## Evidence and history
 
 The [TUnit suite](../../tests/README.md) covers Broodling authority, Git/SQLite
-durability and controlled released-SDK/native behavior. The
+durability and the SDK client against a loopback stock-target stand-in. The
 [stock DirectTarget witness](../../tests/README.md#controlled-stock-directtarget-witness)
 runs the unmodified native 10.10.0 HTTP/OECP target and the approved asset with a
 controlled Codex provider and forge. Its PR receipt is controlled, not a real

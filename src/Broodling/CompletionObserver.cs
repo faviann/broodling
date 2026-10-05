@@ -89,7 +89,7 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
         try
         {
             using var store = application.OpenStore(storePath, directTargetRootCertificate);
-            try { await store.WaitAsync(attemptId, null, cancellationToken); }
+            try { await store.WaitAsync(attemptId, cancellationToken); }
             // Refused only from a terminal result read from the run, which every later read returns again.
             catch (Exception refusal) when (refusal is ReceiptRefused or AcceptedRevisionRefused)
             {

@@ -13,7 +13,7 @@ namespace Broodling.Tests;
 public sealed class BundledProposerTests
 {
     private const string ApiKey = "gateway-key-7f3a9c";
-    private static readonly GatewayCredentials Credentials = new(NativeProfile.GatewayBaseUrl, ApiKey);
+    private static readonly GatewayCredentials Credentials = new(DirectTargetBinding.GatewayBaseUrl, ApiKey);
     private const string DesignBody = "Supporting design: rows are comma separated.";
     private const string SchemaFile = "Schema: id, name, total\n";
 
@@ -31,7 +31,7 @@ public sealed class BundledProposerTests
 
         // The initial context is the request, fixed authority and member identities, never member content.
         var first = gateway.Requests[0];
-        await Assert.That(gateway.Uris[0]).IsEqualTo(new Uri(NativeProfile.GatewayBaseUrl + "/chat/completions"));
+        await Assert.That(gateway.Uris[0]).IsEqualTo(new Uri(DirectTargetBinding.GatewayBaseUrl + "/chat/completions"));
         await Assert.That(gateway.Authorizations[0]).IsEqualTo("Bearer " + ApiKey);
         await Assert.That((string)first["model"]!).IsEqualTo("gpt-5.6-sol");
         await Assert.That((string)first["tools"]![0]!["function"]!["name"]!).IsEqualTo("read_reference");
@@ -129,7 +129,7 @@ public sealed class BundledProposerTests
             : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("overloaded") });
 
         var error = await Assert.That(async () => await store.AdmitRequestBundleAsync(submissionId,
-                failure == "missing-key" ? new GatewayCredentials(NativeProfile.GatewayBaseUrl, null) : Credentials,
+                failure == "missing-key" ? new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, null) : Credentials,
                 failing, default))
             .Throws<ContractProposerError>();
         await Assert.That(error!.Retryable).IsEqualTo(retryable);

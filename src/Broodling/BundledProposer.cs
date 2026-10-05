@@ -18,7 +18,7 @@ public sealed class GatewayCredentials(string? baseUrl, string? apiKey)
     internal string ApiKey()
     {
         if (string.IsNullOrWhiteSpace(apiKey) || apiKey.Length > 4096 || apiKey.Any(char.IsControl)
-            || baseUrl != NativeProfile.GatewayBaseUrl)
+            || baseUrl != DirectTargetBinding.GatewayBaseUrl)
             throw new ContractProposerError(
                 "Contract proposal requires a current gateway API key and the exact supported gateway URL.", retryable: false);
         return apiKey;
@@ -263,7 +263,7 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
             ["tool_choice"] = final ? "none" : "auto",
             ["response_format"] = new JsonObject { ["type"] = "json_object" }
         };
-        using var request = new HttpRequestMessage(HttpMethod.Post, NativeProfile.GatewayBaseUrl + "/chat/completions")
+        using var request = new HttpRequestMessage(HttpMethod.Post, DirectTargetBinding.GatewayBaseUrl + "/chat/completions")
         {
             Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
         };

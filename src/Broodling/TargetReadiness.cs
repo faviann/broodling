@@ -31,7 +31,7 @@ public sealed class TargetReadiness
     internal const string TlsUser = "10443:10443";
     /// <summary>Native's fixed inner listener on the project network, where <c>zeroshot-tls</c> forwards; never published.</summary>
     internal const string NativeListen = "0.0.0.0:18770";
-    /// <summary>The target image's Codex, pinned by the DirectTarget image rather than the LocalTarget host's <see cref="CodexProfile"/>.</summary>
+    /// <summary>The target image's Codex, as the DirectTarget image pins it.</summary>
     private const string CodexVersion = "codex-cli 0.153.4";
     private const string GhSha256 = "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff";
     private static readonly string[] CredentialNames = ["GH_TOKEN", "GITHUB_TOKEN", "GATEWAY_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY"];

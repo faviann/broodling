@@ -13,7 +13,7 @@ current operator use; controlled validation is not a live .NET deployment claim.
 ## Operation and input
 
 `TargetReadiness.CheckAsync(inventory, selectedDirectOrigin, rootCertificate, cancellationToken)`
-is callable without a store, application initialization, SDK bridge or HTTP host.
+is callable without a store, application initialization or HTTP host.
 The selected origin and optional root certificate are the ones used for
 invocation. The thin host command reads the existing invocation configuration
 using its shared strict parser and checks origin equality with the inventory
@@ -47,13 +47,12 @@ host paths, and the root key and certificate locations must not contain each
 other. Their container destinations are fixed. The operator records the exact
 existing stack, and readiness creates no directories or files. The separate
 `config.json` is the existing
-[invocation configuration](dotnet-native-dispatch.md#thin-operator-commands) for
-PR work: `{"target": "direct", "directOrigin": ..., "directRootCertificate": ...}`.
+[invocation configuration](zeroshot-native-integration.md#thin-operator-commands):
+`{"directOrigin": ..., "directRootCertificate": ...}`.
 Its root must be exactly `root.crt` in the recorded `rootCertificateMount`, so
 discovery trusts the root the stack mounts rather than system trust or another
 copy.
-A LocalTarget configuration, a field of the other kind, an unknown field or a
-secret is refused in both files.
+An unknown field or a secret is refused in both files.
 
 The origin must be a canonical HTTPS origin with a DNS host name and the default
 port, such as `https://zeroshot.dev.faviann.com`. In-project clients reach
@@ -107,9 +106,8 @@ intermediate key.
 
 Subsequent execs use the inspected target container ID, never a newly selected
 name. The native version and the `zeroshot` and `restic` hashes are the
-[DirectTarget binding](zeroshot-native-integration.md#pinned-dependencies-and-bridge);
-the other pins are the DirectTarget image's own, independent of the LocalTarget
-bridge and its host Codex profile:
+[DirectTarget binding](zeroshot-native-integration.md#pinned-dependencies);
+the other pins are the DirectTarget image's own:
 
 | Probe | Required observation |
 | --- | --- |
@@ -168,7 +166,7 @@ inventory validity, credential, version/hash/help, UID and stock-discovery schem
 checks, plus a controlled-clock discovery stall that expires as refusal and
 cancels as cancellation. Invalid configuration and origin witnesses require zero
 target access, including a configuration with no root or another root. The small
-composed command case uses a Direct configuration, passes its root and creates no
+composed command case uses an invocation configuration, passes its root and creates no
 store. The Program usage witness checks routing
 without Docker or HTTP access.
 
@@ -207,8 +205,7 @@ On 22 September 2026, in `issue/130-target-readiness` based on
   This is the current worktree reference run, not another exact-baseline claim.
 
 .NET commands used `MSBUILDDISABLENODEREUSE=1`,
-`DOTNET_CLI_USE_MSBUILD_SERVER=0`, `UseSharedCompilation=false`, and
-`BROODLING_TEST_PYTHON=/home/faviann/repos/broodling/.venv/bin/python`.
+`DOTNET_CLI_USE_MSBUILD_SERVER=0` and `UseSharedCompilation=false`.
 Full-suite durable fixtures used the owned
 `/home/faviann/.cache/broodling-tests/130-target-readiness` root; focused readiness
 fixtures used unique owned directories under `.cache/broodling-tests`.

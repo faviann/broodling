@@ -339,7 +339,7 @@ public sealed class GitHubRepositorySource(string executable = "gh", string gitE
         string resolved;
         try { resolved = PhysicalPaths.Resolve(path); }
         catch (IOException error) { throw new GitHubRepositoryError(error.Message, retryable: false); }
-        if (PhysicalPaths.IsWithinTemporaryRoot(resolved) || PhysicalPaths.IsWithinDisposable(resolved))
+        if (PhysicalPaths.IsWithinTemporaryRoot(resolved))
             throw new GitHubRepositoryError("The configured repository root must be durable and owned by the service.", retryable: false);
         return resolved;
     }

@@ -31,7 +31,7 @@ public sealed class CompletionPersistenceTests
         var otherWork = fixture.Store.ResolveWorkUnit(WorkReference.Parse("acme/widget", 99));
         // These foreign identities exist: foreign keys alone cannot explain the refusal.
         var otherRevision = fixture.Store.AdmitSources(ContractIngressTests.Reference,
-            [ContractIngressTests.Primary("A different request"u8.ToArray())], ContractIngressTests.Propose, []).Revision.ContractRevisionId;
+            [ContractIngressTests.Primary("A different request"u8.ToArray())], ContractIngressTests.Propose, ContractIngressTests.PullRequest).Revision.ContractRevisionId;
         await Assert.That(() => Insert(fixture, work: otherWork.WorkUnitId)).Throws<SqliteException>();
         await Assert.That(() => Insert(fixture, contract: otherRevision)).Throws<SqliteException>();
         await Assert.That(() => Insert(fixture, attempt: "foreign-attempt")).Throws<SqliteException>();
@@ -52,12 +52,11 @@ public sealed class CompletionPersistenceTests
         await fixture.Dispatch();
         var completed = await fixture.Wait();
         var newer = fixture.Store.AdmitSources(ContractIngressTests.Reference,
-            [ContractIngressTests.Primary("Later request"u8.ToArray())], ContractIngressTests.Propose, []).Revision.ContractRevisionId;
-        await Assert.That(() => fixture.Store.AdmitAttempt(newer, fixture.Git.Repository, fixture.Git.Workspaces)).Throws<StaleAttempt>();
+            [ContractIngressTests.Primary("Later request"u8.ToArray())], ContractIngressTests.Propose, ContractIngressTests.PullRequest).Revision.ContractRevisionId;
+        await Assert.That(() => fixture.Store.AdmitHttpAttempt(newer, fixture.Git.Repository)).Throws<StaleAttempt>();
         var clone = $"""
             INSERT INTO attempts SELECT 'another-attempt', work_unit_id, '{newer}', 1, b1_repository, b1_commit_oid,
-                b1_material_sha256, b1_requested_revision, workspace_root, enclosure || '-other', worktree_path || '-other',
-                branch || '-other', admitted_at, resource_kind FROM attempts
+                b1_material_sha256, b1_requested_revision, admitted_at FROM attempts
             """;
         await Assert.That(() => fixture.Git.State.Execute(clone)).Throws<SqliteException>();
         foreach (var sql in new[] {
@@ -90,12 +89,11 @@ public sealed class CompletionPersistenceTests
             DROP TRIGGER attempts_no_completed_work;
             DROP TRIGGER attempts_no_abandoned_work;
             INSERT INTO attempts SELECT 'historical-second', work_unit_id, contract_revision_id, 1,
-                b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, workspace_root,
-                enclosure, worktree_path, branch, admitted_at, resource_kind FROM attempts;
+                b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, admitted_at FROM attempts;
             {guard};
-            INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state, intended_run_id,
+            INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id,
                 asset_sha256, binding_json)
-                SELECT 'historical-second', format, 'broodling:http:v1:historical-second',
+                SELECT 'historical-second', 'broodling:http:v1:historical-second',
                 json_set(request_json, '$.runId', '{second}', '$.submission.submissionKey', 'broodling:http:v1:historical-second'),
                 'prepared', '{second}', asset_sha256, binding_json FROM native_submissions;
             UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = 'historical-second';
@@ -105,7 +103,7 @@ public sealed class CompletionPersistenceTests
         Insert(fixture, CompletionFixture.Receipt("0000").GetRawText(), attempt: "historical-second", run: second);
         using var reopened = fixture.Git.State.Open();
         await Assert.That(reopened.FindCompletion(first.AttemptId)).IsEqualTo(first);
-        await Assert.That(await reopened.WaitAsync(first.AttemptId, null)).IsEqualTo(first);
+        await Assert.That(await reopened.WaitAsync(first.AttemptId)).IsEqualTo(first);
         await Assert.That(reopened.FindCompletion("historical-second")!.RunId).IsEqualTo(second);
         await Assert.That(reopened.Status(first.ContractRevisionId).Completions.Count).IsEqualTo(2);
         await Assert.That(reopened.FindCompletion("not-retained")).IsNull();

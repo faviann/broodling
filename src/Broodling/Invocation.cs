@@ -1,41 +1,29 @@
 namespace Broodling;
 
 /// <summary>
-/// The explicitly configured execution target for a new Attempt. An existing Attempt is continued
-/// only through the target kind its retained resources name; nothing falls back to the other kind.
+/// The explicitly configured DirectTarget for a new Attempt. The origin must be canonical HTTPS or HTTP to
+/// exactly 127.0.0.1 or [::1], the rule the native target and SDK apply. An existing Attempt continues only
+/// through its retained origin.
 /// </summary>
-public abstract record InvocationTarget
+public sealed record InvocationTarget
 {
-    private InvocationTarget() { }
-
-    /// <summary>No-effect work in an owned local worktree, submitted through the pinned SDK bridge and launcher.</summary>
-    public sealed record Local(string WorkspaceRoot, NativeProfile Profile, INativeTransport Transport) : InvocationTarget;
-
-    /// <summary>
-    /// Authorized PR work over HTTP/OECP; no Python, SDK client state, workspace root or launcher. The
-    /// origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1], the rule the native target and SDK apply.
-    /// </summary>
-    public sealed record Direct : InvocationTarget
+    public InvocationTarget(string origin)
     {
-        public Direct(string origin)
-        {
-            if (DirectTargetExchange.CanonicalOrigin(origin) is null)
-                throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1].");
-            Origin = origin;
-        }
-
-        public string Origin { get; }
+        if (DirectTargetExchange.CanonicalOrigin(origin) is null)
+            throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1].");
+        Origin = origin;
     }
+
+    public string Origin { get; }
 }
 
 /// <summary>One explicit work reference. Ended authority is handed back without automatic replacement.</summary>
 public sealed class Invocation(BroodlingStore store, InvocationTarget target)
 {
-    /// <summary>The store routes on the retained record; an HTTP result needs no bridge transport.</summary>
     public Task<AttemptCompletion> WaitAsync(string attemptId, CancellationToken cancellationToken = default) =>
-        store.WaitAsync(attemptId, (target as InvocationTarget.Local)?.Transport, cancellationToken);
+        store.WaitAsync(attemptId, cancellationToken);
 
-    /// <summary>Retained handback needs neither dispatch configuration nor the old workspace.</summary>
+    /// <summary>Retained handback needs neither dispatch configuration nor credentials.</summary>
     public static bool CanResumeWithoutDispatch(AdmissionStatus status)
     {
         var attempt = status.Attempts.LastOrDefault();
@@ -57,25 +45,17 @@ public sealed class Invocation(BroodlingStore store, InvocationTarget target)
         ResumeAsync(revisionId, () =>
         {
             if (repository is null) throw new AttemptAdmissionError("A source repository is required before first Attempt allocation.");
-            return target switch
-            {
-                InvocationTarget.Direct => store.AdmitHttpAttempt(revisionId, repository, revision),
-                InvocationTarget.Local local => store.AdmitAttempt(revisionId, repository, local.WorkspaceRoot, revision),
-                _ => throw new UnsupportedRuntime("The invocation target is unsupported.")
-            };
+            return store.AdmitHttpAttempt(revisionId, repository, revision);
         }, credentials, cancellationToken);
 
     /// <summary>
     /// Resume one Issue submission's bundle-bound Contract. Its first Attempt starts from the RequestBundle's
-    /// retained repository preparation (original B1), which a caller cannot replace; afterwards stored
-    /// allocation governs, as for <see cref="ResumeAsync(string, string?, string, DispatchCredentials?, CancellationToken)"/>.
-    /// Its PR authority continues only through a DirectTarget.
+    /// retained repository preparation (original B1), which a caller cannot replace; afterwards the retained
+    /// Attempt governs, as for <see cref="ResumeAsync(string, string?, string, DispatchCredentials?, CancellationToken)"/>.
     /// </summary>
     public async Task<AdmissionStatus> ResumeSubmissionAsync(string submissionId, DispatchCredentials? credentials = null,
         CancellationToken cancellationToken = default)
     {
-        if (target is not InvocationTarget.Direct)
-            throw new UnsupportedRuntime("An Issue submission's pull-request authority continues only through a DirectTarget.");
         var revisionId = store.GetIssueSubmission(submissionId).ContractRevisionId
             ?? throw new AttemptAdmissionError("The Issue submission has no admitted Contract revision.");
         return await ResumeAsync(revisionId, () => store.AdmitHttpAttempt(submissionId), credentials, cancellationToken);
@@ -92,21 +72,9 @@ public sealed class Invocation(BroodlingStore store, InvocationTarget target)
         }
         if (CanResumeWithoutDispatch(status)) return status;
         var attempt = status.Attempts.LastOrDefault() ?? allocate();
-        switch (target)
-        {
-            case InvocationTarget.Direct direct when attempt.ResourceKind == AttemptRecord.Http:
-                // Returns the retained preparation, refusing a different configured origin.
-                store.PrepareHttpSubmission(attempt.AttemptId, direct.Origin);
-                await store.DispatchHttpAsync(attempt.AttemptId, credentials, cancellationToken);
-                break;
-            case InvocationTarget.Local local when attempt.ResourceKind == AttemptRecord.Worktree:
-                // No reacquisition, B1 selection or materialization once dispatch may have happened.
-                if (store.FindSubmission(attempt.AttemptId) is null) store.ProvisionAttempt(attempt.AttemptId);
-                await store.DispatchAsync(attempt.AttemptId, local.Profile, local.Transport, cancellationToken);
-                break;
-            default:
-                throw new UnsupportedRuntime("The configured target kind differs from the retained Attempt's resource kind.");
-        }
+        // Returns the retained preparation, refusing a different configured origin.
+        store.PrepareHttpSubmission(attempt.AttemptId, target.Origin);
+        await store.DispatchHttpAsync(attempt.AttemptId, credentials, cancellationToken);
         return store.Status(revisionId);
     }
 }

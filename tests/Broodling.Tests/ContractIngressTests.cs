@@ -12,6 +12,8 @@ public sealed class ContractIngressTests
         bytes ?? "The complete reviewed request.\n"u8.ToArray(), entitlement: new("caller", "Reviewed supplied issue bytes"));
     internal static SourceSubmission Supplement => new("referenced_document", "caller://decision", [0, 255, 13, 10],
         mediaType: "application/octet-stream", entitlement: new("caller", "Explicitly reviewed decision"));
+    /// <summary>The supported effect authority: one pull request to <c>main</c>.</summary>
+    internal static RequiredEffect[] PullRequest => [new("pr", "Open PR", "pull_request", "main")];
     internal static Contract Propose(ContractProposalInput input) => new(input.WorkUnit.WorkUnitId,
         input.SourceAttribution, [new("acceptance", "Preserve the complete request.")],
         requiredEffects: input.RequiredEffects, constructedBy: input.ConstructedBy, requestBundle: input.BundleBinding);
@@ -24,12 +26,12 @@ public sealed class ContractIngressTests
         AdmissionStatus rejected;
         using (var store = fixture.Initialize())
         {
-            first = store.AdmitSources(Reference, [Primary(), Supplement], Propose, [], "caller");
+            first = store.AdmitSources(Reference, [Primary(), Supplement], Propose, PullRequest, "caller");
             await Assert.That(first.Decision!.Admitted).IsTrue();
             // Both source order and attribution order are immaterial; effects and criteria retain their order.
             var replay = store.AdmitSources(Reference, [Supplement, Primary()], input => new(input.WorkUnit.WorkUnitId,
                 input.SourceAttribution.Reverse().ToArray(), [new("acceptance", "Preserve the complete request.")],
-                constructedBy: input.ConstructedBy), [], "caller");
+                requiredEffects: input.RequiredEffects, constructedBy: input.ConstructedBy), PullRequest, "caller");
             await Assert.That(replay.Revision.ContractRevisionId).IsEqualTo(first.Revision.ContractRevisionId);
             await Assert.That(replay.Revision.RecordedAt).IsEqualTo(first.Revision.RecordedAt);
             await Assert.That(replay.Decision!.DecidedAt).IsEqualTo(first.Decision.DecidedAt);
@@ -45,7 +47,7 @@ public sealed class ContractIngressTests
         await Assert.That(history[0].Sources.Single(source => source.Kind == "referenced_document").Content.SequenceEqual(Supplement.Content)).IsTrue();
         await Assert.That(history[1].Decision!.Findings.Single().PreservedObligation).IsEqualTo("Publish the release unchanged.");
         await Assert.That(history[0].Revision.CanonicalBytes.SequenceEqual(first.Revision.CanonicalBytes)).IsTrue();
-        var same = reopened.AdmitSources(Reference, [Primary(), Supplement], Propose, [], "caller");
+        var same = reopened.AdmitSources(Reference, [Primary(), Supplement], Propose, PullRequest, "caller");
         await Assert.That(same.Revision.ContractRevisionId).IsEqualTo(first.Revision.ContractRevisionId);
         await Assert.That(same.Revision.SupersedesRevisionId).IsNull();
         await Assert.That(reopened.History(Reference).Count).IsEqualTo(2);
@@ -82,7 +84,7 @@ public sealed class ContractIngressTests
             [new("primary_issue", Reference.IssueLocator, [], origin: "model_extraction", entitlement: new("caller", "claimed"))]
         };
         foreach (var sources in invalid)
-            await Assert.That(() => store.AdmitSources(Reference, sources, Propose, [])).Throws<SourceNotEntitled>();
+            await Assert.That(() => store.AdmitSources(Reference, sources, Propose, PullRequest)).Throws<SourceNotEntitled>();
         await Assert.That(store.FindWorkUnit(Reference)).IsNull();
         await Assert.That(store.History(Reference).Count).IsEqualTo(0);
     }
@@ -109,7 +111,8 @@ public sealed class ContractIngressTests
         foreach (var field in new[] { "work", "producer" })
             await Assert.That(() => store.AdmitSources(Reference, [Primary()], input => new(
                 field == "work" ? "another-work" : input.WorkUnit.WorkUnitId, input.SourceAttribution,
-                [new("c", "Outcome.")], constructedBy: field == "producer" ? "caller" : input.ConstructedBy), []))
+                [new("c", "Outcome.")], requiredEffects: input.RequiredEffects,
+                constructedBy: field == "producer" ? "caller" : input.ConstructedBy), PullRequest))
                 .Throws<InvalidContractProposal>();
         await Assert.That(store.History(Reference).Count).IsEqualTo(0);
         await Assert.That(store.ListEntitledSources(Reference.WorkUnitId).Count).IsEqualTo(1);
@@ -137,8 +140,9 @@ public sealed class ContractIngressTests
                     "extra" => [pins[0], pins[1], new(older.SourceId, older.ContentSha256)],
                     _ => new[] { pins[0] with { ContentSha256 = new string('0', 64) }, pins[1] }
                 };
-                return new(input.WorkUnit.WorkUnitId, replacement, [new("c", "Outcome.")], constructedBy: input.ConstructedBy);
-            }, [])).Throws<SourceAttributionError>();
+                return new(input.WorkUnit.WorkUnitId, replacement, [new("c", "Outcome.")], requiredEffects: input.RequiredEffects,
+                    constructedBy: input.ConstructedBy);
+            }, PullRequest)).Throws<SourceAttributionError>();
         await Assert.That(store.History(Reference).Count).IsEqualTo(0);
         foreach (var pin in new[] { new SourceAttribution(foreign.SourceId, foreign.ContentSha256), new("missing", "digest"), new(older.SourceId, "wrong") })
             await Assert.That(() => store.RecordContractRevision(new(work.WorkUnitId, [pin], [new("c", "Outcome.")]))).Throws<SourceAttributionError>();
@@ -156,9 +160,10 @@ public sealed class ContractIngressTests
         };
         foreach (var criteria in badCriteria)
             await Assert.That(() => store.AdmitSources(Reference, [Primary()], input => new(input.WorkUnit.WorkUnitId,
-                input.SourceAttribution, criteria, constructedBy: input.ConstructedBy), [])).Throws<InvalidContractProposal>();
-        await Assert.That(() => store.AdmitSources(Reference, [Primary()], _ => null!, [])).Throws<InvalidContractProposal>();
-        await Assert.That(() => store.AdmitSources(Reference, [Primary()], _ => throw new InvalidOperationException("proposer failed"), []))
+                input.SourceAttribution, criteria, requiredEffects: input.RequiredEffects, constructedBy: input.ConstructedBy), PullRequest))
+                .Throws<InvalidContractProposal>();
+        await Assert.That(() => store.AdmitSources(Reference, [Primary()], _ => null!, PullRequest)).Throws<InvalidContractProposal>();
+        await Assert.That(() => store.AdmitSources(Reference, [Primary()], _ => throw new InvalidOperationException("proposer failed"), PullRequest))
             .Throws<InvalidOperationException>();
         await Assert.That(store.History(Reference).Count).IsEqualTo(0);
         await Assert.That(store.ListEntitledSources(Reference.WorkUnitId).Count).IsEqualTo(1);

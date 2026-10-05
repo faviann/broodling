@@ -62,7 +62,7 @@ public sealed class DirectTargetTrustTests
         await store.DispatchHttpAsync(fixture.Attempt.AttemptId, HttpDispatchTests.Credentials());
         File.Delete(root);
         var stages = target.Stages.Count;
-        await Assert.That((await store.ObserveAsync(fixture.Attempt.AttemptId, null) as NativeObservation.Unavailable)!.Reason)
+        await Assert.That((await store.ObserveAsync(fixture.Attempt.AttemptId) as NativeObservation.Unavailable)!.Reason)
             .IsEqualTo("transport_failed");
         await Assert.That(target.Stages.Count).IsEqualTo(stages);
         await Assert.That(store.Status(fixture.Attempt.ContractRevisionId).Submissions.Single().State).IsEqualTo("correlated");
@@ -106,7 +106,7 @@ public sealed class DirectTargetTrustTests
         target.Projections.Enqueue(DirectTargetRunTests.Running(run));
         target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "succeeded", CompletionFixture.Receipt(head: accepted)));
         using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, root);
-        await Assert.That((await store.WaitAsync(fixture.Attempt.AttemptId, null)).AcceptedRevision).IsEqualTo(accepted);
+        await Assert.That((await store.WaitAsync(fixture.Attempt.AttemptId)).AcceptedRevision).IsEqualTo(accepted);
         await Assert.That(target.Count("run/watch")).IsEqualTo(1);
     }
 }

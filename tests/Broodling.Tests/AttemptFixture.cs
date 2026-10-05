@@ -6,9 +6,9 @@ internal sealed class AttemptFixture : IDisposable
 {
     internal StoreFixture State { get; } = new();
     internal string Repository => System.IO.Path.Combine(State.Root, "source");
-    internal string Workspaces => System.IO.Path.Combine(State.Root, "attempts");
     internal string GitDirectory => System.IO.Path.Combine(Repository, ".git");
     internal string Head { get; }
+    /// <summary>The Work Unit's admitted Contract: one PR to <c>main</c>.</summary>
     internal string RevisionId { get; }
 
     internal AttemptFixture()
@@ -23,18 +23,16 @@ internal sealed class AttemptFixture : IDisposable
         Git("commit", "-m", "original");
         Head = Git("rev-parse", "HEAD").Trim();
         using var store = State.Initialize();
-        RevisionId = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose, []).Revision.ContractRevisionId;
+        RevisionId = PullRequestRevision(store);
     }
 
-    internal AttemptRecord Admit(BroodlingStore store, string? revision = null, string? root = null) =>
-        store.AdmitAttempt(RevisionId, Repository, root ?? Workspaces, revision ?? Head);
+    /// <summary>An HTTP Attempt of <see cref="RevisionId"/>.</summary>
+    internal AttemptRecord Admit(BroodlingStore store, string? revision = null) =>
+        store.AdmitHttpAttempt(RevisionId, Repository, revision ?? Head);
 
-    /// <summary>The same Work Unit admitted for authorized PR delivery, the only HTTP Attempt profile.</summary>
+    /// <summary>The Work Unit admitted for authorized PR delivery, the only Attempt profile.</summary>
     internal static string PullRequestRevision(BroodlingStore store) => store.AdmitSources(ContractIngressTests.Reference,
-        [ContractIngressTests.Primary()], ContractIngressTests.Propose, [new("pr", "Open PR", "pull_request", "main")]).Revision.ContractRevisionId;
-
-    internal AttemptRecord AdmitHttp(BroodlingStore store, string? revision = null) =>
-        store.AdmitHttpAttempt(PullRequestRevision(store), Repository, revision ?? Head);
+        [ContractIngressTests.Primary()], ContractIngressTests.Propose, ContractIngressTests.PullRequest).Revision.ContractRevisionId;
 
     /// <summary>Everything a local resource could leave behind: state-root entries, branches and registered worktrees.</summary>
     internal string LocalResources() => string.Join('\n', Directory.GetFileSystemEntries(State.Root).Order())
