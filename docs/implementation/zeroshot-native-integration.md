@@ -366,7 +366,8 @@ wait <store> <attempt-id> [config.json]
 stop <store> <attempt-id> <reason> [config.json]
 ```
 
-`submit` authorizes exactly one `pull_request` effect to `<target-branch>`. The
+`submit` authorizes exactly one `pull_request` effect to `<target-branch>`; `-`
+is refused as a usage error. The
 producer normally is `caller`. `ReviewedIssueProposal` requires the complete
 acquired issue to match the operator-reviewed file exactly. The `<checkout>`
 names the source repository whose exact revision becomes B1; it is not an

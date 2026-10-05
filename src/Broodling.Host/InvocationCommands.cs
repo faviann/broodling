@@ -8,7 +8,8 @@ public static class InvocationCommands
     public static async Task<int> RunAsync(string[] args, BroodlingApplication application, TextWriter output, TextWriter error,
         CancellationToken cancellationToken = default, GitHubIssueSource? source = null)
     {
-        if (!(args.Length == 10 && args[0] == "submit" || args.Length is >= 3 and <= 6 && args[0] == "resume"
+        // `-` named the removed no-effect request; it is never a target branch.
+        if (!(args.Length == 10 && args[0] == "submit" && args[7] != "-" || args.Length is >= 3 and <= 6 && args[0] == "resume"
             || args.Length is 3 or 4 && args[0] == "wait"
             || args.Length is 4 or 5 && args[0] == "stop"))
         {

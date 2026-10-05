@@ -22,7 +22,7 @@ public enum NativeRunIdentity { Intended, Confirmed }
 /// request names title, size and source; the Broodling-only binding names the target origin, shared Git
 /// custody and the frozen result-fetch origin.
 /// </summary>
-internal sealed record FrozenSubmission(string Origin, string Title, string Size, NativeSource Source, string Repository, string OriginUrl)
+internal sealed record FrozenSubmission(string Origin, string Title, string Size, NativeSource Source, string Repository, string ResultOrigin)
 {
     internal static FrozenSubmission Read(string requestJson, string bindingJson)
     {

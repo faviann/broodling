@@ -46,7 +46,7 @@ produced the dump; restoring it reproduces the original schema and every row.
 
 # Schema-1 state from the revision before #233
 
-`application-v1-local-target.sql` is a `broodling.application` version-1 dump
+`application-v1-pre-233.sql` is a `broodling.application` version-1 dump
 produced on 5 October 2026 by the actual application at `67c7ac9`, the parent
 of the #233 change, built in Release: `initialize-store` and nothing else. Its
 schema still defines the structures that #233 removed in place

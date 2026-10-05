@@ -42,10 +42,10 @@ Virtual environments, caches, other worktrees, untracked user files and operatio
 state were not retirement targets.
 
 The only production Python file is
-[`src/Broodling/bridge/zeroshot_bridge.py`](../../src/Broodling/bridge/zeroshot_bridge.py):
+[`src/Broodling/bridge/zeroshot_bridge.py`](https://github.com/faviann/broodling/blob/9127fda289c3256416de11c2f364a031db60c7af/src/Broodling/bridge/zeroshot_bridge.py):
 one-call version/submit/wait/stop translation to the official SDK. It owns no
 Broodling policy, application store, lifecycle or recovery. The new
-[`requirements.txt`](../../src/Broodling/bridge/requirements.txt) preserves the exact
+[`requirements.txt`](https://github.com/faviann/broodling/blob/9127fda289c3256416de11c2f364a031db60c7af/src/Broodling/bridge/requirements.txt) preserves the exact
 official Linux x86-64 wheel URL and SHA-256 from the retired package metadata.
 It is copied with the bridge on ordinary build/publish. Zeroshot **10.3.0**,
 SDK **10.3.0.post1** and Codex **0.153.4** remain unchanged.

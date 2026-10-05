@@ -877,7 +877,8 @@ Broodling.Host stop <store> <attempt-id> <reason> [config.json]
 
 Here `Broodling.Host` abbreviates `dotnet /RELEASE/host/Broodling.Host.dll`.
 `producer` normally is `caller`, and `submit` authorizes exactly one
-`pull_request` effect to `<target-branch>`. Retain JSON `revision.contractRevisionId`,
+`pull_request` effect to `<target-branch>` (`-` is refused as a usage error).
+Retain JSON `revision.contractRevisionId`,
 `attempts[].attemptId` and `submissions[].runId`. The `submit`, `resume` and
 `stop` handback reports each submission only as its status facts (Attempt,
 phase, intended and confirmed run IDs, replay block); `status` and

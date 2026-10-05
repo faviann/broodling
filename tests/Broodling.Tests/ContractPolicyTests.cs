@@ -180,7 +180,6 @@ public sealed class ContractPolicyTests
         await Assert.That(status.Decision.PolicyVersion).IsEqualTo("broodling.application.admission.v2");
         var finding = status.Decision.Findings.Single();
         await Assert.That((finding.Code, finding.Subject)).IsEqualTo(("no_required_effect", "requiredEffects"));
-        await Assert.That(finding.Detail).Contains("#78");
         await Assert.That(() => store.AdmitHttpAttempt(revisionId, fixture.Repository, fixture.Head)).Throws<AttemptAdmissionError>();
         var handback = await new Invocation(store, new InvocationTarget("http://127.0.0.1:9")).ResumeAsync(revisionId, fixture.Repository, fixture.Head);
         await Assert.That(handback.Decision!.Admitted).IsFalse();

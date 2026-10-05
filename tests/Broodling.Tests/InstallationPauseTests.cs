@@ -163,10 +163,14 @@ public sealed class InstallationPauseTests
     public async Task PausedInstallationBlocksFreshAllocationAndPreparation()
     {
         using var fixture = new HttpFixture();
+        var reference = WorkReference.Parse("acme/widget", 13);
+        var unallocated = fixture.Store.AdmitSources(reference, [new("primary_issue", reference.IssueLocator,
+            "Another request.\n"u8.ToArray(), entitlement: new("caller", "Reviewed"))], ContractIngressTests.Propose,
+            ContractIngressTests.PullRequest).Revision.ContractRevisionId;
         var paused = fixture.Store.PauseInstallation();
 
-        await Assert.That(() => fixture.Store.AdmitHttpAttempt(fixture.Attempt.ContractRevisionId, fixture.Git.Repository, "main"))
-            .Throws<InstallationPaused>();
+        await Assert.That(() => fixture.Store.AdmitHttpAttempt(unallocated, fixture.Git.Repository, "main")).Throws<InstallationPaused>();
+        await Assert.That(fixture.Store.Status(unallocated).Attempts.Count).IsEqualTo(0);
         await Assert.That(() => fixture.Prepare()).Throws<InstallationPaused>();
         await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)).IsNull();
         await Assert.That(paused.IsPaused).IsTrue();

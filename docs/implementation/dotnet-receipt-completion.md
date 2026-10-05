@@ -268,8 +268,8 @@ passed **404 tests in 107.25 seconds**.
 Root's subsequent Attempt-replacement regression run reproduced **2 failures
 of 11** before the schema guard. After that repair, the full suite ran **218
 tests: 217 passed, 1 failed**, 57.823 seconds. The replacement checks passed;
-`NoEffectSuccessCannotManufactureStableLocalResult` failed starting its isolated
-provider with `Win32Exception: Exec format error`.
+a test #233 later removed failed starting its isolated provider with
+`Win32Exception: Exec format error`.
 An immediate focused rerun passed 1/1 in 1.461 seconds. That rerun does not explain
 the failure. The repaired Release build passed with 0 warnings/errors in 22.94
 seconds. A fresh independent bounded diagnosis subsequently passed 101 focused
@@ -291,16 +291,14 @@ disabled with `MSBUILDDISABLENODEREUSE=1`, `DOTNET_CLI_USE_MSBUILD_SERVER=0` and
 remain distinct from the earlier unexplained failures.
 
 An initial .NET run during implementation passed 211 of 212 tests and failed
-the unchanged `PreparedResumeReconcilesFrozenInvocationWithoutRestoringMissingWorkspace`
-test with this exact reported Git error:
+an unchanged test #233 later removed with this exact reported Git error:
 
 ```text
 UnsupportedStartingState: Cannot establish local Git custody: fatal: bad config line 1 in file ./config
 ```
 
-The stack went through `GitCustody.Checked` → `Text` → `RetentionOid` → `Retain`
-→ `BroodlingStore.AdmitAttempt` → `AttemptFixture.Admit` →
-`NativeFixture.Provision`. Subsequent full runs passed 216/216 and 217/217.
+The stack went through `GitCustody.Checked` → `Text` → `RetentionOid` → `Retain`,
+during that test's Attempt admission. Subsequent full runs passed 216/216 and 217/217.
 The initial failure's cause has not been diagnosed; those passes do not establish
 a cause or repair. No unrelated Git/provisioning code was changed.
 

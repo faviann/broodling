@@ -203,6 +203,10 @@ public sealed class InvocationTests
         var args = new[] { "submit", fixture.State.Path, config, "acme/widget", "12", fixture.Repository, fixture.Head, "main", reviewed, "caller" };
         var output = new StringWriter();
         var error = new StringWriter();
+        // `-` named no effect before #233; it is not a branch.
+        await Assert.That(await InvocationCommands.RunAsync(args.Select(arg => arg == "main" ? "-" : arg).ToArray(),
+            fixture.State.Application, output, error, source: gh.Source)).IsEqualTo(2);
+        using (var untouched = fixture.State.Open()) await Assert.That(untouched.History(ContractIngressTests.Reference).Count).IsEqualTo(1);
         target.Submit = _ => Task.FromResult((503, """{"code":"target.unavailable","message":"SECRET_CANARY"}"""));
         var names = new[] { "GH_TOKEN", "GATEWAY_BASE_URL", "GATEWAY_API_KEY" };
         var saved = names.Select(Environment.GetEnvironmentVariable).ToArray();
@@ -256,7 +260,8 @@ public sealed class InvocationTests
     {
         await using var target = new StockTarget();
         using var fixture = new AttemptFixture();
-        var direct = new JsonObject { ["directOrigin"] = "http://127.0.0.1:8123" };
+        // A refusal that were missed would reach this listening target.
+        var direct = new JsonObject { ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority) };
         var configuration = invalid switch
         {
             "secret-field" => With(direct, "GH_TOKEN", "CONFIG_SECRET"),

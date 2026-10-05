@@ -22,7 +22,7 @@ internal static class Polling
         var timer = Stopwatch.StartNew();
         while (!predicate())
         {
-            if (timer.Elapsed > TimeSpan.FromSeconds(20)) throw new TimeoutException("Local process witness did not settle");
+            if (timer.Elapsed > TimeSpan.FromSeconds(20)) throw new TimeoutException("The condition did not settle.");
             await Task.Delay(10);
         }
     }

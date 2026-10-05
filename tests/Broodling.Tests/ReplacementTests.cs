@@ -137,7 +137,7 @@ public sealed class ReplacementTests
         AdmissionStatus originalStatus;
         using (var store = fixture.State.Open())
         {
-            original = fixture.AdmitHttp(store, revision: "main");
+            original = fixture.Admit(store, revision: "main");
             AttemptRecord Retry() => store.AdmitRetry(original.AttemptId, "replace");
             await Assert.That(() => Retry()).Throws<AttemptAdmissionError>();
             await store.StopAsync(original.AttemptId, "abandoned");

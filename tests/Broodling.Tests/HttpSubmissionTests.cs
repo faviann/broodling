@@ -22,7 +22,7 @@ internal sealed class HttpFixture : IDisposable
         foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "execution-assets")))
             File.Copy(file, Path.Combine(Assets, Path.GetFileName(file)));
         Store = Git.State.Open();
-        Attempt = Git.AdmitHttp(Store);
+        Attempt = Git.Admit(Store);
     }
 
     internal NativeSubmission Prepare(BroodlingStore? store = null, string? attemptId = null, string target = Target) =>

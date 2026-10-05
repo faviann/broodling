@@ -94,7 +94,7 @@ public sealed partial class BroodlingStore
         var frozen = submitted.Frozen;
         try
         {
-            await GitCustody.RetainAcceptedAsync(frozen.Repository, frozen.OriginUrl,
+            await GitCustody.RetainAcceptedAsync(frozen.Repository, frozen.ResultOrigin,
                 result.Output.GetProperty("headRevision").GetString()!, cancellationToken);
         }
         catch (RetentionRefused error) { throw new AcceptedRevisionRefused(error.Message); }

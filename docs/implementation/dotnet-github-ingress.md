@@ -97,7 +97,7 @@ selection without re-acquisition. [Bundle-bound admission](dotnet-contract-admis
 grants the pull-request effect to the retained target branch, and
 `AdmitHttpAttempt(submissionId)` consumes this state for that bound Contract. It
 visibly refuses an unbound Contract, missing preparation or unsupported retained
-Git state. Explicit local `AdmitAttempt` remains unchanged.
+Git state.
 
 ## Trusted reviewed-source proposal
 

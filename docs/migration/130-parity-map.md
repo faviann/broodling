@@ -86,7 +86,7 @@ process caller also checks selected-child lock handoff, close-only disposal,
 unrelated live `Process.Start` exclusion, spawn cleanup and concurrent output
 draining. `StoreLifecycleTests` preserves authentic schema-3 Attempt/allocation/
 abandonment facts through explicit schema 4 upgrade alongside v1/v2 fixtures.
-The [C implementation reference](../implementation/dotnet-worktree-materialization.md)
+The [C implementation reference](https://github.com/faviann/broodling/blob/9127fda289c3256416de11c2f364a031db60c7af/docs/implementation/dotnet-worktree-materialization.md)
 records the callable `ProvisionAttempt` API, nullable historical provisioning
 fact, supported non-PID-1 Linux host, native-library packaging and F/H handoff.
 No Python application behavior, native execution or retirement is added here.
@@ -114,7 +114,7 @@ HEAD-drift recovery, credential separation and locator-only native transport.
 The C# launcher preserves policy, PID and exact prompt bytes. Controlled-native
 replay/conflict/reconnect/detach/stop/null-output checks are distinct from the
 stub PR-receipt transport evidence; neither qualifies live PR delivery or
-semantic correctness. The [F implementation reference](../implementation/dotnet-native-dispatch.md)
+semantic correctness. The [F implementation reference](https://github.com/faviann/broodling/blob/9127fda289c3256416de11c2f364a031db60c7af/docs/implementation/dotnet-native-dispatch.md)
 documents complete callable/operator submit/resume, schema 5 and authentic
 schema-4 upgrades. Operator configuration and safe-error witnesses preserve the
 installed loopback and secret-exclusion boundaries.

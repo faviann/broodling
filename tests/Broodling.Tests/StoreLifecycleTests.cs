@@ -18,7 +18,7 @@ public sealed class StoreLifecycleTests
     [Arguments("dotnet-v10.sql", false)]
     [Arguments("dotnet-v12.sql", false)]
     [Arguments("dotnet-v12.sql", true)]
-    [Arguments("application-v1-local-target.sql", false)]
+    [Arguments("application-v1-pre-233.sql", false)]
     public async Task EarlierStoreIsRefusedByOpenUpgradeAndInitializeWithoutChangingItsFiles(string name, bool uncheckpointedWal)
     {
         using var fixture = new StoreFixture();

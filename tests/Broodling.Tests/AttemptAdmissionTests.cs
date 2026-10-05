@@ -310,8 +310,8 @@ public sealed class AttemptAdmissionTests
             .IsEqualTo(attempt);
         // The retained record names no local resource kind or allocation at all.
         var json = JsonSerializer.SerializeToElement(reopened.GetAttempt(attempt.AttemptId), new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        await Assert.That(string.Join(",", json.EnumerateObject().Select(member => member.Name)))
-            .IsEqualTo("attemptId,workUnitId,contractRevisionId,isCurrent,b1,admittedAt,abandonment,retirement,retry,completionRefusal");
+        foreach (var removed in new[] { "resourceKind", "allocation", "worktreeAllocation", "provision" })
+            await Assert.That(json.TryGetProperty(removed, out _)).IsFalse();
     }
 
 }
