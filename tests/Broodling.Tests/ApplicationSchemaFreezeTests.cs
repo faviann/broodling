@@ -14,7 +14,7 @@ public sealed class ApplicationSchemaFreezeTests
     [Test]
     public async Task FrozenIdentitiesAreUnchangedAndEachOlderOneHasAnUpgradeStoreDisposition()
     {
-        var file = JsonNode.Parse(File.ReadAllText(Path.Combine(NativeFixture.RepositoryRoot, "deployment", "application-schemas.json")))!;
+        var file = JsonNode.Parse(File.ReadAllText(Path.Combine(TestRepository.Root, "deployment", "application-schemas.json")))!;
         await Assert.That(file["format"]!.GetValue<string>()).IsEqualTo(StoreSchema.Format);
         var frozen = file["frozen"]!.AsArray().Select(entry => new SchemaIdentity(StoreSchema.Format,
             entry!["schemaVersion"]!.GetValue<int>(), entry["definitionSha256"]!.GetValue<string>())).ToArray();

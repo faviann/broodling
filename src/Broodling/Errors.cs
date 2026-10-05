@@ -34,8 +34,7 @@ public sealed class NativeTransportError(string kind = "transport_failed", strin
     public string? AcknowledgedRunId { get; } = acknowledgedRunId;
 }
 
-public sealed class WorktreeProvisioningError(string message) : BroodlingException("worktree_provisioning_error", message);
-public sealed class WorktreeOwnershipConflict(string message) : BroodlingException("worktree_ownership_conflict", message);
+public sealed class InitiationLockError(string message) : BroodlingException("initiation_lock_error", message);
 
 /// <summary>A refused application operation; the code is safe for operator output.</summary>
 public class BroodlingException(string code, string message) : Exception(message)
@@ -112,9 +111,6 @@ public class ResultRetentionError(string message)
 
 /// <summary>The receipt's accepted revision can never be pinned; fetching or reading the run again cannot change that.</summary>
 public sealed class AcceptedRevisionRefused(string message) : ResultRetentionError(message);
-
-public sealed class UnsupportedWorkspaceRoot(string message)
-    : BroodlingException("unsupported_workspace_root", message);
 
 public sealed class AttemptAdmissionError(string message)
     : BroodlingException("attempt_admission_error", message);

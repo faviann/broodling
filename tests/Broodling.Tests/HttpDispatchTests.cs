@@ -14,7 +14,7 @@ namespace Broodling.Tests;
 public sealed class HttpDispatchTests
 {
     internal static DispatchCredentials Credentials(string suffix = "current") =>
-        new("github-canary-" + suffix, NativeProfile.GatewayBaseUrl, "gateway-canary-" + suffix);
+        new("github-canary-" + suffix, DirectTargetBinding.GatewayBaseUrl, "gateway-canary-" + suffix);
 
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -90,10 +90,10 @@ public sealed class HttpDispatchTests
                 break;
             case "no-credentials": credentials = null; break;
             case "foreign-gateway": credentials = new("github-token", "https://gateway.example.test/v1", "gateway-key"); break;
-            case "gateway-suffix": credentials = new("github-token", NativeProfile.GatewayBaseUrl + "/", "gateway-key"); break;
-            case "blank-token": credentials = new("", NativeProfile.GatewayBaseUrl, "gateway-key"); break;
-            case "blank-key": credentials = new("github-token", NativeProfile.GatewayBaseUrl, " "); break;
-            case "oversized-token": credentials = new(new string('s', 4097), NativeProfile.GatewayBaseUrl, "gateway-key"); break;
+            case "gateway-suffix": credentials = new("github-token", DirectTargetBinding.GatewayBaseUrl + "/", "gateway-key"); break;
+            case "blank-token": credentials = new("", DirectTargetBinding.GatewayBaseUrl, "gateway-key"); break;
+            case "blank-key": credentials = new("github-token", DirectTargetBinding.GatewayBaseUrl, " "); break;
+            case "oversized-token": credentials = new(new string('s', 4097), DirectTargetBinding.GatewayBaseUrl, "gateway-key"); break;
             case "pin-missing": fixture.Git.Git("update-ref", "-d", attempt.B1.RetentionRef); break;
             case "pin-symbolic":
                 fixture.Git.Git("update-ref", "-d", attempt.B1.RetentionRef);
@@ -141,7 +141,7 @@ public sealed class HttpDispatchTests
         foreach (var (body, suffix) in target.Bodies.Zip(["first", "rotated"]))
         {
             await Assert.That(JsonNode.DeepEquals(body["connections"], JsonNode.Parse($$$"""
-                {"gateway":{"GATEWAY_BASE_URL":"{{{NativeProfile.GatewayBaseUrl}}}","GATEWAY_API_KEY":"gateway-canary-{{{suffix}}}"},"github":{"GH_TOKEN":"github-canary-{{{suffix}}}"}}
+                {"gateway":{"GATEWAY_BASE_URL":"{{{DirectTargetBinding.GatewayBaseUrl}}}","GATEWAY_API_KEY":"gateway-canary-{{{suffix}}}"},"github":{"GH_TOKEN":"github-canary-{{{suffix}}}"}}
                 """))).IsTrue();
             await Assert.That((string)body["githubToken"]!).IsEqualTo("github-canary-" + suffix);
             body.Remove("connections");

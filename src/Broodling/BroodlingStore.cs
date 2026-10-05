@@ -192,12 +192,8 @@ public sealed partial class BroodlingStore : IDisposable
     {
         if (string.IsNullOrWhiteSpace(path))
             throw new StoreStateException("invalid_store_path", "A filesystem store path is required.");
-        string current;
-        try { current = PhysicalPaths.Resolve(path); }
+        try { return PhysicalPaths.Resolve(path); }
         catch (IOException error) { throw new StoreStateException("invalid_store_path", error.Message); }
-        if (PhysicalPaths.IsWithinDisposable(current))
-            throw new StoreStateException("invalid_store_location", "The application store must outlive disposable Attempt worktrees.");
-        return current;
     }
 
     private static string Now() => DateTimeOffset.UtcNow.ToString("O");

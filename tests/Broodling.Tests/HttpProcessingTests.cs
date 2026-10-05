@@ -166,13 +166,13 @@ public sealed class HttpProcessingTests
         using (var caller = new CancellationTokenSource())
         {
             var stop = server.Client.PostAsJsonAsync($"/attempts/{attemptId}/stop", new { reason = "operator stop" }, caller.Token);
-            await ProvisioningProcessTests.WaitUntil(() => fixture.Store.GetAttempt(attemptId).Abandonment is not null);
+            await Polling.WaitUntil(() => fixture.Store.GetAttempt(attemptId).Abandonment is not null);
             await caller.CancelAsync();
             await Assert.That(async () => await stop).Throws<TaskCanceledException>();
             await Task.Delay(500);
         }
         discovery.SetResult();
-        await ProvisioningProcessTests.WaitUntil(() => target.Count("run/force") == 1);
+        await Polling.WaitUntil(() => target.Count("run/force") == 1);
         await Assert.That((string)target.Messages.Last(message => (string)message["method"]! == "run/force")["params"]!["runId"]!)
             .IsEqualTo(native.RunId);
 
@@ -251,23 +251,16 @@ public sealed class HttpProcessingTests
         using (fixture.Initialize()) { }
         var repositories = Directory.CreateDirectory(Path.Combine(fixture.Root, "service-repositories")).FullName;
         var direct = Path.Combine(fixture.Root, "direct.json");
-        File.WriteAllText(direct, new JsonObject { ["target"] = "direct", ["directOrigin"] = Origin(target) }.ToJsonString());
-        var local = Path.Combine(fixture.Root, "local.json");
-        File.WriteAllText(local, new JsonObject
-        {
-            ["target"] = "local", ["pythonExecutable"] = "/p", ["stateDirectory"] = "/s", ["workspaceRoot"] = "/w",
-            ["realCodex"] = "/c", ["profileHome"] = "/h", ["codexHome"] = "/x", ["launcher"] = "/l"
-        }.ToJsonString());
+        File.WriteAllText(direct, new JsonObject { ["directOrigin"] = Origin(target) }.ToJsonString());
         ProcessingPeers Peers(Func<ProgressionCredentials> credentials) => new(credentials, new FakeTimeProvider(),
             new GitHubIssueSource("/nonexistent/gh"), new GitHubRepositorySource("/nonexistent/gh"), null);
         var store = "--Broodling:Store=" + fixture.Path;
         foreach (var (arguments, credentials, code) in new (string[], Func<ProgressionCredentials>, string)[]
         {
             ([store, "--Broodling:RepositoryRoot=" + repositories], Credentials, "unsupported_runtime"),
-            ([store, "--Broodling:Invocation=" + local, "--Broodling:RepositoryRoot=" + repositories], Credentials, "unsupported_runtime"),
             ([store, "--Broodling:Invocation=" + direct, "--Broodling:RepositoryRoot=" + Path.Combine(fixture.Root, "missing")], Credentials, "unsupported_runtime"),
             ([store, "--Broodling:Invocation=" + direct, "--Broodling:RepositoryRoot=" + repositories],
-                () => Credentials() with { Gateway = new GatewayCredentials(NativeProfile.GatewayBaseUrl, null) }, "contract_proposer_error")
+                () => Credentials() with { Gateway = new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, null) }, "contract_proposer_error")
         })
         {
             var refused = await Assert.That(() => BroodlingHost.Build(arguments, Peers(credentials))).Throws<BroodlingException>();
@@ -301,7 +294,7 @@ public sealed class HttpProcessingTests
     }
 
     private static ProgressionCredentials Credentials() => new(new GitHubRepositoryCredentials("configured-token"),
-        new GatewayCredentials(NativeProfile.GatewayBaseUrl, "gateway-key"), HttpDispatchTests.Credentials());
+        new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, "gateway-key"), HttpDispatchTests.Credentials());
 
     private static ProcessingPeers Peers(PreparationFixture fixture, HttpMessageHandler gateway) =>
         new(Credentials, new FakeTimeProvider(), new GitHubIssueSource(fixture.Gh), fixture.Source, gateway);
@@ -345,13 +338,13 @@ public sealed class HttpProcessingTests
         {
             Directory.CreateDirectory(repositoryRoot);
             var configuration = Path.Combine(state.Root, "invocation.json");
-            File.WriteAllText(configuration, new JsonObject { ["target"] = "direct", ["directOrigin"] = Origin(target) }.ToJsonString());
+            File.WriteAllText(configuration, new JsonObject { ["directOrigin"] = Origin(target) }.ToJsonString());
             var app = BroodlingHost.Build(["--urls=http://127.0.0.1:0", "--Broodling:Store=" + state.Path,
                 "--Broodling:Invocation=" + configuration, "--Broodling:RepositoryRoot=" + repositoryRoot], peers);
             await app.StartAsync();
             var server = new Server(app, peers.Clock);
             // The startup scans have run, so nothing progresses until the test advances the clock.
-            if (started) await ProvisioningProcessTests.WaitUntil(() => server.Processing.Progressor.Scans > 0);
+            if (started) await Polling.WaitUntil(() => server.Processing.Progressor.Scans > 0);
             return server;
         }
 
@@ -360,7 +353,7 @@ public sealed class HttpProcessingTests
         internal JsonNode Get(string path) => JsonNode.Parse(Client.GetStringAsync(path).GetAwaiter().GetResult())!;
 
         /// <summary>Advance both services' scans until the condition holds.</summary>
-        internal Task Until(Func<bool> condition) => ProvisioningProcessTests.WaitUntil(() =>
+        internal Task Until(Func<bool> condition) => Polling.WaitUntil(() =>
         {
             if (condition()) return true;
             ((FakeTimeProvider)clock).Advance(SubmissionProgressor.Cadence);

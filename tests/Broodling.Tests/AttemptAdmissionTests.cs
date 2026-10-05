@@ -40,7 +40,6 @@ public sealed class AttemptAdmissionTests
             await Assert.That(attempt.B1.Repository).IsEqualTo(fixture.GitDirectory);
             await Assert.That(attempt.B1.MaterialSha256.Length).IsEqualTo(64);
             await Assert.That(fixture.Git("rev-parse", attempt.B1.RetentionRef).Trim()).IsEqualTo(fixture.Head);
-            await Assert.That(Directory.Exists(fixture.Workspaces)).IsFalse();
             var contract = store.GetContractRevision(fixture.RevisionId).Contract;
             newerRevision = store.RecordContractRevision(new(contract.WorkUnitId, contract.SourceAttribution,
                 [new("other", "A different task.")], requiredEffects: contract.RequiredEffects)).ContractRevisionId;
@@ -50,7 +49,7 @@ public sealed class AttemptAdmissionTests
         }
         fixture.Commit("moving HEAD must not change recorded B1\n");
         using var reopened = fixture.State.Open();
-        var replay = fixture.Admit(reopened, root: System.IO.Path.Combine(fixture.State.Root, "elsewhere"));
+        var replay = fixture.Admit(reopened);
         await Assert.That(replay).IsEqualTo(attempt);
         await Assert.That(reopened.GetAttempt(attempt.AttemptId)).IsEqualTo(attempt);
         await Assert.That(reopened.RequireCurrentAttempt(attempt.AttemptId)).IsEqualTo(attempt);
@@ -68,13 +67,13 @@ public sealed class AttemptAdmissionTests
     {
         using var fixture = new AttemptFixture();
         using var gate = new Barrier(2);
-        Task<AttemptRecord> Submit(string root) => Task.Run(() =>
+        Task<AttemptRecord> Submit() => Task.Run(() =>
         {
             using var store = fixture.State.Open();
             gate.SignalAndWait();
-            return fixture.Admit(store, root: root);
+            return fixture.Admit(store);
         });
-        var attempts = await Task.WhenAll(Submit(fixture.Workspaces), Submit(System.IO.Path.Combine(fixture.State.Root, "other-root")));
+        var attempts = await Task.WhenAll(Submit(), Submit());
         await Assert.That(attempts[0]).IsEqualTo(attempts[1]);
         var newer = fixture.Commit("different commit\n");
         using var reopened = fixture.State.Open();
@@ -112,7 +111,6 @@ public sealed class AttemptAdmissionTests
             fixture.State.Execute("DROP TRIGGER interrupt_allocation");
         }
         await Assert.That(fixture.Git("rev-parse", "refs/broodling/starting/" + fixture.Head).Trim()).IsEqualTo(fixture.Head);
-        await Assert.That(Directory.Exists(fixture.Workspaces)).IsFalse();
         using var reopened = fixture.State.Open();
         await Assert.That(reopened.Status(fixture.RevisionId).Attempts.Count).IsEqualTo(0);
         var attempt = fixture.Admit(reopened);
@@ -187,7 +185,7 @@ public sealed class AttemptAdmissionTests
             await Assert.That(store.History(ContractIngressTests.Reference).Single().Attempts.Single()).IsEqualTo(attempt);
         }
         foreach (var column in new[] { "attempt_id", "work_unit_id", "contract_revision_id", "b1_repository", "b1_commit_oid",
-            "b1_material_sha256", "b1_requested_revision", "workspace_root", "enclosure", "worktree_path", "branch", "admitted_at" })
+            "b1_material_sha256", "b1_requested_revision", "admitted_at" })
             await Assert.That(() => fixture.State.Execute($"UPDATE attempts SET {column} = 'changed'")).Throws<SqliteException>();
         await Assert.That(() => fixture.State.Execute("DELETE FROM attempts")).Throws<SqliteException>();
         await Assert.That(store.RequireCurrentAttempt(attempt.AttemptId)).IsEqualTo(attempt);
@@ -241,8 +239,7 @@ public sealed class AttemptAdmissionTests
             using var command = connection.CreateCommand();
             command.CommandText = $"""
                 {insert} INTO attempts SELECT 'other-attempt', $work, $revision, 1,
-                    b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision,
-                    workspace_root, enclosure, worktree_path, branch, admitted_at, resource_kind FROM attempts
+                    b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, admitted_at FROM attempts
                 """;
             command.Parameters.AddWithValue("$work", conflict == "current" ? attempt.WorkUnitId : other.WorkUnit.WorkUnitId);
             command.Parameters.AddWithValue("$revision", fixture.RevisionId);
@@ -261,7 +258,7 @@ public sealed class AttemptAdmissionTests
         await Assert.That(() => fixture.State.Execute("""
             INSERT OR REPLACE INTO attempts SELECT attempt_id, work_unit_id, contract_revision_id, is_current,
                 b1_repository, 'cccccccccccccccccccccccccccccccccccccccc', b1_material_sha256,
-                b1_requested_revision, workspace_root, enclosure, worktree_path, branch, admitted_at, resource_kind FROM attempts
+                b1_requested_revision, admitted_at FROM attempts
             """)).Throws<SqliteException>();
         var reference = WorkReference.Parse("acme/widget", 13);
         var other = store.AdmitSources(reference,
@@ -272,8 +269,7 @@ public sealed class AttemptAdmissionTests
         using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT OR REPLACE INTO attempts SELECT attempt_id, $work, $revision, 1,
-                b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision,
-                workspace_root, enclosure, worktree_path, branch, admitted_at, resource_kind FROM attempts
+                b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, admitted_at FROM attempts
             """;
         command.Parameters.AddWithValue("$work", other.WorkUnit.WorkUnitId);
         command.Parameters.AddWithValue("$revision", other.Revision.ContractRevisionId);
@@ -303,39 +299,19 @@ public sealed class AttemptAdmissionTests
             await Assert.That(store.Status(revision).Attempts.Count).IsEqualTo(0);
 
             attempt = store.AdmitHttpAttempt(revision, fixture.Repository, "main");
-            await Assert.That(attempt.ResourceKind).IsEqualTo(AttemptRecord.Http);
-            await Assert.That(attempt.WorktreeAllocation).IsNull();
-            await Assert.That(() => attempt.Allocation).Throws<WorktreeProvisioningError>();
             await Assert.That(attempt.B1).IsEqualTo(new OriginalB1(PhysicalPaths.Resolve(fixture.GitDirectory), fixture.Head,
                 Digests.AdmittedMaterial(store.GetContractRevision(revision).Contract.SourceAttribution), "main"));
             await Assert.That(store.AdmitHttpAttempt(revision, fixture.Repository, fixture.Head)).IsEqualTo(attempt);
-            // Authorized PR work is never a worktree Attempt, so it never becomes the retained HTTP Attempt's sibling.
-            await Assert.That(() => store.AdmitAttempt(revision, fixture.Repository, fixture.Workspaces)).Throws<AttemptAdmissionError>();
-            await Assert.That(() => store.ProvisionAttempt(attempt.AttemptId)).Throws<WorktreeProvisioningError>();
-            await Assert.That(() => store.PrepareSubmission(attempt.AttemptId, NativeFixture.Unused(Path.Combine(fixture.State.Root, "native"))))
-                .Throws<SubmissionNotReady>();
         }
         await Assert.That(fixture.LocalResources()).IsEqualTo(local);
         using var reopened = fixture.State.Open();
         await Assert.That(reopened.Status(revision).Attempts.Single()).IsEqualTo(attempt);
         await Assert.That(reopened.History(ContractIngressTests.Reference).Single(s => s.Revision.ContractRevisionId == revision).Attempts.Single())
             .IsEqualTo(attempt);
+        // The retained record names no local resource kind or allocation at all.
         var json = JsonSerializer.SerializeToElement(reopened.GetAttempt(attempt.AttemptId), new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        await Assert.That(json.GetProperty("resourceKind").GetString()).IsEqualTo("http");
-        await Assert.That(json.GetProperty("allocation").ValueKind).IsEqualTo(JsonValueKind.Null);
+        await Assert.That(string.Join(",", json.EnumerateObject().Select(member => member.Name)))
+            .IsEqualTo("attemptId,workUnitId,contractRevisionId,isCurrent,b1,admittedAt,abandonment,retirement,retry,completionRefusal");
     }
 
-    [Test]
-    public async Task SqlKeepsHttpResourceKindAndRefusesWorktreeFactsForIt()
-    {
-        using var fixture = new AttemptFixture();
-        using var store = fixture.State.Open();
-        var attempt = fixture.AdmitHttp(store);
-        foreach (var sql in new[] {
-            "UPDATE attempts SET resource_kind = 'worktree', workspace_root = '/w', enclosure = '/w/e', worktree_path = '/w/e/worktree', branch = 'broodling/e'",
-            "UPDATE attempts SET workspace_root = '/w'",
-            $"INSERT INTO worktree_provisions VALUES ('{attempt.AttemptId}', 'now')" })
-            await Assert.That(() => fixture.State.Execute(sql)).Throws<SqliteException>();
-        await Assert.That(store.GetAttempt(attempt.AttemptId)).IsEqualTo(attempt);
-    }
 }

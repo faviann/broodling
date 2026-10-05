@@ -6,13 +6,13 @@ namespace Broodling.Host;
 public static class InvocationCommands
 {
     public static async Task<int> RunAsync(string[] args, BroodlingApplication application, TextWriter output, TextWriter error,
-        CancellationToken cancellationToken = default, GitHubIssueSource? source = null, INativeTransport? transport = null)
+        CancellationToken cancellationToken = default, GitHubIssueSource? source = null)
     {
         if (!(args.Length == 10 && args[0] == "submit" || args.Length is >= 3 and <= 6 && args[0] == "resume"
             || args.Length is 3 or 4 && args[0] == "wait"
             || args.Length is 4 or 5 && args[0] == "stop"))
         {
-            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch|-> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [config.json] | stop <store> <attempt-id> <reason> [config.json]");
+            error.WriteLine("Usage: submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-branch> <reviewed-issue.json> <producer> | resume <store> <contract-revision-id> [config.json [checkout [revision]]] | wait <store> <attempt-id> [config.json] | stop <store> <attempt-id> <reason> [config.json]");
             return 2;
         }
         try
@@ -41,8 +41,7 @@ public static class InvocationCommands
                     return 0;
                 }
             }
-            // wait/stop take the same optional configuration; the retained record decides what applies:
-            // a LocalTarget record its pinned SDK Python, an HTTP record its DirectTarget root certificate.
+            // wait/stop take the same optional configuration, which supplies only the DirectTarget root certificate.
             var configPath = args[0] switch
             {
                 "submit" => args[2],
@@ -51,41 +50,26 @@ public static class InvocationCommands
                 _ => args.Length == 5 ? args[4] : null
             };
             var configuration = configPath is null ? null : InvocationConfiguration.Read(configPath);
-            using var store = application.OpenStore(args[1], (configuration as InvocationConfiguration.Direct)?.DirectRootCertificate);
-            transport ??= configuration is InvocationConfiguration.Local local ? new ZeroshotTransport(local.PythonExecutable) : null;
+            using var store = application.OpenStore(args[1], configuration?.DirectRootCertificate);
             if (args[0] is "wait" or "stop" && configuration is not null)
             {
                 // A supplied configuration must describe the retained target, refused before contact or
                 // abandonment. The retained binding, not the configuration, still decides where it connects.
-                var retainedKind = store.GetAttempt(args[2]).ResourceKind;
-                var retainedOrigin = store.FindSubmission(args[2])?.Locator.Address;
-                if (configuration is InvocationConfiguration.Direct direct
-                        ? retainedKind != AttemptRecord.Http || retainedOrigin is not null && retainedOrigin != direct.DirectOrigin
-                        : retainedKind != AttemptRecord.Worktree)
+                var retainedOrigin = store.FindSubmission(args[2])?.Origin;
+                if (retainedOrigin is not null && retainedOrigin != configuration.DirectOrigin)
                     throw new SubmissionConflict("The configured target differs from the retained Attempt's target.");
             }
             if (args[0] == "wait")
             {
-                // The store routes on the retained record; only a LocalTarget bridge record uses the transport.
-                var completion = await store.WaitAsync(args[2], transport, cancellationToken);
+                var completion = await store.WaitAsync(args[2], cancellationToken);
                 output.WriteLine(JsonSerializer.Serialize(completion, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return 0;
             }
             if (args[0] == "stop")
             {
-                // Without a bridge transport a LocalTarget run could be abandoned but never asked to stop.
-                if (transport is null && store.FindSubmission(args[2]) is { Format: NativeSubmission.Bridge, State: not "prepared" })
-                {
-                    error.WriteLine(JsonSerializer.Serialize(new
-                    {
-                        error = "python_required",
-                        message = "Stopping a dispatched LocalTarget run requires the LocalTarget config.json that names the pinned SDK Python. The Attempt was not abandoned."
-                    }));
-                    return 1;
-                }
                 string? refusal = null;
                 var exitCode = 0;
-                try { await store.StopAsync(args[2], args[3], transport, cancellationToken); }
+                try { await store.StopAsync(args[2], args[3], cancellationToken); }
                 catch (Exception exception)
                 {
                     refusal = exception is BroodlingException known ? known.Code : exception is OperationCanceledException ? "caller_detached" : "stop_failed";
@@ -95,13 +79,13 @@ public static class InvocationCommands
                 return exitCode;
             }
             AdmissionStatus status;
-            var invocation = new Invocation(store, configuration!.ToTarget(transport));
+            var invocation = new Invocation(store, configuration!.Target);
             var credentials = new DispatchCredentials(Environment.GetEnvironmentVariable("GH_TOKEN"),
                 Environment.GetEnvironmentVariable("GATEWAY_BASE_URL"), Environment.GetEnvironmentVariable("GATEWAY_API_KEY"));
             if (args[0] == "submit")
             {
                 var proposer = new ReviewedIssueProposal(File.ReadAllBytes(args[8]));
-                RequiredEffect[] effects = args[7] == "-" ? [] : [new("pr", "Deliver a pull request to the authorized target branch.", "pull_request", args[7])];
+                RequiredEffect[] effects = [new("pr", "Deliver a pull request to the authorized target branch.", "pull_request", args[7])];
                 status = await invocation.SubmitAsync(WorkReference.Parse(args[3], args[4]), proposer.Propose, effects,
                     args[5], args[6], constructedBy: args[9], credentials: credentials, source: source, cancellationToken: cancellationToken);
             }
@@ -126,7 +110,7 @@ public static class InvocationCommands
 
     /// <summary>
     /// Handback output: retained status with each submission reduced to its status facts. The frozen
-    /// request (with an HTTP Attempt's whole asset) stays in the store; status/history show it in full.
+    /// request (with its whole asset) stays in the store; status/history show it in full.
     /// </summary>
     private static void Write(AdmissionStatus status, TextWriter output)
     {
@@ -157,8 +141,7 @@ public static class InvocationCommands
 
     private static object? Summary(NativeSubmission? submission) => submission is null ? null : new
     {
-        submission.AttemptId, submission.Format, submission.State, submission.IntendedRunId, submission.RunId,
-        submission.ReplayBlockedReason
+        submission.AttemptId, submission.State, submission.IntendedRunId, submission.RunId, submission.ReplayBlockedReason
     };
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);

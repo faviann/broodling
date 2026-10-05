@@ -31,7 +31,7 @@ public sealed partial class BroodlingStore
     {
         using var command = Command("""
             SELECT attempt_id FROM attempts JOIN native_submissions USING (attempt_id)
-            WHERE is_current = 1 AND format = 'http.v1' AND state = 'correlated'
+            WHERE is_current = 1 AND state = 'correlated'
               AND attempt_id NOT IN (SELECT attempt_id FROM completion_refusals)
             ORDER BY attempts.rowid
             """);
@@ -64,14 +64,13 @@ public sealed partial class BroodlingStore
         var submission = ReadSubmission(attemptId, transaction);
         if (submission is not { State: "correlated", RunId: not null })
             throw new SubmissionNotReady("Completion requires an already-correlated native run; an unacknowledged submission is resumed, never waited on.");
-        // Reconstruct from admitted facts and frozen execution settings, never today's workspace/configuration.
-        ValidateFrozenInvocation(attempt, submission, transaction);
+        // Reconstruct from admitted facts and the retained asset, never today's installed files or configuration.
+        RequireRetainedHttpSubmission(attempt, submission, transaction);
         return submission;
     }
 
     /// <summary>Wait without a writer reservation; pin the accepted commit, then retain receipt, disposition and authority loss atomically.</summary>
-    /// <remarks>An HTTP record uses its retained binding and ignores any bridge transport.</remarks>
-    public async Task<AttemptCompletion> WaitAsync(string attemptId, INativeReader? transport, CancellationToken cancellationToken = default)
+    public async Task<AttemptCompletion> WaitAsync(string attemptId, CancellationToken cancellationToken = default)
     {
         if (FindCompletion(attemptId) is { } existing) return existing;
         NativeSubmission submitted;
@@ -82,10 +81,7 @@ public sealed partial class BroodlingStore
             transaction.Commit();
         }
         // Cancellation and transport errors detach the caller; neither abandons nor requests stop.
-        var result = submitted.Format == NativeSubmission.Http
-            ? await DirectTargetRun.WaitAsync(submitted.Run!, directTargetRoot, DirectTargetClock, cancellationToken)
-            : await (transport ?? throw new SubmissionNotReady("Waiting on a bridge run requires native transport."))
-                .WaitAsync(submitted.Run!, cancellationToken);
+        var result = await DirectTargetRun.WaitAsync(submitted.Run!, directTargetRoot, DirectTargetClock, cancellationToken);
         if (result.RunId != submitted.RunId) throw new ReceiptRefused("The result belongs to another native run.");
         if (!result.Succeeded)
         {
@@ -119,18 +115,14 @@ public sealed partial class BroodlingStore
 
     private static string AcceptedReceipt(NativeSubmission submitted, JsonElement output)
     {
-        var frozen = submitted.Frozen;
-        if (frozen.Delivery == "none")
-            throw new SubmissionNotReady("Zeroshot 10.3 no-effect runs provide no stable accepted result; local result handoff is an upstream capability gap.");
+        var source = submitted.Frozen.Source;
         string[] fields = ["version", "mode", "outcome", "repository", "targetBranch", "headRevision", "pullRequestId"];
         if (output.ValueKind != JsonValueKind.Object || output.EnumerateObject().Count() != fields.Length
             || fields.Any(field => !output.TryGetProperty(field, out var value) || value.ValueKind != JsonValueKind.String))
             throw new ReceiptRefused("The successful run returned no complete authorized delivery receipt.");
         var head = output.GetProperty("headRevision").GetString()!;
         var pr = output.GetProperty("pullRequestId").GetString()!;
-        var source = frozen.Source;
-        if (frozen.Delivery != "pull_request" || source is null
-            || output.GetProperty("version").GetString() != "v2"
+        if (output.GetProperty("version").GetString() != "v2"
             || output.GetProperty("mode").GetString() != "pr"
             || output.GetProperty("outcome").GetString() != "ready"
             || output.GetProperty("repository").GetString() != source.Repository

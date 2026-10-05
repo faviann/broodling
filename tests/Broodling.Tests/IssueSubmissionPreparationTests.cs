@@ -15,7 +15,7 @@ namespace Broodling.Tests;
 public sealed class IssueSubmissionPreparationTests
 {
     private static readonly GitHubRepositoryCredentials GitHub = new("configured-token");
-    private static readonly GatewayCredentials Credentials = new(NativeProfile.GatewayBaseUrl, "gateway-key");
+    private static readonly GatewayCredentials Credentials = new(DirectTargetBinding.GatewayBaseUrl, "gateway-key");
     private const string Proposal = """{"criteria": [{"criterionId": "export", "statement": "Export the data."}]}""";
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(60);
 

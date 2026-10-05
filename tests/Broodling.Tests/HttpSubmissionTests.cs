@@ -98,7 +98,6 @@ public sealed class HttpSubmissionTests
         // No target listens and no credentials exist: preparation needs neither.
         var prepared = fixture.Prepare();
 
-        await Assert.That(prepared.Format).IsEqualTo(NativeSubmission.Http);
         await Assert.That(prepared.State).IsEqualTo("prepared");
         await Assert.That(prepared.RunId).IsNull();
         await Assert.That(prepared.ReplayBlockedReason).IsNull();
@@ -137,14 +136,14 @@ public sealed class HttpSubmissionTests
             ["resultOrigin"] = "https://github.com/acme/widget.git",
             ["native"] = DirectTargetBinding.Native()
         })).IsTrue();
-        await Assert.That(prepared.Locator).IsEqualTo(new NativeLocator("direct", HttpFixture.Target, null));
+        await Assert.That(prepared.Origin).IsEqualTo(HttpFixture.Target);
 
         // Preparation is neither dispatch intent nor acceptance.
         var status = fixture.Store.Status(attempt.ContractRevisionId);
         await Assert.That(status.Submissions.Single()).IsEqualTo(prepared);
         await Assert.That(status.QuarantinedAttemptIds.Count).IsEqualTo(0);
         await Assert.That(fixture.Store.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(0);
-        await Assert.That(await fixture.Store.ObserveAsync(attempt.AttemptId, new ControlledTransport())).IsNull();
+        await Assert.That(await fixture.Store.ObserveAsync(attempt.AttemptId)).IsNull();
         await Assert.That(fixture.Git.Git("rev-parse", attempt.B1.RetentionRef).Trim()).IsEqualTo(attempt.B1.CommitOid);
         await Assert.That(fixture.Git.LocalResources()).IsEqualTo(local);
     }
@@ -186,10 +185,10 @@ public sealed class HttpSubmissionTests
     public async Task GitRemoteAuthorityDoesNotTreatCallerShorthandAsAGitHubOrigin()
     {
         foreach (var origin in new[] { "https://github.com/acme/widget.git", "git@github.com:acme/widget.git", "ssh://git@github.com/acme/widget" })
-            await Assert.That(NativeProfile.GitHubOriginRepository(origin)).IsEqualTo("acme/widget");
+            await Assert.That(BroodlingStore.GitHubOriginRepository(origin)).IsEqualTo("acme/widget");
         foreach (var origin in new[] { "acme/widget", "github.com/acme/widget", "/acme/widget", "https://other.invalid/acme/widget", "" })
-            await Assert.That(NativeProfile.GitHubOriginRepository(origin)).IsNull();
-        await Assert.That(NativeProfile.GitHubOriginRepository("https://github.com/ACME/Widget.git")).IsEqualTo("ACME/Widget");
+            await Assert.That(BroodlingStore.GitHubOriginRepository(origin)).IsNull();
+        await Assert.That(BroodlingStore.GitHubOriginRepository("https://github.com/ACME/Widget.git")).IsEqualTo("ACME/Widget");
     }
 
     [Test]
@@ -330,16 +329,11 @@ public sealed class HttpSubmissionTests
     }
 
     [Test]
-    public async Task PreparationKeepsAuthorityPauseAndBridgeBoundaries()
+    public async Task PreparationKeepsAuthorityAndPauseBoundaries()
     {
         using var fixture = new HttpFixture();
         var store = fixture.Store;
         var attempt = fixture.Attempt;
-        var profile = NativeFixture.Unused(Path.Combine(fixture.Git.State.Root, "native"));
-        // The bridge never prepares or dispatches an HTTP Attempt, and HTTP preparation never serves a worktree one.
-        await Assert.That(() => store.PrepareSubmission(attempt.AttemptId, profile)).Throws<SubmissionNotReady>();
-        await Assert.That(async () => await store.DispatchAsync(attempt.AttemptId, profile, new ControlledTransport()))
-            .Throws<SubmissionNotReady>();
         store.PauseInstallation();
         await Assert.That(() => fixture.Prepare()).Throws<InstallationPaused>();
         store.ReleaseInstallation();
@@ -347,7 +341,7 @@ public sealed class HttpSubmissionTests
         var prepared = fixture.Prepare();
 
         // Prepared-only history still yields the undispatched safety basis; nothing is deleted.
-        await Assert.That((await store.StopAsync(attempt.AttemptId, "operator ended", transport: null)).Basis).IsEqualTo("no_dispatch_intent");
+        await Assert.That((await store.StopAsync(attempt.AttemptId, "operator ended")).Basis).IsEqualTo("no_dispatch_intent");
         await Assert.That(() => fixture.Prepare()).Throws<StaleAttempt>();
         store.RetireAttempt(attempt.AttemptId);
         store.PauseInstallation(); // The explicit replacement may be admitted and prepared, never dispatched, while paused.
@@ -357,12 +351,6 @@ public sealed class HttpSubmissionTests
         await Assert.That(JsonNode.Parse(replacement.RequestJson)!["submission"]!["source"]!.ToJsonString())
             .IsEqualTo(JsonNode.Parse(prepared.RequestJson)!["submission"]!["source"]!.ToJsonString());
         await Assert.That(store.FindSubmission(attempt.AttemptId)).IsEqualTo(prepared);
-
-        using var worktree = new AttemptFixture();
-        using var local = worktree.State.Open();
-        var owned = worktree.Admit(local);
-        await Assert.That(() => local.PrepareHttpSubmission(owned.AttemptId, HttpFixture.Target, ExecutionAsset.LoadBundled))
-            .Throws<SubmissionNotReady>();
     }
 
     [Test]
@@ -373,7 +361,7 @@ public sealed class HttpSubmissionTests
         fixture.Prepare();
         fixture.Git.State.Execute("UPDATE native_submissions SET state = 'dispatched'");
         await Assert.That(fixture.Store.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(1);
-        await Assert.That(async () => await fixture.Store.StopAsync(attempt.AttemptId, "ended", transport: null))
+        await Assert.That(async () => await fixture.Store.StopAsync(attempt.AttemptId, "ended"))
             .Throws<CessationUnconfirmed>();
         await Assert.That(() => fixture.Git.State.Execute(
             $"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ('{attempt.AttemptId}', 'no_dispatch_intent', 'now')")).Throws<SqliteException>();
@@ -398,9 +386,9 @@ public sealed class HttpSubmissionTests
         foreach (var change in new[]
         {
             "request_json = json_set(request_json, '$.submission.title', 'other')", $"intended_run_id = '{other}'",
-            "asset_sha256 = NULL", "binding_json = '{}'", "format = 'bridge'", "submission_key = 'other'",
-            // A prepared record implies no dispatch, correlation, conflict or bridge block.
-            $"state = 'correlated', run_id = '{intended}'", "replay_blocked_reason = 'submission_conflict'", "state = 'blocked'"
+            "asset_sha256 = NULL", "binding_json = '{}'", "submission_key = 'other'",
+            // A prepared record implies no dispatch, correlation or conflict.
+            $"state = 'correlated', run_id = '{intended}'", "replay_blocked_reason = 'submission_conflict'"
         })
             await Refused("UPDATE native_submissions SET " + change);
         await Refused("DELETE FROM native_submissions");
@@ -417,7 +405,6 @@ public sealed class HttpSubmissionTests
         await Assert.That(fixture.Store.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(1);
         await Refused($"UPDATE native_submissions SET state = 'correlated', run_id = '{intended}', replay_blocked_reason = NULL");
         await Refused($"UPDATE native_submissions SET state = 'correlated', run_id = '{other}'");
-        await Refused("UPDATE native_submissions SET state = 'blocked'");
         fixture.Git.State.Execute($"UPDATE native_submissions SET state = 'correlated', run_id = '{intended}'");
         await Refused("UPDATE native_submissions SET state = 'dispatched', run_id = NULL");
         await Refused($"UPDATE native_submissions SET run_id = '{other}'");
@@ -428,7 +415,7 @@ public sealed class HttpSubmissionTests
         await Assert.That(correlated.ReplayBlockedReason).IsEqualTo("submission_conflict");
         await Assert.That(fixture.Store.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(0);
         // The retained binding names the confirmed run for later read/stop; completion accepts the HTTP representation.
-        await Assert.That(correlated.Run).IsEqualTo(new NativeRunBinding(new("direct", HttpFixture.Target, null), intended,
+        await Assert.That(correlated.Run).IsEqualTo(new NativeRunBinding(HttpFixture.Target, intended,
             "Broodling Attempt " + attempt.AttemptId, "small", new("acme/widget", "main", attempt.B1.CommitOid)));
         Complete();
         await Assert.That(fixture.Store.FindCompletion(attempt.AttemptId)!.RunId).IsEqualTo(intended);
@@ -439,18 +426,13 @@ public sealed class HttpSubmissionTests
     {
         using var fixture = new HttpFixture();
         var attempt = fixture.Attempt;
-        // A bridge worktree Attempt of a second Work Unit, dispatched but not yet correlated.
+        // A second Work Unit's HTTP Attempt, dispatched but not yet correlated.
         var reference = WorkReference.Parse("acme/widget", 13);
         var revision = fixture.Store.AdmitSources(reference, [new("primary_issue", reference.IssueLocator,
-            "Another request.\n"u8.ToArray(), entitlement: new("caller", "Reviewed"))], ContractIngressTests.Propose, []).Revision;
-        var bridge = fixture.Store.AdmitAttempt(revision.ContractRevisionId, fixture.Git.Repository, fixture.Git.Workspaces, fixture.Git.Head);
-        fixture.Git.State.Execute($"""
-            INSERT INTO worktree_provisions VALUES ('{bridge.AttemptId}', 'now');
-            INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state)
-                VALUES ('{bridge.AttemptId}', 'bridge', 'bridge-key', json_object(), 'prepared');
-            UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = '{bridge.AttemptId}';
-            """);
-        var confirmed = Guid.CreateVersion7().ToString();
+            "Another request.\n"u8.ToArray(), entitlement: new("caller", "Reviewed"))], ContractIngressTests.Propose, ContractIngressTests.PullRequest).Revision;
+        var other = fixture.Store.AdmitHttpAttempt(revision.ContractRevisionId, fixture.Git.Repository, fixture.Git.Head);
+        var sent = fixture.Prepare(attemptId: other.AttemptId);
+        fixture.Git.State.Execute($"UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = '{other.AttemptId}'");
 
         using (var connection = fixture.Git.State.Connect())
         using (var transaction = connection.BeginTransaction())
@@ -472,22 +454,22 @@ public sealed class HttpSubmissionTests
                 command.Parameters.AddWithValue("$binding", new JsonObject { ["repository"] = attempt.B1.Repository }.ToJsonString());
                 command.ExecuteNonQuery();
             }
-            Run($"UPDATE native_submissions SET state = 'correlated', run_id = $intended WHERE attempt_id = '{bridge.AttemptId}'", confirmed);
-            Run($"INSERT INTO execution_assets VALUES ('{new string('0', 64)}', X'00')", confirmed);
-            const string insert = """
-                INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state, intended_run_id, asset_sha256, binding_json)
-                SELECT attempt_id, 'http.v1', 'broodling:http:v1:' || attempt_id, $request, 'prepared', $intended, '0000000000000000000000000000000000000000000000000000000000000000', $binding
-                FROM attempts WHERE resource_kind = 'http'
+            var insert = $"""
+                INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256, binding_json)
+                VALUES ('{attempt.AttemptId}', 'broodling:http:v1:{attempt.AttemptId}', $request, 'prepared', $intended, '{sent.AssetSha256}', $binding)
                 """;
-            await Assert.That(() => Run(insert, confirmed)).Throws<SqliteException>();
+            // Another Attempt's intended identity, confirmed or not, is never reserved twice.
+            await Assert.That(() => Run(insert, sent.IntendedRunId)).Throws<SqliteException>();
             Run(insert, Guid.CreateVersion7().ToString()); // Only the identity collision was refused.
             transaction.Rollback();
         }
 
         var prepared = fixture.Prepare();
+        // Correlation confirms only the row's own intended identity, so no run is ever another Attempt's execution.
         await Assert.That(() => fixture.Git.State.Execute(
-            $"UPDATE native_submissions SET state = 'correlated', run_id = '{prepared.IntendedRunId}' WHERE attempt_id = '{bridge.AttemptId}'"))
+            $"UPDATE native_submissions SET state = 'correlated', run_id = '{prepared.IntendedRunId}' WHERE attempt_id = '{other.AttemptId}'"))
             .Throws<SqliteException>();
-        fixture.Git.State.Execute($"UPDATE native_submissions SET state = 'correlated', run_id = '{confirmed}' WHERE attempt_id = '{bridge.AttemptId}'");
+        fixture.Git.State.Execute($"UPDATE native_submissions SET state = 'correlated', run_id = '{sent.IntendedRunId}' WHERE attempt_id = '{other.AttemptId}'");
+        await Assert.That(fixture.Store.FindSubmission(other.AttemptId)!.RunId).IsEqualTo(sent.IntendedRunId);
     }
 }

@@ -23,33 +23,25 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// Read the run's progress through retained facts, without credentials or writes. Null means no
-    /// run can be addressed, so nothing is contacted. An HTTP record with dispatch intent but no
+    /// run can be addressed, so nothing is contacted. A record with dispatch intent but no
     /// acknowledgement is read by its intended ID; that read never establishes correlation.
     /// </summary>
-    public Task<NativeObservation?> ObserveAsync(string attemptId, INativeReader? transport,
-        CancellationToken cancellationToken = default) =>
-        ObserveAsync(attemptId, transport, DirectTargetLimits.Progress, cancellationToken);
+    public Task<NativeObservation?> ObserveAsync(string attemptId, CancellationToken cancellationToken = default) =>
+        ObserveAsync(attemptId, DirectTargetLimits.Progress, cancellationToken);
 
-    internal async Task<NativeObservation?> ObserveAsync(string attemptId, INativeReader? transport, TimeSpan bound,
-        CancellationToken cancellationToken)
+    internal async Task<NativeObservation?> ObserveAsync(string attemptId, TimeSpan bound, CancellationToken cancellationToken)
     {
         GetAttempt(attemptId);
-        var submission = FindSubmission(attemptId);
-        var (run, identity) = submission switch
+        var (run, identity) = FindSubmission(attemptId) switch
         {
             { Run: { } confirmed } => (confirmed, NativeRunIdentity.Confirmed),
-            { Format: NativeSubmission.Http, State: "dispatched" } => (submission.Frozen.Run(submission.IntendedRunId!), NativeRunIdentity.Intended),
+            { State: "dispatched" } submission => (submission.Frozen.Run(submission.IntendedRunId), NativeRunIdentity.Intended),
             _ => (null, NativeRunIdentity.Confirmed)
         };
         if (run is null) return null;
         try
         {
-            NativeProgress progress;
-            if (submission!.Format == NativeSubmission.Http)
-                progress = await DirectTargetRun.ProgressAsync(run, directTargetRoot, bound, DirectTargetClock, cancellationToken);
-            else
-                progress = await (transport ?? throw new SubmissionNotReady("Observing a bridge run requires native transport."))
-                    .StatusAsync(run, bound, cancellationToken);
+            var progress = await DirectTargetRun.ProgressAsync(run, directTargetRoot, bound, DirectTargetClock, cancellationToken);
             return new NativeObservation.Available(DateTimeOffset.UtcNow, identity, progress);
         }
         catch (NativeTransportError error) { return new NativeObservation.Unavailable(DateTimeOffset.UtcNow, identity, error.Kind); }

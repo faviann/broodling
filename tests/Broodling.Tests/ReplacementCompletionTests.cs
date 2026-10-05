@@ -28,12 +28,11 @@ public sealed class ReplacementCompletionTests
             command.CommandText = $"""
                 DROP TRIGGER attempts_no_abandoned_work;
                 INSERT INTO attempts SELECT 'historical-completed', work_unit_id, contract_revision_id, 1,
-                    b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, workspace_root,
-                    enclosure, worktree_path, branch, admitted_at, resource_kind FROM attempts;
+                    b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, admitted_at FROM attempts;
                 {guard};
-                INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state, intended_run_id,
+                INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id,
                     asset_sha256, binding_json)
-                    SELECT 'historical-completed', format, 'broodling:http:v1:historical-completed',
+                    SELECT 'historical-completed', 'broodling:http:v1:historical-completed',
                     json_set(request_json, '$.runId', $run, '$.submission.submissionKey', 'broodling:http:v1:historical-completed'),
                     'prepared', $run, asset_sha256, binding_json FROM native_submissions;
                 UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = 'historical-completed';
@@ -57,13 +56,13 @@ public sealed class ReplacementCompletionTests
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "INSERT INTO attempt_retries VALUES ('sql-retry', $predecessor, 'sql-successor', NULL, NULL, 'now')";
+            command.CommandText = "INSERT INTO attempt_retries VALUES ('sql-retry', $predecessor, 'sql-successor', 'now')";
             command.Parameters.AddWithValue("$predecessor", original.AttemptId);
             command.ExecuteNonQuery(); // Valid safe lineage: the abandoned-work exception applies.
             command.CommandText = """
                 INSERT INTO attempts SELECT 'sql-successor', work_unit_id, contract_revision_id, 1,
                     b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision,
-                    NULL, NULL, NULL, NULL, 'now', resource_kind
+                    'now'
                     FROM attempts WHERE attempt_id = $predecessor
                 """;
             SqliteException? refusal = null;
@@ -87,7 +86,7 @@ public sealed class ReplacementCompletionTests
         await ReplacementTests.SafeRetire(store, original);
         var successor = store.AdmitRetry(original.AttemptId, "completed-key");
         await fixture.Dispatch(successor.AttemptId);
-        var completion = await store.WaitAsync(successor.AttemptId, null);
+        var completion = await store.WaitAsync(successor.AttemptId);
         using var reopened = fixture.Git.State.Open();
         var historical = reopened.AdmitRetry(original.AttemptId, "completed-key");
         await Assert.That(historical.AttemptId).IsEqualTo(successor.AttemptId);
@@ -95,7 +94,7 @@ public sealed class ReplacementCompletionTests
         await Assert.That(() => reopened.PrepareHttpSubmission(successor.AttemptId, fixture.Origin)).Throws<StaleAttempt>();
         // A correlated record is handed back as a retained fact; nothing is sent.
         await Assert.That((await reopened.DispatchHttpAsync(successor.AttemptId, null)).State).IsEqualTo("correlated");
-        await Assert.That(async () => await reopened.StopAsync(successor.AttemptId, "too late", null)).Throws<StaleAttempt>();
+        await Assert.That(async () => await reopened.StopAsync(successor.AttemptId, "too late")).Throws<StaleAttempt>();
         await Assert.That(fixture.Target.Stages.Contains("run")).IsFalse();
         await Assert.That(fixture.Target.Count("run/force")).IsEqualTo(0);
         await Assert.That(() => reopened.RetireAttempt(successor.AttemptId)).Throws<CessationUnconfirmed>();

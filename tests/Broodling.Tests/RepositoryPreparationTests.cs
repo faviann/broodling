@@ -183,7 +183,6 @@ public sealed class RepositoryPreparationTests
         await Assert.That(() => store.AdmitHttpAttempt(admitted.Revision.ContractRevisionId, prepared.Repository,
             "refs/broodling/upstream/main")).Throws<AttemptAdmissionError>();
         var attempt = store.AdmitHttpAttempt(submission.SubmissionId);
-        await Assert.That(attempt.ResourceKind).IsEqualTo(AttemptRecord.Http);
         await Assert.That(RunGit(prepared.Repository, "rev-parse", "refs/broodling/starting/" + prepared.StartingCommit).Trim())
             .IsEqualTo(prepared.StartingCommit);
         await Assert.That(attempt.B1.Repository).IsEqualTo(prepared.Repository);

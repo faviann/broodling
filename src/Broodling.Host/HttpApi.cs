@@ -127,7 +127,7 @@ internal static class HttpApi
         {
             if (string.IsNullOrWhiteSpace(request.Reason)) return ReasonRequired();
             Exception? failure = null;
-            try { await store.CancelIssueSubmissionAsync(id, request.Reason, null, stopping); }
+            try { await store.CancelIssueSubmissionAsync(id, request.Reason, stopping); }
             catch (Exception stop) { failure = stop; }
             var submission = store.GetIssueSubmission(id);
             var committed = submission.Cancellation is not null;
@@ -142,15 +142,8 @@ internal static class HttpApi
         app.MapPost("/attempts/{id}/stop", (string id, StopRequest request) => Operate(async (store, _) =>
         {
             if (string.IsNullOrWhiteSpace(request.Reason)) return ReasonRequired();
-            // Without a bridge transport a LocalTarget run could be abandoned but never asked to stop.
-            if (store.FindSubmission(id) is { Format: NativeSubmission.Bridge, State: not "prepared" })
-                return Results.Json(new
-                {
-                    error = "python_required",
-                    message = "Stopping a dispatched LocalTarget run requires the release artifact's stop command with its LocalTarget config.json. The Attempt was not abandoned."
-                }, Json, statusCode: 409);
             Exception? failure = null;
-            try { await store.StopAsync(id, request.Reason, null, stopping); }
+            try { await store.StopAsync(id, request.Reason, stopping); }
             catch (Exception stop) { failure = stop; }
             var committed = store.GetAttempt(id) is { Abandonment: not null } or { Retirement: not null };
             return Results.Json(InvocationCommands.StopReport(store, id, StopRefusal(failure, committed)), Json,
@@ -182,11 +175,8 @@ internal static class HttpApi
     private static async Task<object?> Observe(BroodlingStore store, string attemptId)
     {
         if (store.FindCompletion(attemptId) is not null) return null;
-        NativeObservation? observation;
         // The read's own bound applies; a disconnected reader only wastes it.
-        try { observation = await store.ObserveAsync(attemptId, null, CancellationToken.None); }
-        // A dispatched LocalTarget run is observed only through its pinned SDK bridge, which the server lacks.
-        catch (SubmissionNotReady) { observation = new NativeObservation.Unavailable(DateTimeOffset.UtcNow, NativeRunIdentity.Confirmed, "python_required"); }
+        var observation = await store.ObserveAsync(attemptId, CancellationToken.None);
         var identity = observation?.Identity == NativeRunIdentity.Intended ? "intended" : "confirmed";
         return observation switch
         {

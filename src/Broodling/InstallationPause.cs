@@ -6,9 +6,8 @@ namespace Broodling;
 /// Persisted pause state. Admission, preparation and dispatch check the pause in the
 /// same SQLite write transaction that commits them, so none can take effect after a
 /// pause commits. <see cref="UnresolvedDispatches"/> counts durable <c>dispatched</c>
-/// submissions without correlation, including HTTP submissions with a retained conflict
-/// or an abandoned Attempt; that uncertainty can remain forever. A bridge <c>blocked</c>
-/// row is not counted. <see cref="InFlightInitiationDrained"/> is a point-in-time local
+/// submissions without correlation, including submissions with a retained conflict or an
+/// abandoned Attempt; that uncertainty can remain forever. <see cref="InFlightInitiationDrained"/> is a point-in-time local
 /// fact: no process holds the initiation lock that every dispatch takes before its intent
 /// commits. It fences nothing remote: a request a target already buffered can still create
 /// a run after its HTTP caller died. Neither proves that a native process, target request
@@ -70,11 +69,10 @@ public sealed partial class BroodlingStore
         var control = ReadInstallationControl(transaction);
         using var command = Command("SELECT count(*) FROM native_submissions WHERE state = 'dispatched'", transaction);
         return new(control.IsPaused, control.ChangedAt, Convert.ToInt32(command.ExecuteScalar()),
-            AdministrativeGitProcess.EnclosureLock.IsFree(Path));
+            InitiationLock.IsFree(Path));
     }
 
-    private AdministrativeGitProcess.EnclosureLock HoldInitiation() =>
-        AdministrativeGitProcess.EnclosureLock.AcquireExisting(Path, shared: true);
+    private InitiationLock HoldInitiation() => InitiationLock.AcquireExisting(Path, shared: true);
 
     private (bool IsPaused, string ChangedAt) ReadInstallationControl(SqliteTransaction? transaction)
     {

@@ -107,7 +107,7 @@ public sealed class RevisionTests
         var messages = revisions.Target.Messages.Count;
         var replayed = await store.CancelIssueSubmissionAsync(first, "Revise the request.");
         await Assert.That(replayed.Cancellation!.AttemptId).IsEqualTo(dispatched);
-        await Assert.That((await store.StopAsync(dispatched, "again", null)).Basis).IsEqualTo("stopped_target");
+        await Assert.That((await store.StopAsync(dispatched, "again")).Basis).IsEqualTo("stopped_target");
         await Assert.That(store.RequireCurrentAttempt(successor.AttemptId).Abandonment).IsNull();
         await Assert.That(revisions.Target.Messages.Count).IsEqualTo(messages);
     }
@@ -208,7 +208,7 @@ public sealed class RevisionTests
         await revisions.Continue(second);
         var failed = store.GetIssueSubmission(second).AttemptIds.Single();
         revisions.Finish(failed, "failed", "runtime_failed");
-        await Assert.That(async () => await store.WaitAsync(failed, null)).Throws<SubmissionNotReady>();
+        await Assert.That(async () => await store.WaitAsync(failed)).Throws<SubmissionNotReady>();
         // The earlier revision's success does not hold back replacing the later revision's own Attempt.
         revisions.Retire(failed, release: false);
         var replacement = store.PrepareRetry(failed, "after-failure").AttemptId;
@@ -274,11 +274,11 @@ public sealed class RevisionTests
         }
 
         internal Task<IssueSubmissionPreparation> Prepare(string submissionId) => preparer.PrepareAsync(submissionId,
-            new GitHubRepositoryCredentials("configured-token"), new GatewayCredentials(NativeProfile.GatewayBaseUrl, "gateway-key"));
+            new GitHubRepositoryCredentials("configured-token"), new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, "gateway-key"));
 
         /// <summary>What progression does next for an admitted submission: allocate, prepare and dispatch or replay.</summary>
         internal Task<AdmissionStatus> Continue(string submissionId) =>
-            new Invocation(Store, new InvocationTarget.Direct(Target.Origin.GetLeftPart(UriPartial.Authority)))
+            new Invocation(Store, new InvocationTarget(Target.Origin.GetLeftPart(UriPartial.Authority)))
                 .ResumeSubmissionAsync(submissionId, HttpDispatchTests.Credentials());
 
         internal void Finish(string attemptId, string status, object detail)
@@ -295,14 +295,14 @@ public sealed class RevisionTests
             var head = AttemptFixture.RunGit(Fixture.ServiceRepository, "commit-tree", source.Revision + "^{tree}",
                 "-p", source.Revision, "-m", message).Trim();
             Finish(attemptId, "succeeded", CompletionFixture.Receipt(head: head));
-            return Store.WaitAsync(attemptId, null);
+            return Store.WaitAsync(attemptId);
         }
 
         /// <summary>The host maintenance procedure's retirement: pause, verify the stopped target, retire.</summary>
         internal void Retire(string attemptId, bool release = true)
         {
             Store.PauseInstallation();
-            Store.RetireStoppedTargetAttempt(attemptId, new StoppedTargetCheck(Store.FindSubmission(attemptId)!.Locator.Address,
+            Store.RetireStoppedTargetAttempt(attemptId, new StoppedTargetCheck(Store.FindSubmission(attemptId)!.Origin,
                 "broodling-target", "/srv/broodling/target-state", "/srv/broodling/target-home", DateTimeOffset.UtcNow));
             if (release) Store.ReleaseInstallation();
         }

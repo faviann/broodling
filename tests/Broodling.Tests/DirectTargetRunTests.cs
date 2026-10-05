@@ -63,16 +63,12 @@ public sealed class DirectTargetRunTests
     }
 
     [Test]
-    [Arguments("local", "http://127.0.0.1:{port}")]
-    [Arguments("direct", "http://localhost:{port}")]
-    [Arguments("direct", "no-source")]
-    public async Task UnsupportedBindingsAreRefusedBeforeContact(string kind, string address)
+    [Arguments("http://localhost:{port}")]
+    [Arguments("https://user@127.0.0.1:{port}")]
+    public async Task UnsupportedBindingsAreRefusedBeforeContact(string address)
     {
         await using var target = new StockTarget();
-        var binding = address == "no-source"
-            ? Binding(target.Origin) with { Source = null }
-            : new NativeRunBinding(new NativeLocator(kind, address.Replace("{port}", target.Origin.Port.ToString())), RunId,
-                "Fix the widget", "small", Source);
+        var binding = new NativeRunBinding(address.Replace("{port}", target.Origin.Port.ToString()), RunId, "Fix the widget", "small", Source);
         await Assert.That(async () => await DirectTargetRun.ProgressAsync(binding, null, DirectTargetLimits.Progress, new FakeTimeProvider(), default))
             .Throws<UnsupportedRuntime>();
         await Assert.That(target.Connections).IsEqualTo(0);
@@ -280,7 +276,7 @@ public sealed class DirectTargetRunTests
     }
 
     internal static NativeRunBinding Binding(Uri origin) =>
-        new(new NativeLocator("direct", origin.GetLeftPart(UriPartial.Authority)), RunId, "Fix the widget", "small", Source);
+        new(origin.GetLeftPart(UriPartial.Authority), RunId, "Fix the widget", "small", Source);
 
     private static Task<NativeProgress> Progress(StockTarget target) =>
         DirectTargetRun.ProgressAsync(Binding(target.Origin), null, DirectTargetLimits.Progress, new FakeTimeProvider(), default);

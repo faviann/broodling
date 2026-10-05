@@ -24,7 +24,7 @@ internal static class TargetImage
     {
         var tag = "broodling-stock-target-test:" + Guid.NewGuid().ToString("N");
         RequireSuccess(await DockerCommand("build", "--tag", tag, "--build-arg", "BASE=" + image,
-            Path.Combine(NativeFixture.RepositoryRoot, "tests", "fixtures", "stock-target")));
+            Path.Combine(TestRepository.Root, "tests", "fixtures", "stock-target")));
         lock (built) built.Add(tag);
         return tag;
     });
@@ -48,7 +48,7 @@ internal static class TargetImage
     private static async Task<string> BuildDirect()
     {
         if (Environment.GetEnvironmentVariable("BROODLING_TEST_TARGET_IMAGE") is { Length: > 0 } candidate) return candidate;
-        var deployment = Path.Combine(NativeFixture.RepositoryRoot, "deployment");
+        var deployment = Path.Combine(TestRepository.Root, "deployment");
         var tag = "broodling-startup-test:" + Guid.NewGuid().ToString("N");
         RequireSuccess(await DockerCommand("build", "--tag", tag, "--file", Path.Combine(deployment, "DirectTarget.Dockerfile"), deployment));
         lock (built) built.Add(tag);

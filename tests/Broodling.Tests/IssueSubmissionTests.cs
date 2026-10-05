@@ -160,8 +160,7 @@ public sealed class IssueSubmissionTests
         {
             var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
             store.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId);
-            cancelled = await store.CancelIssueSubmissionAsync(submission.SubmissionId,
-                "caller withdrew the request", null);
+            cancelled = await store.CancelIssueSubmissionAsync(submission.SubmissionId, "caller withdrew the request");
 
             await Assert.That(cancelled.State).IsEqualTo("cancelled");
             await Assert.That(cancelled.ContractRevisionId).IsEqualTo(fixture.RevisionId);
@@ -247,7 +246,7 @@ public sealed class IssueSubmissionTests
                 + $"VALUES ('{secondSubmissionId}', '{first.WorkUnitId}', 2, '{first.IssueUrl}', 'accepted', '{attempt.ContractRevisionId}', '{first.ReceivedAt}')");
             var survivorBeforeCancellation = store.GetIssueSubmission(secondSubmissionId);
 
-            firstCancelled = await store.CancelIssueSubmissionAsync(first.SubmissionId, "withdraw first shared ticket", null);
+            firstCancelled = await store.CancelIssueSubmissionAsync(first.SubmissionId, "withdraw first shared ticket");
             await Assert.That(firstCancelled.State).IsEqualTo("cancelled");
             await Assert.That(firstCancelled.Cancellation!.AttemptId).IsNull();
             var survivorAfterCancellation = store.GetIssueSubmission(secondSubmissionId);
@@ -275,11 +274,11 @@ public sealed class IssueSubmissionTests
         };
         target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(dispatched, "failed", "force_stopped"));
 
-        await Assert.That(async () => await reopened.CancelIssueSubmissionAsync(secondSubmissionId,
-            "withdraw last shared ticket", null)).Throws<CessationUnconfirmed>();
+        await Assert.That(async () => await reopened.CancelIssueSubmissionAsync(secondSubmissionId, "withdraw last shared ticket"))
+            .Throws<CessationUnconfirmed>();
         await Assert.That(committedFirst).IsTrue();
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
-        var replayedFirst = await reopened.CancelIssueSubmissionAsync(first.SubmissionId, "replayed first shared ticket", null);
+        var replayedFirst = await reopened.CancelIssueSubmissionAsync(first.SubmissionId, "replayed first shared ticket");
         await Assert.That(replayedFirst.State).IsEqualTo(firstCancelled.State);
         await Assert.That(replayedFirst.Cancellation!.AttemptId).IsNull();
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
@@ -340,13 +339,13 @@ public sealed class IssueSubmissionTests
         reopened.RetireAttempt(original.AttemptId);
         var successor = reopened.AdmitRetry(original.AttemptId, "after-cancellation");
 
-        var replayed = await reopened.CancelIssueSubmissionAsync(first.SubmissionId, "replayed first cancellation", null);
+        var replayed = await reopened.CancelIssueSubmissionAsync(first.SubmissionId, "replayed first cancellation");
         await Assert.That(replayed.Cancellation!.AttemptId).IsNull();
         await Assert.That(reopened.GetAttempt(original.AttemptId).Abandonment!.Reason).IsEqualTo("withdraw last");
         await Assert.That(reopened.GetAttempt(successor.AttemptId).IsCurrent).IsTrue();
         await Assert.That(reopened.FindRetirement(successor.AttemptId)).IsNull();
 
-        var replayedLast = await reopened.CancelIssueSubmissionAsync(secondSubmissionId, "replayed last cancellation", null);
+        var replayedLast = await reopened.CancelIssueSubmissionAsync(secondSubmissionId, "replayed last cancellation");
         await Assert.That(replayedLast.Cancellation!.AttemptId).IsEqualTo(original.AttemptId);
         await Assert.That(reopened.GetAttempt(successor.AttemptId).IsCurrent).IsTrue();
         await Assert.That(reopened.FindRetirement(successor.AttemptId)).IsNull();

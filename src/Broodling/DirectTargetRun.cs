@@ -5,6 +5,11 @@ using Zeroshot.Native.Contracts;
 
 namespace Broodling;
 
+public sealed record NativeResult(string RunId, bool Succeeded, JsonElement Output, string? Failure);
+
+/// <summary>The SDK's current run phase and the nodes of its active executions.</summary>
+public sealed record NativeProgress(string Phase, IReadOnlyList<string> ActiveNodes);
+
 /// <summary>Whether a stop sent force: never, possibly without a confirmed outcome, or with a terminal result.</summary>
 internal enum DirectTargetForce { NotSent, Uncertain, Terminal }
 
@@ -87,13 +92,12 @@ internal static class DirectTargetRun
     }
 
     /// <summary>
-    /// The one place a retained binding names its target: the direct locator's canonical origin, HTTPS or
-    /// HTTP to exactly 127.0.0.1 or [::1], with a frozen PR source, addressed through the DirectTarget binding.
+    /// The one place a retained binding names its target: its canonical origin, HTTPS or HTTP to exactly
+    /// 127.0.0.1 or [::1], addressed through the DirectTarget binding.
     /// </summary>
     private static (ZeroshotClient Client, Run Handle) Reconnect(NativeRunBinding run, string? rootCertificate)
     {
-        if (run.Locator.Kind != "direct" || run.Source is null
-            || DirectTargetExchange.CanonicalOrigin(run.Locator.Address) is not { } origin)
+        if (DirectTargetExchange.CanonicalOrigin(run.Origin) is not { } origin)
             throw new UnsupportedRuntime("The retained DirectTarget binding is unsupported.");
         var client = DirectTargetClient.Open(origin, rootCertificate);
         try { return (client, client.GetRun(new RunReference(origin, new RunId(run.RunId), DirectTargetClient.Binding))); }
@@ -114,7 +118,7 @@ internal static class DirectTargetRun
     /// <summary>The SDK checks the run ID; the frozen title, size and PR source must match too.</summary>
     private static void Require(NativeRunBinding run, RunTitle title, ResolvedSource source, RunSize size)
     {
-        if (title.Value != run.Title || size.ToString().ToLowerInvariant() != run.Size || source.Repository.Value != run.Source!.Repository
+        if (title.Value != run.Title || size.ToString().ToLowerInvariant() != run.Size || source.Repository.Value != run.Source.Repository
             || source.Branch.Value != run.Source.Branch || source.Revision.Value != run.Source.Revision)
             throw new NativeTransportError("foreign_run");
     }

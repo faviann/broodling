@@ -23,8 +23,6 @@ public sealed partial class BroodlingStore
         if (DirectTargetExchange.CanonicalOrigin(directOrigin) is null)
             throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1].");
         var attempt = RequireCurrentAttempt(attemptId);
-        if (attempt.ResourceKind != AttemptRecord.Http)
-            throw new SubmissionNotReady("HTTP submission preparation requires an HTTP Attempt.");
         ExecutionAsset? asset = null;
         string? resultOrigin = null;
         if (FindSubmission(attemptId) is null)
@@ -42,7 +40,7 @@ public sealed partial class BroodlingStore
         if (ReadSubmission(attemptId, transaction) is { } previous)
         {
             RequireRetainedHttpSubmission(attempt, previous, transaction);
-            if (previous.Locator.Address != directOrigin)
+            if (previous.Origin != directOrigin)
                 throw new SubmissionConflict("The DirectTarget origin differs from the retained binding.");
             transaction.Commit();
             return previous; // A losing concurrent preparer adopts the first identity; it never invents another.
@@ -55,8 +53,8 @@ public sealed partial class BroodlingStore
         // A row retained by an earlier preparation is reused, so it must still be the approved content.
         if (RetainedAsset(asset.Sha256, transaction) is null) throw RetainedDiffers();
         Execute("""
-            INSERT INTO native_submissions (attempt_id, format, submission_key, request_json, state, intended_run_id,
-                asset_sha256, binding_json) VALUES ($p0, 'http.v1', $p1, $p2, 'prepared', $p3, $p4, $p5)
+            INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id,
+                asset_sha256, binding_json) VALUES ($p0, $p1, $p2, 'prepared', $p3, $p4, $p5)
             """, transaction, attemptId, HttpSubmissionKey(attemptId), RetainedRequest(HttpRequest(attempt, transaction, intended, asset)),
             intended, asset.Sha256, HttpBinding(attempt, directOrigin, resultOrigin!).ToJsonString());
         var result = ReadSubmission(attemptId, transaction)!;
@@ -76,16 +74,16 @@ public sealed partial class BroodlingStore
         CancellationToken cancellationToken = default)
     {
         var record = FindSubmission(attemptId);
-        if (record is { Format: NativeSubmission.Http, State: "correlated" }) return record;
+        if (record is { State: "correlated" }) return record;
         var attempt = RequireCurrentAttempt(attemptId);
-        if (record is not { Format: NativeSubmission.Http })
+        if (record is null)
             throw new SubmissionNotReady("HTTP dispatch requires a prepared HTTP submission.");
         if (record.ReplayBlockedReason is not null) throw ReplayBlocked();
         RequireUnpaused();
         // Credential and Git checks may be slow; they never hold the SQLite writer.
         var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).TargetRun();
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
-        var origin = DirectTargetExchange.CanonicalOrigin(record.Locator.Address) ?? throw RetainedDiffers();
+        var origin = DirectTargetExchange.CanonicalOrigin(record.Origin) ?? throw RetainedDiffers();
 
         var conflict = false;
         PreparedSubmission prepared;
@@ -127,7 +125,7 @@ public sealed partial class BroodlingStore
             // is still acceptance evidence.
             attempt = ReadAttempt(attemptId, transaction);
             record = ReadSubmission(attemptId, transaction)!;
-            if (record.Format != NativeSubmission.Http || record.IntendedRunId != sent)
+            if (record.IntendedRunId != sent)
                 throw new SubmissionConflict("The HTTP submission changed while its request was in flight.");
             if (conflict)
                 Execute("UPDATE native_submissions SET replay_blocked_reason = 'submission_conflict' WHERE attempt_id = $p0 AND replay_blocked_reason IS NULL",
@@ -147,7 +145,7 @@ public sealed partial class BroodlingStore
             // Correlation is committed first. The ordinary stop path then forces exactly the confirmed
             // run; it never replays, restores authority or proves cessation.
             var nativeStopRequested = false;
-            try { await StopAsync(attemptId, "Native acknowledgement arrived after Attempt abandonment.", null, cancellationToken); }
+            try { await StopAsync(attemptId, "Native acknowledgement arrived after Attempt abandonment.", cancellationToken); }
             catch (CessationUnconfirmed cessation) { nativeStopRequested = cessation.NativeStopRequested; }
             catch (NativeTransportError) { nativeStopRequested = true; } // Force was sent; its outcome is uncertain.
             throw new StaleAttempt("Authority was lost while the acknowledgement was in flight; factual correlation is retained and "
@@ -171,12 +169,11 @@ public sealed partial class BroodlingStore
         var asset = RetainedAsset(record.AssetSha256, transaction);
         var work = ReadWorkUnit(attempt.WorkUnitId, transaction)!;
         JsonNode? binding;
-        try { binding = JsonNode.Parse(record.BindingJson ?? ""); }
+        try { binding = JsonNode.Parse(record.BindingJson); }
         catch (JsonException) { binding = null; }
         var origin = (binding?["origin"] as JsonValue)?.TryGetValue<string>(out var text) == true ? text : "";
         var resultOrigin = (binding?["resultOrigin"] as JsonValue)?.TryGetValue<string>(out var result) == true ? result : "";
-        if (record.Format != NativeSubmission.Http || asset is null || record.AssetSha256 != asset.Sha256
-            || record.IntendedRunId is null || record.SubmissionKey != HttpSubmissionKey(attempt.AttemptId)
+        if (asset is null || record.AssetSha256 != asset.Sha256 || record.SubmissionKey != HttpSubmissionKey(attempt.AttemptId)
             || DirectTargetExchange.CanonicalOrigin(origin) is null || !ValidResultOrigin(resultOrigin, work)
             || !JsonNode.DeepEquals(binding, HttpBinding(attempt, origin, resultOrigin))
             || HttpRequest(attempt, transaction, record.IntendedRunId, asset) != record.RequestJson)
@@ -207,7 +204,7 @@ public sealed partial class BroodlingStore
     /// <summary>The stock <c>TargetRunRequest</c> without its ephemeral <c>connections</c> and <c>githubToken</c>.</summary>
     private string HttpRequest(AttemptRecord attempt, SqliteTransaction transaction, string intendedRunId, ExecutionAsset asset)
     {
-        var (task, work, authorization) = AdmittedTask(attempt, transaction);
+        var (task, work, targetBranch) = AdmittedTask(attempt, transaction);
         return new JsonObject
         {
             ["runId"] = intendedRunId,
@@ -218,7 +215,7 @@ public sealed partial class BroodlingStore
                 // The authorized PR branch stays separate from the exact original B1 revision.
                 ["source"] = new JsonObject
                 {
-                    ["repository"] = work.Owner + "/" + work.Repository, ["branch"] = authorization.TargetBranch,
+                    ["repository"] = work.Owner + "/" + work.Repository, ["branch"] = targetBranch,
                     ["revision"] = attempt.B1.CommitOid
                 },
                 ["submissionKey"] = HttpSubmissionKey(attempt.AttemptId)
@@ -246,6 +243,27 @@ public sealed partial class BroodlingStore
 
     /// <summary>A URL origin carries no userinfo, except the conventional <c>git</c> user of an SSH URL.</summary>
     private static bool ValidResultOrigin(string origin, WorkUnit work) =>
-        work.Host == "github.com" && NativeProfile.GitHubOriginRepository(origin) == work.Owner + "/" + work.Repository
+        work.Host == "github.com" && GitHubOriginRepository(origin) == work.Owner + "/" + work.Repository
         && (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) || uri.UserInfo == "" || uri.Scheme == "ssh" && uri.UserInfo == "git");
+
+    // Git remotes are not work-reference input: a bare owner/name is a local path, not implicit github.com.
+    internal static string? GitHubOriginRepository(string origin)
+    {
+        string path;
+        if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+        {
+            if (!uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)) return null;
+            path = uri.AbsolutePath;
+        }
+        else
+        {
+            var separator = origin.IndexOf(':');
+            if (separator < 0 || !origin[..separator].Split('@')[^1].Equals("github.com", StringComparison.OrdinalIgnoreCase)) return null;
+            path = origin[(separator + 1)..];
+        }
+        path = path.Trim('/');
+        if (path.EndsWith(".git", StringComparison.Ordinal)) path = path[..^4];
+        var parts = path.Split('/');
+        return parts.Length == 2 && parts.All(part => part.Length > 0) ? path : null;
+    }
 }

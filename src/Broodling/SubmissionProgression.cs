@@ -49,7 +49,7 @@ public sealed record SubmissionProgress(string SubmissionId, string State, strin
 /// A callback that throws is ignored. It may be invoked concurrently from thread-pool threads.
 /// </param>
 public sealed class SubmissionProgressor(BroodlingApplication application, string storePath, string? directTargetRootCertificate,
-    InvocationTarget.Direct target, IssueSubmissionPreparer preparer, Func<ProgressionCredentials> credentials,
+    InvocationTarget target, IssueSubmissionPreparer preparer, Func<ProgressionCredentials> credentials,
     Action<SubmissionProgress, Exception?> stopped)
 {
     /// <summary>
@@ -233,10 +233,9 @@ public sealed partial class BroodlingStore
     /// <summary>
     /// Accepted Issue submissions that ordinary progression can still move: undecided ones with no Contract
     /// or with one bound to their RequestBundle, and admitted ones whose Work Unit has no Attempt or only its
-    /// current HTTP Attempt for that Contract, not yet correlated or replay-blocked. A revision's ended
+    /// current Attempt for that Contract, not yet correlated or replay-blocked. A revision's ended
     /// Attempts of the Contracts preceding it do not count. Rejected, cancelled, unchanged, completed,
-    /// abandoned and non-current work, Replacement Attempts, earlier unbound associations, and worktree or
-    /// bridge records are never selected.
+    /// abandoned and non-current work, Replacement Attempts and earlier unbound associations are never selected.
     /// </summary>
     internal IReadOnlyList<string> UnfinishedSubmissions()
     {
@@ -259,8 +258,8 @@ public sealed partial class BroodlingStore
                     WHERE a.work_unit_id = s.work_unit_id
                       AND NOT (a.is_current = 0 AND a.contract_revision_id IN (SELECT prior_contract_revision_id
                           FROM revision_prior_contracts WHERE contract_revision_id = s.contract_revision_id))
-                      AND (a.is_current = 0 OR a.resource_kind <> 'http' OR a.contract_revision_id <> s.contract_revision_id
-                          OR n.format <> 'http.v1' OR n.state = 'correlated' OR n.replay_blocked_reason IS NOT NULL))))
+                      AND (a.is_current = 0 OR a.contract_revision_id <> s.contract_revision_id
+                          OR n.state = 'correlated' OR n.replay_blocked_reason IS NOT NULL))))
             ORDER BY s.rowid
             """, transaction, submissionId))
         using (var row = command.ExecuteReader())

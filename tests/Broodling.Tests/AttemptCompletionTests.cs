@@ -9,8 +9,8 @@ namespace Broodling.Tests;
 
 /// <summary>
 /// A correlated HTTP Attempt whose retained binding reads a loopback stock-target stand-in. Each
-/// status read reports <see cref="Transport"/>'s native result as a finished projection, and a force
-/// reports <c>force_stopped</c>, so completion witnesses choose the result without re-testing the wire.
+/// status read reports <see cref="Result"/>'s native result for the run as a finished projection, and a
+/// force reports <c>force_stopped</c>, so completion witnesses choose the result without re-testing the wire.
 /// </summary>
 internal sealed class CompletionFixture : IDisposable
 {
@@ -20,18 +20,27 @@ internal sealed class CompletionFixture : IDisposable
     internal BroodlingStore Store => http.Store;
     internal AttemptRecord Attempt => http.Attempt;
     internal StockTarget Target { get; } = new();
-    internal ControlledTransport Transport { get; } = new();
+    /// <summary>The terminal result of the run named by the status read; a throw fails that read.</summary>
+    internal Func<string, Task<NativeResult>> Result { get; set; }
+    /// <summary>How many status reads reached <see cref="Result"/>.</summary>
+    internal int Reads { get; private set; }
     internal string Accepted { get; }
     internal CompletionFixture()
     {
         Accepted = Git.Deliver();
-        Transport.Wait = (_, id, _) => Task.FromResult(new NativeResult(id, true, Receipt(head: Accepted), null));
+        Result = id => Task.FromResult(new NativeResult(id, true, Receipt(head: Accepted), null));
         Target.Reply = (request, id) => (string)request["method"]! switch
         {
-            "run/status" => Reply(id, Transport.WaitAsync(run!).GetAwaiter().GetResult()),
+            "run/status" => Reply(id, Read()),
             "run/force" => Reply(id, new(run!.RunId, false, default, "force_stopped")),
             _ => null
         };
+    }
+
+    private NativeResult Read()
+    {
+        Reads++;
+        return Result(run!.RunId).GetAwaiter().GetResult();
     }
     internal string Origin => Target.Origin.GetLeftPart(UriPartial.Authority);
     /// <summary>Prepare at the stand-in without sending anything.</summary>
@@ -93,7 +102,7 @@ internal sealed class CompletionFixture : IDisposable
             ("pullRequestId", "1 "), ("pullRequestId", "١"), ("pullRequestId", "1.0"), ("pullRequestId", "1\0") })
             yield return ($"{field} {JsonSerializer.Serialize(value)}", With(field, value).ToJsonString());
     }
-    internal Task<AttemptCompletion> Wait() => Store.WaitAsync(Attempt.AttemptId, null);
+    internal Task<AttemptCompletion> Wait() => Store.WaitAsync(Attempt.AttemptId);
     public void Dispose() { Target.DisposeAsync().AsTask().GetAwaiter().GetResult(); http.Dispose(); }
 }
 
@@ -107,21 +116,21 @@ public sealed class AttemptCompletionTests
     {
         using var fixture = new CompletionFixture();
         await fixture.Dispatch();
-        fixture.Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(pr, fixture.Accepted), null));
+        fixture.Result = run => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(pr, fixture.Accepted), null));
         var completed = await fixture.Wait();
         await Assert.That(completed.Outcome).IsEqualTo("SUCCEEDED");
         await Assert.That(completed.AcceptedRevision).IsEqualTo(fixture.Accepted);
         await Assert.That(completed.DeliveryReceipt.GetProperty("pullRequestId").GetString()).IsEqualTo(pr);
         await Assert.That(fixture.Store.CurrentAttempt(completed.WorkUnitId)).IsNull();
-        fixture.Transport.Wait = (_, _, _) => throw new Exception("Native unavailable");
+        fixture.Result = _ => throw new Exception("Native unavailable");
         using var reopened = fixture.Git.State.Open();
         // Terminal replay is observation: an unrelated SQLite writer must not block it.
         using var writer = fixture.Git.State.Connect();
         using var held = writer.BeginTransaction(deferred: false);
-        await Assert.That(await reopened.WaitAsync(completed.AttemptId, null)).IsEqualTo(completed);
+        await Assert.That(await reopened.WaitAsync(completed.AttemptId)).IsEqualTo(completed);
         await Assert.That(reopened.FindCompletion(completed.AttemptId)).IsEqualTo(completed);
         await Assert.That(reopened.FindCompletion("unknown-attempt")).IsNull();
-        await Assert.That(fixture.Transport.WaitCalls).IsEqualTo(1);
+        await Assert.That(fixture.Reads).IsEqualTo(1);
     }
 
     [Test]
@@ -132,12 +141,12 @@ public sealed class AttemptCompletionTests
         // Duplicate properties never reach the receipt: the status reader refuses them (DirectTargetRunTests).
         foreach (var (name, json) in CompletionFixture.RefusedReceipts(fixture.Attempt.B1.CommitOid, fixture.Accepted))
         {
-            fixture.Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, JsonSerializer.Deserialize<JsonElement>(json), null));
+            fixture.Result = run => Task.FromResult(new NativeResult(run, true, JsonSerializer.Deserialize<JsonElement>(json), null));
             await Assert.That(async () => await fixture.Wait()).Throws<ReceiptRefused>().Because(name);
             await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
             fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
         }
-        fixture.Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: fixture.Accepted), null));
+        fixture.Result = run => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: fixture.Accepted), null));
         await Assert.That((await fixture.Wait()).AcceptedRevision).IsEqualTo(fixture.Accepted);
     }
 
@@ -148,20 +157,20 @@ public sealed class AttemptCompletionTests
         await Assert.That(async () => await fixture.Wait()).Throws<SubmissionNotReady>();
         fixture.Prepare();
         await Assert.That(async () => await fixture.Wait()).Throws<SubmissionNotReady>();
-        await Assert.That(fixture.Transport.WaitCalls).IsEqualTo(0);
+        await Assert.That(fixture.Reads).IsEqualTo(0);
         await fixture.Dispatch();
         foreach (var succeeded in new[] { true, false })
         {
-            fixture.Transport.Wait = (_, _, _) => Task.FromResult(new NativeResult("01a00000-0000-7000-8000-000000000000", succeeded,
+            fixture.Result = _ => Task.FromResult(new NativeResult("01a00000-0000-7000-8000-000000000000", succeeded,
                 CompletionFixture.Receipt(), "runtime_lost"));
             // The SDK refuses a status naming another run ID before Broodling reads it.
             await DirectTargetRunTests.Fails(() => fixture.Wait(), "invalid_response");
             fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
         }
         fixture.Store.AbandonAttempt(fixture.Attempt.AttemptId, "operator decision");
-        var calls = fixture.Transport.WaitCalls;
+        var calls = fixture.Reads;
         await Assert.That(async () => await fixture.Wait()).Throws<StaleAttempt>();
-        await Assert.That(fixture.Transport.WaitCalls).IsEqualTo(calls);
+        await Assert.That(fixture.Reads).IsEqualTo(calls);
     }
 
     [Test]
@@ -170,12 +179,12 @@ public sealed class AttemptCompletionTests
         using var fixture = new CompletionFixture();
         await fixture.Dispatch();
         using var cancellation = new CancellationTokenSource(); cancellation.Cancel();
-        await Assert.That(async () => await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null, cancellation.Token)).Throws<OperationCanceledException>();
+        await Assert.That(async () => await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, cancellation.Token)).Throws<OperationCanceledException>();
         fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
-        fixture.Transport.Wait = (_, _, _) => throw new NativeTransportError();
+        fixture.Result = _ => throw new NativeTransportError();
         await Assert.That(async () => await fixture.Wait()).Throws<NativeTransportError>();
         fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
-        fixture.Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, false, default, "runtime_lost"));
+        fixture.Result = run => Task.FromResult(new NativeResult(run, false, default, "runtime_lost"));
         await Assert.That(async () => await fixture.Wait()).Throws<SubmissionNotReady>();
         await Assert.That(fixture.Store.GetAttempt(fixture.Attempt.AttemptId).Abandonment!.Reason).Contains("runtime_lost");
         await Assert.That(fixture.Target.Count("run/force")).IsEqualTo(0);
@@ -189,13 +198,13 @@ public sealed class AttemptCompletionTests
         var submission = fixture.Store.SubmitIssue("https://github.com/acme/widget/issues/12");
         fixture.Store.AssociateIssueSubmission(submission.SubmissionId, fixture.Attempt.ContractRevisionId);
         await fixture.Dispatch();
-        fixture.Transport.Wait = (_, run, _) =>
+        fixture.Result = run =>
         {
             using var other = fixture.Git.State.Open();
             CessationUnconfirmed? cancellationStop = null;
             try
             {
-                // The HTTP record forces exactly its retained run; no bridge transport is involved.
+                // The retained record forces exactly its own run.
                 other.CancelIssueSubmissionAsync(submission.SubmissionId, "stop won").GetAwaiter().GetResult();
             }
             catch (CessationUnconfirmed error)
@@ -249,7 +258,7 @@ public sealed class AttemptCompletionTests
         Directory.Delete(fixture.Git.Origin, true);
         fixture.Git.Git("gc", "--prune=now");
         await Assert.That(fixture.Git.Git("show", fixture.Accepted + ":delivered.txt")).IsEqualTo("delivered\n");
-        fixture.Transport.Wait = (_, _, _) => throw new Exception("Native unavailable");
+        fixture.Result = _ => throw new Exception("Native unavailable");
         await Assert.That(await fixture.Wait()).IsEqualTo(completed);
     }
 
@@ -259,7 +268,7 @@ public sealed class AttemptCompletionTests
         using var fixture = new CompletionFixture();
         await fixture.Dispatch();
         var unpublished = fixture.Git.Deliver("unpublished\n", push: false);
-        fixture.Transport.Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: unpublished), null));
+        fixture.Result = run => Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: unpublished), null));
         await Assert.That(async () => await fixture.Wait()).Throws<ResultRetentionError>();
         await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
         fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
@@ -280,7 +289,7 @@ public sealed class AttemptCompletionTests
         fixture.Git.Git("config", "protocol.ext.allow", "always");
         fixture.Git.Git("config", stalled, "https://github.com/acme/widget.git");
         using var cancellation = new CancellationTokenSource();
-        var waiting = fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null, cancellation.Token);
+        var waiting = fixture.Store.WaitAsync(fixture.Attempt.AttemptId, cancellation.Token);
         // The loopback status read precedes the fetch; allow for a busy test host.
         var deadline = DateTime.UtcNow.AddSeconds(60);
         while (!File.Exists(entered) || File.ReadAllText(entered).Length == 0)
@@ -334,15 +343,15 @@ public sealed class AttemptCompletionTests
         using var other = fixture.Git.State.Open();
         var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = 0;
-        fixture.Transport.Wait = async (_, run, _) =>
+        fixture.Result = async run =>
         {
             if (Interlocked.Increment(ref entered) == 2) ready.SetResult();
             await ready.Task;
             return new(run, true, CompletionFixture.Receipt(head: fixture.Accepted), null);
         };
-        var both = await Task.WhenAll(fixture.Wait(), other.WaitAsync(fixture.Attempt.AttemptId, null));
+        var both = await Task.WhenAll(fixture.Wait(), other.WaitAsync(fixture.Attempt.AttemptId));
         await Assert.That(both[0]).IsEqualTo(both[1]);
-        await Assert.That(fixture.Transport.WaitCalls).IsEqualTo(2);
+        await Assert.That(fixture.Reads).IsEqualTo(2);
         await Assert.That(fixture.Store.Status(fixture.Attempt.ContractRevisionId).Completions.Count).IsEqualTo(1);
     }
 
@@ -363,9 +372,9 @@ public sealed class AttemptCompletionTests
         var changed = JsonNode.Parse(submitted.RequestJson)!; changed["task"] = "Foreign Contract";
         Change(changed.ToJsonString());
         await Assert.That(async () => await fixture.Wait()).Throws<SubmissionConflict>();
-        await Assert.That(fixture.Transport.WaitCalls).IsEqualTo(0);
+        await Assert.That(fixture.Reads).IsEqualTo(0);
         Change(submitted.RequestJson);
-        fixture.Transport.Wait = (_, run, _) =>
+        fixture.Result = run =>
         {
             Change(changed.ToJsonString());
             return Task.FromResult(new NativeResult(run, true, CompletionFixture.Receipt(head: fixture.Accepted), null));
@@ -373,19 +382,6 @@ public sealed class AttemptCompletionTests
         await Assert.That(async () => await fixture.Wait()).Throws<SubmissionConflict>();
         await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();
         fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
-    }
-
-    [Test]
-    public async Task NoEffectSuccessCannotManufactureStableLocalResult()
-    {
-        using var fixture = new NativeFixture();
-        using var store = fixture.Git.State.Open();
-        var attempt = fixture.Provision(store);
-        var transport = new ControlledTransport { Wait = (_, run, _) => Task.FromResult(new NativeResult(run, true, JsonSerializer.Deserialize<JsonElement>("null"), null)) };
-        await store.DispatchAsync(attempt.AttemptId, fixture.Profile, transport);
-        await Assert.That(async () => await store.WaitAsync(attempt.AttemptId, transport)).Throws<SubmissionNotReady>();
-        store.RequireCurrentAttempt(attempt.AttemptId);
-        await Assert.That(store.FindCompletion(attempt.AttemptId)).IsNull();
     }
 
     [Test]
@@ -398,7 +394,7 @@ public sealed class AttemptCompletionTests
         var submission = fixture.PrepareAt(target.Origin, state);
         // Even a finished run under the intended ID is never consumed without acknowledgement.
         target.Projections.Enqueue(HttpFinished(submission, "succeeded", CompletionFixture.Receipt()));
-        await Assert.That(async () => await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null)).Throws<SubmissionNotReady>();
+        await Assert.That(async () => await fixture.Store.WaitAsync(fixture.Attempt.AttemptId)).Throws<SubmissionNotReady>();
         await Assert.That(target.Connections).IsEqualTo(0);
         fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
     }
@@ -412,13 +408,13 @@ public sealed class AttemptCompletionTests
         var accepted = fixture.Git.Deliver();
         target.Projections.Enqueue(HttpFinished(submission, "succeeded", CompletionFixture.Receipt(head: accepted)));
 
-        var completion = await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null);
+        var completion = await fixture.Store.WaitAsync(fixture.Attempt.AttemptId);
         await Assert.That(completion.RunId).IsEqualTo(submission.IntendedRunId);
         await Assert.That(completion.AcceptedRevision).IsEqualTo(accepted);
         await Assert.That(fixture.Git.Git("rev-parse", "refs/broodling/accepted/" + accepted).Trim()).IsEqualTo(accepted);
         await Assert.That(target.Count("run/force")).IsEqualTo(0);
         await target.DisposeAsync();
-        await Assert.That(await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null)).IsEqualTo(completion);
+        await Assert.That(await fixture.Store.WaitAsync(fixture.Attempt.AttemptId)).IsEqualTo(completion);
     }
 
     [Test]
@@ -429,7 +425,7 @@ public sealed class AttemptCompletionTests
         var submission = fixture.PrepareAt(target.Origin, "correlated");
         target.Projections.Enqueue(HttpFinished(submission, "failed", "canary_secret_reason"));
 
-        await Assert.That(async () => await fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null)).Throws<SubmissionNotReady>();
+        await Assert.That(async () => await fixture.Store.WaitAsync(fixture.Attempt.AttemptId)).Throws<SubmissionNotReady>();
         var abandonment = fixture.Store.GetAttempt(fixture.Attempt.AttemptId).Abandonment!;
         await Assert.That(abandonment.Reason).IsEqualTo("Zeroshot run failed: native_failed");
         await Assert.That(target.Count("run/force")).IsEqualTo(0);
@@ -447,7 +443,7 @@ public sealed class AttemptCompletionTests
         if (answer == "unavailable") target.Session = (503, """{"code":"target.unavailable","message":"busy"}""");
         target.Projections.Enqueue(HttpFinished(submission, "failed", "runtime_failed", title: "Another run"));
 
-        await DirectTargetRunTests.Fails(() => fixture.Store.WaitAsync(fixture.Attempt.AttemptId, null), kind);
+        await DirectTargetRunTests.Fails(() => fixture.Store.WaitAsync(fixture.Attempt.AttemptId), kind);
         fixture.Store.RequireCurrentAttempt(fixture.Attempt.AttemptId);
         await Assert.That(target.Count("run/force")).IsEqualTo(0);
         await Assert.That(fixture.Store.FindCompletion(fixture.Attempt.AttemptId)).IsNull();

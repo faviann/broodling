@@ -189,27 +189,6 @@ public sealed class GitCustodyTests
     }
 
     [Test]
-    public async Task WorkspaceRootsRefuseTemporaryRepositoryCommonDirectoryAndDisposableLocationsIncludingLinks()
-    {
-        using var fixture = new AttemptFixture(noEffect: true);
-        var disposable = System.IO.Path.Combine(fixture.State.Root, "disposable");
-        Directory.CreateDirectory(disposable);
-        File.WriteAllText(System.IO.Path.Combine(disposable, ".broodling-disposable-worktree"), "another-attempt");
-        var temporaryLink = System.IO.Path.Combine(fixture.State.Root, "temp-link");
-        Directory.CreateSymbolicLink(temporaryLink, "/tmp");
-        var disposableLink = System.IO.Path.Combine(fixture.State.Root, "disposable-link");
-        Directory.CreateSymbolicLink(disposableLink, disposable);
-        var sourceLink = System.IO.Path.Combine(fixture.State.Root, "source-link");
-        Directory.CreateSymbolicLink(sourceLink, fixture.Repository);
-        using var store = fixture.State.Open();
-        foreach (var root in new[] { "relative", "/tmp/attempts", "/var/tmp/attempts", "/dev/shm/attempts", "/run/attempts",
-            fixture.Repository, fixture.GitDirectory, System.IO.Path.Combine(fixture.Repository, "nested"),
-            System.IO.Path.Combine(temporaryLink, "attempts"), System.IO.Path.Combine(disposableLink, "attempts"), sourceLink })
-            await Assert.That(() => fixture.Admit(store, root: root)).Throws<UnsupportedWorkspaceRoot>();
-        await Assert.That(store.Status(fixture.RevisionId).Attempts.Count).IsEqualTo(0);
-    }
-
-    [Test]
     public async Task MissingSelectedTreeAndNonCommitRevisionsRefuseWithoutAllocation()
     {
         using var fixture = new AttemptFixture();

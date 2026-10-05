@@ -6,11 +6,15 @@ namespace Broodling;
 /// The DirectTarget's release binding: the native release, source revision and Linux x86-64 executables
 /// that serve HTTP Attempts, and the approved execution asset they run. The approval manifest, each
 /// prepared submission's retained binding and target readiness name exactly these values, and the
-/// target image and asset recipe carry them. It is independent of the LocalTarget bridge's SDK and
-/// bundled native (<see cref="NativeProfile"/>); changing one never changes the other.
+/// target image and asset recipe carry them.
 /// </summary>
 internal static class DirectTargetBinding
 {
+    /// <summary>
+    /// The one supported gateway endpoint: the bundled proposer calls it, and dispatch credentials and the
+    /// approved asset policy require it.
+    /// </summary>
+    internal const string GatewayBaseUrl = "https://cliproxy.local.faviann.com/v1";
     internal const string NativeRelease = "10.10.0";
     internal const string NativeVersion = "zeroshot " + NativeRelease;
     internal const string NativeSourceRevision = "3ee1192cec359a0b997f464e703a936e8b67d63c";

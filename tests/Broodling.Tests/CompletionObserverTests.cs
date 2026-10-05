@@ -225,7 +225,7 @@ public sealed class CompletionObserverTests
         lock (target.Stages) return target.Stages.Count(reached => reached == stage);
     }
 
-    private static Task Until(Func<bool> condition) => ProvisioningProcessTests.WaitUntil(condition);
+    private static Task Until(Func<bool> condition) => Polling.WaitUntil(condition);
 
     /// <summary>An observer over the fixture's store whose scan interval advances only when a test says so.</summary>
     private sealed class Observer : IAsyncDisposable

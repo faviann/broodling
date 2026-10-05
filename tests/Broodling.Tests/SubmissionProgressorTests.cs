@@ -60,7 +60,7 @@ public sealed class SubmissionProgressorTests
         await first.Running.WaitAsync(Bound);
         await app.DisposeAsync();
         // Shutdown detached the send: the dispatch stays unresolved and the Attempt keeps its authority.
-        await Assert.That(store.RequireCurrentAttempt(attemptId).ResourceKind).IsEqualTo(AttemptRecord.Http);
+        store.RequireCurrentAttempt(attemptId);
         await Assert.That(store.FindSubmission(attemptId)!.State).IsEqualTo("dispatched");
         await Assert.That(store.GetInstallationStatus().UnresolvedDispatches).IsEqualTo(1);
         store.PauseInstallation();
@@ -86,7 +86,6 @@ public sealed class SubmissionProgressorTests
         await Assert.That((string)target.Bodies[0]["submission"]!["source"]!["revision"]!).IsEqualTo(b1);
         var attempt = store.GetAttempt(attemptId);
         await Assert.That(attempt.B1.CommitOid).IsEqualTo(b1);
-        await Assert.That(attempt.WorktreeAllocation).IsNull();
         await Assert.That(store.GetIssueSubmission(submissionId).AttemptIds.Count).IsEqualTo(1);
         // Neither capture nor the proposal ran again, and correlated work is left to the completion observer.
         await Assert.That(gateway.Contexts.Count).IsEqualTo(1);
@@ -354,25 +353,6 @@ public sealed class SubmissionProgressorTests
         await Assert.That(fixture.ReadGhPaths()).IsEmpty();
     }
 
-    [Test]
-    public async Task EarlierUnboundAssociationsAreNeverDiscovered()
-    {
-        // Authentic pre-#111 state: completed bundles associated with an admitted and an undecided unbound Contract.
-        await using var target = new StockTarget();
-        using var fixture = new PreparationFixture();
-        StoreLifecycleTests.Restore(fixture.State.Path, "application-v1-unbound-association.sql");
-        var gateway = Proposing();
-
-        await using var service = new Service(fixture, target, gateway);
-        for (var scan = 0; scan < 3; scan++) await service.Scan();
-
-        await Assert.That(service.CredentialReads).IsEqualTo(0);
-        await Assert.That(service.Progressor.Progress()).IsEmpty();
-        await Assert.That(service.Stops).IsEmpty();
-        await Assert.That(gateway.Contexts).IsEmpty();
-        await Assert.That(target.Connections).IsEqualTo(0);
-    }
-
     private static string[] Submit(PreparationFixture fixture, params long[] issues)
     {
         using var store = fixture.State.Initialize();
@@ -397,7 +377,7 @@ public sealed class SubmissionProgressorTests
         return frozen;
     }
 
-    private static Task Until(Func<bool> condition) => ProvisioningProcessTests.WaitUntil(condition);
+    private static Task Until(Func<bool> condition) => Polling.WaitUntil(condition);
 
     /// <summary>A progressor and its preparer over the fixture, whose scan interval advances only when a test says so.</summary>
     private sealed class Service : IAsyncDisposable
@@ -421,10 +401,10 @@ public sealed class SubmissionProgressorTests
                 IssueSource = new GitHubIssueSource(fixture.Gh), RepositorySource = fixture.Source, Gateway = gateway
             };
             Progressor = new SubmissionProgressor(fixture.State.Application, fixture.State.Path, null,
-                new InvocationTarget.Direct(target.Origin.GetLeftPart(UriPartial.Authority)), preparer, () =>
+                new InvocationTarget(target.Origin.GetLeftPart(UriPartial.Authority)), preparer, () =>
                 {
                     Interlocked.Increment(ref credentialReads);
-                    return provider?.Invoke() ?? new(GitHub, new GatewayCredentials(NativeProfile.GatewayBaseUrl, "gateway-key"),
+                    return provider?.Invoke() ?? new(GitHub, new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, "gateway-key"),
                         HttpDispatchTests.Credentials(credentials));
                 }, (progress, failure) => Stops.Enqueue((progress, failure))) { Clock = this.clock };
             Running = Progressor.RunAsync(lifetime ?? cancellation.Token);

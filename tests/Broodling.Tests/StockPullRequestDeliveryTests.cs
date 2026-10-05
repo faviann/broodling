@@ -73,15 +73,15 @@ public sealed class StockPullRequestDeliveryTests
         // Native keeps polling at its 20-second interval without handing off.
         await delivery.TraceUntilAsync(trace => trace.Count(request => request.IsReadiness) >= 2);
         await Assert.That(delivery.States().Split(',').Distinct()).IsEquivalentTo(new[] { "BLOCKED" });
-        await Assert.That(await store.ObserveAsync(attempt, null) is NativeObservation.Available
+        await Assert.That(await store.ObserveAsync(attempt) is NativeObservation.Available
             { Progress: { Phase: "running", ActiveNodes: ["deliver"] } }).IsTrue();
         // An observer giving up neither completes nor abandons the Attempt.
         using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
-            await Assert.That(async () => await store.WaitAsync(attempt, null, timeout.Token)).Throws<OperationCanceledException>();
+            await Assert.That(async () => await store.WaitAsync(attempt, timeout.Token)).Throws<OperationCanceledException>();
         await Assert.That(store.FindCompletion(attempt)).IsNull();
         await Assert.That(store.GetAttempt(attempt).Abandonment).IsNull();
 
-        var stop = await Assert.That(async () => await store.StopAsync(attempt, "stop pending delivery", null)).Throws<CessationUnconfirmed>();
+        var stop = await Assert.That(async () => await store.StopAsync(attempt, "stop pending delivery")).Throws<CessationUnconfirmed>();
         await Assert.That(stop!.NativeStopRequested).IsTrue();
         await Assert.That(store.GetAttempt(attempt).Abandonment!.Reason).IsEqualTo("stop pending delivery");
         await Assert.That(store.FindCompletion(attempt)).IsNull();
@@ -300,7 +300,7 @@ internal sealed class ScriptedDelivery : IAsyncDisposable
             target.Script(scenario);
             var (store, revision) = Admit(git, target);
             await target.PushAsync(git.Repository, "main");
-            var status = await new Invocation(store, new InvocationTarget.Direct(target.Origin)).ResumeAsync(revision, git.Repository, git.Head, Credentials);
+            var status = await new Invocation(store, new InvocationTarget(target.Origin)).ResumeAsync(revision, git.Repository, git.Head, Credentials);
             await Assert.That(status.Submissions.Single().State).IsEqualTo("correlated");
             return new(git, target, await target.NativeAsync(), store, status.Attempts.Single().AttemptId);
         }
@@ -319,7 +319,7 @@ internal sealed class ScriptedDelivery : IAsyncDisposable
     internal async Task<AttemptCompletion> ReadyAsync()
     {
         using var budget = new CancellationTokenSource(Patience);
-        var completion = await Store.WaitAsync(AttemptId, null, budget.Token);
+        var completion = await Store.WaitAsync(AttemptId, budget.Token);
         var receipt = JsonNode.Parse(completion.ReceiptJson)!;
         await Assert.That(string.Join(",", receipt.AsObject().Where(field => field.Key != "headRevision").Select(field => $"{field.Key}={field.Value}").Order()))
             .IsEqualTo("mode=pr,outcome=ready,pullRequestId=1,repository=acme/widget,targetBranch=main,version=v2");
@@ -335,7 +335,7 @@ internal sealed class ScriptedDelivery : IAsyncDisposable
     internal async Task<string> FailsAsync()
     {
         using var budget = new CancellationTokenSource(Patience);
-        await Assert.That(async () => await Store.WaitAsync(AttemptId, null, budget.Token)).Throws<SubmissionNotReady>();
+        await Assert.That(async () => await Store.WaitAsync(AttemptId, budget.Token)).Throws<SubmissionNotReady>();
         await Assert.That(Store.FindCompletion(AttemptId)).IsNull();
         return Store.GetAttempt(AttemptId).Abandonment!.Reason;
     }

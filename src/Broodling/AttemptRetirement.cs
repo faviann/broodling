@@ -30,66 +30,39 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>Abandon before requesting native stop. A native result never grants retirement authority.</summary>
-    public async Task<AttemptRetirement> StopAsync(string attemptId, string reason, INativeStopper? transport,
-        CancellationToken cancellationToken = default)
+    public async Task<AttemptRetirement> StopAsync(string attemptId, string reason, CancellationToken cancellationToken = default)
     {
         // A retired Attempt ended its lifecycle already: an abandoned one keeps its first reason, and a
         // completed one retired under verified maintenance is never abandoned.
         if (FindRetirement(attemptId) is { } existing) return existing;
-        AbandonAttempt(attemptId, reason); // Its own committed transaction, before any external call or host inspection.
+        AbandonAttempt(attemptId, reason); // Its own committed transaction, before any external call.
         var submitted = FindSubmission(attemptId);
-        var allocation = GetAttempt(attemptId);
-        // Retained physical allocation/enclosure ownership still matters. A missing checkout
-        // is allowed here; live Git inspection and deletion authority belong to retirement.
-        // An HTTP Attempt owns no local resource, so there is nothing to inspect.
-        if (allocation.ResourceKind == AttemptRecord.Worktree)
-        {
-            WorktreeMaterialization.ValidatePaths(allocation, Path, inspectGit: false);
-            if (Directory.Exists(allocation.Allocation.Enclosure)) WorktreeMaterialization.RequireMarker(allocation);
-            else if (File.Exists(allocation.Allocation.Enclosure) || allocation.Provision is not null || submitted is { State: not "prepared" })
-                throw new CessationUnconfirmed("The dispatched or acknowledged enclosure is missing or ambiguous; Attempt abandoned, containment remains with the operator.");
-        }
-        // An HTTP record routes on its retained format and ignores any bridge transport.
-        if (submitted is { Format: NativeSubmission.Http, State: not "prepared" })
+        if (submitted is { State: not "prepared" })
             await StopRetainedHttpAsync(submitted, cancellationToken);
-        else if (submitted is { State: not "prepared" })
-        {
-            if (submitted.Run is not { } run)
-                throw new CessationUnconfirmed("Dispatched run identity is unresolved. Attempt abandoned and quarantined; dispatch will not be replayed to discover it.");
-            // Reconnect only from the retained run binding, with no dispatch credentials or live workspace dependency.
-            if (transport is null)
-                throw new SubmissionNotReady("Stopping a known native run requires native stop transport.");
-            await transport.StopAsync(run, cancellationToken);
-            throw new CessationUnconfirmed("Native stop supplies no physical cessation proof. Attempt abandoned and quarantined; checkout retained.", nativeStopRequested: true);
-        }
 
-        // Provisioning holds this same SQLite writer through host changes and acknowledgment.
-        // Once abandonment commits, queued provisioners must refuse and no new dispatch can start.
+        // Once abandonment commits, no new dispatch can start; this writer serializes the proof against any dispatch intent.
         using var transaction = connection.BeginTransaction(deferred: false);
         if (ReadRetirement(attemptId, transaction) is { } retained) { transaction.Commit(); return retained; }
-        var attempt = ReadAttempt(attemptId, transaction);
         if (ReadSubmission(attemptId, transaction) is { State: not "prepared" })
             throw new CessationUnconfirmed("Dispatched Attempts remain quarantined.");
-        // Abandonment has committed, so this writer serializes the proof against any dispatch intent.
-        var basis = attempt.ResourceKind == AttemptRecord.Http ? "no_dispatch_intent" : WorktreeRetirementBasis(attempt);
-        Execute("INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ($p0, $p1, $p2)", transaction, attemptId, basis, Now());
+        Execute("INSERT INTO attempt_retirements (attempt_id, basis, ceased_at) VALUES ($p0, 'no_dispatch_intent', $p1)", transaction, attemptId, Now());
         var result = ReadRetirement(attemptId, transaction)!;
         transaction.Commit();
         return result;
     }
 
     /// <summary>
-    /// Request native stop of an abandoned HTTP record with dispatch intent, without credentials,
-    /// source custody or replay. A confirmed run is forced directly; an intended run only after its
-    /// status matches every retained binding fact, which still establishes no correlation. Every
-    /// outcome refuses: force never sent, a terminal result that proves no physical cessation, or
-    /// <see cref="NativeTransportError"/> when a sent force has an uncertain outcome.
+    /// Request native stop of an abandoned record with dispatch intent, without credentials, source custody
+    /// or replay. A confirmed run is forced directly; an intended run only after its status matches every
+    /// retained binding fact, which still establishes no correlation. Every outcome refuses: force never
+    /// sent, a terminal result that proves no physical cessation, or <see cref="NativeTransportError"/>
+    /// when a sent force has an uncertain outcome.
     /// </summary>
     private async Task StopRetainedHttpAsync(NativeSubmission submitted, CancellationToken cancellationToken)
     {
         var (run, identity) = submitted.Run is { } confirmed
             ? (confirmed, NativeRunIdentity.Confirmed)
-            : (submitted.Frozen.Run(submitted.IntendedRunId!), NativeRunIdentity.Intended);
+            : (submitted.Frozen.Run(submitted.IntendedRunId), NativeRunIdentity.Intended);
         var stop = await DirectTargetRun.StopAsync(run, identity, directTargetRoot, DirectTargetClock, cancellationToken);
         throw stop.Force switch
         {
@@ -102,66 +75,18 @@ public sealed partial class BroodlingStore
         };
     }
 
-    private string WorktreeRetirementBasis(AttemptRecord attempt)
-    {
-        WorktreeMaterialization.ValidatePaths(attempt, Path, inspectGit: false);
-        if (!Directory.Exists(attempt.Allocation.Enclosure))
-        {
-            if (File.Exists(attempt.Allocation.Enclosure) || attempt.Provision is not null)
-                throw new CessationUnconfirmed("The acknowledged enclosure is missing or ambiguous.");
-            return "never_materialized";
-        }
-        WorktreeMaterialization.RequireMarker(attempt);
-        if (attempt.Provision is null)
-            throw new CessationUnconfirmed("Interrupted provisioning has no durable acknowledgment; cessation is unknown.");
-        return "never_dispatched";
-    }
-
-    /// <summary>
-    /// Discard only the proven safe Attempt's exact checkout and branch. Keep enclosure and stable lock.
-    /// An HTTP Attempt has no local resource: retirement only acknowledges its retained proof.
-    /// </summary>
+    /// <summary>An Attempt has no local resource: retirement only acknowledges its retained safe proof.</summary>
     public AttemptRetirement RetireAttempt(string attemptId)
     {
         var proof = FindRetirement(attemptId) ?? throw new CessationUnconfirmed("Retirement requires retained safe cessation proof.");
         if (proof.RetiredAt is not null) return proof;
-        var attempt = GetAttempt(attemptId);
-        if (attempt.ResourceKind == AttemptRecord.Http)
-        {
-            using var transaction = connection.BeginTransaction(deferred: false);
-            RequireRetirementSafety(ReadAttempt(attemptId, transaction), transaction);
-            return AcknowledgeRetirement(attemptId, transaction);
-        }
-        WorktreeMaterialization.ValidatePaths(attempt, Path, inspectGit: false);
-        if (!Directory.Exists(attempt.Allocation.Enclosure))
-        {
-            using var transaction = connection.BeginTransaction(deferred: false);
-            attempt = ReadAttempt(attemptId, transaction);
-            RequireRetirementSafety(attempt, transaction);
-            WorktreeMaterialization.ValidatePaths(attempt, Path);
-            if (proof.Basis != "never_materialized" || File.Exists(attempt.Allocation.Enclosure))
-                throw new CessationUnconfirmed("Retirement enclosure disappeared or changed.");
-            // No mutation is needed, but refuse foreign Git ownership even without an enclosure.
-            WorktreeMaterialization.RequireUnmaterialized(attempt);
-            return AcknowledgeRetirement(attemptId, transaction);
-        }
-        AdministrativeGitProcess.RequireSupportedHost();
-        WorktreeMaterialization.RequireMarker(attempt);
-        using var held = AdministrativeGitProcess.EnclosureLock.Acquire(
-            System.IO.Path.Combine(attempt.Allocation.Enclosure, WorktreeMaterialization.LockName));
-        using var write = connection.BeginTransaction(deferred: false);
-        proof = ReadRetirement(attemptId, write)!;
-        if (proof.RetiredAt is not null) { write.Commit(); return proof; }
-        attempt = ReadAttempt(attemptId, write);
-        RequireRetirementSafety(attempt, write);
-        WorktreeMaterialization.ValidatePaths(attempt, Path);
-        WorktreeMaterialization.RequireMarker(attempt);
-        WorktreeMaterialization.RemoveOwned(attempt, held);
-        return AcknowledgeRetirement(attemptId, write);
+        using var transaction = connection.BeginTransaction(deferred: false);
+        RequireRetirementSafety(ReadAttempt(attemptId, transaction), transaction);
+        return AcknowledgeRetirement(attemptId, transaction);
     }
 
     /// <summary>
-    /// Retire a dispatched HTTP Attempt during verified maintenance. Each host maintenance invocation
+    /// Retire a dispatched Attempt during verified maintenance. Each host maintenance invocation
     /// pauses, stops and verifies the target, then supplies its check; this records it with the retirement
     /// and deletes nothing. It requires the pause, a complete check made no earlier than the latest pause
     /// call and no later than now, naming this Attempt's target, no local dispatch still initiating, a non-current (abandoned or completed) Attempt with dispatch
@@ -186,13 +111,12 @@ public sealed partial class BroodlingStore
             || check.VerifiedAt > DateTimeOffset.UtcNow)
             throw new MaintenanceUnverified("The stopped-target check was not made during the current pause; verify the target again.");
         // A sender that committed intent before the stop holds this lock until its send returns.
-        if (!AdministrativeGitProcess.EnclosureLock.IsFree(Path))
+        if (!InitiationLock.IsFree(Path))
             throw new MaintenanceUnverified("A local dispatch is still initiating.");
         var attempt = ReadAttempt(attemptId, transaction);
-        if (attempt.ResourceKind != AttemptRecord.Http || attempt.IsCurrent
-            || ReadSubmission(attemptId, transaction) is not { Format: NativeSubmission.Http, State: not "prepared" } submission)
+        if (attempt.IsCurrent || ReadSubmission(attemptId, transaction) is not { State: not "prepared" } submission)
             throw new CessationUnconfirmed("Maintenance retirement requires a non-current DirectTarget Attempt with dispatch intent.");
-        if (check.DirectOrigin != submission.Locator.Address)
+        if (check.DirectOrigin != submission.Origin)
             throw new MaintenanceUnverified("The stopped-target check names another target.");
         // Short local ref reads under the writer, against the Attempt and completion read here.
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
@@ -209,7 +133,7 @@ public sealed partial class BroodlingStore
     private void RequireRetirementSafety(AttemptRecord attempt, SqliteTransaction transaction)
     {
         if (attempt.IsCurrent || attempt.Abandonment is null || ReadSubmission(attempt.AttemptId, transaction) is { State: not "prepared" }
-            || ReadRetirement(attempt.AttemptId, transaction) is not { Basis: "never_materialized" or "never_dispatched" or "no_dispatch_intent" })
+            || ReadRetirement(attempt.AttemptId, transaction) is not { Basis: "no_dispatch_intent" })
             throw new CessationUnconfirmed("Historical labels do not authorize new cleanup.");
     }
 

@@ -6,16 +6,13 @@ internal sealed class AttemptFixture : IDisposable
 {
     internal StoreFixture State { get; } = new();
     internal string Repository => System.IO.Path.Combine(State.Root, "source");
-    internal string Workspaces => System.IO.Path.Combine(State.Root, "attempts");
     internal string GitDirectory => System.IO.Path.Combine(Repository, ".git");
     internal string Head { get; }
-    /// <summary>The Work Unit's admitted Contract: one PR to <c>main</c> unless the fixture is a no-effect one.</summary>
+    /// <summary>The Work Unit's admitted Contract: one PR to <c>main</c>.</summary>
     internal string RevisionId { get; }
-    private readonly bool noEffect;
 
-    internal AttemptFixture(bool noEffect = false)
+    internal AttemptFixture()
     {
-        this.noEffect = noEffect;
         Directory.CreateDirectory(Repository);
         Git("init", "--initial-branch=main");
         Git("config", "user.email", "test@example.invalid");
@@ -26,16 +23,14 @@ internal sealed class AttemptFixture : IDisposable
         Git("commit", "-m", "original");
         Head = Git("rev-parse", "HEAD").Trim();
         using var store = State.Initialize();
-        RevisionId = store.AdmitSources(ContractIngressTests.Reference, [ContractIngressTests.Primary()], ContractIngressTests.Propose,
-            noEffect ? [] : ContractIngressTests.PullRequest).Revision.ContractRevisionId;
+        RevisionId = PullRequestRevision(store);
     }
 
-    /// <summary>An HTTP Attempt of <see cref="RevisionId"/>; a no-effect fixture allocates a worktree Attempt instead.</summary>
-    internal AttemptRecord Admit(BroodlingStore store, string? revision = null, string? root = null) => noEffect
-        ? store.AdmitAttempt(RevisionId, Repository, root ?? Workspaces, revision ?? Head)
-        : store.AdmitHttpAttempt(RevisionId, Repository, revision ?? Head);
+    /// <summary>An HTTP Attempt of <see cref="RevisionId"/>.</summary>
+    internal AttemptRecord Admit(BroodlingStore store, string? revision = null) =>
+        store.AdmitHttpAttempt(RevisionId, Repository, revision ?? Head);
 
-    /// <summary>The same Work Unit admitted for authorized PR delivery, the only HTTP Attempt profile.</summary>
+    /// <summary>The Work Unit admitted for authorized PR delivery, the only Attempt profile.</summary>
     internal static string PullRequestRevision(BroodlingStore store) => store.AdmitSources(ContractIngressTests.Reference,
         [ContractIngressTests.Primary()], ContractIngressTests.Propose, ContractIngressTests.PullRequest).Revision.ContractRevisionId;
 

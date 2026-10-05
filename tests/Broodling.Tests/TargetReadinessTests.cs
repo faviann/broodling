@@ -326,7 +326,6 @@ public sealed class TargetReadinessTests
     [Arguments("missing-origin")]
     [Arguments("unknown-config")]
     [Arguments("local-field")]
-    [Arguments("local-config")]
     [Arguments("credential-config")]
     [Arguments("credential-inventory")]
     [Arguments("missing-inventory")]
@@ -343,12 +342,6 @@ public sealed class TargetReadinessTests
             case "missing-origin": config.AsObject().Remove("directOrigin"); break;
             case "unknown-config": config["extra"] = ReadinessFixture.Secret; break;
             case "local-field": config["pythonExecutable"] = "/unavailable-python"; break;
-            case "local-config":
-                config = JsonNode.Parse("""
-                    {"target":"local","pythonExecutable":"/p","stateDirectory":"/s","workspaceRoot":"/w",
-                     "realCodex":"/c","profileHome":"/h","codexHome":"/ch","launcher":"/l/codex"}
-                    """)!;
-                break;
             case "credential-config": config["gatewayApiKey"] = ReadinessFixture.Secret; break;
             case "credential-inventory":
                 var inventory = JsonNode.Parse(File.ReadAllText(fixture.Arguments[1]))!;
@@ -514,7 +507,7 @@ public sealed class TargetReadinessTests
             Readiness = new TargetReadiness(Command, DiscoveryClient, Clock);
             File.WriteAllText(Arguments[1], JsonSerializer.Serialize(Inventory, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             File.WriteAllText(Arguments[2], $$"""
-                {"target":"direct","directOrigin":"{{Origin}}","directRootCertificate":"{{RootCertificate}}"}
+                {"directOrigin":"{{Origin}}","directRootCertificate":"{{RootCertificate}}"}
                 """);
         }
 
