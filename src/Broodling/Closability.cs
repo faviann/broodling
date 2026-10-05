@@ -33,9 +33,12 @@ public static class Closability
         try { targetBranch = AuthorizeDelivery(contract); }
         catch (InvalidContractProposal)
         {
+            if (contract.RequiredEffects.Count == 0)
+                findings.Add(new("no_required_effect", "requiredEffects", "",
+                    "No-effect work has no supported execution target; a stable no-effect result is future work (#78). The request is preserved."));
             foreach (var effect in contract.RequiredEffects)
                 findings.Add(new("unsupported_required_effect", "requiredEffect:" + effect.EffectId, effect.Statement,
-                    "Only no effect or one pull_request effect naming a target branch is supported; the required effect is preserved."));
+                    "Only one pull_request effect naming a target branch is supported; the required effect is preserved."));
         }
         if (targetBranch is not null && workUnitHost != "github.com")
             findings.Add(new("unsupported_delivery_host", "workUnitHost:" + workUnitHost, contract.RequiredEffects[0].Statement,

@@ -29,7 +29,8 @@ public sealed class AdmissionPersistenceTests
         {
             var work = store.ResolveWorkUnit(ContractIngressTests.Reference);
             var source = store.EntitleSource(work.WorkUnitId, ContractIngressTests.Primary());
-            contract = new(work.WorkUnitId, [new(source.SourceId, source.ContentSha256)], [new("c", "Preserve this outcome.")]);
+            contract = new(work.WorkUnitId, [new(source.SourceId, source.ContentSha256)], [new("c", "Preserve this outcome.")],
+                requiredEffects: ContractIngressTests.PullRequest);
             // Fail after the source binding insertion, inside the real revision transaction.
             fixture.Execute("CREATE TRIGGER interrupt_revision AFTER INSERT ON contract_sources BEGIN SELECT RAISE(ABORT, 'interrupted revision'); END;");
             await Assert.That(() => store.RecordContractRevision(contract)).Throws<SqliteException>();

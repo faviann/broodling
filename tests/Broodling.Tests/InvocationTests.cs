@@ -54,7 +54,7 @@ public sealed class InvocationTests
         return fixture;
     }
 
-    private static readonly byte[] Issue = """
+    internal static readonly byte[] Issue = """
         {"number":12,"node_id":"I_12","html_url":"https://github.com/acme/widget/issues/12",
          "repository_url":"https://api.github.com/repos/acme/widget","title":"Frozen issue","body":"Complete request"}
         """u8.ToArray();
@@ -441,7 +441,8 @@ public sealed class InvocationTests
         await Assert.That(target.Connections).IsEqualTo(0);
     }
 
-    private sealed class IssueFixture : IDisposable
+    /// <summary>A <c>gh</c> stand-in that answers every issue read with <see cref="Issue"/>.</summary>
+    internal sealed class IssueFixture : IDisposable
     {
         private readonly string executable;
         internal GitHubIssueSource Source { get; }
