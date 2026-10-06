@@ -271,7 +271,7 @@ public sealed class TargetReadiness
     /// published port rather than whatever the name resolves to on this host (LAN DNS selects Traefik, which
     /// terminates TLS itself).
     /// </summary>
-    private static HttpClient PublishedPortClient(Uri origin, string? rootCertificate, IPEndPoint published)
+    internal static HttpClient PublishedPortClient(Uri origin, string? rootCertificate, IPEndPoint published)
     {
         var handler = NativeClient.CreateHttpHandler(new TransportOptions { TrustedRootCertificatePath = rootCertificate });
         handler.ConnectCallback = async (_, token) =>

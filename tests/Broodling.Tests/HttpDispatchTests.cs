@@ -275,7 +275,7 @@ public sealed class HttpDispatchTests
         var length = Encoding.UTF8.GetByteCount(request.ToJsonString());
         task.ReplaceWith((string)task! + new string('x', DirectTargetLimits.JsonBytes - length - 16));
         var prepared = DirectTargetSubmission.Import(request.ToJsonString());
-        await using var client = DirectTargetClient.Open(target.Origin, null);
+        await using var client = DirectTargetClient.Open(target.Origin, TestAccess.Live);
         var error = await Assert.That(async () => await DirectTargetSubmission.SubmitAsync(client, prepared,
             Credentials().TargetRun(), TimeProvider.System, CancellationToken.None)).Throws<NativeTransportError>();
         await Assert.That(error!.Kind).IsEqualTo("request_too_large");

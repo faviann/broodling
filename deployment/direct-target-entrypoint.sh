@@ -92,30 +92,35 @@ if [ "$mode" = initialize ]; then
     }
     trap cleanup EXIT
     trap 'exit 1' HUP INT TERM
-    # Native creates its ledger and validates the origin when it starts serving. It serves privately on this
-    # one-off container's loopback, with a throwaway bootstrap key that is never used, so nothing can control it.
-    (umask 077 && openssl rand -hex 32 | tr -d '\n' >"$scratch/bootstrap-key")
-    zeroshot target serve --listen 127.0.0.1:18770 --public-origin "$origin" --storage /state \
-        --bootstrap-key-file "$scratch/bootstrap-key" >"$scratch/server.log" 2>&1 &
-    native_pid=$!
-    listening='Zeroshot direct target listening on 127.0.0.1:18770 as '
-    canonical=
-    for attempt in $(seq 1 100); do
-        canonical=$(sed -n "s/^$listening//p" "$scratch/server.log")
-        [ -n "$canonical" ] && break
-        if ! kill -0 "$native_pid" 2>/dev/null; then
-            cat "$scratch/server.log" >&2
-            refuse 'native initialization exited; clear any partial state deliberately before retrying'
-        fi
-        sleep 0.1
-    done
-    [ -n "$canonical" ] || refuse 'native initialization did not start serving; clear any partial state deliberately before retrying'
-    kill "$native_pid"
-    wait "$native_pid" 2>/dev/null || :
-    native_pid=
-    # Pinned native, not the entrypoint, decides the canonical spelling it serves.
-    [ "$canonical" = "$origin" ] \
-        || refuse "native serves this origin as $canonical; configure exactly that origin, after clearing the partial state"
+    # Native validates the origin and creates its ledger when it starts serving. It serves privately on this
+    # one-off container's loopback, with a throwaway bootstrap key that is never used, so nothing can control
+    # it; it is stopped once it reports the canonical origin it serves.
+    serve_once() {
+        (umask 077 && openssl rand -hex 32 | tr -d '\n' >"$scratch/bootstrap-key")
+        zeroshot target serve --listen 127.0.0.1:18770 --public-origin "$origin" --storage "$1" \
+            --bootstrap-key-file "$scratch/bootstrap-key" >"$scratch/server.log" 2>&1 &
+        native_pid=$!
+        canonical=
+        for attempt in $(seq 1 100); do
+            canonical=$(sed -n 's/^Zeroshot direct target listening on 127\.0\.0\.1:18770 as //p' "$scratch/server.log")
+            [ -n "$canonical" ] && break
+            if ! kill -0 "$native_pid" 2>/dev/null; then
+                cat "$scratch/server.log" >&2
+                refuse 'native initialization exited; clear any partial state deliberately before retrying'
+            fi
+            sleep 0.1
+        done
+        [ -n "$canonical" ] || refuse 'native initialization did not start serving; clear any partial state deliberately before retrying'
+        kill "$native_pid"
+        wait "$native_pid" 2>/dev/null || :
+        native_pid=
+    }
+    # Pinned native, not the entrypoint, decides the canonical spelling it serves; learn it on scratch storage,
+    # so a refused origin leaves the configured state empty.
+    mkdir "$scratch/state"
+    serve_once "$scratch/state"
+    [ "$canonical" = "$origin" ] || refuse "native serves this origin as $canonical; configure exactly that origin"
+    serve_once /state
     mkdir -p "${binding%/*}"
     printf '%s\n' "$origin" >"$binding"
     check_state

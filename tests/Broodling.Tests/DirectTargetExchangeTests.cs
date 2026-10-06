@@ -11,8 +11,9 @@ namespace Broodling.Tests;
 public sealed class DirectTargetExchangeTests
 {
     private const string Stock = """
-        {"kind":"zeroshot.native-v2-target/v2","authentication":"none","runPath":"/native-v2/run",
-         "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller"}
+        {"kind":"zeroshot.native-v2-target/v2","authentication":"private_capability","runPath":"/native-v2/run",
+         "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller",
+         "privateBootstrapPath":"/native-v2/private-bootstrap"}
         """;
 
     [Test]

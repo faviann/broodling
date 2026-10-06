@@ -157,6 +157,8 @@ public static class InvocationCommands
         {
             ["error"] = exception is BroodlingException known ? known.Code : fallback, ["message"] = message
         };
+        // A fixed kind, such as credentials_unavailable or unauthorized for the control token, never remote text.
+        if (exception is NativeTransportError transport) record["kind"] = transport.Kind;
         if (exception is NativeTransportError { AcknowledgedRunId: { } foreign }) record["acknowledgedRunId"] = foreign;
         return record;
     }

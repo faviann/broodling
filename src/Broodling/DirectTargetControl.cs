@@ -40,10 +40,11 @@ public static class DirectTargetControl
     /// </summary>
     public static Task<DirectTargetBootstrapResult> BootstrapAsync(string origin, DirectTargetAccess access, string bootstrapKeyFile,
         CancellationToken cancellationToken = default) =>
-        BootstrapAsync(origin, access, bootstrapKeyFile, TimeProvider.System, cancellationToken);
+        BootstrapAsync(origin, access, bootstrapKeyFile, null, TimeProvider.System, cancellationToken);
 
+    /// <param name="http">A client that already trusts the root, such as one bound to zeroshot-tls's published port; null connects by name.</param>
     internal static async Task<DirectTargetBootstrapResult> BootstrapAsync(string origin, DirectTargetAccess access, string bootstrapKeyFile,
-        TimeProvider clock, CancellationToken cancellationToken)
+        HttpClient? http, TimeProvider clock, CancellationToken cancellationToken)
     {
         var target = DirectTargetExchange.CanonicalOrigin(origin)
             ?? throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1].");
@@ -58,8 +59,8 @@ public static class DirectTargetControl
         {
             native = NativeClient.ForHttp(new NativeClientOptions
             {
-                Origin = target, Transport = new TransportOptions { TrustedRootCertificatePath = access.RootCertificate }
-            });
+                Origin = target, Transport = new TransportOptions { TrustedRootCertificatePath = http is null ? access.RootCertificate : null }
+            }, http);
         }
         catch (ArgumentException) { throw new NativeTransportError(); } // An unreadable root sends nothing.
         await using (native)

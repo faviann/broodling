@@ -26,7 +26,7 @@ public sealed class DirectTargetTrustTests
             var root = Path.Combine(directory.FullName, "root.crt");
             File.WriteAllText(root, trust == "other-root" ? PrivateAuthority.Create().RootPem : authority.RootPem);
             Task<NativeProgress> Read() => DirectTargetRun.ProgressAsync(DirectTargetRunTests.Binding(target.Origin),
-                trust == "system-trust" ? null : root, DirectTargetLimits.Progress, new FakeTimeProvider(), default);
+                TestAccess.Trusting(trust == "system-trust" ? null : root), DirectTargetLimits.Progress, new FakeTimeProvider(), default);
             if (opens)
             {
                 await Assert.That((await Read()).Phase).IsEqualTo("running");
@@ -52,7 +52,7 @@ public sealed class DirectTargetTrustTests
         fixture.PrepareAt(target.Origin);
         var root = Path.Combine(fixture.Git.State.Root, "zeroshot-root.crt");
         // Opening names the root without reading it.
-        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, root);
+        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, TestAccess.Trusting(root));
         await Assert.That(async () => await store.DispatchHttpAsync(fixture.Attempt.AttemptId, HttpDispatchTests.Credentials()))
             .Throws<NativeTransportError>();
         await Assert.That(store.FindSubmission(fixture.Attempt.AttemptId)!.State).IsEqualTo("prepared");
@@ -77,7 +77,7 @@ public sealed class DirectTargetTrustTests
         var id = fixture.PrepareAt(target.Origin).AttemptId;
         var root = Path.Combine(fixture.Git.State.Root, "zeroshot-root.crt");
         File.WriteAllText(root, PrivateAuthority.Create().RootPem);
-        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, root);
+        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, TestAccess.Trusting(root));
         // A readable root of another authority: intent commits, then the handshake refuses before any request.
         var error = await Assert.That(async () => await store.DispatchHttpAsync(id, HttpDispatchTests.Credentials()))
             .Throws<NativeTransportError>();
@@ -105,7 +105,7 @@ public sealed class DirectTargetTrustTests
         target.Projections.Enqueue(DirectTargetRunTests.Running(run));
         target.Projections.Enqueue(DirectTargetRunTests.Running(run));
         target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "succeeded", CompletionFixture.Receipt(head: accepted)));
-        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, root);
+        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, TestAccess.Trusting(root));
         await Assert.That((await store.WaitAsync(fixture.Attempt.AttemptId)).AcceptedRevision).IsEqualTo(accepted);
         await Assert.That(target.Count("run/watch")).IsEqualTo(1);
     }

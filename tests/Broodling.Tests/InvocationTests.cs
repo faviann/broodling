@@ -85,16 +85,26 @@ public sealed class InvocationTests
             // No workspace, branch or client state: only shared Git custody changed.
             await Assert.That(fixture.LocalResources()).IsEqualTo(local);
             var output = new StringWriter(); var error = new StringWriter();
+            // Reaching the live run needs the configuration's connection material: without it, nothing is contacted.
+            await Assert.That(await InvocationCommands.RunAsync(["wait", store.Path, attempt.AttemptId],
+                fixture.State.Application, output, error)).IsEqualTo(1);
+            await Assert.That(error.ToString()).Contains("\"kind\":\"credentials_unavailable\"");
+            await Assert.That(target.Count("run/status")).IsEqualTo(0);
+            var config = Path.Combine(fixture.State.Root, "direct.json");
+            File.WriteAllText(config, new JsonObject
+            {
+                ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority), ["directControlTokenFile"] = target.TokenFile
+            }.ToJsonString());
             using (var detached = new CancellationTokenSource())
             {
                 detached.Cancel();
-                await Assert.That(await InvocationCommands.RunAsync(["wait", store.Path, attempt.AttemptId],
+                await Assert.That(await InvocationCommands.RunAsync(["wait", store.Path, attempt.AttemptId, config],
                     fixture.State.Application, output, error, detached.Token)).IsEqualTo(130);
             }
             store.RequireCurrentAttempt(attempt.AttemptId);
             var accepted = fixture.Deliver();
             target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "succeeded", CompletionFixture.Receipt(head: accepted)));
-            await Assert.That(await InvocationCommands.RunAsync(["wait", store.Path, attempt.AttemptId],
+            await Assert.That(await InvocationCommands.RunAsync(["wait", store.Path, attempt.AttemptId, config],
                 fixture.State.Application, output, error)).IsEqualTo(0);
             completed = store.FindCompletion(attempt.AttemptId)!;
             await Assert.That(output.ToString()).Contains(completed.AcceptedRevision);
@@ -198,7 +208,7 @@ public sealed class InvocationTests
         var config = Path.Combine(fixture.State.Root, "config.json");
         File.WriteAllText(config, new JsonObject
         {
-            ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority)
+            ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority), ["directControlTokenFile"] = target.TokenFile
         }.ToJsonString());
         var args = new[] { "submit", fixture.State.Path, config, "acme/widget", "12", fixture.Repository, fixture.Head, "main", reviewed, "caller" };
         var output = new StringWriter();
@@ -253,6 +263,9 @@ public sealed class InvocationTests
     [Arguments("http://user:CONFIG_SECRET@127.0.0.1:8123")]
     [Arguments("http://127.0.0.1:8123?token=CONFIG_SECRET")]
     [Arguments("relative-root")]
+    [Arguments("missing-token-file")]
+    [Arguments("relative-token-file")]
+    [Arguments("inline-token")]
     [Arguments("http://remote.example:8123")]
     [Arguments("http://127.0.0.1:8123/")]
     [Arguments("http://127.0.0.1:0")]
@@ -261,7 +274,7 @@ public sealed class InvocationTests
         await using var target = new StockTarget();
         using var fixture = new AttemptFixture();
         // A refusal that were missed would reach this listening target.
-        var direct = new JsonObject { ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority) };
+        var direct = new JsonObject { ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority), ["directControlTokenFile"] = target.TokenFile };
         var configuration = invalid switch
         {
             "secret-field" => With(direct, "GH_TOKEN", "CONFIG_SECRET"),
@@ -271,6 +284,10 @@ public sealed class InvocationTests
             "python" => With(direct, "pythonExecutable", "/usr/bin/python3"),
             "workspace-root" => With(direct, "workspaceRoot", fixture.State.Root),
             "relative-root" => With(direct, "directRootCertificate", "root.crt"),
+            "missing-token-file" => Without(direct, "directControlTokenFile"),
+            "relative-token-file" => With(direct, "directControlTokenFile", "control-token"),
+            // A token is named by its protected file, never carried in the configuration.
+            "inline-token" => With(direct, "directControlToken", "CONFIG_SECRET"),
             _ => With(direct, "directOrigin", invalid)
         };
         var path = Path.Combine(fixture.State.Root, "invalid-config.json");
@@ -286,6 +303,13 @@ public sealed class InvocationTests
         await Assert.That(target.Connections).IsEqualTo(0);
         using var store = fixture.State.Open();
         await Assert.That(store.Status(fixture.RevisionId).Attempts.Count).IsEqualTo(0);
+    }
+
+    private static JsonObject Without(JsonObject configuration, string field)
+    {
+        var changed = configuration.DeepClone().AsObject();
+        changed.Remove(field);
+        return changed;
     }
 
     private static JsonObject With(JsonObject configuration, string field, string value)
@@ -310,7 +334,7 @@ public sealed class InvocationTests
         var config = Path.Combine(fixture.State.Root, "direct.json");
         File.WriteAllText(config, new JsonObject
         {
-            ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority)
+            ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority), ["directControlTokenFile"] = target.TokenFile
         }.ToJsonString());
         var error = new StringWriter();
         var names = new[] { "GH_TOKEN", "GATEWAY_BASE_URL", "GATEWAY_API_KEY" };
@@ -354,7 +378,7 @@ public sealed class InvocationTests
         using var fixture = GitHubRepository();
         var revision = fixture.RevisionId;
         var config = Path.Combine(fixture.State.Root, "direct.json");
-        var direct = new JsonObject { ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority) };
+        var direct = new JsonObject { ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority), ["directControlTokenFile"] = target.TokenFile };
         if (authority is not null)
         {
             var root = Path.Combine(fixture.State.Root, "zeroshot-root.crt");
@@ -396,7 +420,7 @@ public sealed class InvocationTests
         var submission = store2.FindSubmission(attempt.AttemptId)!;
         // A configuration naming another origin refuses before contact or abandonment.
         var elsewhere = Path.Combine(fixture.State.Root, "elsewhere.json");
-        File.WriteAllText(elsewhere, new JsonObject { ["directOrigin"] = "http://127.0.0.1:9" }.ToJsonString());
+        File.WriteAllText(elsewhere, new JsonObject { ["directOrigin"] = "http://127.0.0.1:9", ["directControlTokenFile"] = "/nonexistent/control-token" }.ToJsonString());
         error.GetStringBuilder().Clear();
         await Assert.That(await InvocationCommands.RunAsync(["stop", fixture.State.Path, attempt.AttemptId, "operator requested stop", elsewhere],
             fixture.State.Application, output, error)).IsEqualTo(1);

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using TUnit.Assertions;
 using TUnit.Core;
@@ -5,7 +6,8 @@ using static Broodling.Tests.TargetImage;
 
 namespace Broodling.Tests;
 
-// The primary boundary is the actual target and pinned zeroshot-tls images behind the HTTPS origin,
+// The primary boundary is the actual target and pinned zeroshot-tls images behind the HTTPS origin, in
+// native's private mode with synthetic control material,
 // with disposable state and no provider workload.
 public sealed class NativeTargetStartupTests
 {
@@ -84,8 +86,15 @@ public sealed class NativeTargetStartupTests
         await Assert.That(stored.Output).IsEqualTo("");
     }
 
+    /// <summary>
+    /// Initialization needs no network and records the binding; the target then serves only native's private
+    /// mode behind zeroshot-tls. Control is refused before bootstrap and to any other token; a bootstrap with
+    /// another key consumes nothing; a closed bootstrap never replaces the installed token. Every restart over
+    /// the same state needs a new bootstrap, and an explicit rotation retires the former token, while the state
+    /// stays unchanged throughout.
+    /// </summary>
     [Test]
-    public async Task InitializationThroughTheOriginRecordsTheBindingAndStartupServesItBehindZeroshotTls()
+    public async Task InitializationRecordsTheBindingAndStartupServesOnlyBootstrappedPrivateControl()
     {
         await using var stack = await TargetStack.CreateAsync();
         RequireSuccess(await stack.CreateRoot(stack.RootMounts));
@@ -93,25 +102,98 @@ public sealed class NativeTargetStartupTests
         var initialized = await stack.Initialize();
         RequireSuccess(initialized);
         await Assert.That(initialized.Output).Contains("no provider work submitted");
-        // Native recorded the HTTPS origin, and initialization left only zeroshot-tls running.
-        using (var registry = JsonDocument.Parse((await stack.Shell("cat /home/node/.config/zeroshot/targets.json")).Output))
-            await Assert.That(registry.RootElement.GetProperty("targets").GetProperty("broodling").GetProperty("origin").GetString())
-                .IsEqualTo(TargetStack.Origin);
+        await Assert.That((await stack.Shell("cat /home/node/.config/broodling/origin")).Output).IsEqualTo(TargetStack.Origin + "\n");
         await Assert.That((await DockerCommand("ps", "--all", "--quiet", "--filter", "name=" + stack.Zeroshot)).Output).IsEqualTo("");
 
         await stack.Shell("touch /state/runs/owned /home/node/owned; chown 10002:10002 /state/runs/owned; chown 20000:20000 /home/node/owned; chmod 700 /state/runs/owned; chmod 600 /home/node/owned");
         var before = await Snapshot(stack);
         await stack.StartTarget();
-        // Native's own client reaches the origin through the alias; zeroshot-tls forwards to the fixed inner port.
-        var list = await stack.ServingNativeList();
-        await Assert.That(JsonDocument.Parse(list).RootElement.GetProperty("runs").GetArrayLength()).IsEqualTo(0);
+        await stack.Serving();
+        using (var http = await stack.Client())
+        using (var discovery = JsonDocument.Parse(await http.GetStringAsync(TargetStack.Origin + "/.well-known/zeroshot-native-v2")))
+            await Assert.That(discovery.RootElement.GetProperty("authentication").GetString()).IsEqualTo("private_capability");
+        // Native read and unlinked its private copy of the key before serving.
+        await Assert.That((await DockerCommand("exec", stack.Zeroshot, "ls", "-A", "/run/broodling-target")).Output).IsEqualTo("");
+        var token = stack.Token;
+        var other = TestAccess.NewSecret();
+        foreach (var bearer in new[] { null, token, other })
+            await Assert.That(await stack.Control(bearer)).IsEqualTo(HttpStatusCode.Unauthorized);
+
+        // An envelope under another key is refused without consuming the target's key.
+        var otherKey = Path.Combine(stack.Root, "other-key");
+        File.WriteAllText(otherKey, TestAccess.NewSecret());
+        await Fails(() => stack.Bootstrap(otherKey), "bootstrap key differs");
+        await Assert.That(await stack.Bootstrap()).IsEqualTo(DirectTargetBootstrapResult.Installed);
+        // A repeat, as after a lost acknowledgement, sends nothing.
+        await Assert.That(await stack.Bootstrap()).IsEqualTo(DirectTargetBootstrapResult.AlreadyInstalled);
+        await Assert.That(await stack.Control(token)).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await stack.Control(null)).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(await stack.Control(other)).IsEqualTo(HttpStatusCode.Unauthorized);
+        // Another token cannot take over the running target.
+        File.WriteAllText(stack.TokenFile, other);
+        await Fails(() => stack.Bootstrap(), "holds another one");
+        File.WriteAllText(stack.TokenFile, token);
+        await Assert.That(await stack.Control(token)).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await stack.Control(other)).IsEqualTo(HttpStatusCode.Unauthorized);
         var published = await DockerCommand("inspect", "--format", "{{json .HostConfig.PortBindings}}", stack.Zeroshot);
         await Assert.That(published.Output.Trim()).IsEqualTo("{}");
+
+        // An ordinary restart over the same state: the new process accepts nothing until bootstrapped again.
+        await stack.StopTarget();
+        await Assert.That(await Snapshot(stack)).IsEqualTo(before);
+        await stack.StartTarget();
+        await stack.Serving();
+        await Assert.That(await stack.Control(token)).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(await stack.Bootstrap()).IsEqualTo(DirectTargetBootstrapResult.Installed);
+        await Assert.That(await stack.Control(token)).IsEqualTo(HttpStatusCode.OK);
+
+        // Explicit rotation: a restart bootstrapped with the replacement token, which alone is then accepted.
+        await stack.StopTarget();
+        File.WriteAllText(stack.TokenFile, other);
+        await stack.StartTarget();
+        await stack.Serving();
+        await Assert.That(await stack.Bootstrap()).IsEqualTo(DirectTargetBootstrapResult.Installed);
+        await Assert.That(await stack.Control(other)).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await stack.Control(token)).IsEqualTo(HttpStatusCode.Unauthorized);
         await stack.StopTarget();
         await Assert.That(await Snapshot(stack)).IsEqualTo(before);
         var reinitialize = await stack.Initialize();
         await Assert.That(reinitialize.Code).IsEqualTo(1);
         await Assert.That(reinitialize.Error).Contains("requires empty state and home");
+        await Assert.That(await Snapshot(stack)).IsEqualTo(before);
+    }
+
+    /// <summary>
+    /// Serving requires the root-only bootstrap key: without it, or with one execution agents could read or native
+    /// would refuse, the entrypoint stops before native serves anything, and never serves unauthenticated.
+    /// </summary>
+    [Test]
+    [Arguments("missing")]
+    [Arguments("other-readable")]
+    [Arguments("group-readable")]
+    [Arguments("agent-owned")]
+    [Arguments("newline")]
+    [Arguments("uppercase")]
+    public async Task ServingRequiresTheRootOnlyBootstrapKeyAndNeverFallsBackToUnauthenticated(string change)
+    {
+        await using var stack = await TargetStack.CreateAsync();
+        RequireSuccess(await stack.Initialize());
+        var key = File.ReadAllText(stack.OperatorBootstrapKeyFile);
+        string[] mounts = stack.TargetMounts;
+        switch (change)
+        {
+            case "missing": mounts = [.. TargetStack.Bind(stack.State, "/state"), .. TargetStack.Bind(stack.Home, "/home/node")]; break;
+            case "other-readable": RequireSuccess(await stack.ProvisionKey(key, mode: "0404")); break;
+            case "group-readable": RequireSuccess(await stack.ProvisionKey(key, mode: "0440")); break;
+            case "agent-owned": RequireSuccess(await stack.ProvisionKey(key, owner: "10002:10002")); break;
+            case "newline": RequireSuccess(await stack.ProvisionKey(key + "\n")); break;
+            case "uppercase": RequireSuccess(await stack.ProvisionKey(key.ToUpperInvariant())); break;
+        }
+        var before = await Snapshot(stack);
+        var refused = await DockerCommand(["run", "--rm", "--network", "none", .. mounts, await TargetImage.Direct.Value, .. TargetStack.Arguments]);
+        await Assert.That(refused.Code).IsEqualTo(1);
+        await Assert.That(refused.Error).Contains("bootstrap key");
+        await Assert.That(refused.Error).DoesNotContain("listening");
         await Assert.That(await Snapshot(stack)).IsEqualTo(before);
     }
 
@@ -148,22 +230,19 @@ public sealed class NativeTargetStartupTests
     public async Task ConfiguredLocationsAndNonemptyInitializationAreRefused()
     {
         await using var stack = await TargetStack.CreateAsync();
-        // Without the public root, native's client could only fail with a bare transport error.
-        var unrooted = await stack.Run(["initialize", .. TargetStack.Arguments]);
-        await Assert.That(unrooted.Code).IsEqualTo(1);
-        await Assert.That(unrooted.Error).Contains("/tls-root/root.crt");
-        RequireSuccess(await stack.CreateRoot(stack.RootMounts));
-        // Pinned native, not the entrypoint, decides origin validity, before any state exists.
-        var origin = await stack.Run("initialize", "--listen", TargetReadiness.NativeListen, "--public-origin", "http://broodling-target:18770", "--storage", "/state");
-        await Assert.That(origin.Code).IsEqualTo(1);
-        await Assert.That((await stack.Shell("ls -A /state /home/node")).Output).IsEqualTo("/home/node:\n\n/state:\n");
+        // Pinned native, not the entrypoint, decides origin validity and spelling, before any state exists.
+        foreach (var invalid in new[] { "http://broodling-target:18770", "https://ZEROSHOT.dev.faviann.com" })
+        {
+            var origin = await stack.Run("initialize", "--listen", TargetReadiness.NativeListen, "--public-origin", invalid, "--storage", "/state");
+            await Assert.That(origin.Code).IsEqualTo(1);
+            await Assert.That((await stack.Shell("ls -A /state /home/node")).Output).IsEqualTo("/home/node:\n\n/state:\n");
+        }
         await stack.Shell("echo retain > /home/node/existing");
         var before = await Tree(stack);
         var initialize = await stack.Run(["initialize", .. TargetStack.Arguments]);
         await Assert.That(initialize.Code).IsEqualTo(1);
         await Assert.That(await Tree(stack)).IsEqualTo(before);
         await stack.Shell("rm /home/node/existing");
-        await stack.StartTls();
         RequireSuccess(await stack.Initialize());
         foreach (var configuration in new[] { "HOME=/missing", "CODEX_HOME=/other", "ZEROSHOT_CONFIG_DIR=/other", "XDG_CONFIG_HOME=/other" })
         {
@@ -182,8 +261,19 @@ public sealed class NativeTargetStartupTests
         await Assert.That(missing.Code).IsEqualTo(1);
     }
 
+    private static async Task Fails(Func<Task<DirectTargetBootstrapResult>> bootstrap, string message)
+    {
+        try { await bootstrap(); }
+        catch (DirectTargetBootstrapFailed failure)
+        {
+            await Assert.That(failure.Message).Contains(message);
+            return;
+        }
+        throw new InvalidOperationException("Expected the bootstrap to fail.");
+    }
+
     private static async Task<string> Snapshot(TargetStack stack) => (await stack.Shell(
-        "sha256sum /state/runs.sqlite3 /home/node/.config/zeroshot/targets.json; stat -c '%u:%g:%a' /state/runs/owned /home/node/owned")).Output;
+        "sha256sum /state/runs.sqlite3 /home/node/.config/broodling/origin; stat -c '%u:%g:%a' /state/runs/owned /home/node/owned")).Output;
 
     private static async Task<string> Tree(TargetStack stack) => (await stack.Shell(
         "find /state /home/node -printf '%p %y %u:%g %m %l\\n' | sort; find /state /home/node -type f -exec sha256sum {} + | sort")).Output;
