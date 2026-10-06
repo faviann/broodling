@@ -447,9 +447,11 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 
 ### Current adoption record
 
-- Tested code revision: `4de1c2a05ae71a19b1688c4e3c18d0ce1249293a` (#233). Later commits that only
+- Tested code revision: `a46f14cce0a5ae47d81da030de0b46ff3cffdd83` (#187). Later commits that only
   edit this record or other documentation leave it valid; a code change
-  requires a new run.
+  requires a new run. #187 newly uses the package's private-mode surface
+  (`TargetControlCredentials` on every submission and OECP session, and
+  `NativeClient.Private.BootstrapAsync`) with the same package bytes.
 - SDK: `Zeroshot.Client` `10.10.0.1-preview.1` from
   `https://nuget.pkg.github.com/faviann/index.json`; `.nupkg` SHA-256
   `b6edd08c0054a057460a69b245d11e242e34737245b33ee51d7f2cd893fc7d10`, NuGet
@@ -472,20 +474,20 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
   frozen.
 - Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.8.1, with no
   Python environment and the transition check building this revision's target
-  image: the full suite passed 597 of 597; the Release build succeeded with no
-  warnings; the lane passed 238 of 238 on one run and failed 6 bounded-wait
-  cases on the next. The host was heavily loaded by unrelated work (load
-  average 9 to 20). The failures were `CompletionObserverTests` "did not
-  settle" timeouts, one `CompletionPersistenceTests` case and, in earlier runs
-  at this change, `DirectTargetTrustTests` and `AttemptCompletionTests`
-  `transport_failed` reads. Those classes passed five consecutive isolated runs
-  at this revision, and the lane at `9127fda` failed the same
-  `CompletionObserverTests` cases on the same host at the same time.
-- Baseline: the transition check ran with its recorded scope unchanged, as a
-  restart of this revision's native 10.10.0 target image over its own state
-  (#215 introduced it for 10.9.0; #226 moved the binding). No transition source
-  is listed. The native binding and approved asset are unchanged from the
-  `0.2.0-preview.1` adoption; the fresh-store definition changed with #233.
+  image: the lane, now including `DirectTargetAccessTests` and
+  `NativeTargetStartupTests`, passed 268 of 268; the full suite passed 633 of
+  633; the Release build succeeded with no warnings; and the
+  [image demonstration](#image-demonstration) passed on images built from that
+  revision. Earlier lane runs during the change, on a host loaded by other
+  work (load average 5 to 9), failed the known `CompletionObserverTests`
+  "did not settle" bounded waits, which then passed three consecutive isolated
+  runs, and once a new control-token case whose 10-second observation budget
+  expired; that case now runs on a controlled clock.
+- Baseline: the transition check ran as a restart of this revision's native
+  10.10.0 target image over its own state, which is now also the explicit
+  control-token rotation (#187). No transition source is listed. The native
+  binding, approved asset and fresh-store definition are unchanged from the
+  #233 record.
 
 ## Evidence limits and history
 
