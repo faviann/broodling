@@ -1,1 +1,1 @@
-{"directOrigin": "https://zeroshot.dev.faviann.com", "directRootCertificate": "/tls-root/root.crt"}
+{"directOrigin": "https://zeroshot.dev.faviann.com", "directControlTokenFile": "/run/secrets/zeroshot-control-token", "directRootCertificate": "/tls-root/root.crt"}

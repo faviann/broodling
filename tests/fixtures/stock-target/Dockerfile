@@ -5,3 +5,4 @@ COPY --chmod=755 codex /usr/local/bin/codex
 COPY --chmod=755 gh /usr/bin/gh
 COPY --chmod=755 git /usr/bin/git
 COPY --chmod=644 forge.gitconfig /etc/broodling-forge.gitconfig
+COPY --chmod=755 access-probe /usr/local/bin/broodling-access-probe

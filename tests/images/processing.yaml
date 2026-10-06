@@ -15,7 +15,6 @@ services:
       GATEWAY_API_KEY: demo-key
       SSL_CERT_FILE: /tls-root/root.crt
     volumes:
-      - { type: bind, source: ./processing/invocation.json, target: /etc/broodling/invocation.json, read_only: true }
       - { type: bind, source: ./processing/gh, target: /usr/local/bin/gh, read_only: true }
       - { type: bind, source: ./processing/git, target: /usr/local/bin/git, read_only: true }
       - { type: bind, source: ./processing/github, target: /github, read_only: true }

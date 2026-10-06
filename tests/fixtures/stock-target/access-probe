@@ -1,0 +1,117 @@
+#!/usr/bin/python3
+"""Controlled agent probe of the DirectTarget's private-control boundary (#187), run by the controlled provider's
+worker as the native-spawned execution agent. It receives only SHA-256 hashes of the installation's synthetic
+control secrets, never the secrets: every 64-character lowercase hexadecimal string it can read is hashed and
+compared. It also records what its identity can open, its capabilities, raw-socket access and the target's answers
+to unauthenticated, wrong-bearer and forged-bootstrap requests over loopback and the routed origin. Usage:
+access-probe HASHES_JSON RESULT_JSON, with the delivered task prompt on stdin."""
+import hashlib
+import http.client
+import json
+import os
+import re
+import socket
+import ssl
+import sys
+import uuid
+
+hashes_path, result_path = sys.argv[1:3]
+targets = set(json.load(open(hashes_path))["sha256"])
+pattern = re.compile(rb"[0-9a-f]{64}")
+matches = []
+coverage = {"files": 0, "procEntries": 0, "unreadable": 0}
+
+
+def scan(source, data):
+    for candidate in set(pattern.findall(data)):
+        if hashlib.sha256(candidate).hexdigest() in targets:
+            matches.append(source)
+
+
+def read(path, limit=4 * 1024 * 1024):
+    with open(path, "rb") as file:
+        return file.read(limit)
+
+
+# Delivered execution context: environment, arguments and the task prompt.
+scan("environment", "\n".join(f"{k}={v}" for k, v in os.environ.items()).encode())
+scan("argv", "\n".join(sys.argv).encode())
+scan("prompt", sys.stdin.buffer.read())
+
+# Process-visible material of every process it can see.
+for pid in filter(str.isdigit, os.listdir("/proc")):
+    for entry in ("environ", "cmdline"):
+        try:
+            scan(f"/proc/{pid}/{entry}", read(f"/proc/{pid}/{entry}"))
+            coverage["procEntries"] += 1
+        except OSError:
+            coverage["unreadable"] += 1
+
+# Every readable regular file outside the kernel and package trees, including the checkout (its cwd).
+excluded = {"/proc", "/sys", "/dev", "/usr"}
+for top, directories, files in os.walk("/", onerror=lambda _: None):
+    directories[:] = [d for d in directories if os.path.join(top, d) not in excluded]
+    for name in files:
+        path = os.path.join(top, name)
+        try:
+            if os.path.islink(path) or not os.path.isfile(path) or os.path.getsize(path) > 4 * 1024 * 1024:
+                continue
+            scan(path, read(path))
+            coverage["files"] += 1
+        except OSError:
+            coverage["unreadable"] += 1
+
+
+def attempt(action):
+    try:
+        action()
+        return "allowed"
+    except OSError as error:
+        return error.__class__.__name__ + ":" + (os.strerror(error.errno) if error.errno else "")
+
+
+opened = {path: attempt(lambda path=path: read(path, 1)) for path in (
+    "/run/secrets/zeroshot-bootstrap-key", "/run/broodling-target/bootstrap-key", "/proc/1/environ", "/proc/1/mem")}
+opened["/run/broodling-target (list)"] = attempt(lambda: os.listdir("/run/broodling-target"))
+status = dict(line.split(":\t", 1) for line in read("/proc/self/status").decode().splitlines() if ":\t" in line)
+raw_socket = attempt(lambda: socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP).close())
+
+run_id = str(uuid.uuid7()) if hasattr(uuid, "uuid7") else "01890000-0000-7000-8000-000000000000"
+wrong = "Bearer " + "0" * 64
+endpoints = {
+    "loopback": lambda: http.client.HTTPConnection("127.0.0.1", 18770, timeout=10),
+    "origin": lambda: http.client.HTTPSConnection("zeroshot.dev.faviann.com", 443, timeout=10,
+                                                  context=ssl.create_default_context(cafile="/tls-root/root.crt")),
+}
+requests = {
+    "run-unauthenticated": ("POST", "/native-v2/run", {}, "{}"),
+    "run-wrong-bearer": ("POST", "/native-v2/run", {"Authorization": wrong}, "{}"),
+    "session-unauthenticated": ("POST", "/native-v2/oecp-session", {}, "{}"),
+    "session-wrong-bearer": ("POST", "/native-v2/oecp-session", {"Authorization": wrong}, "{}"),
+    "oecp-upgrade-unauthenticated": ("GET", "/native-v2/oecp", {"Upgrade": "websocket", "Connection": "Upgrade",
+        "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==", "Sec-WebSocket-Version": "13"}, None),
+    "oecp-upgrade-wrong-bearer": ("GET", "/native-v2/oecp", {"Upgrade": "websocket", "Connection": "Upgrade",
+        "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==", "Sec-WebSocket-Version": "13", "Authorization": wrong}, None),
+    "forged-bootstrap": ("POST", "/native-v2/private-bootstrap", {},
+                         json.dumps({"nonce": os.urandom(12).hex(), "ciphertext": os.urandom(80).hex()})),
+    "operator-diagnostics": ("GET", "/native-v2/operator-diagnostics/" + run_id, {}, None),
+    "history-definition": ("POST", "/native-v2/history/definition", {}, json.dumps({"runId": run_id})),
+    "ui": ("GET", "/ui/", {}, None),
+}
+answers = {}
+for route, connect in endpoints.items():
+    for name, (method, path, headers, body) in requests.items():
+        try:
+            connection = connect()
+            connection.request(method, path, body=body, headers={"Content-Type": "application/json", **headers})
+            answers[f"{route} {name}"] = connection.getresponse().status
+            connection.close()
+        except Exception as error:  # noqa: BLE001 - the probe records any failure as evidence
+            answers[f"{route} {name}"] = "error:" + error.__class__.__name__
+
+with open(result_path + ".new", "w") as result:
+    json.dump({"uid": os.getuid(), "gid": os.getgid(), "capEff": status.get("CapEff", "").strip(),
+               "secretMatches": matches, "coverage": coverage, "opened": opened, "rawSocket": raw_socket,
+               "answers": answers}, result, indent=1, sort_keys=True)
+os.chmod(result_path + ".new", 0o644)
+os.rename(result_path + ".new", result_path)
