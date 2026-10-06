@@ -41,7 +41,7 @@ public sealed partial class BroodlingStore
         if (run is null) return null;
         try
         {
-            var progress = await DirectTargetRun.ProgressAsync(run, directTargetRoot, bound, DirectTargetClock, cancellationToken);
+            var progress = await DirectTargetRun.ProgressAsync(run, directTarget, bound, DirectTargetClock, cancellationToken);
             return new NativeObservation.Available(DateTimeOffset.UtcNow, identity, progress);
         }
         catch (NativeTransportError error) { return new NativeObservation.Unavailable(DateTimeOffset.UtcNow, identity, error.Kind); }

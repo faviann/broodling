@@ -81,7 +81,7 @@ public sealed partial class BroodlingStore
             transaction.Commit();
         }
         // Cancellation and transport errors detach the caller; neither abandons nor requests stop.
-        var result = await DirectTargetRun.WaitAsync(submitted.Run!, directTargetRoot, DirectTargetClock, cancellationToken);
+        var result = await DirectTargetRun.WaitAsync(submitted.Run!, directTarget, DirectTargetClock, cancellationToken);
         if (result.RunId != submitted.RunId) throw new ReceiptRefused("The result belongs to another native run.");
         if (!result.Succeeded)
         {

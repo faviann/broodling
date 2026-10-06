@@ -8,16 +8,16 @@ namespace Broodling;
 /// through the exact-Attempt <see cref="BroodlingStore.WaitAsync"/>, in its own store session. It never
 /// prepares, dispatches or stops, and it continues while the installation is paused.
 /// </summary>
-/// <param name="directTargetRootCertificate">
-/// The PEM root that explicit waits trust for HTTPS DirectTarget connections, passed to every session;
-/// null deliberately selects system trust.
+/// <param name="directTarget">
+/// The current DirectTarget connection material (control tokens and root) passed to every session; null has none,
+/// so a wait cannot reach any target and is retried at a later scan.
 /// </param>
 /// <param name="unexpectedFailure">
 /// Called once with the Attempt ID when its observation fails in a way no scan can resolve. That
 /// Attempt is not observed again in this process; other observations continue. It may be invoked
 /// concurrently from thread-pool threads.
 /// </param>
-public sealed class CompletionObserver(BroodlingApplication application, string storePath, string? directTargetRootCertificate,
+public sealed class CompletionObserver(BroodlingApplication application, string storePath, DirectTargetAccess? directTarget,
     Action<string, Exception> unexpectedFailure)
 {
     /// <summary>The scan interval, and so the longest pause before a failed wait is retried.</summary>
@@ -77,7 +77,7 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
     {
         try
         {
-            using var store = application.OpenStore(storePath, directTargetRootCertificate);
+            using var store = application.OpenStore(storePath, directTarget);
             return store.ObservableAttempts();
         }
         catch (Exception failure) when (failure is StoreStateException or SqliteException) { return null; }
@@ -88,7 +88,7 @@ public sealed class CompletionObserver(BroodlingApplication application, string 
     {
         try
         {
-            using var store = application.OpenStore(storePath, directTargetRootCertificate);
+            using var store = application.OpenStore(storePath, directTarget);
             try { await store.WaitAsync(attemptId, cancellationToken); }
             // Refused only from a terminal result read from the run, which every later read returns again.
             catch (Exception refusal) when (refusal is ReceiptRefused or AcceptedRevisionRefused)

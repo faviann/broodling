@@ -42,7 +42,7 @@ public static class InvocationCommands
                     return 0;
                 }
             }
-            // wait/stop take the same optional configuration, which supplies only the DirectTarget root certificate.
+            // wait/stop take the same optional configuration, which supplies only the DirectTarget connection material.
             var configPath = args[0] switch
             {
                 "submit" => args[2],
@@ -51,7 +51,7 @@ public static class InvocationCommands
                 _ => args.Length == 5 ? args[4] : null
             };
             var configuration = configPath is null ? null : InvocationConfiguration.Read(configPath);
-            using var store = application.OpenStore(args[1], configuration?.DirectRootCertificate);
+            using var store = application.OpenStore(args[1], configuration?.Access);
             if (args[0] is "wait" or "stop" && configuration is not null)
             {
                 // A supplied configuration must describe the retained target, refused before contact or

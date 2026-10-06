@@ -120,20 +120,24 @@ internal static class DirectTargetExchange
         && value.EnumerateObject().All(property => required.Contains(property.Name) || optional.Contains(property.Name));
 }
 
-/// <summary>The selected stock discovery document; it confirms protocol shape, not native or image identity.</summary>
+/// <summary>
+/// The selected stock discovery document of a target in native's private mode; it confirms protocol shape and
+/// the advertised access mode, not native or image identity, and discovery itself is public.
+/// </summary>
 internal static class DirectTargetDiscovery
 {
     internal const string Kind = "zeroshot.native-v2-target/v2";
     internal const string RunPath = "/native-v2/run";
     internal const string SessionPath = "/native-v2/oecp-session";
     internal const string OecpPath = "/native-v2/oecp";
+    internal const string BootstrapPath = "/native-v2/private-bootstrap";
 
     private static readonly Dictionary<string, string> Required = new(StringComparer.Ordinal)
     {
-        ["kind"] = Kind, ["authentication"] = "none", ["audience"] = "controller",
-        ["runPath"] = RunPath, ["sessionPath"] = SessionPath, ["oecpPath"] = OecpPath
+        ["kind"] = Kind, ["authentication"] = "private_capability", ["audience"] = "controller",
+        ["runPath"] = RunPath, ["sessionPath"] = SessionPath, ["oecpPath"] = OecpPath, ["privateBootstrapPath"] = BootstrapPath
     };
-    private static readonly string[] NullOnly = ["privateBootstrapPath", "oauth", "loginSession"];
+    private static readonly string[] NullOnly = ["oauth", "loginSession"];
 
     internal static async Task RequireAsync(HttpClient http, Uri origin, DirectTargetBudget budget)
     {

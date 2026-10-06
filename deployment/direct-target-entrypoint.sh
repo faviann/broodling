@@ -47,10 +47,11 @@ unredirected() { [ "$(realpath "$1")" = "$1" ]; }
 for path in /state /home/node; do
     [ -d "$path" ] && unredirected "$path" || refuse "missing or redirected directory: $path"
 done
-registry=/home/node/.config/zeroshot/targets.json
+# Broodling's record of the public origin this native state serves, written once by initialization.
+binding=/home/node/.config/broodling/origin
 check_state() {
     [ -d /state/runs ] && unredirected /state/runs || refuse 'missing or redirected directory: /state/runs'
-    for path in /state/runs.sqlite3 "$registry"; do
+    for path in /state/runs.sqlite3 "$binding"; do
         [ -f "$path" ] && [ -s "$path" ] && unredirected "$path" || refuse "missing or redirected initialized file: $path"
     done
     # Native creates its tables in any SQLite file it opens, so an unrelated database
@@ -60,18 +61,29 @@ ledger = sqlite3.connect("file:/state/runs.sqlite3?mode=ro", uri=True)
 tables = {name for (name,) in ledger.execute("SELECT name FROM sqlite_master WHERE type = ?", ("table",))}
 sys.exit(not {"v2_runs", "v2_run_events"} <= tables)' 2>/dev/null \
         || refuse 'unrecognized native ledger: /state/runs.sqlite3'
-    # Native records its canonical origin; only an identical configured origin is the same binding.
-    node -e 'const [file, origin] = process.argv.slice(1);
-        const target = JSON.parse(require("fs").readFileSync(file)).targets?.broodling;
-        process.exit(target?.origin === origin ? 0 : 1);' "$registry" "$origin" 2>/dev/null \
-        || refuse 'native home is not bound to this public origin'
+    # Initialization recorded native's canonical origin; only an identical configured origin is the same binding.
+    [ "$(cat "$binding")" = "$origin" ] || refuse 'native state is not bound to this public origin'
+}
+# Native serves only in its private mode: every control and OECP request needs the bearer token that
+# the operator's bootstrap installs in each new target process. The bootstrap key is a root-only secret
+# file; native requires its own private copy, which it reads and unlinks before serving anything.
+key_secret=/run/secrets/zeroshot-bootstrap-key
+key_copy=/run/broodling-target/bootstrap-key
+private_key() {
+    [ -f "$key_secret" ] && [ ! -L "$key_secret" ] \
+        || refuse "missing bootstrap key: mount the target's root-only secret file at $key_secret"
+    # Execution agents run as other identities, so the key must stay readable by root alone.
+    [ "$(stat -c %u "$key_secret")" = 0 ] && [ $((0$(stat -c %a "$key_secret") & 077)) -eq 0 ] \
+        || refuse "the bootstrap key at $key_secret must be owned by root with no group or other access (mode 0400)"
+    [ "$(wc -c <"$key_secret")" -eq 64 ] && grep -qxE '[0-9a-f]{64}' "$key_secret" \
+        || refuse 'the bootstrap key must be exactly 64 lowercase hexadecimal characters with no newline'
+    rm -rf "${key_copy%/*}"
+    (umask 077 && mkdir "${key_copy%/*}" && cat "$key_secret" >"$key_copy") || refuse "cannot prepare native's private copy of the bootstrap key"
 }
 if [ "$mode" = initialize ]; then
     # Only a deliberate fresh installation. No retry may overwrite partial/used state.
     [ -z "$(ls -A /state)" ] && [ -z "$(ls -A /home/node)" ] \
         || refuse 'initialization requires empty state and home; retain or restore existing state'
-    # Native's client trusts only this root, so a missing file would surface as a bare transport failure.
-    [ -f /tls-root/root.crt ] || refuse 'initialization requires the public root certificate at /tls-root/root.crt'
     scratch=$(mktemp -d)
     native_pid=
     cleanup() {
@@ -80,32 +92,36 @@ if [ "$mode" = initialize ]; then
     }
     trap cleanup EXIT
     trap 'exit 1' HUP INT TERM
-    # Serve on the project network so native target add discovers and records the configured
-    # origin through zeroshot-tls, which forwards to this container's `zeroshot` alias.
-    zeroshot target serve --listen 0.0.0.0:18770 --public-origin "$origin" --storage /state >"$scratch/server.log" 2>&1 &
+    # Native creates its ledger and validates the origin when it starts serving. It serves privately on this
+    # one-off container's loopback, with a throwaway bootstrap key that is never used, so nothing can control it.
+    (umask 077 && openssl rand -hex 32 | tr -d '\n' >"$scratch/bootstrap-key")
+    zeroshot target serve --listen 127.0.0.1:18770 --public-origin "$origin" --storage /state \
+        --bootstrap-key-file "$scratch/bootstrap-key" >"$scratch/server.log" 2>&1 &
     native_pid=$!
-    ready=false
+    listening='Zeroshot direct target listening on 127.0.0.1:18770 as '
+    canonical=
     for attempt in $(seq 1 100); do
+        canonical=$(sed -n "s/^$listening//p" "$scratch/server.log")
+        [ -n "$canonical" ] && break
         if ! kill -0 "$native_pid" 2>/dev/null; then
             cat "$scratch/server.log" >&2
-            refuse 'native initialization exited'
-        fi
-        if SSL_CERT_FILE=/tls-root/root.crt timeout 2 zeroshot target add broodling --url "$origin" --direct 2>/dev/null; then
-            ready=true
-            break
+            refuse 'native initialization exited; clear any partial state deliberately before retrying'
         fi
         sleep 0.1
     done
-    [ "$ready" = true ] || refuse 'native initialization could not reach the origin: is zeroshot-tls running with this root, and does this one-off container carry the zeroshot alias (docker compose run --use-aliases)? Clear the partial state deliberately before retrying'
-    # A public read opens the native ledger without submitting work.
-    SSL_CERT_FILE=/tls-root/root.crt timeout 10 zeroshot list --target broodling >/dev/null \
-        || refuse 'native ledger initialization failed'
+    [ -n "$canonical" ] || refuse 'native initialization did not start serving; clear any partial state deliberately before retrying'
     kill "$native_pid"
     wait "$native_pid" 2>/dev/null || :
     native_pid=
+    # Pinned native, not the entrypoint, decides the canonical spelling it serves.
+    [ "$canonical" = "$origin" ] \
+        || refuse "native serves this origin as $canonical; configure exactly that origin, after clearing the partial state"
+    mkdir -p "${binding%/*}"
+    printf '%s\n' "$origin" >"$binding"
     check_state
-    echo 'Native target state initialized; no provider work submitted.'
+    echo 'Native target state initialized; no provider work submitted. Start the target and bootstrap its control token.'
 else
     check_state
-    exec zeroshot target serve "$@"
+    private_key
+    exec zeroshot target serve "$@" --bootstrap-key-file "$key_copy"
 fi

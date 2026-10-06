@@ -31,11 +31,11 @@ internal static class DirectTargetRun
     private static readonly JsonElement Null = JsonDocument.Parse("null").RootElement.Clone();
 
     /// <summary>One status read within <paramref name="bound"/>, setup included.</summary>
-    internal static async Task<NativeProgress> ProgressAsync(NativeRunBinding run, string? rootCertificate, TimeSpan bound,
+    internal static async Task<NativeProgress> ProgressAsync(NativeRunBinding run, DirectTargetAccess? access, TimeSpan bound,
         TimeProvider clock, CancellationToken caller)
     {
         using var budget = DirectTargetBudget.Start(bound, clock, caller);
-        var (client, handle) = Reconnect(run, rootCertificate);
+        var (client, handle) = Reconnect(run, access);
         await using (client) return Progress(await StatusAsync(run, handle, budget));
     }
 
@@ -45,10 +45,10 @@ internal static class DirectTargetRun
     /// waits with no overall deadline, and the caller may stop observing at any time. Cancellation or
     /// any failure detaches the caller without stopping the run.
     /// </summary>
-    internal static async Task<NativeResult> WaitAsync(NativeRunBinding run, string? rootCertificate, TimeProvider clock,
+    internal static async Task<NativeResult> WaitAsync(NativeRunBinding run, DirectTargetAccess? access, TimeProvider clock,
         CancellationToken caller)
     {
-        var (client, handle) = Reconnect(run, rootCertificate);
+        var (client, handle) = Reconnect(run, access);
         await using (client)
         {
             RunStatusResult first;
@@ -65,14 +65,14 @@ internal static class DirectTargetRun
     /// A failure before force is sent is <see cref="DirectTargetForce.NotSent"/>; once it may have been
     /// sent, <see cref="DirectTargetForce.Uncertain"/>. Caller cancellation propagates.
     /// </summary>
-    internal static async Task<DirectTargetStop> StopAsync(NativeRunBinding run, NativeRunIdentity identity, string? rootCertificate,
+    internal static async Task<DirectTargetStop> StopAsync(NativeRunBinding run, NativeRunIdentity identity, DirectTargetAccess? access,
         TimeProvider clock, CancellationToken caller)
     {
         using var budget = DirectTargetBudget.Start(DirectTargetLimits.Stop, clock, caller);
         var force = DirectTargetForce.NotSent;
         try
         {
-            var (client, handle) = Reconnect(run, rootCertificate);
+            var (client, handle) = Reconnect(run, access);
             await using (client)
             {
                 if (identity == NativeRunIdentity.Intended) await StatusAsync(run, handle, budget);
@@ -95,11 +95,11 @@ internal static class DirectTargetRun
     /// The one place a retained binding names its target: its canonical origin, HTTPS or HTTP to exactly
     /// 127.0.0.1 or [::1], addressed through the DirectTarget binding.
     /// </summary>
-    private static (ZeroshotClient Client, Run Handle) Reconnect(NativeRunBinding run, string? rootCertificate)
+    private static (ZeroshotClient Client, Run Handle) Reconnect(NativeRunBinding run, DirectTargetAccess? access)
     {
         if (DirectTargetExchange.CanonicalOrigin(run.Origin) is not { } origin)
             throw new UnsupportedRuntime("The retained DirectTarget binding is unsupported.");
-        var client = DirectTargetClient.Open(origin, rootCertificate);
+        var client = DirectTargetClient.Open(origin, access);
         try { return (client, client.GetRun(new RunReference(origin, new RunId(run.RunId), DirectTargetClient.Binding))); }
         catch
         {
@@ -166,6 +166,8 @@ internal static class DirectTargetRun
         }),
         NativeHttpException http => new NativeTransportError(http switch
         {
+            // The target refuses these control credentials: missing bootstrap, a rotated token or another target.
+            { Kind: NativeHttpFailureKind.HttpStatus, StatusCode: System.Net.HttpStatusCode.Unauthorized } => "unauthorized",
             { Kind: NativeHttpFailureKind.HttpStatus, Problem: not null } => "TargetError",
             { Kind: NativeHttpFailureKind.HttpStatus or NativeHttpFailureKind.Protocol or NativeHttpFailureKind.SizeLimit } => "invalid_response",
             { Kind: NativeHttpFailureKind.Deadline } => "TimeoutError",

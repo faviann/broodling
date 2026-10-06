@@ -62,15 +62,15 @@ internal sealed class Processing : BackgroundService
     {
         this.lifetime = lifetime;
         this.logger = logger;
-        var root = settings.Configuration.DirectRootCertificate;
+        var access = settings.Configuration.Access;
         var peers = settings.Peers;
         var preparer = new IssueSubmissionPreparer(application, storePath, settings.RepositoryRoot, lifetime.ApplicationStopping)
         {
             IssueSource = peers?.IssueSource, RepositorySource = peers?.RepositorySource, Gateway = peers?.Gateway
         };
-        Progressor = new SubmissionProgressor(application, storePath, root, settings.Configuration.Target,
+        Progressor = new SubmissionProgressor(application, storePath, access, settings.Configuration.Target,
             preparer, settings.Credentials, Stopped) { Clock = peers?.Clock ?? TimeProvider.System };
-        observer = new CompletionObserver(application, storePath, root, (attemptId, failure) =>
+        observer = new CompletionObserver(application, storePath, access, (attemptId, failure) =>
             logger.LogError(failure, "Completion observation of Attempt {AttemptId} failed unexpectedly; it is not observed again until restart.", attemptId))
         { Clock = peers?.Clock ?? TimeProvider.System };
     }

@@ -55,6 +55,9 @@ internal static class DirectTargetSubmission
             _ when deadline.IsCancellationRequested => new NativeTransportError("TimeoutError"),
             NativeHttpException http => new NativeTransportError(http switch
             {
+                // Native authenticates before reading the request, so this never records a run; the intent
+                // stays unresolved all the same, like every other outcome but the exact acknowledgement.
+                { Kind: NativeHttpFailureKind.HttpStatus, StatusCode: System.Net.HttpStatusCode.Unauthorized } => "unauthorized",
                 { Kind: NativeHttpFailureKind.HttpStatus, Problem: not null } => "TargetError",
                 { Kind: NativeHttpFailureKind.HttpStatus or NativeHttpFailureKind.Protocol } => "invalid_response",
                 { Kind: NativeHttpFailureKind.SizeLimit } when attempt.Outcome == NativeAttemptOutcome.NotSent => "request_too_large",

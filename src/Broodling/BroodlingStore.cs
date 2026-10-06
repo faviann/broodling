@@ -12,14 +12,14 @@ public sealed partial class BroodlingStore : IDisposable
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly SqliteConnection connection;
     /// <summary>Operator configuration, never retained: see <see cref="BroodlingApplication.OpenStore"/>.</summary>
-    private readonly string? directTargetRoot;
+    private readonly DirectTargetAccess? directTarget;
     public string Path { get; }
     public StoreInformation Information { get; private set; } = null!;
 
-    private BroodlingStore(string path, string? directTargetRoot = null)
+    private BroodlingStore(string path, DirectTargetAccess? directTarget = null)
     {
         Path = path;
-        this.directTargetRoot = directTargetRoot;
+        this.directTarget = directTarget;
         connection = new(new SqliteConnectionStringBuilder
         {
             DataSource = path,
@@ -71,13 +71,13 @@ public sealed partial class BroodlingStore : IDisposable
     }
 
     /// <param name="refused">Released identities refused with their documented reasons; only tests replace <see cref="StoreSchema.Refused"/>.</param>
-    internal static BroodlingStore Open(string path, string? directTargetRoot = null,
+    internal static BroodlingStore Open(string path, DirectTargetAccess? directTarget = null,
         IReadOnlyDictionary<SchemaIdentity, string>? refused = null)
     {
         var target = StorePath(path);
         if (!File.Exists(target))
             throw new StoreStateException("store_missing", "The store does not exist; initialize a new installation explicitly or restore existing state.");
-        var store = new BroodlingStore(target, directTargetRoot);
+        var store = new BroodlingStore(target, directTarget);
         try
         {
             RequireSupportedIdentity(target, refused ?? StoreSchema.Refused);
