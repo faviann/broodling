@@ -86,8 +86,19 @@ if [ "$mode" = initialize ]; then
         || refuse 'initialization requires empty state and home; retain or restore existing state'
     scratch=$(mktemp -d)
     native_pid=
+    # A stop sent before native installs its signal handlers can be lost, so a bounded wait ends in a kill.
+    stop_native() {
+        kill "$native_pid" 2>/dev/null || :
+        for attempt in $(seq 1 50); do
+            kill -0 "$native_pid" 2>/dev/null || break
+            sleep 0.1
+        done
+        kill -KILL "$native_pid" 2>/dev/null || :
+        wait "$native_pid" 2>/dev/null || :
+        native_pid=
+    }
     cleanup() {
-        if [ -n "$native_pid" ]; then kill "$native_pid" 2>/dev/null || :; wait "$native_pid" 2>/dev/null || :; fi
+        if [ -n "$native_pid" ]; then stop_native; fi
         rm -rf "$scratch"
     }
     trap cleanup EXIT
@@ -97,12 +108,13 @@ if [ "$mode" = initialize ]; then
     # it; it is stopped once it reports the canonical origin it serves.
     serve_once() {
         (umask 077 && openssl rand -hex 32 | tr -d '\n' >"$scratch/bootstrap-key")
+        : >"$scratch/server.log"
         zeroshot target serve --listen 127.0.0.1:18770 --public-origin "$origin" --storage "$1" \
             --bootstrap-key-file "$scratch/bootstrap-key" >"$scratch/server.log" 2>&1 &
         native_pid=$!
         canonical=
         for attempt in $(seq 1 100); do
-            canonical=$(sed -n 's/^Zeroshot direct target listening on 127\.0\.0\.1:18770 as //p' "$scratch/server.log")
+            canonical=$(sed -n 's/^Zeroshot direct target listening on 127\.0\.0\.1:18770 as //p' "$scratch/server.log" || :)
             [ -n "$canonical" ] && break
             if ! kill -0 "$native_pid" 2>/dev/null; then
                 cat "$scratch/server.log" >&2
@@ -111,9 +123,7 @@ if [ "$mode" = initialize ]; then
             sleep 0.1
         done
         [ -n "$canonical" ] || refuse 'native initialization did not start serving; clear any partial state deliberately before retrying'
-        kill "$native_pid"
-        wait "$native_pid" 2>/dev/null || :
-        native_pid=
+        stop_native
     }
     # Pinned native, not the entrypoint, decides the canonical spelling it serves; learn it on scratch storage,
     # so a refused origin leaves the configured state empty.
