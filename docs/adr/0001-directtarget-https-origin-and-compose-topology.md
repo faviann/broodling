@@ -48,7 +48,10 @@ ownership and modes.
   ([private control access](../../deployment/README.md#private-control-access)).
 - Broodling has no Compose dependency on `zeroshot` or `zeroshot-tls`; it starts
   and serves retained history while either is down. Native agents reach
-  Broodling's read-only reader by service name on the project network.
+  Broodling's reader by service name on the project network. With processing
+  configuration that same port also serves the unauthenticated mutating routes,
+  so agents can reach them too (see
+  [private control access](../../deployment/README.md#private-control-access)).
 - Running jobs are protected from Broodling deploys by deploy policy (update by
   service, never `down` the project), not by separate Compose projects.
 - The TLS hop adds disconnect sources and Broodling performs no automatic

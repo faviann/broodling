@@ -886,9 +886,19 @@ of those, nor PR delivery, semantic quality or physical cessation.
 ## Private control access
 
 Since #187 only a holder of a target's current control token can submit to,
-observe or control its native execution. Broodling and the operator's Broodling
-commands hold it; the target's execution agents cannot read it, mint it or use
-privileged control through loopback or the routed origin. This is the policy the
+observe or control its native execution directly. Broodling and the operator's
+Broodling commands hold it; the target's execution agents cannot read it, mint
+it or use native's control routes through loopback or the routed origin.
+
+This does not yet stop an agent from acting through Broodling. The agents share
+the project network with `broodling`, whose port 8080 serves both the frozen-reference
+reads they need and, with processing configuration, the unauthenticated
+mutating routes (`POST /submissions`, revisions, resume and stops). An agent can
+call those routes, and Broodling then acts with its own token and authority.
+Closing that route needs a decision on the operator contract: #100 and
+homelab-iac#354 route the same port 8080 for operators with application
+authentication deferred, and ADR 0001 puts agents and `broodling` on one network.
+Until it is decided, strict agent isolation is not established. This is the policy the
 maintainer approved in #187: one randomly generated, non-expiring bearer token
 per target, with no expiry, refresh or scheduled rotation; a distinct bootstrap
 key; a bootstrap on every target-process start; and rotation only as explicit
@@ -972,7 +982,10 @@ blindly. Its failures print `"bootstrapped":false` with a fixed message and exit
 Until the target is bootstrapped, the processing server's operations on it fail
 as `unauthorized`: progression retries with its doubling delay and completion
 observation at each scan, and observations report `unavailable` with that
-reason. Retained reads are unaffected. Bootstrap promptly after a start, and
+reason. Retained reads are unaffected. Any automatic restart of the target, by a
+restart policy, a host reboot or a supervisor, leaves the new process refusing
+all control until `bootstrap-target` runs, so every automated restart must be
+paired with the bootstrap step. Bootstrap promptly after a start, and
 before releasing a maintenance pause. A restart still interrupts native
 execution; nothing is resumed, replaced or replayed automatically.
 

@@ -86,7 +86,10 @@ operator configuration names the DirectTarget origin and the file holding its
 private control token. The target serves only native's private mode (#187):
 every control and OECP request needs that token, which the operator's
 `bootstrap-target` installs in each new target process and execution agents
-cannot obtain. Callable
+cannot obtain. Agents can still reach Broodling's own unauthenticated
+processing routes on the shared project network, so strict agent isolation
+awaits an operator-contract decision
+([private control access](../../deployment/README.md#private-control-access)). Callable
 `TargetReadiness.CheckAsync` and the thin `check-target` command check the
 actual target's image, configuration, pinned dependencies, including GitHub
 CLI, and authenticated private control. See
@@ -241,7 +244,8 @@ authenticated control. Broodling reads the token for each operation from the
 file configured for the exact retained origin and never retains it, so a token
 change amends no Contract, Prepared submission, correlation or binding. The
 image demonstration qualifies that execution agents of an actual run can
-neither read the material nor use control routes. Homelab provisioning remains
+neither read the material nor use native's control routes; they can still
+reach Broodling's processing API, which acts with its token. Homelab provisioning remains
 homelab-iac#353 and #354.
 Remaining #100 intent includes
 Compose, maintenance and backup/restore; those remain unimplemented. The
