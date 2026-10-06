@@ -74,7 +74,11 @@ Codex / `gateway` / `gpt-5.6-sol` / medium-effort runtime) through exactly
 **0.153.4**.
 Current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` are required for
 dispatch/replay; their values are not frozen in the invocation. Durable
-correlation permits credential-independent reconnection. Contract admission
+correlation permits reconnection without those dispatch credentials. Every
+target contact also needs the DirectTarget's private control token, read from
+the file the configuration names for the retained origin
+([private control access](deployment/README.md#private-control-access)); the
+target serves only native's private mode. Contract admission
 refuses an empty effect set and other, mixed, multiple or underspecified
 effects.
 

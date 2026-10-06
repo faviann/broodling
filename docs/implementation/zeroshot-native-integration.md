@@ -273,6 +273,19 @@ whole operation shares the 60-second submit budget. Credentials never enter
 SQLite, the frozen request or a diagnostic, and rotating them changes neither
 identity nor the request bytes.
 
+The send also carries the target's private control token as its bearer (#187).
+It is read, like the root, when the operation's SDK client is created, before
+the intent commits, from the token file the session's `DirectTargetAccess`
+names for exactly the retained origin. With no such file, or one that is missing,
+unreadable or not 64 lowercase hexadecimal characters, nothing is recorded or
+sent and the dispatch fails as `credentials_unavailable`. A target that refuses
+the token answers `401 request.unauthorized` before reading the request, which
+Broodling reports as `unauthorized`; like every outcome but the exact
+acknowledgement, it leaves the intent unresolved. The control token is not a
+dispatch credential: it is never part of the request body, the frozen request,
+the binding or any record, and replacing it changes neither the request nor its
+authority, so an exact replay with the current token converges on the intended run.
+
 Broodling classifies the SDK's attempt. Only an acknowledgement naming exactly
 the intended run ID correlates; one that names another or re-cased ID is
 `foreign_run`. When the named ID is a canonical lowercase UUID, the error's
@@ -316,7 +329,8 @@ discover its run.
 ## Composed invocation
 
 ```csharp
-using var store = new BroodlingApplication().OpenStore(databasePath);
+var access = DirectTargetAccess.For(directTargetOrigin, controlTokenFile, rootCertificate);
+using var store = new BroodlingApplication().OpenStore(databasePath, access);
 var invocation = new Invocation(store, new InvocationTarget(directTargetOrigin));
 var credentials = new DispatchCredentials(githubToken, gatewayBaseUrl, gatewayApiKey);
 var status = await invocation.SubmitAsync(reference, propose,
@@ -364,6 +378,8 @@ submit <store> <config.json> <repository> <issue> <checkout> <revision> <target-
 resume <store> <contract-revision-id> [config.json [checkout [revision]]]
 wait <store> <attempt-id> [config.json]
 stop <store> <attempt-id> <reason> [config.json]
+check-target <target-inventory.json> <config.json>
+bootstrap-target <config.json> <bootstrap-key-file>
 ```
 
 `submit` authorizes exactly one `pull_request` effect to `<target-branch>`; `-`
@@ -374,15 +390,27 @@ names the source repository whose exact revision becomes B1; it is not an
 execution checkout. The operator command obtains current PR credentials from
 its environment and passes them explicitly to the application.
 
-The configuration is `{"directOrigin": ...}` with an optional absolute
-`directRootCertificate`. It contains no secrets. Any other member, including a
-`target` member or a credential field, is refused. The origin must pass the
+The configuration is `{"directOrigin": ..., "directControlTokenFile": ...}` with
+an optional absolute `directRootCertificate`. It contains no secrets: the
+required absolute `directControlTokenFile` names the file holding the target's
+private control token, which is read again by each operation and sent only to
+`directOrigin`. Any other member, including a `target` member, an inline token
+or another credential field, is refused. The origin must pass the
 `InvocationTarget` rule above, without user information, path, query or
 fragment, and never port 0. `wait` and `stop` take the same optional
-configuration and use only its root certificate. The retained binding decides
-where they connect, and a configuration naming a different origin refuses before
-target contact or abandonment. See the
+configuration and use only its connection material (token file and root). The
+retained binding decides where they connect, and a configuration naming a
+different origin refuses before target contact or abandonment. Without a
+configuration, `wait` returns only a retained completion and otherwise fails as
+`credentials_unavailable` without contacting the target, and `stop` still
+commits abandonment but reports its native stop as not sent. CLI error records
+carry a native transport failure's fixed `kind`. See the
 [release guide](../../deployment/README.md#invocation-configuration).
+
+`bootstrap-target` installs the configuration's control token in the target
+process now serving its origin, and `check-target` verifies the stack, private
+discovery and authenticated control; see
+[private control access](../../deployment/README.md#private-control-access).
 
 The submit, resume and stop handbacks report each submission only as its status
 facts (Attempt, phase, intended and confirmed run IDs, replay block); `status`
@@ -399,16 +427,28 @@ The homelab DirectTarget origin is `https://zeroshot.dev.faviann.com`
 The `zeroshot-tls` Caddy container serves it on port 443, signing with the
 stack's own root, and forwards to native at the fixed inner port 18770 on the
 Compose project network. Native itself is never published. The configuration
-names that origin and, as `directRootCertificate`, the public `root.crt`, which
-Broodling rereads for each TLS connection. Explicit first initialization creates
-the root once with the target image's `initialize-tls` helper: the key is
-readable only by `zeroshot-tls`'s user, and the certificate is the only file in
-a public directory. It then records the origin in native state through
-`zeroshot-tls`. Rotation replaces the key and certificate together and removes
-Caddy's stored intermediate and leaf. `check-target` verifies the stack and
-discovers through `zeroshot-tls` with the configured root, which catches an
-intermediate left from before a rotation. See
-[initialization](../../deployment/README.md#explicit-initialization-and-guarded-startup),
+names that origin, its control token file and, as `directRootCertificate`, the
+public `root.crt`, which Broodling rereads for each TLS connection. Explicit
+first initialization creates the root once with the target image's
+`initialize-tls` helper: the key is readable only by `zeroshot-tls`'s user, and
+the certificate is the only file in a public directory. Native initialization
+then creates the ledger and records the canonical origin without any network or
+client. Rotation replaces the key and certificate together and removes Caddy's
+stored intermediate and leaf.
+
+Since #187 the target serves only native 10.10.0's private mode: the
+entrypoint always starts `zeroshot target serve` with a private copy of its
+root-only bootstrap key, and refuses to start without one. Native then refuses
+every control route (submission, OECP session and WebSocket, operator
+diagnostics and history) without the bearer token that the encrypted bootstrap
+installed in that process; discovery stays public. `bootstrap-target`, through
+the SDK's `NativeClient.Private.BootstrapAsync`, installs the configured token
+after every target-process start, including a restart over existing state.
+`check-target` verifies the stack, private discovery, refused unauthenticated
+control and accepted authenticated control through `zeroshot-tls` with the
+configured root, which also catches an intermediate left from before a rotation.
+See [initialization](../../deployment/README.md#explicit-initialization-and-guarded-startup),
+[private control access](../../deployment/README.md#private-control-access),
 [rotation](../../deployment/README.md#tls-root-rotation) and
 [readiness](dotnet-target-readiness.md).
 
@@ -441,9 +481,10 @@ leaves the cancellation and any abandonment facts inspectable.
 After durable correlation, wait and stop receive the retained run binding
 (origin, run ID, frozen title, size and PR source) through the
 [run reader and stopper](#directtarget-run-reader-and-stopper). They need no
-workspace or dispatch credentials. Cancelling or killing a waiter detaches that
+workspace or dispatch credentials, only the current control token for the
+retained origin. Cancelling or killing a waiter detaches that
 caller rather than stopping native execution. Completed receipt replay needs no
-target.
+target and no token.
 
 `BroodlingStore.ObserveAsync` reads an Attempt's current native phase and active
 nodes through its retained binding. A merely prepared record returns null
@@ -491,8 +532,8 @@ cancellation. Expiry becomes the fixed `TimeoutError` kind. The budgets limit
 only client operations, never native execution.
 
 TLS is always verified, including the host name. By default it uses system
-trust. A store session opened with `OpenStore(path, directTargetRootCertificate)`
-passes that PEM root to the SDK, which trusts exactly it for every HTTPS and WSS
+trust. A store session opened with `OpenStore(path, directTarget)` passes the
+`DirectTargetAccess`'s PEM root to the SDK, which trusts exactly it for every HTTPS and WSS
 connection, ignoring the system store, and rereads it for each TLS handshake.
 For a loopback HTTP origin the SDK ignores the root. The file is never read when
 the store opens. Each operation creates its own SDK client, which reads the root
@@ -501,13 +542,29 @@ anything is sent; a dispatch creates its client before its intent commits, so
 that failure records nothing. A root that becomes unreadable later fails the
 handshake, and so its operation, as `transport_failed`. Nothing retries.
 
+Each SDK client also carries private-capability control credentials: the token
+read, at client creation, from the file that the `DirectTargetAccess` names for
+exactly the canonical origin being contacted, which for an existing Attempt is
+its retained origin. The SDK sends it as the bearer of submissions and of the
+OECP session, never to discovery, and uses the session the target issues for the
+WebSocket. An origin with no configured token file, or a missing, unreadable or
+malformed token, is `credentials_unavailable` with nothing sent; a refused token
+is `unauthorized`. Reading the file per operation lets an explicit rotation take
+effect without restarting Broodling. A token configured for one origin is never
+sent to another, and a configuration change never redirects an Attempt: its
+retained origin still decides where it connects, and with no token for that
+origin it contacts nothing. `DirectTargetAccess` takes an origin-to-file lookup,
+so one session can serve several separately configured origins, each with its
+own token (the contract for environment selection, #234/#235).
+
 ### DirectTarget run reader and stopper
 
 Every operation reconnects by exactly the retained `NativeRunBinding`: its
 origin, which must be canonical HTTPS or HTTP to exactly
 `127.0.0.1` or `[::1]` with no path, query, fragment or user information, the
 run ID and the DirectTarget binding's native release, as an SDK `RunReference`.
-The binding carries no credentials. An unsupported binding refuses as an
+The binding carries no credentials; the control token is looked up for its
+origin at each operation. An unsupported binding refuses as an
 unsupported runtime before contact.
 
 The SDK checks that a status or force reply names the requested run. Broodling
@@ -526,8 +583,11 @@ Failures are fixed kinds that never contain remote text. `RunNotFoundError` is
 OECP `NOT_FOUND`. `TargetError` covers any other OECP error or HTTP problem.
 `invalid_response` covers a reply the SDK rejects as malformed, including one
 naming another run ID, and a watch that ends without a terminal result.
-`TimeoutError` is expiry and `transport_failed` connection loss. An
-unsupported OECP protocol or SDK binding refuses as an unsupported runtime.
+`TimeoutError` is expiry and `transport_failed` connection loss.
+`unauthorized` is an HTTP 401: the target refuses the control token.
+`credentials_unavailable` sent nothing because no readable token is configured
+for the origin. An unsupported OECP protocol or SDK binding refuses as an
+unsupported runtime.
 
 Progress is one bounded status read. The wait reads status once within its
 30-second setup budget, which also checks identity. A finished status is the

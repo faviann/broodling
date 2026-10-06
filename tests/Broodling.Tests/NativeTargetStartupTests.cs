@@ -189,12 +189,12 @@ public sealed class NativeTargetStartupTests
             case "newline": RequireSuccess(await stack.ProvisionKey(key + "\n")); break;
             case "uppercase": RequireSuccess(await stack.ProvisionKey(key.ToUpperInvariant())); break;
         }
-        var before = await Snapshot(stack);
+        var before = await Tree(stack);
         var refused = await DockerCommand(["run", "--rm", "--network", "none", .. mounts, await TargetImage.Direct.Value, .. TargetStack.Arguments]);
         await Assert.That(refused.Code).IsEqualTo(1);
         await Assert.That(refused.Error).Contains("bootstrap key");
         await Assert.That(refused.Error).DoesNotContain("listening");
-        await Assert.That(await Snapshot(stack)).IsEqualTo(before);
+        await Assert.That(await Tree(stack)).IsEqualTo(before);
     }
 
     [Test]

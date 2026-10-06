@@ -82,10 +82,16 @@ feedback) and uses exactly `https://cliproxy.local.faviann.com/v1`. Native
 materializes the run from that asset's graph and runtime; Broodling passes both
 through unchanged and builds no preset or runtime of its own. Broodling needs no
 Python, SDK client state, workspace root, Codex installation or launcher. The
-operator configuration names the DirectTarget origin. Callable
+operator configuration names the DirectTarget origin and the file holding its
+private control token. The target serves only native's private mode (#187):
+every control and OECP request needs that token, which the operator's
+`bootstrap-target` installs in each new target process and execution agents
+cannot obtain. Callable
 `TargetReadiness.CheckAsync` and the thin `check-target` command check the
-actual target's image, configuration and pinned dependencies, including GitHub
-CLI. See [readiness](../implementation/dotnet-target-readiness.md).
+actual target's image, configuration, pinned dependencies, including GitHub
+CLI, and authenticated private control. See
+[readiness](../implementation/dotnet-target-readiness.md) and
+[private control access](../../deployment/README.md#private-control-access).
 
 | Frozen effect authority | Supported behavior |
 | --- | --- |
@@ -226,6 +232,17 @@ the processing service, dispatches a processing-server Replacement Attempt
 (#210). #233 removed the no-effect LocalTarget with its Python SDK bridge,
 worktree Attempts and C# Codex launcher. Contract admission now refuses an empty
 required-effect set, and the unreleased store schema 1 was redefined in place.
+#187 replaced the unauthenticated DirectTarget with native 10.10.0's private
+mode: a per-target random, non-expiring control token, distinct from a
+root-only bootstrap key; initialization without native's client; a bootstrap
+through the SDK after every target start, including restart over existing
+state; explicit rotation by restart and bootstrap; and readiness that requires
+authenticated control. Broodling reads the token for each operation from the
+file configured for the exact retained origin and never retains it, so a token
+change amends no Contract, Prepared submission, correlation or binding. The
+image demonstration qualifies that execution agents of an actual run can
+neither read the material nor use control routes. Homelab provisioning remains
+homelab-iac#353 and #354.
 Remaining #100 intent includes
 Compose, maintenance and backup/restore; those remain unimplemented. The
 ASP.NET host is not authority to add them.

@@ -198,4 +198,142 @@ public sealed class DirectTargetAccessTests
         first.Projections.Enqueue(DirectTargetRunTests.Running(atFirst.Store.FindSubmission(atFirst.Attempt.AttemptId)!.Run));
         await Assert.That(await atFirst.Store.ObserveAsync(atFirst.Attempt.AttemptId)).IsTypeOf<NativeObservation.Available>();
     }
+
+    /// <summary>
+    /// A bootstrap whose acknowledgement is lost is resolved only by authenticating with the intended token; one
+    /// that installed nothing fails without being resent, and the explicit rerun then installs it. Native's own
+    /// envelope checks and closing are qualified on the actual image (NativeTargetStartupTests).
+    /// </summary>
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task ALostBootstrapAcknowledgementIsResolvedByAuthenticatingNeverByResending(bool installed)
+    {
+        using var bootstrap = new BootstrapTarget { LoseAcknowledgement = true, Install = installed };
+        await using var target = bootstrap.Start();
+        if (installed)
+        {
+            await Assert.That(await bootstrap.RunAsync(target)).IsEqualTo(DirectTargetBootstrapResult.Installed);
+            await Assert.That(bootstrap.Envelopes).IsEqualTo(1);
+        }
+        else
+        {
+            var failure = await Assert.That(async () => await bootstrap.RunAsync(target)).Throws<DirectTargetBootstrapFailed>();
+            await Assert.That(failure!.Message).Contains("outcome is unknown");
+            await Assert.That(bootstrap.Envelopes).IsEqualTo(1);
+            await Assert.That(bootstrap.Installed).IsNull();
+            // The operator's rerun sends a new envelope, since the target does not accept the token.
+            (bootstrap.LoseAcknowledgement, bootstrap.Install) = (false, true);
+            await Assert.That(await bootstrap.RunAsync(target)).IsEqualTo(DirectTargetBootstrapResult.Installed);
+            await Assert.That(bootstrap.Envelopes).IsEqualTo(2);
+        }
+        // Once the token is accepted, a repeat sends nothing.
+        await Assert.That(await bootstrap.RunAsync(target)).IsEqualTo(DirectTargetBootstrapResult.AlreadyInstalled);
+        await Assert.That(bootstrap.Envelopes).IsEqualTo(installed ? 1 : 2);
+        await Assert.That(bootstrap.Installed).IsEqualTo(bootstrap.Token);
+    }
+
+    [Test]
+    [Arguments("other-token")]
+    [Arguments("public-target")]
+    [Arguments("key-is-token")]
+    public async Task ABootstrapThatCannotInstallTheTokenFailsWithoutReplacingAnything(string change)
+    {
+        using var bootstrap = new BootstrapTarget();
+        var other = TestAccess.NewSecret();
+        switch (change)
+        {
+            case "other-token": bootstrap.Installed = other; break;
+            case "public-target": bootstrap.Authentication = "none"; break;
+            default: bootstrap.Key = bootstrap.Token; break;
+        }
+        await using var target = bootstrap.Start();
+        var failure = await Assert.That(async () => await bootstrap.RunAsync(target)).Throws<BroodlingException>();
+        await Assert.That(failure!.Message).Contains(change switch
+        {
+            "other-token" => "holds another one",
+            "public-target" => "does not serve native private access",
+            _ => "must differ from the control token"
+        });
+        await Assert.That(failure.Message.Contains(bootstrap.Token) || failure.Message.Contains(bootstrap.Key)).IsFalse();
+        await Assert.That(bootstrap.Installed).IsEqualTo(change == "other-token" ? other : null);
+        await Assert.That(bootstrap.Envelopes).IsEqualTo(change == "other-token" ? 1 : 0);
+    }
+
+    /// <summary>
+    /// A raw loopback target answering like native's private mode: public discovery, a session only for the
+    /// installed token, and a one-time bootstrap that opens the envelope with its key. It can lose the
+    /// acknowledgement after processing the envelope, with or without installing its token.
+    /// </summary>
+    private sealed class BootstrapTarget : IDisposable
+    {
+        internal string Token { get; } = TestAccess.NewSecret();
+        internal string Key { get; set; } = TestAccess.NewSecret();
+        internal string Authentication { get; set; } = "private_capability";
+        internal string? Installed { get; set; }
+        internal bool LoseAcknowledgement { get; set; }
+        internal bool Install { get; set; } = true;
+        internal int Envelopes { get; private set; }
+        private string Directory { get; } = System.IO.Directory.CreateTempSubdirectory("broodling-bootstrap-").FullName;
+
+        internal StockTarget Start()
+        {
+            StockTarget? target = null;
+            target = new StockTarget { Raw = (stream, token) => Answer(target!, stream, token) };
+            return target;
+        }
+
+        internal Task<DirectTargetBootstrapResult> RunAsync(StockTarget target)
+        {
+            File.WriteAllText(Path.Combine(Directory, "token"), Token);
+            File.WriteAllText(Path.Combine(Directory, "key"), Key);
+            return DirectTargetControl.BootstrapAsync(Origin(target), DirectTargetAccess.For(Origin(target), Path.Combine(Directory, "token")),
+                Path.Combine(Directory, "key"));
+        }
+
+        private async Task Answer(StockTarget target, Stream stream, CancellationToken cancellation)
+        {
+            string head;
+            lock (target.Heads) head = target.Heads[^1];
+            var length = head.Split("\r\n").FirstOrDefault(line => line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase));
+            var body = new byte[length is null ? 0 : int.Parse(length["Content-Length:".Length..].Trim())];
+            await stream.ReadExactlyAsync(body, cancellation);
+            var bearer = head.Split("\r\n").FirstOrDefault(line => line.StartsWith("Authorization: Bearer ", StringComparison.Ordinal))?["Authorization: Bearer ".Length..];
+            var (status, reply) = head.Split(' ')[1] switch
+            {
+                "/.well-known/zeroshot-native-v2" => (200, $$"""
+                    {"kind":"zeroshot.native-v2-target/v2","authentication":"{{Authentication}}","runPath":"/native-v2/run",
+                     "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller"
+                     {{(Authentication == "none" ? "" : ",\"privateBootstrapPath\":\"/native-v2/private-bootstrap\"")}}}
+                    """),
+                "/native-v2/oecp-session" when bearer is not null && bearer == Installed =>
+                    (200, $$"""{"endpoint":"ws://{{target.Origin.Authority}}/native-v2/oecp","bearerToken":"{{Installed}}"}"""),
+                "/native-v2/oecp-session" => (401, """{"code":"request.unauthorized","message":"unauthorized"}"""),
+                "/native-v2/private-bootstrap" => Bootstrap(body),
+                _ => (404, """{"code":"request.not_found","message":"target route was not found"}""")
+            };
+            if (status == 0) return; // The acknowledgement is lost: the connection closes without a reply.
+            var bytes = Encoding.UTF8.GetBytes(reply);
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(
+                $"HTTP/1.1 {status} Status\r\nContent-Type: application/json\r\nContent-Length: {bytes.Length}\r\nConnection: close\r\n\r\n")
+                .Concat(bytes).ToArray(), cancellation);
+        }
+
+        public void Dispose() => System.IO.Directory.Delete(Directory, recursive: true);
+
+        /// <summary>Native private_access.rs: closed once a token is installed; otherwise open the AES-256-GCM envelope.</summary>
+        private (int, string) Bootstrap(byte[] body)
+        {
+            Envelopes++;
+            if (Installed is not null) return (404, """{"code":"request.not_found","message":"target route was not found"}""");
+            var envelope = JsonNode.Parse(body)!;
+            var sealedToken = Convert.FromHexString((string)envelope["ciphertext"]!);
+            var token = new byte[sealedToken.Length - 16];
+            using (var aes = new System.Security.Cryptography.AesGcm(Convert.FromHexString(Key), 16))
+                aes.Decrypt(Convert.FromHexString((string)envelope["nonce"]!), sealedToken.AsSpan(0, token.Length), sealedToken.AsSpan(token.Length),
+                    token, "zeroshot-capsule-bootstrap-v1"u8);
+            if (Install) Installed = Encoding.ASCII.GetString(token);
+            return LoseAcknowledgement ? (0, "") : (204, "");
+        }
+    }
 }

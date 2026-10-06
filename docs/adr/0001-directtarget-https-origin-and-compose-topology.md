@@ -42,7 +42,10 @@ ownership and modes.
 - Zeroshot is deliberately reachable from LAN and VPN callers admitted by
   Traefik's allow-list, and on its published LXC port, with no authentication
   until Zeroshot's private (bearer-token) mode is adopted. This supersedes the
-  earlier "unpublished target, off the proxy network" requirement.
+  earlier "unpublished target, off the proxy network" requirement. #187 has
+  since adopted that mode: routes and reachability are unchanged, but every
+  control and OECP request needs the target's control token
+  ([private control access](../../deployment/README.md#private-control-access)).
 - Broodling has no Compose dependency on `zeroshot` or `zeroshot-tls`; it starts
   and serves retained history while either is down. Native agents reach
   Broodling's read-only reader by service name on the project network.
