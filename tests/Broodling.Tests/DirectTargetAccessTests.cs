@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Time.Testing;
 using TUnit.Assertions;
 using TUnit.Core;
 
@@ -16,6 +17,17 @@ public sealed class DirectTargetAccessTests
 {
     private static string Origin(StockTarget target) => target.Origin.GetLeftPart(UriPartial.Authority);
 
+    /// <summary>
+    /// A session with other connection material. Its operation budgets run on a controlled clock, so a loaded
+    /// host cannot turn the refusal under test into a timeout.
+    /// </summary>
+    private static BroodlingStore Open(HttpFixture fixture, DirectTargetAccess? access)
+    {
+        var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, access);
+        store.DirectTargetClock = new FakeTimeProvider();
+        return store;
+    }
+
     [Test]
     [Arguments("none")]
     [Arguments("other-origin")]
@@ -26,6 +38,7 @@ public sealed class DirectTargetAccessTests
     {
         await using var target = new StockTarget();
         using var fixture = new HttpFixture();
+        fixture.Store.DirectTargetClock = new FakeTimeProvider();
         var prepared = fixture.PrepareAt(target.Origin);
         var malformed = Path.Combine(fixture.Git.State.Root, "malformed-token");
         File.WriteAllText(malformed, target.Token + "\n");
@@ -38,7 +51,7 @@ public sealed class DirectTargetAccessTests
             "malformed-file" => DirectTargetAccess.For(Origin(target), malformed),
             _ => DirectTargetAccess.For(Origin(target), "control-token")
         };
-        using (var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, access))
+        using (var store = Open(fixture, access))
         {
             var error = await DirectTargetRunTests.Fails(() => store.DispatchHttpAsync(prepared.AttemptId, HttpDispatchTests.Credentials()),
                 "credentials_unavailable");
@@ -62,6 +75,7 @@ public sealed class DirectTargetAccessTests
     {
         await using var target = new StockTarget();
         using var fixture = new HttpFixture();
+        fixture.Store.DirectTargetClock = new FakeTimeProvider();
         var prepared = fixture.PrepareAt(target.Origin);
         var former = target.Token;
         target.Token = TestAccess.NewSecret(); // Restarted and bootstrapped with a rotated token.
@@ -106,11 +120,12 @@ public sealed class DirectTargetAccessTests
     {
         var target = new StockTarget();
         using var fixture = new HttpFixture();
+        fixture.Store.DirectTargetClock = new FakeTimeProvider();
         var submission = fixture.PrepareAt(target.Origin, "correlated");
         var run = submission.Frozen.Run(submission.IntendedRunId);
         var attempt = fixture.Attempt.AttemptId;
         target.Token = TestAccess.NewSecret();
-        using (var none = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path))
+        using (var none = Open(fixture, null))
         {
             var unconfigured = await none.ObserveAsync(attempt);
             await Assert.That(((NativeObservation.Unavailable)unconfigured!).Reason).IsEqualTo("credentials_unavailable");
@@ -131,7 +146,7 @@ public sealed class DirectTargetAccessTests
         var completion = await fixture.Store.WaitAsync(attempt);
         await Assert.That(completion.RunId).IsEqualTo(run.RunId);
         await target.DisposeAsync();
-        using var offline = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path);
+        using var offline = Open(fixture, null);
         await Assert.That(await offline.WaitAsync(attempt)).IsEqualTo(completion);
         await Assert.That(offline.GetAttempt(attempt).AttemptId).IsEqualTo(attempt);
     }
@@ -141,6 +156,7 @@ public sealed class DirectTargetAccessTests
     {
         await using var target = new StockTarget();
         using var fixture = new HttpFixture();
+        fixture.Store.DirectTargetClock = new FakeTimeProvider();
         fixture.PrepareAt(target.Origin, "correlated");
         target.Token = TestAccess.NewSecret();
         var error = await Assert.That(async () => await fixture.Store.StopAsync(fixture.Attempt.AttemptId, "operator requested stop"))
@@ -162,14 +178,16 @@ public sealed class DirectTargetAccessTests
         await using var first = new StockTarget();
         await using var second = new StockTarget();
         using var atFirst = new HttpFixture();
+        atFirst.Store.DirectTargetClock = new FakeTimeProvider();
         using var atSecond = new HttpFixture();
+        atSecond.Store.DirectTargetClock = new FakeTimeProvider();
         var firstPrepared = atFirst.PrepareAt(first.Origin);
         atSecond.PrepareAt(second.Origin);
         // One configuration naming both origins, each with its own token file.
         var both = new DirectTargetAccess(origin => origin == Origin(first) ? first.TokenFile : origin == Origin(second) ? second.TokenFile : null);
-        using (var store = atFirst.Git.State.Application.OpenStore(atFirst.Git.State.Path, both))
+        using (var store = Open(atFirst, both))
             await store.DispatchHttpAsync(firstPrepared.AttemptId, HttpDispatchTests.Credentials());
-        using (var store = atSecond.Git.State.Application.OpenStore(atSecond.Git.State.Path, both))
+        using (var store = Open(atSecond, both))
             await store.DispatchHttpAsync(atSecond.Attempt.AttemptId, HttpDispatchTests.Credentials());
         await Assert.That(first.Heads.Any(head => head.Contains(second.Token)) || second.Heads.Any(head => head.Contains(first.Token))).IsFalse();
         await Assert.That(first.Heads.Single().Contains("Authorization: Bearer " + first.Token)).IsTrue();
@@ -177,14 +195,14 @@ public sealed class DirectTargetAccessTests
 
         // The first target's token, configured for the second origin, does not control the second target.
         var crossed = DirectTargetAccess.For(Origin(second), first.TokenFile);
-        using (var store = atSecond.Git.State.Application.OpenStore(atSecond.Git.State.Path, crossed))
+        using (var store = Open(atSecond, crossed))
             await Assert.That(((NativeObservation.Unavailable)(await store.ObserveAsync(atSecond.Attempt.AttemptId))!).Reason).IsEqualTo("unauthorized");
         await Assert.That(second.Unauthorized).IsEqualTo(1);
 
         // The operator's configuration now names only the second target: the first Attempt is not redirected there.
         var contacted = (first.Connections, second.Connections);
         var switched = DirectTargetAccess.For(Origin(second), second.TokenFile);
-        using (var store = atFirst.Git.State.Application.OpenStore(atFirst.Git.State.Path, switched))
+        using (var store = Open(atFirst, switched))
         {
             var attempt = atFirst.Attempt.AttemptId;
             await Assert.That(((NativeObservation.Unavailable)(await store.ObserveAsync(attempt))!).Reason).IsEqualTo("credentials_unavailable");
