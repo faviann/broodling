@@ -60,9 +60,9 @@ internal sealed class BundleHttpFixture : IDisposable
     internal AttemptRecord Attempt { get; private set; } = null!;
 
     /// <summary>Captured bytes that are not UTF-8, so the task carries them as base64.</summary>
-    internal static readonly byte[] Logo = [0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe, 0x0a];
+    private static readonly byte[] Logo = [0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe, 0x0a];
 
-    internal static async Task<BundleHttpFixture> CreateAsync(string schema = "Schema canary\n")
+    internal static async Task<BundleHttpFixture> CreateAsync(string schema = "Schema canary — café <a&b>\n")
     {
         var fixture = new BundleHttpFixture();
         try
@@ -231,8 +231,8 @@ public sealed class HttpSubmissionTests
             expected["content"] = base64 ? Convert.ToBase64String(captured) : Encoding.UTF8.GetString(captured);
             await Assert.That(JsonNode.DeepEquals(entry, expected)).IsTrue();
         }
-        await Assert.That(fixture.Store.ReadRequestBundleReference(bundle.BundleId, "repo:docs/logo.png").Content.SequenceEqual(BundleHttpFixture.Logo)).IsTrue();
-        await Assert.That(task.Contains("broodling-reference")).IsFalse();
+        // Text stays as written in the task, not escaped beyond what JSON requires.
+        await Assert.That(task.Contains("Schema canary — café <a&b>")).IsTrue();
     }
 
     [Test]

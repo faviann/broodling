@@ -160,8 +160,8 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
     private static readonly JsonDocumentOptions Strict = new() { AllowDuplicateProperties = false };
 
     /// <summary>
-    /// The request text, fixed authority and the compact manifest native agents also receive:
-    /// member identities and digests, never member content.
+    /// The request text, fixed authority and the compact manifest: member identities and digests,
+    /// never member content, which the model reads on request.
     /// </summary>
     private JsonObject InitialContext(ContractProposalInput input) => new()
     {

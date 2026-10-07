@@ -126,18 +126,14 @@ public sealed class StockDirectTargetTests
         await new Invocation(store, new InvocationTarget(target.Origin)).ResumeAsync(attempt.ContractRevisionId, credentials: Credentials);
         var completion = await store.WaitAsync(attempt.AttemptId);
 
-        // The controlled agent committed each listed reference as its task carried it: the exact captured bytes,
-        // compared through their Git blob identities so binary members are compared exactly too.
+        // The controlled agent committed each listed reference as its task carried it: bytes matching the manifest digest.
         var accepted = completion.AcceptedRevision;
         await Assert.That(AttemptFixture.RunGit(repository, "ls-tree", "--name-only", accepted + ":references").Split('\n',
             StringSplitOptions.RemoveEmptyEntries).Length).IsEqualTo(bundle.References.Count);
         foreach (var (reference, index) in bundle.References.Select((reference, index) => (reference, index)))
-            await Assert.That(AttemptFixture.RunGit(repository, "rev-parse", $"{accepted}:references/{index}").Trim()).IsEqualTo(
-                BlobOid(store.ReadRequestBundleReference(bundle.BundleId, reference.ReferenceId).Content));
+            await Assert.That(Digests.Bytes(GitCustody.Run(repository, ["cat-file", "blob", $"{accepted}:references/{index}"]).Output))
+                .IsEqualTo(reference.ContentSha256);
     }
-
-    private static string BlobOid(byte[] content) =>
-        Convert.ToHexStringLower(System.Security.Cryptography.SHA1.HashData([.. Encoding.ASCII.GetBytes($"blob {content.Length}\0"), .. content]));
 
     /// <summary>An authorized-PR revision whose result fetch resolves only to the controlled forge.</summary>
     internal static (BroodlingStore Store, string Revision) Admit(AttemptFixture git, StockDirectTarget target)

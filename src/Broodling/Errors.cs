@@ -9,7 +9,7 @@ public sealed class CessationUnconfirmed : BroodlingException
 }
 
 public sealed class SubmissionNotReady(string message) : BroodlingException("submission_not_ready", message);
-/// <summary>The frozen task, with its RequestBundle references, exceeds what native execution accepts; it is never truncated.</summary>
+/// <summary>The frozen native task exceeds Broodling's budget for native execution; it is never truncated.</summary>
 public sealed class NativeTaskTooLarge(string message) : BroodlingException("task_too_large", message);
 public sealed class InstallationPaused(string message = "Installation admission and dispatch are paused.")
     : BroodlingException("installation_paused", message);
