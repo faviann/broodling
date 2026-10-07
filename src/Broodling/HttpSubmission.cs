@@ -25,11 +25,13 @@ public sealed partial class BroodlingStore
         var attempt = RequireCurrentAttempt(attemptId);
         ExecutionAsset? asset = null;
         string? resultOrigin = null;
+        Dictionary<string, byte[]>? references = null;
         if (FindSubmission(attemptId) is null)
         {
-            // Only a new preparation reads the installed asset; a retained record never needs it.
+            // Only a new preparation reads the installed asset and the captured references; a retained record carries both.
             asset = installed();
             resultOrigin = ResultOrigin(attempt, ReadWorkUnit(attempt.WorkUnitId)!);
+            references = CapturedReferences(attempt);
             // Git and SQLite cannot share a transaction. A crash may leave this exact pin without
             // a prepared record; it grants nothing, and a later preparation reuses it.
             GitCustody.Retain(new(attempt.B1.Repository, attempt.B1.CommitOid, attempt.B1.RequestedRevision));
@@ -55,7 +57,7 @@ public sealed partial class BroodlingStore
         Execute("""
             INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id,
                 asset_sha256, binding_json) VALUES ($p0, $p1, $p2, 'prepared', $p3, $p4, $p5)
-            """, transaction, attemptId, HttpSubmissionKey(attemptId), RetainedRequest(HttpRequest(attempt, transaction, intended, asset)),
+            """, transaction, attemptId, HttpSubmissionKey(attemptId), RetainedRequest(HttpRequest(attempt, transaction, intended, asset, references!)),
             intended, asset.Sha256, HttpBinding(attempt, directOrigin, resultOrigin!).ToJsonString());
         var result = ReadSubmission(attemptId, transaction)!;
         transaction.Commit();
@@ -176,7 +178,7 @@ public sealed partial class BroodlingStore
         if (asset is null || record.AssetSha256 != asset.Sha256 || record.SubmissionKey != HttpSubmissionKey(attempt.AttemptId)
             || DirectTargetExchange.CanonicalOrigin(origin) is null || !ValidResultOrigin(resultOrigin, work)
             || !JsonNode.DeepEquals(binding, HttpBinding(attempt, origin, resultOrigin))
-            || HttpRequest(attempt, transaction, record.IntendedRunId, asset) != record.RequestJson)
+            || HttpRequest(attempt, transaction, record.IntendedRunId, asset, RetainedReferences(record.RequestJson)) != record.RequestJson)
             throw RetainedDiffers();
     }
 
@@ -202,9 +204,10 @@ public sealed partial class BroodlingStore
     private static string HttpSubmissionKey(string attemptId) => "broodling:http:v1:" + attemptId;
 
     /// <summary>The stock <c>TargetRunRequest</c> without its ephemeral <c>connections</c> and <c>githubToken</c>.</summary>
-    private string HttpRequest(AttemptRecord attempt, SqliteTransaction transaction, string intendedRunId, ExecutionAsset asset)
+    private string HttpRequest(AttemptRecord attempt, SqliteTransaction transaction, string intendedRunId, ExecutionAsset asset,
+        IReadOnlyDictionary<string, byte[]> references)
     {
-        var (task, work, targetBranch) = AdmittedTask(attempt, transaction);
+        var (task, work, targetBranch) = AdmittedTask(attempt, transaction, references);
         return new JsonObject
         {
             ["runId"] = intendedRunId,

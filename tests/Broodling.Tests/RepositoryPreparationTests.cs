@@ -438,11 +438,13 @@ public sealed class RepositoryPreparationTests
             RunGitIn(Seed, "push", "--force", "origin", "develop");
         }
 
-        internal void CommitFile(string path, string content)
+        internal void CommitFile(string path, string content) => CommitFile(path, Encoding.UTF8.GetBytes(content));
+
+        internal void CommitFile(string path, byte[] content)
         {
             var file = Path.Combine(Seed, path);
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllText(file, content);
+            File.WriteAllBytes(file, content);
             RunGitIn(Seed, "add", ".");
             RunGitIn(Seed, "commit", "-m", "add " + path);
             RunGitIn(Seed, "push", "origin", "main");

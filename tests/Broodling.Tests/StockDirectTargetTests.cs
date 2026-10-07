@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using Broodling.Host;
 using TUnit.Assertions;
 using TUnit.Core;
 
@@ -114,15 +113,12 @@ public sealed class StockDirectTargetTests
     }
 
     [Test]
-    public async Task NativeAgentReadsBundleReferencesOnDemandThroughTheInstalledHelper()
+    public async Task NativeAgentReadsBundleReferencesFromItsSubmissionWithNoBroodlingToReach()
     {
         using var fixture = await BundleHttpFixture.CreateAsync();
         var (store, bundle, attempt) = (fixture.Store, fixture.Bundle, fixture.Attempt);
-        // The real read-only HTTP reader over the same retained state, bound only where the target reaches the host.
-        await using var reader = BroodlingHost.Build([$"--urls=http://{await StockDirectTarget.BridgeGatewayAsync()}:0",
-            "--Broodling:Store=" + fixture.Git.State.Path]);
-        await reader.StartAsync();
-        await using var target = await StockDirectTarget.StartAsync(fixture.Git.State.Root, new Uri(reader.Urls.Single()));
+        // No Broodling reader runs anywhere, and the target is given no name or route for one.
+        await using var target = await StockDirectTarget.StartAsync(fixture.Git.State.Root);
         var repository = attempt.B1.Repository;
         AttemptFixture.RunGit(repository, "config", "url." + target.Forge + ".insteadOf", "https://github.com/acme/widget.git");
         await target.PushAsync(repository, attempt.B1.CommitOid + ":refs/heads/main");
@@ -130,14 +126,18 @@ public sealed class StockDirectTargetTests
         await new Invocation(store, new InvocationTarget(target.Origin)).ResumeAsync(attempt.ContractRevisionId, credentials: Credentials);
         var completion = await store.WaitAsync(attempt.AttemptId);
 
-        // The controlled agent committed what the helper printed for each listed reference: the exact retained bytes.
+        // The controlled agent committed each listed reference as its task carried it: the exact captured bytes,
+        // compared through their Git blob identities so binary members are compared exactly too.
         var accepted = completion.AcceptedRevision;
         await Assert.That(AttemptFixture.RunGit(repository, "ls-tree", "--name-only", accepted + ":references").Split('\n',
             StringSplitOptions.RemoveEmptyEntries).Length).IsEqualTo(bundle.References.Count);
         foreach (var (reference, index) in bundle.References.Select((reference, index) => (reference, index)))
-            await Assert.That(AttemptFixture.RunGit(repository, "show", $"{accepted}:references/{index}")).IsEqualTo(
-                Encoding.UTF8.GetString(store.ReadRequestBundleReference(bundle.BundleId, reference.ReferenceId).Content));
+            await Assert.That(AttemptFixture.RunGit(repository, "rev-parse", $"{accepted}:references/{index}").Trim()).IsEqualTo(
+                BlobOid(store.ReadRequestBundleReference(bundle.BundleId, reference.ReferenceId).Content));
     }
+
+    private static string BlobOid(byte[] content) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA1.HashData([.. Encoding.ASCII.GetBytes($"blob {content.Length}\0"), .. content]));
 
     /// <summary>An authorized-PR revision whose result fetch resolves only to the controlled forge.</summary>
     internal static (BroodlingStore Store, string Revision) Admit(AttemptFixture git, StockDirectTarget target)
