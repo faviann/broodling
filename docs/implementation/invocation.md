@@ -66,11 +66,15 @@ abandonment commits. A drained reading is local only: a request a target already
 still create a run.
 
 After durable correlation, resume needs no dispatch configuration or credentials.
-Wait and stop reconnect using the retained run binding. An HTTPS target whose certificate chains to a private root
-needs a store session opened with `OpenStore(path, directTargetRootCertificate)`.
-That root is operator configuration and is never retained, and the retained origin
-still decides where each operation connects. A retained completion
-returns without native access. Errors do not undo earlier durable steps: inspect
+Wait and stop reconnect using the retained run binding. Every target contact
+needs a store session opened with `OpenStore(path, directTarget)`, whose
+`DirectTargetAccess` names the control token file for the retained origin and,
+for an HTTPS target whose certificate chains to a private root, that root
+([private control access](../../deployment/README.md#private-control-access)).
+Both are operator configuration, reread by each operation and never retained, and
+the retained origin still decides where each operation connects and which token
+it uses: with none for that origin, nothing is contacted (`credentials_unavailable`).
+A retained completion returns without native access or a token. Errors do not undo earlier durable steps: inspect
 history after an interrupted submit to recover exact handles. Rejected,
 abandoned or completed work is handed back without automatic replacement.
 

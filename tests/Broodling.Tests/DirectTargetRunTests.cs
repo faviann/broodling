@@ -28,7 +28,9 @@ public sealed class DirectTargetRunTests
         await Assert.That(progress.ActiveNodes).IsEquivalentTo(["worker", "verifier"]);
         await Assert.That(target.Count("run/status")).IsEqualTo(1);
         await Assert.That((string)target.Messages.Last()["params"]!["runId"]!).IsEqualTo(RunId);
-        await Assert.That(target.Heads.All(head => !head.Contains("Authorization", StringComparison.OrdinalIgnoreCase))).IsTrue();
+        // Public discovery carries no credentials; the session and OECP upgrade carry exactly this target's token.
+        await Assert.That(target.Heads.Select(head => head.Contains("Authorization: Bearer " + target.Token, StringComparison.Ordinal))
+            .SequenceEqual([false, true, true])).IsTrue();
     }
 
     [Test]
@@ -69,7 +71,7 @@ public sealed class DirectTargetRunTests
     {
         await using var target = new StockTarget();
         var binding = new NativeRunBinding(address.Replace("{port}", target.Origin.Port.ToString()), RunId, "Fix the widget", "small", Source);
-        await Assert.That(async () => await DirectTargetRun.ProgressAsync(binding, null, DirectTargetLimits.Progress, new FakeTimeProvider(), default))
+        await Assert.That(async () => await DirectTargetRun.ProgressAsync(binding, TestAccess.Live, DirectTargetLimits.Progress, new FakeTimeProvider(), default))
             .Throws<UnsupportedRuntime>();
         await Assert.That(target.Connections).IsEqualTo(0);
     }
@@ -83,7 +85,7 @@ public sealed class DirectTargetRunTests
         target.Projections.Enqueue(Running());
         using var caller = new CancellationTokenSource();
         var clock = new FakeTimeProvider();
-        var read = DirectTargetRun.ProgressAsync(Binding(target.Origin), null, DirectTargetLimits.Progress, clock, caller.Token);
+        var read = DirectTargetRun.ProgressAsync(Binding(target.Origin), TestAccess.Live, DirectTargetLimits.Progress, clock, caller.Token);
         await target.Stalled.Task.WaitAsync(Patience);
         clock.Advance(DirectTargetLimits.Progress - TimeSpan.FromMilliseconds(1));
         await Task.Delay(50);
@@ -109,7 +111,7 @@ public sealed class DirectTargetRunTests
     {
         await using var target = new StockTarget();
         target.Projections.Enqueue(Projection(new JsonObject { ["phase"] = "finished", ["terminalResult"] = JsonNode.Parse(terminal) }));
-        var result = await DirectTargetRun.WaitAsync(Binding(target.Origin), null, new FakeTimeProvider(), default);
+        var result = await DirectTargetRun.WaitAsync(Binding(target.Origin), TestAccess.Live, new FakeTimeProvider(), default);
 
         await Assert.That((result.RunId, result.Succeeded, result.Failure)).IsEqualTo((RunId, succeeded, failure));
         if (succeeded) await Assert.That(result.Output.GetRawText()).IsEqualTo(JsonNode.Parse(terminal)!["output"]!.ToJsonString());
@@ -124,7 +126,7 @@ public sealed class DirectTargetRunTests
         target.Projections.Enqueue(Running()); // The SDK wait's first status.
         target.Projections.Enqueue(Running());
         target.Projections.Enqueue(Finished("runtime_lost"));
-        var result = await DirectTargetRun.WaitAsync(Binding(target.Origin), null, new FakeTimeProvider(), default).WaitAsync(Patience);
+        var result = await DirectTargetRun.WaitAsync(Binding(target.Origin), TestAccess.Live, new FakeTimeProvider(), default).WaitAsync(Patience);
 
         await Assert.That((result.Succeeded, result.Failure)).IsEqualTo((false, "runtime_lost"));
         await Assert.That(target.Count("run/status")).IsEqualTo(2);
@@ -139,7 +141,7 @@ public sealed class DirectTargetRunTests
         target.Projections.Enqueue(Running());
         target.Reply = (request, id) => (string)request["method"]! == "run/watch"
             ? $$$"""{"jsonrpc":"2.0","id":"{{{id}}}","error":{"code":-32603,"message":"canary secret"}}""" : null;
-        var failure = await Fails(() => DirectTargetRun.WaitAsync(Binding(target.Origin), null, new FakeTimeProvider(), default), "TargetError");
+        var failure = await Fails(() => DirectTargetRun.WaitAsync(Binding(target.Origin), TestAccess.Live, new FakeTimeProvider(), default), "TargetError");
 
         await Assert.That(failure.ToString().Contains("canary", StringComparison.OrdinalIgnoreCase)).IsFalse();
         await Assert.That(target.Count("run/force")).IsEqualTo(0);
@@ -152,7 +154,7 @@ public sealed class DirectTargetRunTests
         target.Projections.Enqueue(Running());
         target.Projections.Enqueue(Running());
         using var caller = new CancellationTokenSource();
-        var wait = DirectTargetRun.WaitAsync(Binding(target.Origin), null, new FakeTimeProvider(), caller.Token);
+        var wait = DirectTargetRun.WaitAsync(Binding(target.Origin), TestAccess.Live, new FakeTimeProvider(), caller.Token);
         while (target.Count("run/watch") == 0) await Task.Delay(10).WaitAsync(Patience);
         await Task.Delay(50);
         await Assert.That(wait.IsCompleted).IsFalse();
@@ -181,7 +183,7 @@ public sealed class DirectTargetRunTests
             case "unavailable": target.Session = (503, """{"code":"target.unavailable","message":"busy"}"""); break;
         }
         target.Projections.Enqueue(Finished("force_stopped")); // What a force would get.
-        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Intended, null, new FakeTimeProvider(), default);
+        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Intended, TestAccess.Live, new FakeTimeProvider(), default);
 
         await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.NotSent, reason));
         await Assert.That(target.Count("run/force")).IsEqualTo(0);
@@ -191,7 +193,7 @@ public sealed class DirectTargetRunTests
     public async Task AForceThatCannotReachTheTargetIsNotSent()
     {
         await using var target = new StockTarget { Session = (503, """{"code":"target.unavailable","message":"busy"}""") };
-        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Confirmed, null, new FakeTimeProvider(), default);
+        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Confirmed, TestAccess.Live, new FakeTimeProvider(), default);
 
         await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.NotSent, "TargetError"));
         await Assert.That(target.Count("run/force")).IsEqualTo(0);
@@ -207,7 +209,7 @@ public sealed class DirectTargetRunTests
         // Even a finished precheck is still followed by the explicit force.
         if (identity == NativeRunIdentity.Intended) target.Projections.Enqueue(Finished("runtime_lost"));
         target.Projections.Enqueue(Finished("force_stopped"));
-        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), identity, null, new FakeTimeProvider(), default);
+        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), identity, TestAccess.Live, new FakeTimeProvider(), default);
 
         await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.Terminal, null));
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
@@ -223,7 +225,7 @@ public sealed class DirectTargetRunTests
         {
             ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "failed", ["reason"] = "force_stopped" }
         }, Binding(target.Origin) with { Title = "Another run" }));
-        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Confirmed, null, new FakeTimeProvider(), default);
+        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Confirmed, TestAccess.Live, new FakeTimeProvider(), default);
 
         await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.Uncertain, "foreign_run"));
     }
@@ -235,7 +237,7 @@ public sealed class DirectTargetRunTests
         target.Projections.Enqueue(Stopping());
         target.Projections.Enqueue(Stopping()); // The SDK wait's first status.
         target.Projections.Enqueue(Finished("force_stopped"));
-        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Confirmed, null, new FakeTimeProvider(), default);
+        var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Confirmed, TestAccess.Live, new FakeTimeProvider(), default);
 
         await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.Terminal, null));
         await Assert.That(target.Count("run/force")).IsEqualTo(1);
@@ -256,7 +258,7 @@ public sealed class DirectTargetRunTests
         var clock = new FakeTimeProvider();
         using var caller = new CancellationTokenSource();
         var identity = end == "precheck-deadline" ? NativeRunIdentity.Intended : NativeRunIdentity.Confirmed;
-        var stop = DirectTargetRun.StopAsync(Binding(target.Origin), identity, null, clock, caller.Token);
+        var stop = DirectTargetRun.StopAsync(Binding(target.Origin), identity, TestAccess.Live, clock, caller.Token);
         await target.Stalled.Task.WaitAsync(Patience);
         clock.Advance(DirectTargetLimits.Stop - TimeSpan.FromMilliseconds(1));
         await Task.Delay(20);
@@ -279,7 +281,7 @@ public sealed class DirectTargetRunTests
         new(origin.GetLeftPart(UriPartial.Authority), RunId, "Fix the widget", "small", Source);
 
     private static Task<NativeProgress> Progress(StockTarget target) =>
-        DirectTargetRun.ProgressAsync(Binding(target.Origin), null, DirectTargetLimits.Progress, new FakeTimeProvider(), default);
+        DirectTargetRun.ProgressAsync(Binding(target.Origin), TestAccess.Live, DirectTargetLimits.Progress, new FakeTimeProvider(), default);
 
     /// <summary>A projection of <paramref name="run"/>, by default this class's fixed binding.</summary>
     internal static JsonObject Projection(JsonObject status, NativeRunBinding? run = null)

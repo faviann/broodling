@@ -20,10 +20,19 @@ public class SubmissionConflict(string message, string? existingRunId = null) : 
 /// <summary>A terminal native result that cannot complete this Attempt; the same run always returns it again.</summary>
 public sealed class ReceiptRefused(string message) : SubmissionConflict(message);
 public sealed class UnsupportedRuntime(string message) : BroodlingException("unsupported_runtime", message);
+/// <summary>
+/// A fixed transport outcome. <c>credentials_unavailable</c> sent nothing: no readable control token is configured
+/// for the target's exact origin. <c>unauthorized</c> is the target refusing the token it was sent.
+/// </summary>
 public sealed class NativeTransportError(string kind = "transport_failed", string? acknowledgedRunId = null)
-    : BroodlingException("native_transport_error", acknowledgedRunId is null
-        ? "Native transport did not return a usable response."
-        : $"The target acknowledged a different run, {acknowledgedRunId}; it was not adopted.")
+    : BroodlingException("native_transport_error", acknowledgedRunId is not null
+        ? $"The target acknowledged a different run, {acknowledgedRunId}; it was not adopted."
+        : kind switch
+        {
+            "credentials_unavailable" => "No readable DirectTarget control token is configured for this target's origin; nothing was sent.",
+            "unauthorized" => "The DirectTarget refused the configured control token.",
+            _ => "Native transport did not return a usable response."
+        })
 {
     public string Kind { get; } = kind;
     /// <summary>

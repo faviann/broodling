@@ -63,7 +63,7 @@ public sealed partial class BroodlingStore
         var (run, identity) = submitted.Run is { } confirmed
             ? (confirmed, NativeRunIdentity.Confirmed)
             : (submitted.Frozen.Run(submitted.IntendedRunId), NativeRunIdentity.Intended);
-        var stop = await DirectTargetRun.StopAsync(run, identity, directTargetRoot, DirectTargetClock, cancellationToken);
+        var stop = await DirectTargetRun.StopAsync(run, identity, directTarget, DirectTargetClock, cancellationToken);
         throw stop.Force switch
         {
             DirectTargetForce.Terminal => new CessationUnconfirmed(

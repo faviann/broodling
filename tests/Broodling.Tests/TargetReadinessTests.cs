@@ -30,7 +30,10 @@ public sealed class TargetReadinessTests
         // Discovery reaches zeroshot-tls's actual publication and trusts the configured root.
         await Assert.That(fixture.Published).IsEqualTo(new IPEndPoint(IPAddress.Loopback, 18443));
         await Assert.That(fixture.TrustedRoot).IsEqualTo(fixture.RootCertificate);
+        // Then an unauthenticated control request, which must be refused, and one with the configured token.
+        await Assert.That(fixture.SessionBearers.SequenceEqual([null, fixture.Token])).IsTrue();
         await Assert.That(JsonSerializer.Serialize(facts).Contains(ReadinessFixture.Secret)).IsFalse();
+        await Assert.That(JsonSerializer.Serialize(facts).Contains(fixture.Token)).IsFalse();
     }
 
     [Test]
@@ -74,6 +77,9 @@ public sealed class TargetReadinessTests
     [Arguments("mount-duplicate", "mounts")]
     [Arguments("root-certificate-rw", "mounts")]
     [Arguments("root-key", "mounts")]
+    [Arguments("bootstrap-key-missing", "mounts")]
+    [Arguments("bootstrap-key-rw", "mounts")]
+    [Arguments("bootstrap-key-source", "mounts")]
     [Arguments("port-published", "publish no port")]
     [Arguments("publish-all", "publish no port")]
     [Arguments("network", "zeroshot alias")]
@@ -99,6 +105,7 @@ public sealed class TargetReadinessTests
     [Arguments("broodling-key-parent", "broodling must not mount")]
     [Arguments("broodling-caddy-data", "broodling must not mount")]
     [Arguments("broodling-root-rw", "public root directory as a read-only bind")]
+    [Arguments("broodling-bootstrap-key", "only the target may mount the bootstrap key")]
     [Arguments("two-containers", "exactly the recorded")]
     [Arguments("malformed", "invalid")]
     public async Task ContainerDriftRefusesBeforeAnyExecOrDiscovery(string change, string message)
@@ -131,6 +138,9 @@ public sealed class TargetReadinessTests
             case "mount-duplicate": fixture.Target["Mounts"]![1] = mount.DeepClone(); break;
             case "root-certificate-rw": fixture.Target["Mounts"]![2]!["RW"] = true; break;
             case "root-key": fixture.Target["Mounts"]![2]!["Source"] = fixture.Inventory.RootKeyMount; break;
+            case "bootstrap-key-missing": fixture.Target["Mounts"]!.AsArray().RemoveAt(3); break;
+            case "bootstrap-key-rw": fixture.Target["Mounts"]![3]!["RW"] = true; break;
+            case "bootstrap-key-source": fixture.Target["Mounts"]![3]!["Source"] = Path.Combine(fixture.Root, "other-key"); break;
             case "port-published": host["PortBindings"] = JsonNode.Parse("""{"18770/tcp":[{"HostIp":"127.0.0.1","HostPort":"18770"}]}"""); break;
             case "publish-all": host["PublishAllPorts"] = true; break;
             case "network": fixture.Target["NetworkSettings"]!["Networks"] = JsonNode.Parse("""{"other":{"Aliases":["zeroshot"]}}"""); break;
@@ -156,6 +166,7 @@ public sealed class TargetReadinessTests
             case "broodling-key-parent": broodlingMounts.Add(Bind(fixture.Root, "/srv", false)); break;
             case "broodling-caddy-data": broodlingMounts.Add(tls["Mounts"]![2]!.DeepClone()); break;
             case "broodling-root-rw": broodlingMounts[0]!["RW"] = true; break;
+            case "broodling-bootstrap-key": broodlingMounts.Add(Bind(fixture.Inventory.BootstrapKeyFile, "/run/secrets/zeroshot-bootstrap-key", false)); break;
             case "two-containers": fixture.Inspect = $"[{fixture.Target},{fixture.Tls}]"; break;
             case "malformed": fixture.Inspect = ReadinessFixture.Secret; break;
         }
@@ -196,7 +207,7 @@ public sealed class TargetReadinessTests
     {
         using var fixture = new ReadinessFixture();
         await Refuses(() => fixture.Readiness.CheckAsync(fixture.Inventory with { DirectOrigin = origin }, origin,
-            fixture.RootCertificate), "HTTPS origin");
+            fixture.Access), "HTTPS origin");
         await Assert.That(fixture.Calls.Count + fixture.DiscoveryCalls).IsEqualTo(0);
     }
 
@@ -204,6 +215,7 @@ public sealed class TargetReadinessTests
     [Arguments("same", "separate locations")]
     [Arguments("nested", "separate locations")]
     [Arguments("relative", "canonical absolute")]
+    [Arguments("bootstrap-key-relative", "canonical absolute")]
     [Arguments("duplicate-container", "inventory is invalid")]
     [Arguments("network", "inventory is invalid")]
     public async Task InvalidInventoryRefusesBeforeTargetAccess(string change, string message)
@@ -214,10 +226,11 @@ public sealed class TargetReadinessTests
             "same" => fixture.Inventory with { RootKeyMount = fixture.Inventory.RootCertificateMount },
             "nested" => fixture.Inventory with { RootKeyMount = Path.Combine(fixture.Inventory.RootCertificateMount, "key") },
             "relative" => fixture.Inventory with { RootKeyMount = "tls-root-key" },
+            "bootstrap-key-relative" => fixture.Inventory with { BootstrapKeyFile = "zeroshot-bootstrap-key" },
             "duplicate-container" => fixture.Inventory with { BroodlingContainerName = fixture.Inventory.TlsContainerName },
             _ => fixture.Inventory with { Network = "" }
         };
-        await Refuses(() => fixture.Readiness.CheckAsync(inventory, inventory.DirectOrigin, fixture.RootCertificate), message);
+        await Refuses(() => fixture.Readiness.CheckAsync(inventory, inventory.DirectOrigin, fixture.Access), message);
         await Assert.That(fixture.Calls.Count + fixture.DiscoveryCalls).IsEqualTo(0);
     }
 
@@ -242,7 +255,7 @@ public sealed class TargetReadinessTests
     public async Task StockOptionalDiscoveryFieldsMayBeNullOrEmptyAndExtensionsAreIgnored()
     {
         using var fixture = new ReadinessFixture();
-        foreach (var name in new[] { "privateBootstrapPath", "oauth", "loginSession" }) fixture.Discovery[name] = null;
+        foreach (var name in new[] { "oauth", "loginSession" }) fixture.Discovery[name] = null;
         fixture.Discovery["extensions"] = new JsonObject();
         await Assert.That((await fixture.Check()).Ready).IsTrue();
         // Native advertises capabilities this controller does not use.
@@ -287,6 +300,33 @@ public sealed class TargetReadinessTests
         await Assert.That(fixture.DiscoveryCalls).IsEqualTo(1);
     }
 
+    /// <summary>
+    /// Public discovery alone never passes: the target must refuse unauthenticated control and accept exactly the
+    /// configured token, and a missing or unreadable token refuses before any target access.
+    /// </summary>
+    [Test]
+    [Arguments("unauthenticated-accepted", "accepts unauthenticated control")]
+    [Arguments("unauthenticated-unavailable", "accepts unauthenticated control")]
+    [Arguments("wrong-token", "refuses the configured control token")]
+    [Arguments("missing-token", "no readable control token")]
+    public async Task ControlMustBePrivateAndAcceptOnlyTheConfiguredToken(string change, string message)
+    {
+        using var fixture = new ReadinessFixture();
+        switch (change)
+        {
+            // A target serving unauthenticated, as native's direct mode does, behind a private-looking discovery.
+            case "unauthenticated-accepted":
+                fixture.Unauthenticated = (HttpStatusCode.OK, """{"endpoint":"wss://zeroshot.dev.faviann.com/native-v2/oecp"}""");
+                break;
+            case "unauthenticated-unavailable": fixture.Unauthenticated = (HttpStatusCode.ServiceUnavailable, """{"code":"target.unavailable","message":"busy"}"""); break;
+            // Not bootstrapped with this token: never bootstrapped, restarted or rotated.
+            case "wrong-token": fixture.Token = TestAccess.NewSecret(); break;
+            case "missing-token": File.Delete(fixture.TokenFile); break;
+        }
+        await Refuses(fixture.Check, message);
+        await Assert.That(fixture.DiscoveryCalls).IsEqualTo(change == "missing-token" ? 0 : 1);
+    }
+
     [Test]
     public async Task StalledDiscoveryTimesOutAsNotReadyButCallerCancellationRemainsCancellation()
     {
@@ -298,7 +338,7 @@ public sealed class TargetReadinessTests
 
         using var stalled = new ReadinessFixture { DiscoveryStalls = true };
         using var cancellation = new CancellationTokenSource();
-        var cancelled = stalled.Readiness.CheckAsync(stalled.Inventory, stalled.Inventory.DirectOrigin, stalled.RootCertificate,
+        var cancelled = stalled.Readiness.CheckAsync(stalled.Inventory, stalled.Inventory.DirectOrigin, stalled.Access,
             cancellation.Token);
         await stalled.DiscoveryStarted.Task;
         cancellation.Cancel();
@@ -318,7 +358,8 @@ public sealed class TargetReadinessTests
         await Assert.That(fixture.Calls.Count).IsEqualTo(10);
         // Discovery trusts the invocation configuration's root, as invocation itself does.
         await Assert.That(fixture.TrustedRoot).IsEqualTo(fixture.RootCertificate);
-        await Assert.That(Directory.GetFiles(fixture.Root).Length).IsEqualTo(2);
+        await Assert.That(Directory.GetFiles(fixture.Root).Length).IsEqualTo(3);
+        await Assert.That(output.ToString().Contains(fixture.Token)).IsFalse();
     }
 
     [Test]
@@ -401,9 +442,10 @@ public sealed class TargetReadinessTests
     }
 
     /// <summary>
-    /// The actual images and host Docker: the ADR stack is ready, a rotation that kept Caddy's stored
-    /// intermediate is caught through the origin (and native's own client refuses it too), and the
-    /// documented rotation restores readiness while the target keeps running.
+    /// The actual images and host Docker: the ADR stack is not ready until its running target is bootstrapped
+    /// with the configured token, then ready; a rotation that kept Caddy's stored intermediate is caught
+    /// through the origin (and a control client refuses it too), and the documented TLS rotation restores
+    /// readiness while the target keeps running with its installed token.
     /// </summary>
     [Test]
     public async Task ActualStackIsReadyAndAStaleIntermediateAfterIncompleteRotationIsNot()
@@ -412,19 +454,22 @@ public sealed class TargetReadinessTests
         await stack.InitializeAll();
         await stack.StartTarget();
         await stack.StartBroodling();
-        await stack.ServingNativeList();
+        await stack.Serving();
         var inventory = await stack.Inventory();
         var readiness = new TargetReadiness();
-        Task<TargetReadinessFacts> Check() => readiness.CheckAsync(inventory, TargetStack.Origin, stack.RootCertificateFile);
+        Task<TargetReadinessFacts> Check() => readiness.CheckAsync(inventory, TargetStack.Origin, stack.Access);
+        // Private discovery and refused unauthenticated control are not enough before the token is installed.
+        await Refuses(Check, "refuses the configured control token");
+        await stack.Bootstrap();
         await Assert.That((await Check()).Ready).IsTrue();
 
         await stack.RotateRoot(complete: false);
         await Refuses(Check, "unavailable or invalid");
-        await Assert.That((await stack.NativeList()).Code).IsNotEqualTo(0);
+        await Assert.That(async () => await stack.Control(stack.Token)).Throws<HttpRequestException>();
 
         await stack.RotateRoot(complete: true);
         await Assert.That((await Check()).Ready).IsTrue();
-        await Assert.That(JsonDocument.Parse(await stack.ServingNativeList()).RootElement.GetProperty("runs").GetArrayLength()).IsEqualTo(0);
+        await Assert.That(await stack.Control(stack.Token)).IsEqualTo(HttpStatusCode.OK);
     }
 
     private static async Task Refuses(Func<Task<TargetReadinessFacts>> action, string message)
@@ -455,9 +500,17 @@ public sealed class TargetReadinessTests
         internal JsonObject Tls { get; }
         internal JsonObject Broodling { get; }
         internal JsonObject Discovery { get; } = JsonNode.Parse("""
-            {"kind":"zeroshot.native-v2-target/v2","authentication":"none","runPath":"/native-v2/run",
-             "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller"}
+            {"kind":"zeroshot.native-v2-target/v2","authentication":"private_capability","runPath":"/native-v2/run",
+             "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller",
+             "privateBootstrapPath":"/native-v2/private-bootstrap"}
             """)!.AsObject();
+        /// <summary>The token the target accepts, as if bootstrapped, and the configuration's token file.</summary>
+        internal string Token { get; set; } = TestAccess.NewSecret();
+        internal string TokenFile => Path.Combine(Root, "control-token");
+        internal DirectTargetAccess Access => DirectTargetAccess.For(Origin, TokenFile, RootCertificate);
+        /// <summary>The target's reply to an unauthenticated session; null for native's own.</summary>
+        internal (HttpStatusCode Status, string Body)? Unauthenticated { get; set; }
+        internal List<string?> SessionBearers { get; } = [];
         internal List<string[]> Calls { get; } = [];
         internal int DiscoveryCalls { get; private set; }
         internal IPEndPoint? Published { get; private set; }
@@ -476,7 +529,7 @@ public sealed class TargetReadinessTests
         {
             Inventory = new("installation-target", "sha256:installed", Origin, Path.Combine(Root, "state"), Path.Combine(Root, "home"),
                 "broodling_default", "installation-tls", Path.Combine(Root, "tls-root-key"), Path.Combine(Root, "tls-root"),
-                "installation-broodling");
+                "installation-broodling", Path.Combine(Root, "secrets", "zeroshot-bootstrap-key"));
             static JsonObject Bind(string source, string destination, bool readWrite) =>
                 new() { ["Type"] = "bind", ["RW"] = readWrite, ["Source"] = source, ["Destination"] = destination };
             Target = JsonNode.Parse("""
@@ -490,7 +543,7 @@ public sealed class TargetReadinessTests
                  "Mounts":[]}
                 """)!.AsObject();
             Target["Mounts"] = new JsonArray(Bind(Inventory.StateMount, "/state", true), Bind(Inventory.HomeMount, "/home/node", true),
-                Bind(Inventory.RootCertificateMount, "/tls-root", false));
+                Bind(Inventory.RootCertificateMount, "/tls-root", false), Bind(Inventory.BootstrapKeyFile, TargetReadiness.BootstrapKeySecret, false));
             Tls = JsonNode.Parse("""
                 {"Id":"tls-container-id","Image":"sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b",
                  "State":{"Running":true},"Config":{"User":"10443:10443","Image":"TLS_IMAGE"},
@@ -507,11 +560,12 @@ public sealed class TargetReadinessTests
             Readiness = new TargetReadiness(Command, DiscoveryClient, Clock);
             File.WriteAllText(Arguments[1], JsonSerializer.Serialize(Inventory, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             File.WriteAllText(Arguments[2], $$"""
-                {"directOrigin":"{{Origin}}","directRootCertificate":"{{RootCertificate}}"}
+                {"directOrigin":"{{Origin}}","directControlTokenFile":"{{TokenFile}}","directRootCertificate":"{{RootCertificate}}"}
                 """);
+            File.WriteAllText(TokenFile, Token);
         }
 
-        internal Task<TargetReadinessFacts> Check() => Readiness.CheckAsync(Inventory, Inventory.DirectOrigin, RootCertificate);
+        internal Task<TargetReadinessFacts> Check() => Readiness.CheckAsync(Inventory, Inventory.DirectOrigin, Access);
 
         private HttpClient DiscoveryClient(Uri origin, string? root, IPEndPoint published)
         {
@@ -547,6 +601,16 @@ public sealed class TargetReadinessTests
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (request.Method == HttpMethod.Post && request.RequestUri!.AbsoluteUri == Origin + "/native-v2/oecp-session" && DiscoveryCalls == 1)
+            {
+                // Like native's private mode: the session is control-authenticated and returns the installed token.
+                var bearer = request.Headers.Authorization is { Scheme: "Bearer" } authorization ? authorization.Parameter : null;
+                SessionBearers.Add(bearer);
+                var (status, body) = bearer is null ? Unauthenticated ?? (HttpStatusCode.Unauthorized, """{"code":"request.unauthorized","message":"unauthorized"}""")
+                    : bearer == Token ? (HttpStatusCode.OK, $$"""{"endpoint":"wss://zeroshot.dev.faviann.com/native-v2/oecp","bearerToken":"{{Token}}"}""")
+                    : (HttpStatusCode.Unauthorized, """{"code":"request.unauthorized","message":"unauthorized"}""");
+                return new HttpResponseMessage(status) { Content = new StringContent(body) };
+            }
             if (request.Method != HttpMethod.Get || request.RequestUri!.AbsoluteUri != Origin + "/.well-known/zeroshot-native-v2"
                 || request.Headers.Authorization is not null || Calls.Count != 10)
                 throw new InvalidOperationException("Unexpected discovery request");

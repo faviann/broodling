@@ -36,6 +36,19 @@ target's fixed dependency paths:
   Without a scenario it reports an open, clean PR on an unprotected branch with
   no checks and no comments or reviews, so native reports it `ready`.
 
+- `access-probe`, installed as `/usr/local/bin/broodling-access-probe`, runs
+  only when the forge supplies `probe/hashes.json` (the
+  [image demonstration](../README.md#image-demonstration)): the worker then
+  runs it as the native-spawned execution agent before anything else, with its
+  task prompt on stdin. Given only SHA-256 hashes of the installation's
+  synthetic control secrets, it hashes every 64-character lowercase hexadecimal
+  string it can read (environment, arguments, prompt, readable `/proc` entries
+  and files outside `/proc`, `/sys`, `/dev` and `/usr`), and records its
+  identity and capabilities, which secret paths it can open, whether it can
+  create a raw socket, and the target's answers to unauthenticated,
+  wrong-bearer and forged-bootstrap control requests over loopback and the
+  routed origin. It writes the result to the forge.
+
 A successful run produces a controlled PR receipt, not a real GitHub PR or
 semantic-quality result. Credentials are fixed fake values. The only network
 call a fixture makes is the helper's read from the test's own Broodling reader

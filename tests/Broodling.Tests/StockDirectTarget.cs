@@ -12,9 +12,11 @@ namespace Broodling.Tests;
 /// repository for <c>acme/widget</c>, which a test may script and whose <c>gh</c> requests it can read.
 /// State volumes are disposable and credentials are fake.
 /// The host-side application needs an origin it can reach without zeroshot-tls, so the witness binds
-/// native to a literal-loopback origin: it records that binding with native's own commands, since the
-/// entrypoint initializes only through zeroshot-tls, and then serves through the unchanged entrypoint
-/// at the fixed inner port, published on host loopback only. The only outbound call a fixture makes is to an optional
+/// native to a literal-loopback origin, initialized and served through the unchanged entrypoint at the
+/// fixed inner port, published on host loopback only. Like an installation, the target mounts its own
+/// root-only synthetic bootstrap key, and every start is followed by the application's bootstrap of this
+/// target's synthetic control token, which <see cref="TestAccess.Live"/> then names for its origin. The only
+/// outbound call a fixture makes is to an optional
 /// Broodling reader, bound to the bridge gateway on the host and named <c>broodling</c> inside the
 /// target; a mounted file replaces only the helper's image-level reader origin.
 /// </summary>
@@ -26,6 +28,11 @@ internal sealed class StockDirectTarget : IAsyncDisposable
     private readonly Uri? reader;
     private readonly int port = FreePort();
     internal string Origin => $"http://127.0.0.1:{port}";
+    /// <summary>The control token currently configured, and installed after each start, for this target.</summary>
+    internal string Token { get; private set; } = TestAccess.NewSecret();
+    private string? tokenFile;
+    /// <summary>The bootstrap operation's copy of the key, beside the forge rather than in the target's mounts.</summary>
+    private string BootstrapKeyFile => Path.Combine(Path.GetDirectoryName(root)!, id + "-bootstrap-key");
     /// <summary>The forge's bare repository; the target reaches it as <c>https://github.com/acme/widget.git</c>.</summary>
     internal string Forge => Path.Combine(root, "widget.git");
 
@@ -48,8 +55,15 @@ internal sealed class StockDirectTarget : IAsyncDisposable
             if (reader is not null) File.WriteAllText(target.ReaderOrigin, $"http://broodling:{reader.Port}\n");
             RequireSuccess(await DockerCommand("volume", "create", target.id + "-state"));
             RequireSuccess(await DockerCommand("volume", "create", target.id + "-home"));
-            RequireSuccess(await DockerCommand(["run", "--rm", "--network", "none", .. target.Volumes, "--entrypoint", "/bin/sh",
-                target.image, "-ec", target.LoopbackInitialization]));
+            RequireSuccess(await DockerCommand("volume", "create", target.id + "-secrets"));
+            var key = TestAccess.NewSecret();
+            File.WriteAllText(target.BootstrapKeyFile, key);
+            // The operator's rendering of the target's secret: root-owned, mode 0400, exactly the key.
+            RequireSuccess(await DockerCommand(["run", "--rm", "--network", "none", "--mount", $"type=volume,src={target.id}-secrets,dst=/secrets",
+                "--env", "KEY=" + key, "--entrypoint", "/bin/sh", target.image, "-ec",
+                "printf %s \"$KEY\" >/secrets/zeroshot-bootstrap-key; chown 0:0 /secrets/zeroshot-bootstrap-key; chmod 0400 /secrets/zeroshot-bootstrap-key"]));
+            target.tokenFile = TestAccess.Register(new Uri(target.Origin), target.Token);
+            RequireSuccess(await DockerCommand(["run", "--rm", "--network", "none", .. target.Volumes, target.image, "initialize", .. target.Arguments]));
             await target.ServeAsync();
             return target;
         }
@@ -69,13 +83,30 @@ internal sealed class StockDirectTarget : IAsyncDisposable
 
     /// <summary>
     /// Stop the target and serve the same native state, mounts and origin through the entrypoint's ordinary
-    /// startup again: an operator restart, or an image update to <paramref name="replacement"/> when given.
+    /// startup again, then bootstrap it: an operator restart, or an image update to <paramref name="replacement"/>
+    /// when given. With <paramref name="rotate"/> it is the explicit rotation: the configured token is replaced
+    /// while the target is stopped and the new process is bootstrapped with the replacement.
     /// </summary>
-    internal async Task RestartAsync(string? replacement = null)
+    internal async Task RestartAsync(string? replacement = null, bool rotate = false)
     {
         RequireSuccess(await DockerCommand("rm", "--force", id));
         image = replacement ?? image;
+        if (rotate)
+        {
+            Token = TestAccess.NewSecret();
+            File.WriteAllText(tokenFile!, Token);
+        }
         await ServeAsync();
+    }
+
+    /// <summary>The status of one OECP session request with <paramref name="token"/> as bearer: whether this target accepts it for control.</summary>
+    internal async Task<System.Net.HttpStatusCode> ControlAsync(string token)
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        using var request = new HttpRequestMessage(HttpMethod.Post, Origin + "/native-v2/oecp-session") { Content = new StringContent("{}") };
+        request.Headers.Authorization = new("Bearer", token);
+        using var response = await http.SendAsync(request);
+        return response.StatusCode;
     }
 
     /// <summary>
@@ -139,14 +170,8 @@ internal sealed class StockDirectTarget : IAsyncDisposable
     private string Scenario => Path.Combine(root, "scenario.json");
     private string[] Volumes => ["--mount", $"type=volume,src={id}-state,dst=/state",
         "--mount", $"type=volume,src={id}-home,dst=/home/node,volume-nocopy"];
+    private string[] Secrets => ["--mount", $"type=volume,src={id}-secrets,dst=/run/secrets,readonly"];
     private string[] Arguments => ["--listen", TargetReadiness.NativeListen, "--public-origin", Origin, "--storage", "/state"];
-    /// <summary>The entrypoint's former loopback initialization: bind and open the ledger without submitting work.</summary>
-    private string LoopbackInitialization => $"""
-        zeroshot target serve --listen 127.0.0.1:{port} --public-origin {Origin} --storage /state >/dev/null 2>&1 & native=$!
-        for attempt in $(seq 1 100); do timeout 2 zeroshot target add broodling --url {Origin} --direct 2>/dev/null && break; sleep 0.1; done
-        timeout 10 zeroshot list --target broodling >/dev/null
-        kill $native; wait $native || :
-        """;
     private string[] ForgeMount => ["--mount", $"type=bind,src={root},dst=/forge"];
     private string ReaderOrigin => Path.Combine(root, "reader-origin");
     private string[] Reader => reader is null ? [] : ["--add-host", $"broodling:{reader.Host}",
@@ -163,14 +188,19 @@ internal sealed class StockDirectTarget : IAsyncDisposable
     private async Task ServeAsync()
     {
         RequireSuccess(await DockerCommand(["run", "--detach", "--name", id, "--publish", $"127.0.0.1:{port}:18770",
-            .. Volumes, .. ForgeMount, .. Reader, image, .. Arguments]));
+            .. Volumes, .. Secrets, .. ForgeMount, .. Reader, image, .. Arguments]));
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
         for (var retry = 0; retry < 300; retry++)
         {
             try
             {
                 using var response = await http.GetAsync(Origin + "/.well-known/zeroshot-native-v2");
-                if (response.IsSuccessStatusCode) return;
+                if (response.IsSuccessStatusCode)
+                {
+                    // Every target-process start serves nothing to anyone until the configured token is installed.
+                    await DirectTargetControl.BootstrapAsync(Origin, TestAccess.Live, BootstrapKeyFile);
+                    return;
+                }
             }
             catch (Exception error) when (error is HttpRequestException or TaskCanceledException) { }
             await Task.Delay(100);
@@ -191,7 +221,8 @@ internal sealed class StockDirectTarget : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await DockerCommand("rm", "--force", id);
-        await DockerCommand("volume", "rm", id + "-state", id + "-home");
+        await DockerCommand("volume", "rm", id + "-state", id + "-home", id + "-secrets");
+        if (tokenFile is not null) TestAccess.Unregister(new Uri(Origin), tokenFile);
         // The target writes forge objects as root; open them so the owning test root can be deleted.
         if (Directory.Exists(root)) await Shell("chmod -R a+rwX /forge");
     }

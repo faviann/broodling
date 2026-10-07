@@ -151,7 +151,10 @@ child processes.
   `Broodling__Invocation` and `Broodling__RepositoryRoot` and supplies
   credentials. For the ADR 0001 stack, mount the invocation `config.json` read-only
   (for example at `/etc/broodling/invocation.json`) naming
-  `https://zeroshot.dev.faviann.com` and `/tls-root/root.crt`, and use
+  `https://zeroshot.dev.faviann.com`, the control token file
+  `/run/secrets/zeroshot-control-token` and `/tls-root/root.crt`, give the
+  service that token file as its own secret (owned by `1654:1654`, mode `0400`;
+  see [private control access](#private-control-access)), and use
   `Broodling__RepositoryRoot=/var/lib/broodling/repositories`, a directory the
   operator creates in the state directory, owned by `1654:1654`. The
   DirectTarget image's reference helper reads from `http://broodling:8080`, so
@@ -171,8 +174,8 @@ child processes.
   Such an Attempt's B1 and accepted-revision pins are in its service-owned bare
   repository under `Broodling:RepositoryRoot`, recorded as the container path.
   With that root in the state directory (`/var/lib/broodling/repositories`), the
-  commands need only the state mount: no credentials, network, host release
-  artifact or caller checkout.
+  commands need only the state mount: no credentials (dispatch or control),
+  network, host release artifact or caller checkout.
   They keep every refusal and pause requirement they have from the release
   artifact. The image has no Docker
   socket, so the host maintenance procedure stops and verifies the target and
@@ -227,7 +230,13 @@ child processes.
 - It mounts no Docker socket. `check-target` inspects containers on the Docker
   host, so run it there: from the release artifact, or from the image's own
   output copied out with `docker cp` and a host .NET 10 ASP.NET runtime, with a
-  configuration that names the host path of `root.crt`.
+  configuration that names the host paths of `root.crt` and of the operator's
+  copy of the control token.
+- `bootstrap-target` installs the control token in a newly started target. Run
+  it as a one-off `broodling` container on the project network, the only one
+  given the bootstrap key:
+  `docker compose run --rm --no-deps -v /NEW/secrets/bootstrap/zeroshot-bootstrap-key:/run/secrets/zeroshot-bootstrap-key:ro broodling bootstrap-target /etc/broodling/invocation.json /run/secrets/zeroshot-bootstrap-key`.
+  See [private control access](#private-control-access).
 
 The image contains no Python, native executable or Codex CLI; its only
 Zeroshot client is the pinned `Zeroshot.Client` library. DirectTarget
@@ -254,7 +263,11 @@ Without the asset, HTTP preparation refuses.
 
 The [target recipe](#existing-target-readiness) pins Node 22.23.2, Codex
 0.153.4, gh 2.101.0 and the native binary hash. It runs rootful with Docker's
-default capabilities, and its entrypoint requires explicitly initialized state.
+default capabilities, and its entrypoint requires explicitly initialized state
+and a root-only bootstrap key. It serves only native's private mode: every
+control and OECP request needs the bearer token that the operator's bootstrap
+installs in each new target process ([private control access](#private-control-access)).
+The image contains no control secret.
 Zeroshot materializes its own execution checkout, separate from Broodling's
 source and Git custody; the `zeroshot` and `broodling` services share only the
 read-only public root.
@@ -268,7 +281,8 @@ read-only public root.
   [frozen-reference access](../docs/implementation/zeroshot-native-integration.md#frozen-reference-access).
 - Evidence: the [controlled stock DirectTarget witness](../tests/README.md#controlled-stock-directtarget-witness)
   runs that unmodified native as `zeroshot target serve` in the actual
-  DirectTarget image with the approved asset. Its test-only layer replaces the
+  DirectTarget image with the approved asset, in private mode with synthetic
+  control material bootstrapped after every start. Its test-only layer replaces the
   Codex provider and the `git`/`gh` forge, so its PR receipt is controlled. It
   covers exact B1 after branch movement with the moved target integrated, a
   `ready` receipt, no client checkout, failure rather than fallback for an
@@ -529,22 +543,35 @@ and the retained facts still answer.
 
 ### Invocation configuration
 
-A secret-free `config.json` names the DirectTarget:
+A secret-free `config.json` names the DirectTarget and where its control token
+is kept:
 
 ```json
 {
   "directOrigin": "https://zeroshot.dev.faviann.com",
+  "directControlTokenFile": "/NEW/secrets/broodling/zeroshot-control-token",
   "directRootCertificate": "/NEW/zeroshot-tls/root/root.crt"
 }
 ```
 
 It needs no Python executable, SDK client state, workspace root or launcher. Any
-other member, including a `target` member or a credential field, refuses. The
+other member, including a `target` member, an inline token or another
+credential field, refuses. The
 origin follows the native and SDK rule: canonical HTTPS, or HTTP to exactly `127.0.0.1` or `[::1]` such as
 `http://127.0.0.1:18770`, spelled as scheme and authority only, with a default
 port omitted and never port 0. Anything else refuses. An existing Attempt
 continues only through its retained origin, and a configuration naming a
 different origin refuses before any target contact.
+
+`directControlTokenFile` is the required absolute path of the file holding the
+target's private control token, as the process reading the configuration sees
+it (inside the `broodling` container, for example
+`/run/secrets/zeroshot-control-token`). Each operation that contacts the target
+reads it again and sends it only to `directOrigin`; it is never retained,
+printed or logged. A missing or unreadable file fails only operations that
+contact the target, as `credentials_unavailable`, before anything is sent, and
+never prevents startup or retained reads. See
+[private control access](#private-control-access).
 
 The optional `directRootCertificate` is the absolute path of a PEM root
 certificate: for the homelab stack, the `root.crt` that
@@ -571,7 +598,8 @@ unattended when it is configured with both:
 
 - `Broodling:Invocation` (`Broodling__Invocation`): the path of the
   [`config.json`](#invocation-configuration). Its origin is where new Attempts
-  are sent and its root certificate is trusted for every target connection.
+  are sent, its control token file is read for every operation on that origin
+  and its root certificate is trusted for every target connection.
 - `Broodling:RepositoryRoot` (`Broodling__RepositoryRoot`): an existing absolute,
   durable directory writable by the service, where it keeps the service-owned
   bare repositories that hold each submission's B1 and accepted commits. It is
@@ -580,7 +608,9 @@ unattended when it is configured with both:
 Its process environment must hold `GH_TOKEN`, `GATEWAY_API_KEY` and exactly
 `GATEWAY_BASE_URL=https://cliproxy.local.faviann.com/v1`. They are read for each
 operation and never retained or echoed; in Compose, supply them only to
-`broodling` through its own protected env file. Startup refuses, with a safe
+`broodling` through its own protected env file. The control token is separate:
+a file named by the configuration, not an environment variable, and never a
+dispatch credential. Startup refuses, with a safe
 code and before listening, one setting without the other, a missing
 repository root or missing or invalid credentials. The
 host also needs Git and `gh` (the image has both). Completion fetches each
@@ -647,7 +677,8 @@ image, the Compose project network and canonical host mount paths in
   "tlsContainerName": "broodling-zeroshot-tls-1",
   "rootKeyMount": "/NEW/zeroshot-tls/key",
   "rootCertificateMount": "/NEW/zeroshot-tls/root",
-  "broodlingContainerName": "broodling-broodling-1"
+  "broodlingContainerName": "broodling-broodling-1",
+  "bootstrapKeyFile": "/NEW/secrets/zeroshot/zeroshot-bootstrap-key"
 }
 ```
 
@@ -658,11 +689,16 @@ on the project network; `zeroshot-tls`'s pinned image, non-root user,
 `NET_BIND_SERVICE`-only capabilities, 443 publication, origin alias and separate
 root mounts; a read-only public root mount and no key mount in `broodling`;
 credential exclusion, native/Codex/Node/gh pins and binary hashes,
-`gh api graphql --paginate --slurp`, the hosted UID/GID transition, and native
-discovery through `zeroshot-tls` using the configuration's root. Both files must
+`gh api graphql --paginate --slurp`, the hosted UID/GID transition, the target's
+read-only bootstrap key mount (which no other service may mount), and, through
+`zeroshot-tls` using the configuration's root, native's private-mode discovery,
+an unauthenticated control request refused and a control request with the
+configuration's token accepted. Both files must
 select the same origin, and the configuration's `directRootCertificate` must be
-`root.crt` in the recorded `rootCertificateMount`. It creates no target/state and
-dispatches zero provider tasks.
+`root.crt` in the recorded `rootCertificateMount`; its token file must be
+readable by the account running the check. A target started but not yet
+bootstrapped, or bootstrapped with another token, is not ready. It creates no
+target/state, never bootstraps and dispatches zero provider tasks.
 
 The [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
 target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
@@ -676,10 +712,11 @@ The supported topology is ADR 0001's single Compose project on rootful Docker on
 one trusted host:
 
 - `zeroshot` runs this image as container root with Docker's default
-  capabilities. It has three bind mounts: state at `/state`, home at
-  `/home/node` and the public root directory read-only at `/tls-root`. Native
-  listens on the project network at the fixed inner port **18770**, which is
-  never published.
+  capabilities. It has four bind mounts: state at `/state`, home at
+  `/home/node`, the public root directory read-only at `/tls-root` and its
+  bootstrap key file read-only at `/run/secrets/zeroshot-bootstrap-key` (a
+  Compose file secret). Native listens on the project network at the fixed
+  inner port **18770**, which is never published.
 - `zeroshot-tls` runs
   `caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b`
   as the package-defined user **`10443:10443`**, with `cap_drop: [ALL]` and
@@ -689,14 +726,16 @@ one trusted host:
   `/etc/caddy/Caddyfile`, and a named volume at `/data`. It listens on 443,
   publishes that port on the LXC and carries `zeroshot.dev.faviann.com` as its
   alias on the project network.
-- `broodling` mounts only the public root directory, read-only, and never the key
-  directory or Caddy's data.
+- `broodling` mounts the public root directory, read-only, and its control
+  token file, and never the TLS key directory, Caddy's data or the bootstrap key.
 
-Native access is unauthenticated: callers that Traefik admits and anything that
-reaches the published port are trusted (ADR 0001). Rootless or altered UID
-mapping, and Docker-socket or extra credential/source mounts, are outside this
-profile. Preserve native UID ownership; never recursively chown used target
-storage.
+Native control is authenticated (#187): Traefik and the published port still
+admit callers to the origin as in ADR 0001, but every control and OECP request,
+including from the target's own execution agents over loopback or the routed
+origin, needs the installed control token; only discovery is public. Rootless or
+altered UID mapping, and Docker-socket or extra credential/source mounts, are
+outside this profile. Preserve native UID ownership; never recursively chown
+used target storage.
 
 ### Explicit initialization and guarded startup
 
@@ -712,8 +751,9 @@ docker build -f deployment/DirectTarget.Dockerfile -t broodling-target:REVIEWED_
 
 For an authorized **new installation only**, first provision four empty durable
 host directories: target state and home, with explicit root ownership and
-private permissions, and the root key and public root directories. Then, in
-this order:
+private permissions, and the root key and public root directories. Provision the
+target's control material and its recipient copies as described in
+[private control access](#private-control-access). Then, in this order:
 
 1. **Create the TLS root once**, before `zeroshot-tls` first starts. The target
    image's one-off root helper runs as container root:
@@ -738,32 +778,33 @@ this order:
    generates nothing. The image's `/data/caddy` is world-writable with the
    sticky bit, which the non-root user needs, so use a named volume that Docker
    fills from the image rather than an empty bind mount.
-3. **Initialize native state** through the origin:
+3. **Initialize native state**:
 
    ```bash
-   docker compose run --rm --no-deps --use-aliases zeroshot initialize \
+   docker compose run --rm --no-deps zeroshot initialize \
      --listen 0.0.0.0:18770 --public-origin https://zeroshot.dev.faviann.com --storage /state
    ```
 
-   `--use-aliases` gives the one-off container the `zeroshot` alias, so
-   `zeroshot-tls` can forward to it. Initialization refuses nonempty state or
-   home, including partially initialized state, and requires
-   `/tls-root/root.crt`. It briefly serves native on the project network,
-   records `broodling` through native `target add` in the home registry, uses
-   public `zeroshot list` to create the native ledger without submitting work,
-   and stops that process. Native's client reaches the origin through the alias
-   and `zeroshot-tls`, and `SSL_CERT_FILE=/tls-root/root.crt` makes it trust
-   only the public root. Success leaves no native server running. Failure
-   leaves partial durable state for inspection; it never deletes it or silently
-   retries over it. If it cannot reach the origin, check that `zeroshot-tls` is
-   running with this root and that the one-off container has the `zeroshot`
-   alias. To retry, deliberately clear the partial state and home first:
-   initialization refuses nonempty state.
+   Initialization refuses nonempty state or home, including partially
+   initialized state. It needs no network, `zeroshot-tls` or client. It
+   briefly runs native in private mode on the one-off container's loopback,
+   with a throwaway bootstrap key that is never used, so nothing can control
+   it: first on scratch storage, to learn the canonical origin native serves,
+   then on `/state`, where native creates its ledger without submitting work.
+   It records the configured origin as the binding in
+   `/home/node/.config/broodling/origin` and stops native. Success leaves no
+   native server running. Failure leaves any partial durable state for
+   inspection; it never deletes it or silently retries over it. To retry,
+   deliberately clear the partial state and home first: initialization refuses
+   nonempty state.
 4. **Start the target** (`docker compose up -d zeroshot`) with the same
-   arguments without `initialize`.
+   arguments without `initialize`, then **bootstrap its control token** with
+   `bootstrap-target` ([private control access](#private-control-access)).
+   Until then the target refuses all control.
 
 Pinned native, not the entrypoint, decides which public origins are valid and
-records its canonical spelling; configure exactly
+their canonical spelling: initialization refuses, before writing any state, an
+origin that native rejects or serves under another spelling. Configure exactly
 `https://zeroshot.dev.faviann.com`. `target serve` provides no TLS;
 `zeroshot-tls` terminates it, and the Caddyfile names that host. Changing the
 origin later requires a stopped-target transition of native state.
@@ -771,12 +812,22 @@ origin later requires a stopped-target transition of native state.
 Ordinary startup uses the same arguments **without `initialize`**, the same
 mounts and the recorded origin. Before executing `zeroshot target serve`, the
 entrypoint requires unredirected `/state`, `/state/runs`, `/state/runs.sqlite3`
-and home registry, a ledger that already contains native's `v2_runs` and
+and origin binding, a ledger that already contains native's `v2_runs` and
 `v2_run_events` tables (opened read-only with the image's Python `sqlite3`), and
-a `broodling` registry entry whose origin equals the configured origin. Native
+a binding equal to the configured origin. Native
 creates its tables in any SQLite file it opens, so an unrelated database must be
-refused before serving. Native owns the table shapes, rows and registry
-format/version.
+refused before serving. Native owns the table shapes and rows.
+
+It then requires the bootstrap key at `/run/secrets/zeroshot-bootstrap-key`: a
+regular file, not a symbolic link, owned by root with no group or other access.
+It copies the key to a new private file, `/run/broodling-target/bootstrap-key`
+(root, mode `0600`, in a mode-`0700` directory), and executes
+`zeroshot target serve … --bootstrap-key-file /run/broodling-target/bootstrap-key`.
+Native reads and unlinks that copy before it listens, and refuses to start
+(`private bootstrap key file is unavailable`) unless it is private and holds
+exactly 64 lowercase hexadecimal characters with no newline. A missing,
+unprotected or malformed key therefore stops startup with a refusal; there is no
+unauthenticated fallback.
 Missing, foreign or redirected state refuses without creating replacement files.
 Restore missing state; do not initialize an empty replacement at an existing
 origin. Existing targets without this binding, including targets bound to a
@@ -784,16 +835,15 @@ loopback origin, require a separately reviewed stopped-target transition; this
 command does not adopt them. Readiness rejects the former unguarded native
 entrypoint.
 
-For operator diagnosis, run native's client inside the target with the public
-root:
-
-```bash
-docker compose exec zeroshot env SSL_CERT_FILE=/tls-root/root.crt zeroshot list --target broodling
-```
-
-Set `SSL_CERT_FILE` per command, not in the service environment, so nothing
-else in the container trusts only the private root. Without it, native uses
-system trust and reports only `Zeroshot observation transport disconnected`.
+For operator diagnosis, use Broodling's authenticated commands, not native's
+client, which has no private-mode access: `check-target` reports whether the
+stack is ready and the running target accepts the configured token;
+`bootstrap-target` reports whether a token is installed (rerunning it sends
+nothing once the target accepts the token); and the retained-fact commands
+`status`, `history` and the reader's `/attempts/{id}` show each Attempt with one
+bounded native observation, whose `reason` is `unauthorized` when the target
+refuses the token and `credentials_unavailable` when none is configured for its
+origin.
 
 Neither mode recursively changes ownership. Native itself prepares traversable
 state/run roots; existing run-specific UIDs, GIDs and permissions remain native's
@@ -822,8 +872,8 @@ Rotation is a deliberate step, not something Caddy or Broodling does:
    initialization, and start `zeroshot-tls` again.
 5. Update Traefik's copy of the root certificate, then run `check-target`.
 
-Broodling rereads the root for each new connection, and native's client reads it
-for each command, so neither needs a restart. If step 3 is skipped, or Caddy's
+Broodling rereads the root for each new connection, so it needs no restart, and
+the target keeps its installed control token. If step 3 is skipped, or Caddy's
 data is restored without its matching root, Caddy keeps serving an intermediate
 signed by the old root. Clients trusting the new root then refuse the
 connection, and `check-target` reports discovery as unavailable.
@@ -833,6 +883,148 @@ dispatch, the operator must separately establish actual-target gateway
 authentication/model availability, repository permissions and remote B1
 availability. No fallback provider/runtime is supported. Readiness proves none
 of those, nor PR delivery, semantic quality or physical cessation.
+
+## Private control access
+
+Since #187 only a holder of a target's current control token can submit to,
+observe or control its native execution directly. Broodling and the operator's
+Broodling commands hold it; the target's execution agents cannot read it, mint
+it or use native's control routes through loopback or the routed origin.
+
+Each target has one random bearer token with no expiry, refresh or scheduled
+rotation, and a distinct bootstrap key; the operator bootstraps the token into
+every new target process and rotates it only as explicit maintenance.
+
+This does not yet stop an agent from acting through Broodling. The agents share
+the project network with `broodling`, whose port 8080 serves both the frozen-reference
+reads they need and, with processing configuration, the unauthenticated
+mutating routes (`POST /submissions`, revisions, resume and stops). An agent can
+call those routes, and Broodling then acts with its own token and authority.
+#240 adds authorization to those routes after the MVP; it does not block the
+first deployment. Until it lands, strict agent isolation is not established.
+#241 will ship references with the submission, so agents will no longer need to
+reach Broodling at all.
+
+### Control material and recipients
+
+Generate both values with `openssl rand -hex 32 | tr -d '\n'`: exactly 64
+lowercase hexadecimal characters, no newline. Keep them in the homelab secret
+system, separate from the GitHub and gateway dispatch credentials and from
+package-read credentials, and render one file per recipient with that
+recipient's owner and mode. Compose file secrets are bind mounts that keep the
+host file's owner and mode.
+
+| Material | Recipient and path | Owner and mode |
+| --- | --- | --- |
+| Control token, one per target | `broodling` service: `/run/secrets/zeroshot-control-token`, named by its configuration's `directControlTokenFile` | `1654:1654`, `0400` |
+| Same control token | Operator account running `check-target` on the Docker host: its own file, named by its host configuration | that account, `0400` |
+| Bootstrap key, one per target, different from the token | `zeroshot` service: `/run/secrets/zeroshot-bootstrap-key` | `0:0`, `0400` |
+| Same bootstrap key | One-off `bootstrap-target` container only: its own file | `1654:1654`, `0400` |
+
+```yaml
+services:
+  broodling:
+    secrets: [zeroshot-control-token]
+  zeroshot:
+    secrets: [zeroshot-bootstrap-key]
+secrets:
+  zeroshot-control-token: { file: /NEW/secrets/broodling/zeroshot-control-token }
+  zeroshot-bootstrap-key: { file: /NEW/secrets/zeroshot/zeroshot-bootstrap-key }
+```
+
+The target refuses to start unless its key is a root-owned regular file with no
+group or other access. Neither value belongs in an image, a Compose environment
+variable, a command line, the invocation configuration, `zeroshot-tls`, the
+long-running `broodling` (the bootstrap key) or the target (the token).
+Broodling never writes either into its store, a Prepared submission, a
+RequestBundle manifest, command output or a log: the token is read from its file
+for each operation and sent only as the bearer to its own origin. Execution
+agents run as native's isolated identities, which cannot read root-only files or
+other processes' environment and memory, and have no capabilities to capture
+traffic. Native unlinks its private copy of the key before serving and closes
+its bootstrap after the first accepted envelope. Provisioning the secrets and
+their routes in the homelab, and verifying that installation, belong to
+homelab-iac#353 and #354.
+
+### Bootstrap after every target start
+
+Native keeps the token only in process memory, so every new target process,
+whether the first start, an ordinary restart, an image update or a rotation,
+refuses all control until it is bootstrapped. Run `bootstrap-target` after the
+target starts, as a one-off `broodling` container on the project network that
+alone receives the bootstrap key:
+
+```bash
+docker compose run --rm --no-deps \
+  -v /NEW/secrets/bootstrap/zeroshot-bootstrap-key:/run/secrets/zeroshot-bootstrap-key:ro \
+  broodling bootstrap-target /etc/broodling/invocation.json /run/secrets/zeroshot-bootstrap-key
+```
+
+It prints `{"bootstrapped":true,"origin":…,"result":"installed"}`, or
+`"already_installed"` when the running target already accepts the configured
+token, in which case it sends nothing. It requires private discovery, sends at
+most one envelope through the SDK's `NativeClient.Private.BootstrapAsync`, and
+confirms the result with an authenticated control request. It never restarts the
+target, touches native state or replaces an installed token, and never resends
+blindly. Its failures print `"bootstrapped":false` with a `code` and a fixed
+`error` that names the next step, and exit 1. A key that differs from the
+target's consumes nothing: correct the key copy and run it again.
+
+Until the target is bootstrapped, the processing server's operations on it fail
+as `unauthorized`: progression retries with its doubling delay and completion
+observation at each scan, and observations report `unavailable` with that
+reason. Retained reads are unaffected. Any automatic restart of the target, by a
+restart policy, a host reboot or a supervisor, leaves the new process refusing
+all control until `bootstrap-target` runs, so every automated restart must be
+paired with the bootstrap step. Bootstrap promptly after a start, and
+before releasing a maintenance pause. A restart still interrupts native
+execution; nothing is resumed, replaced or replayed automatically.
+
+### Restart and rotation
+
+An ordinary restart keeps the token: start the target, then bootstrap it.
+Rotation is explicit operator maintenance, never scheduled:
+
+1. `pause-installation`, then wait until `status` reports dispatch initiation
+   drained. Active native runs are interrupted by the restart: apply the usual
+   host containment and stopped-target rules to them.
+2. Stop the target (`docker compose stop zeroshot`).
+3. Render a new random token into every token copy: `broodling`'s and the
+   operator's. To replace the bootstrap key too, render it to the target's and
+   the bootstrap operation's copies now.
+4. Start the target and run `bootstrap-target`.
+5. Run `check-target`. The former token is refused and the new one accepted.
+6. `release-installation`.
+
+Broodling reads the token file for each operation, so its processes need no
+restart. The target's origin, native ledger, Attempt and run correlation and
+retained results are unchanged, and an unresolved dispatch replays exactly its
+frozen request with the new token. If a token or bootstrap key may have leaked,
+replace both: native accepts a captured bootstrap envelope again in any new
+process started with the same key, so it could reinstall the former token
+before `bootstrap-target` runs, which then reports that the target holds
+another token.
+
+### Several targets (#234, #235)
+
+Each target is its own canonical origin with its own token and bootstrap key.
+Broodling resolves control credentials by exact origin for each operation
+(`DirectTargetAccess`, an origin-to-token-file lookup):
+
+- New Attempts go to the configured origin. An existing Attempt always connects to
+  its retained origin, with the token configured for that origin.
+- A token configured for one origin is never sent to another, and one target's
+  token does not control another.
+- A configuration that no longer names an Attempt's origin redirects nothing: the
+  Attempt contacts no target (`credentials_unavailable`) until its own origin is
+  configured again.
+- A token change never amends a Contract, Prepared submission, Native
+  correlation or retained target binding, and a refused or missing token never
+  selects another target, starts a new Attempt or resets storage.
+
+Today's invocation configuration names one origin and its token file. The
+environment catalog and its selection (#234, #235) own how several are
+configured.
 
 ## Invocation and recovery
 

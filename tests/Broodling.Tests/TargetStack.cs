@@ -9,7 +9,9 @@ namespace Broodling.Tests;
 /// DirectTarget image as <c>zeroshot</c>, the pinned Caddy image with the package's Caddyfile as
 /// <c>zeroshot-tls</c>, and a <c>broodling</c> stand-in (the target image, idle) that mounts only
 /// the public root. Caddy's data is a disposable named volume. No provider workload runs. Only
-/// <c>zeroshot-tls</c> publishes, on host loopback.
+/// <c>zeroshot-tls</c> publishes, on host loopback. Its synthetic control token and bootstrap key are its own:
+/// the target mounts a root-only copy of the key, and the bootstrap operation and clients run on the host
+/// through zeroshot-tls's published port.
 /// </summary>
 internal sealed class TargetStack : IAsyncDisposable
 {
@@ -31,6 +33,13 @@ internal sealed class TargetStack : IAsyncDisposable
     internal string RootKey => Path.Combine(Root, "tls-root-key");
     internal string RootCertificate => Path.Combine(Root, "tls-root");
     internal string RootCertificateFile => Path.Combine(RootCertificate, "root.crt");
+    /// <summary>The target's root-owned, mode 0400 bootstrap key secret.</summary>
+    internal string BootstrapKeyFile => Path.Combine(Root, "secrets", "zeroshot-bootstrap-key");
+    /// <summary>The bootstrap operation's copy of the same key.</summary>
+    internal string OperatorBootstrapKeyFile => Path.Combine(Root, "bootstrap-key");
+    internal string TokenFile => Path.Combine(Root, "control-token");
+    internal string Token => File.ReadAllText(TokenFile);
+    internal DirectTargetAccess Access => DirectTargetAccess.For(Origin, TokenFile, RootCertificateFile);
 
     internal static async Task<TargetStack> CreateAsync()
     {
@@ -38,12 +47,23 @@ internal sealed class TargetStack : IAsyncDisposable
         foreach (var directory in new[] { stack.State, stack.Home, stack.RootKey, stack.RootCertificate })
             Directory.CreateDirectory(directory);
         RequireSuccess(await DockerCommand("network", "create", stack.id));
+        var key = TestAccess.NewSecret();
+        File.WriteAllText(stack.OperatorBootstrapKeyFile, key);
+        File.WriteAllText(stack.TokenFile, TestAccess.NewSecret());
+        RequireSuccess(await stack.ProvisionKey(key));
         return stack;
     }
 
     internal static string[] Bind(string source, string destination, bool readOnly = false) =>
         ["--mount", $"type=bind,src={source},dst={destination}" + (readOnly ? ",readonly" : "")];
-    internal string[] TargetMounts => [.. Bind(State, "/state"), .. Bind(Home, "/home/node"), .. Bind(RootCertificate, "/tls-root", true)];
+    internal string[] TargetMounts => [.. Bind(State, "/state"), .. Bind(Home, "/home/node"), .. Bind(RootCertificate, "/tls-root", true),
+        .. Bind(BootstrapKeyFile, TargetReadiness.BootstrapKeySecret, true)];
+
+    /// <summary>Render the target's bootstrap key secret as the operator does: root-owned, mode 0400, exactly the key.</summary>
+    internal Task<Result> ProvisionKey(string key, string mode = "0400", string owner = "0:0") =>
+        DockerCommand(["run", "--rm", "--network", "none", .. Bind(Root, "/owned"), "--env", "KEY=" + key, "--entrypoint", "/bin/sh", image, "-ec",
+            $"mkdir -p /owned/secrets; rm -f /owned/secrets/zeroshot-bootstrap-key; printf %s \"$KEY\" >/owned/secrets/zeroshot-bootstrap-key; "
+            + $"chown {owner} /owned/secrets/zeroshot-bootstrap-key; chmod {mode} /owned/secrets/zeroshot-bootstrap-key"]);
     internal string[] RootMounts => [.. Bind(RootKey, "/tls-root-key"), .. Bind(RootCertificate, "/tls-root")];
 
     /// <summary>The root helper, a one-off root container with the given root locations.</summary>
@@ -63,9 +83,9 @@ internal sealed class TargetStack : IAsyncDisposable
         await ServingTls();
     }
 
-    /// <summary>Native initialization through zeroshot-tls, as <c>docker compose run --use-aliases zeroshot initialize</c>.</summary>
+    /// <summary>Native initialization, as <c>docker compose run --rm --no-deps zeroshot initialize</c>: no network is needed.</summary>
     internal Task<Result> Initialize() =>
-        DockerCommand(["run", "--rm", "--name", Zeroshot, "--network", id, "--network-alias", "zeroshot", .. TargetMounts, image, "initialize", .. Arguments]);
+        DockerCommand(["run", "--rm", "--name", Zeroshot, "--network", "none", .. TargetMounts, image, "initialize", .. Arguments]);
 
     /// <summary>A fresh stack: root, zeroshot-tls and initialized native state, with no target serving.</summary>
     internal async Task InitializeAll()
@@ -94,16 +114,45 @@ internal sealed class TargetStack : IAsyncDisposable
     internal async Task StartBroodling() => RequireSuccess(await DockerCommand(["run", "--detach", "--name", Broodling, "--network", id,
         .. Bind(RootCertificate, "/tls-root", true), "--entrypoint", "sleep", image, "infinity"]));
 
-    /// <summary>Native's own client in the zeroshot container, trusting the public root: operator diagnosis.</summary>
-    internal Task<Result> NativeList() =>
-        DockerCommand("exec", Zeroshot, "env", "SSL_CERT_FILE=/tls-root/root.crt", "zeroshot", "list", "--target", "broodling");
+    /// <summary>A host client of the origin through zeroshot-tls's published port, trusting only the public root.</summary>
+    internal async Task<HttpClient> Client()
+    {
+        var port = await DockerCommand("port", Tls, "443/tcp");
+        RequireSuccess(port);
+        var endpoint = port.Output.Trim().Split('\n')[0];
+        return TargetReadiness.PublishedPortClient(new Uri(Origin), RootCertificateFile,
+            new(System.Net.IPAddress.Loopback, int.Parse(endpoint[(endpoint.LastIndexOf(':') + 1)..])));
+    }
 
-    internal async Task<string> ServingNativeList()
+    /// <summary>The operator's bootstrap of the running target through the origin, with this stack's key unless another is given.</summary>
+    internal async Task<DirectTargetBootstrapResult> Bootstrap(string? keyFile = null)
+    {
+        using var http = await Client();
+        return await DirectTargetControl.BootstrapAsync(Origin, Access, keyFile ?? OperatorBootstrapKeyFile, http, TimeProvider.System, default);
+    }
+
+    /// <summary>The status of one OECP session request through the origin, with <paramref name="token"/> as bearer when given.</summary>
+    internal async Task<System.Net.HttpStatusCode> Control(string? token)
+    {
+        using var http = await Client();
+        using var request = new HttpRequestMessage(HttpMethod.Post, Origin + "/native-v2/oecp-session") { Content = new StringContent("{}") };
+        if (token is not null) request.Headers.Authorization = new("Bearer", token);
+        using var response = await http.SendAsync(request);
+        return response.StatusCode;
+    }
+
+    /// <summary>Waits until the target answers public discovery through zeroshot-tls.</summary>
+    internal async Task Serving()
     {
         for (var retry = 0; retry < 100; retry++)
         {
-            var result = await NativeList();
-            if (result.Code == 0) return result.Output;
+            try
+            {
+                using var http = await Client();
+                using var response = await http.GetAsync(Origin + "/.well-known/zeroshot-native-v2");
+                if (response.IsSuccessStatusCode) return;
+            }
+            catch (Exception error) when (error is HttpRequestException or IOException) { }
             await Task.Delay(100);
         }
         throw new InvalidOperationException("Target never served through zeroshot-tls: " + (await DockerCommand("logs", Zeroshot)).Error);
@@ -113,7 +162,7 @@ internal sealed class TargetStack : IAsyncDisposable
     {
         var target = await DockerCommand("inspect", "--format", "{{.Image}}", Zeroshot);
         RequireSuccess(target);
-        return new(Zeroshot, target.Output.Trim(), Origin, State, Home, id, Tls, RootKey, RootCertificate, Broodling);
+        return new(Zeroshot, target.Output.Trim(), Origin, State, Home, id, Tls, RootKey, RootCertificate, Broodling, BootstrapKeyFile);
     }
 
     /// <summary>

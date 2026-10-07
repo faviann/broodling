@@ -10,11 +10,12 @@ namespace Broodling;
 /// <summary>
 /// Operator inventory of the existing ADR 0001 stack: the <c>zeroshot</c> target, <c>zeroshot-tls</c> and
 /// <c>broodling</c> containers, their project network and canonical host mount paths. Neither
-/// installation nor lifecycle authority.
+/// installation nor lifecycle authority. <c>BootstrapKeyFile</c> is the host file the target reads its
+/// bootstrap key from, which only the target and the bootstrap operation receive.
 /// </summary>
 public sealed record TargetReadinessInventory(string ContainerName, string ImageId, string DirectOrigin,
     string StateMount, string HomeMount, string Network, string TlsContainerName, string RootKeyMount,
-    string RootCertificateMount, string BroodlingContainerName);
+    string RootCertificateMount, string BroodlingContainerName, string BootstrapKeyFile);
 
 public sealed record TargetReadinessFacts(string ContainerName, string ContainerId, string ImageId, string DirectOrigin,
     IReadOnlyDictionary<string, string> Versions, bool ApiPaginateSlurp = true, bool HostedUidTransition = true,
@@ -31,6 +32,8 @@ public sealed class TargetReadiness
     internal const string TlsUser = "10443:10443";
     /// <summary>Native's fixed inner listener on the project network, where <c>zeroshot-tls</c> forwards; never published.</summary>
     internal const string NativeListen = "0.0.0.0:18770";
+    /// <summary>Where the target entrypoint reads its root-only bootstrap key, which it copies privately for native.</summary>
+    internal const string BootstrapKeySecret = "/run/secrets/zeroshot-bootstrap-key";
     /// <summary>The target image's Codex, as the DirectTarget image pins it.</summary>
     private const string CodexVersion = "codex-cli 0.153.4";
     private const string GhSha256 = "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff";
@@ -51,13 +54,16 @@ public sealed class TargetReadiness
     }
 
     /// <summary>
-    /// <paramref name="selectedDirectOrigin"/> and <paramref name="rootCertificate"/> are the invocation
-    /// configuration's origin and root. The root must be the stack's public <c>root.crt</c>, which discovery
-    /// trusts exactly as invocation does.
+    /// <paramref name="selectedDirectOrigin"/> and <paramref name="access"/> are the invocation configuration's
+    /// origin and its connection material. The root must be the stack's public <c>root.crt</c>, which every
+    /// request trusts exactly as invocation does, and the origin's control token must be readable: readiness
+    /// requires private discovery, an unauthenticated control request refused and an authenticated one
+    /// accepted, without submitting work.
     /// </summary>
     public async Task<TargetReadinessFacts> CheckAsync(TargetReadinessInventory inventory, string selectedDirectOrigin,
-        string? rootCertificate, CancellationToken cancellationToken = default)
+        DirectTargetAccess access, CancellationToken cancellationToken = default)
     {
+        var rootCertificate = access.RootCertificate;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -71,8 +77,9 @@ public sealed class TargetReadiness
             var origin = new Uri(inventory.DirectOrigin);
             Require(selectedDirectOrigin == inventory.DirectOrigin,
                 "Invocation configuration differs from the recorded DirectTarget.");
-            string[] paths = [inventory.StateMount, inventory.HomeMount, inventory.RootKeyMount, inventory.RootCertificateMount];
-            Require(paths.All(path => Path.IsPathFullyQualified(path) && PhysicalPaths.Resolve(path) == path),
+            string[] paths = [inventory.StateMount, inventory.HomeMount, inventory.RootKeyMount, inventory.RootCertificateMount,
+                inventory.BootstrapKeyFile];
+            Require(paths.All(path => !string.IsNullOrEmpty(path) && Path.IsPathFullyQualified(path) && PhysicalPaths.Resolve(path) == path),
                 "Target mount inventory must use canonical absolute paths.");
             Require(!Overlap(inventory.RootKeyMount, inventory.RootCertificateMount),
                 "The root key and certificate must be recorded in separate locations.");
@@ -99,9 +106,10 @@ public sealed class TargetReadiness
             Require(!Strings(config.GetProperty("Env")).Any(value => CredentialNames.Contains(value.Split('=', 2)[0])),
                 "Dispatch credentials must not be installed in target configuration.");
             var mounts = Mounts(actual);
-            Require(mounts.Length == 3 && mounts.ToHashSet().SetEquals([
+            Require(mounts.Length == 4 && mounts.ToHashSet().SetEquals([
                     new Mount(inventory.StateMount, "/state", true, true), new Mount(inventory.HomeMount, "/home/node", true, true),
-                    new Mount(inventory.RootCertificateMount, "/tls-root", false, true)]),
+                    new Mount(inventory.RootCertificateMount, "/tls-root", false, true),
+                    new Mount(inventory.BootstrapKeyFile, BootstrapKeySecret, false, true)]),
                 "Target persistent mounts differ from inventory.");
             Require(Published(host).Length == 0, "Target must publish no port; zeroshot-tls serves its origin.");
             Require(Strings(config.GetProperty("Cmd")).SequenceEqual(["--listen", NativeListen,
@@ -138,6 +146,9 @@ public sealed class TargetReadiness
             Require(broodlingMounts.All(mount => mount.Source == inventory.RootCertificateMount
                     || tlsMounts.All(storage => !Overlap(mount.Source, storage.Source))),
                 "broodling must not mount the root key or other zeroshot-tls storage.");
+            // Only the target and the one-off bootstrap operation receive the bootstrap key.
+            Require(broodlingMounts.Concat(tlsMounts).All(mount => !Overlap(mount.Source, inventory.BootstrapKeyFile)),
+                "Only the target may mount the bootstrap key; run the bootstrap as a one-off operation.");
 
             var containerId = actual.GetProperty("Id").GetString();
             Require(!string.IsNullOrWhiteSpace(containerId) && !containerId.StartsWith('-'), "Target container identity is invalid.");
@@ -166,10 +177,22 @@ public sealed class TargetReadiness
             await Execute("python3", "-c", "import os; os.setgroups([10002]); os.setgid(10002); "
                 + "os.setuid(10002); assert os.getuid() == 10002 and os.getgid() == 10002");
 
+            string token;
+            try { token = access.Token(origin); }
+            catch (NativeTransportError) { throw new TargetNotReady("Invocation configuration names no readable control token for the DirectTarget origin."); }
+
             // Through zeroshot-tls itself, so the chain it serves now (including a stored intermediate) must reach the root.
             using var http = discoveryClient(origin, rootCertificate, published);
             using var discovery = DirectTargetBudget.Start(DiscoveryBudget, clock, cancellationToken);
             await DirectTargetDiscovery.RequireAsync(http, origin, discovery);
+            // Public discovery only claims private access: an unauthenticated control request must actually be refused.
+            Require(await Session(http, origin, null, discovery) == HttpStatusCode.Unauthorized,
+                "Target accepts unauthenticated control; it must serve native private access.");
+            // Actual authenticated access, without submitting work: the target issues an OECP session for this token.
+            var accepted = await Session(http, origin, token, discovery);
+            Require(accepted != HttpStatusCode.Unauthorized,
+                "Target refuses the configured control token; bootstrap the running target (bootstrap-target) or correct the token.");
+            Require(accepted == HttpStatusCode.OK, "Target authenticated control differs from the supported private DirectTarget.");
             return new(inventory.ContainerName, containerId!, inventory.ImageId, inventory.DirectOrigin, versions);
         }
         catch (TargetNotReady) { throw; }
@@ -178,6 +201,17 @@ public sealed class TargetReadiness
         { throw new OperationCanceledException("Target inspection cancelled.", cancellationToken); }
         catch (Exception)
         { throw new TargetNotReady("Target inventory, inspection or discovery is unavailable or invalid."); }
+    }
+
+    /// <summary>The status of one OECP session request, with <paramref name="token"/> as its bearer when given.</summary>
+    private static async Task<HttpStatusCode> Session(HttpClient http, Uri origin, string? token, DirectTargetBudget budget)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(origin, DirectTargetDiscovery.SessionPath))
+        {
+            Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json")
+        };
+        if (token is not null) request.Headers.Authorization = new("Bearer", token);
+        return (await DirectTargetExchange.SendJsonAsync(http, request, budget)).Status;
     }
 
     private sealed record Mount(string? Source, string? Destination, bool ReadWrite, bool Bind);
@@ -228,7 +262,7 @@ public sealed class TargetReadiness
     /// published port rather than whatever the name resolves to on this host (LAN DNS selects Traefik, which
     /// terminates TLS itself).
     /// </summary>
-    private static HttpClient PublishedPortClient(Uri origin, string? rootCertificate, IPEndPoint published)
+    internal static HttpClient PublishedPortClient(Uri origin, string? rootCertificate, IPEndPoint published)
     {
         var handler = NativeClient.CreateHttpHandler(new TransportOptions { TrustedRootCertificatePath = rootCertificate });
         handler.ConnectCallback = async (_, token) =>

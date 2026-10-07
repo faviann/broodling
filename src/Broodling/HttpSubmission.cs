@@ -65,8 +65,8 @@ public sealed partial class BroodlingStore
     /// <summary>
     /// First send or exact acknowledgement-loss replay of a prepared HTTP submission. A correlated
     /// record is handed back with no other prerequisite. Otherwise the send needs current authority,
-    /// no retained replay block, no pause, current credentials, exact retained B1 custody and a readable
-    /// configured root; dispatch intent commits before any target contact and the writer is released before any
+    /// no retained replay block, no pause, current credentials, exact retained B1 custody, a readable control token for the
+    /// retained origin and a readable configured root; dispatch intent commits before any target contact and the writer is released before any
     /// network I/O. Only the exact acknowledgement correlates; every other outcome leaves the intent
     /// unresolved. A correlation that arrives after abandonment is retained, then that exact run is stopped.
     /// </summary>
@@ -87,11 +87,11 @@ public sealed partial class BroodlingStore
 
         var conflict = false;
         PreparedSubmission prepared;
-        // The client is created before intent: a missing root means nothing can be sent, so it records
-        // nothing. Each connection reads the root again. Initiation is held from before the intent commits
+        // The client is created before intent: a missing control token or root means nothing can be sent,
+        // so it records nothing. Each connection reads the root again. Initiation is held from before the intent commits
         // until this caller can no longer send. It is local only: bytes a target already buffered can
         // still be accepted after it is released.
-        await using (var client = DirectTargetClient.Open(origin, directTargetRoot))
+        await using (var client = DirectTargetClient.Open(origin, directTarget))
         using (HoldInitiation())
         {
             using (var transaction = connection.BeginTransaction(deferred: false))

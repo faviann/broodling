@@ -251,7 +251,7 @@ public sealed class HttpProcessingTests
         using (fixture.Initialize()) { }
         var repositories = Directory.CreateDirectory(Path.Combine(fixture.Root, "service-repositories")).FullName;
         var direct = Path.Combine(fixture.Root, "direct.json");
-        File.WriteAllText(direct, new JsonObject { ["directOrigin"] = Origin(target) }.ToJsonString());
+        File.WriteAllText(direct, new JsonObject { ["directOrigin"] = Origin(target), ["directControlTokenFile"] = target.TokenFile }.ToJsonString());
         ProcessingPeers Peers(Func<ProgressionCredentials> credentials) => new(credentials, new FakeTimeProvider(),
             new GitHubIssueSource("/nonexistent/gh"), new GitHubRepositorySource("/nonexistent/gh"), null);
         var store = "--Broodling:Store=" + fixture.Path;
@@ -338,7 +338,7 @@ public sealed class HttpProcessingTests
         {
             Directory.CreateDirectory(repositoryRoot);
             var configuration = Path.Combine(state.Root, "invocation.json");
-            File.WriteAllText(configuration, new JsonObject { ["directOrigin"] = Origin(target) }.ToJsonString());
+            File.WriteAllText(configuration, new JsonObject { ["directOrigin"] = Origin(target), ["directControlTokenFile"] = target.TokenFile }.ToJsonString());
             var app = BroodlingHost.Build(["--urls=http://127.0.0.1:0", "--Broodling:Store=" + state.Path,
                 "--Broodling:Invocation=" + configuration, "--Broodling:RepositoryRoot=" + repositoryRoot], peers);
             await app.StartAsync();

@@ -239,7 +239,7 @@ public sealed class CompletionObserverTests
 
         internal Observer(HttpFixture fixture)
         {
-            observer = new CompletionObserver(new BroodlingApplication(), fixture.Git.State.Path, null,
+            observer = new CompletionObserver(new BroodlingApplication(), fixture.Git.State.Path, TestAccess.Live,
                 (_, failure) => unexpected.Enqueue(failure)) { Clock = clock };
             running = observer.RunAsync(cancellation.Token);
         }

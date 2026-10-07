@@ -104,7 +104,7 @@ public sealed class StockDirectTargetTests
         var attempt = store.Status(revision).Attempts.Single().AttemptId;
         git.State.Execute($"UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = '{attempt}'");
         var record = store.FindSubmission(attempt)!;
-        await using (var client = DirectTargetClient.Open(new Uri(target.Origin), null))
+        await using (var client = DirectTargetClient.Open(new Uri(target.Origin), TestAccess.Live))
             await DirectTargetSubmission.SubmitAsync(client, DirectTargetSubmission.Import(record.RequestJson),
                 Credentials.TargetRun(), TimeProvider.System, default);
         var unresolved = store.FindSubmission(attempt)!;
@@ -161,5 +161,5 @@ public sealed class StockDirectTargetTests
 
     /// <summary>The finished run's own terminal output, read as the reference before anything is consumed.</summary>
     internal static async Task<JsonElement> TerminalAsync(NativeRunBinding run) =>
-        (await DirectTargetRun.WaitAsync(run, null, TimeProvider.System, default)).Output;
+        (await DirectTargetRun.WaitAsync(run, TestAccess.Live, TimeProvider.System, default)).Output;
 }

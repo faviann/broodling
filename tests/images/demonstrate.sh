@@ -7,6 +7,11 @@
 # until its Attempt is correlated, stops that Attempt, and retires and replaces it under verified
 # stopped-target maintenance with the image's own commands. After release, the image's resume command
 # dispatches the Replacement Attempt beside the restarted processing server.
+# The target serves only native's private mode (#187). With synthetic per-run secrets it shows: control refused
+# before bootstrap, a forged envelope refused without consuming the key, the operator's one-off bootstrap and its
+# idempotent rerun, authenticated access for broodling and check-target, an execution agent of the actual run
+# finding no secret and refused every control route over loopback and the routed origin, token rotation over the
+# retained state, and no secret value in any service log or command output.
 # Needs rootful Docker with Compose, curl, jq and a .NET 10 ASP.NET runtime on the host. Uses no real
 # credentials, provider, GitHub or existing target; everything it creates is removed on exit.
 # Usage: demonstrate.sh BROODLING_IMAGE TARGET_IMAGE [FACTS_JSON]
@@ -34,6 +39,57 @@ processing() { compose --file "$here/processing.yaml" "$@"; }
 step() { printf '\n== %s\n' "$*"; }
 fail() { printf 'FAILED: %s\n' "$*" >&2; exit 1; }
 bind() { printf 'type=bind,src=%s,dst=%s' "$1" "$2"; }
+host_user="$(id -u):$(id -g)"
+
+# Synthetic control secrets, one copy per recipient, written in secrets/ by a one-off root helper and never
+# printed: the target's bootstrap key (root, 0400), the bootstrap operation's copy (broodling user, 0400),
+# broodling's control token (broodling user, 0400) and the host operator's token for check-target (this user,
+# 0400). Only SHA-256 hashes leave the helper, for the agent probe. `rotate` replaces the token in place in every
+# copy, keeping the former host copy for the rejection check.
+secrets() {
+    docker run --rm --network none --mount "$(bind "$root/secrets" /s)" --entrypoint /bin/sh "$target_image" -ec '
+        umask 077
+        token=$(openssl rand -hex 32)
+        if [ "$1" = new ]; then
+            key=$(openssl rand -hex 32)
+            printf %s "$key" >/s/target-bootstrap-key && chown 0:0 /s/target-bootstrap-key
+            printf %s "$key" >/s/broodling-bootstrap-key && chown "$2" /s/broodling-bootstrap-key
+            printf %s "$key" | sha256sum | cut -c1-64 >>/s/hash-lines
+        else
+            cat /s/host-control-token >/s/former-host-token && chown "$3" /s/former-host-token
+        fi
+        printf %s "$token" >/s/broodling-control-token && chown "$2" /s/broodling-control-token
+        printf %s "$token" >/s/host-control-token && chown "$3" /s/host-control-token
+        printf %s "$token" | sha256sum | cut -c1-64 >>/s/hash-lines
+        printf "{\"sha256\":[%s]}" "$(sed "s/.*/\"&\"/" /s/hash-lines | paste -sd,)" >/s/hashes.json
+        chmod 0400 /s/*' sh "$1" "$broodling_user" "$host_user"
+}
+# The bootstrap operation: a one-off broodling container, the only one given the bootstrap key copy. It retries
+# only while the just-started target is not yet reachable.
+bootstrap() {
+    local result
+    for _ in $(seq 1 100); do
+        result="$(compose run --rm --no-deps -T \
+            --volume "$root/secrets/broodling-bootstrap-key:/run/secrets/zeroshot-bootstrap-key:ro" \
+            broodling bootstrap-target /etc/broodling/invocation.json /run/secrets/zeroshot-bootstrap-key || :)"
+        [[ $result == *native_transport_error* ]] || break
+        sleep 0.2
+    done
+    printf '%s\n' "$result"
+}
+# One OECP session request from broodling as its user, through the origin, with its token file as bearer
+# (piped as a header, never on a command line); prints only the status.
+broodling_session() {
+    compose exec -T broodling sh -c 'printf "Authorization: Bearer %s" "$(cat /run/secrets/zeroshot-control-token)" \
+        | curl --silent --output /dev/null --write-out "%{http_code}" --max-time 10 --cacert /tls-root/root.crt \
+            -H @- --json "{}" '"$origin"'/native-v2/oecp-session'
+}
+# The same from the host, through zeroshot-tls's publication, with a host token copy.
+host_session() {
+    printf 'Authorization: Bearer %s' "$(cat "$1")" | curl --silent --output /dev/null --write-out '%{http_code}' \
+        --max-time 10 --cacert "$root/tls-root/root.crt" --resolve "$host:$tls_port:127.0.0.1" -H @- --json '{}' \
+        "https://$host:$tls_port/native-v2/oecp-session"
+}
 
 cleanup() {
     processing down --volumes --remove-orphans --timeout 5 >/dev/null 2>&1 || :
@@ -56,7 +112,12 @@ mkdir -- "$root"
 created_root=true
 # As the explicit first initialization may: a one-off root helper sets ownership and modes.
 docker run --rm --network none --mount "$(bind "$root" /owned)" --workdir /owned --entrypoint /bin/sh "$target_image" -ec \
-    "mkdir -m 0700 target-state target-home broodling && mkdir tls-root-key tls-root && chown $broodling_user broodling"
+    "mkdir -m 0700 target-state target-home broodling && mkdir tls-root-key tls-root && chown $broodling_user broodling
+     mkdir -m 0711 secrets"
+# Everything this demonstration prints, for the final secret scan.
+exec > >(tee -a "$root/transcript.log") 2>&1
+secrets new
+echo 'synthetic secrets generated: bootstrap key for the target and the bootstrap operation, token for broodling and the host'
 
 step 'Create the TLS root once (target image, one-off root helper)'
 docker run --rm --network none --mount "$(bind "$root/tls-root-key" /tls-root-key)" \
@@ -75,10 +136,37 @@ for _ in $(seq 1 100); do
 done
 [[ $code != 000 ]] || fail 'zeroshot-tls never served with the root'
 
-step 'Initialize native state through the origin, then start zeroshot'
-compose run --rm --no-deps --use-aliases -T zeroshot initialize \
-    --listen 0.0.0.0:18770 --public-origin "$origin" --storage /state
+step 'Initialize native state, then start zeroshot in private mode, not yet bootstrapped'
+compose run --rm --no-deps -T zeroshot initialize --listen 0.0.0.0:18770 --public-origin "$origin" --storage /state
 compose up --detach zeroshot
+# As the hosted identity the target's agents use (readiness's UID probe), inside the target, over loopback.
+as_agent() { compose exec -T --user 10002:10002 zeroshot "$@"; }
+request_js='const [method, path, body, bearer] = process.argv.slice(1);
+fetch("http://127.0.0.1:18770" + path, { method, body: body || undefined,
+    headers: bearer ? { authorization: "Bearer " + bearer } : {} })
+    .then(r => console.log(r.status), () => { console.log("unreachable"); process.exit(1); });'
+for _ in $(seq 1 100); do
+    as_agent node -e "$request_js" GET /.well-known/zeroshot-native-v2 >/dev/null 2>&1 && break
+    sleep 0.2
+done
+random_bearer="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+before="$(as_agent node -e "$request_js" POST /native-v2/oecp-session '{}' "$random_bearer")"
+forged="$(as_agent node -e "$request_js" POST /native-v2/private-bootstrap \
+    "{\"nonce\":\"$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')\",\"ciphertext\":\"$(od -An -N80 -tx1 /dev/urandom | tr -d ' \n')\"}")"
+echo "before bootstrap, as the agent identity: random bearer session $before, forged bootstrap envelope $forged"
+[[ $before == 401 && $forged == 400 ]] || fail 'control before bootstrap or a forged envelope was not refused'
+
+step 'Bootstrap the control token: a one-off broodling operation, the only client given the bootstrap key'
+installed="$(bootstrap)"
+echo "bootstrap-target: $installed"
+[[ "$(jq -r .result <<<"$installed")" == installed ]] || fail 'bootstrap after a forged envelope'
+again="$(bootstrap)"
+echo "bootstrap-target again: $again"
+[[ "$(jq -r .result <<<"$again")" == already_installed ]] || fail 'repeated bootstrap'
+closed="$(as_agent node -e "$request_js" POST /native-v2/private-bootstrap \
+    "{\"nonce\":\"$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')\",\"ciphertext\":\"$(od -An -N80 -tx1 /dev/urandom | tr -d ' \n')\"}")"
+echo "after bootstrap, as the agent identity: bootstrap route $closed (closed)"
+[[ $closed == 404 ]] || fail 'the bootstrap stayed open'
 
 step 'Initialize the Broodling store as the image user, then start broodling'
 store="$(compose run --rm --no-deps -T broodling initialize-store /var/lib/broodling/state.sqlite3)"
@@ -110,6 +198,10 @@ done
 kind="$(jq -r .kind <<<"${discovery:-null}")"
 echo "broodling -> $origin discovery: $kind"
 [[ $kind == zeroshot.native-v2-target/v2 ]] || fail 'target discovery from broodling through the origin'
+authentication="$(jq -r .authentication <<<"$discovery")"
+session="$(broodling_session)"
+echo "broodling -> $origin: discovery authentication $authentication, OECP session with its control token $session"
+[[ $authentication == private_capability && $session == 200 ]] || fail 'authenticated control from broodling'
 
 step 'Host-only checks (Docker host, never a service)'
 container() { compose ps --all --format '{{.Name}}' "$1"; }
@@ -125,9 +217,16 @@ broodling_container="$(container broodling)"
 [[ "$(docker exec "$broodling_container" cat /proc/1/comm)" == tini ]] || fail 'the application runs as PID 1'
 mounts="$(docker inspect --format '{{json .Mounts}}' "$broodling_container" \
     | jq -c 'map({Type, Source, Destination, RW}) | sort_by(.Destination)')"
-expected="$(jq -cn --arg root "$root" '[{Type: "bind", Source: "\($root)/tls-root", Destination: "/tls-root", RW: false},
+expected="$(jq -cn --arg root "$root" --arg here "$here" '[
+    {Type: "bind", Source: "\($here)/processing/invocation.json", Destination: "/etc/broodling/invocation.json", RW: false},
+    {Type: "bind", Source: "\($root)/secrets/broodling-control-token", Destination: "/run/secrets/zeroshot-control-token", RW: false},
+    {Type: "bind", Source: "\($root)/tls-root", Destination: "/tls-root", RW: false},
     {Type: "bind", Source: "\($root)/broodling", Destination: "/var/lib/broodling", RW: true}]')"
 [[ $mounts == "$expected" ]] || fail "broodling mounts $mounts"
+# Readiness below checks the target's mounts and that only the target mounts the bootstrap key; zeroshot-tls
+# must not receive a control-token copy either, which readiness does not check.
+[[ -z "$(docker inspect --format '{{range .Mounts}}{{println .Source}}{{end}}' "$(container zeroshot-tls)" | grep /secrets/ || :)" ]] \
+    || fail 'zeroshot-tls mounts a secret'
 # The state directory is private to the service user, so inspect it as root.
 ownership="$(docker run --rm --network none --mount "$(bind "$root/broodling" /state),readonly" --entrypoint stat "$target_image" \
     -c '%n %u:%g %a' /state /state/state.sqlite3)"
@@ -144,10 +243,12 @@ jq -n --arg origin "$origin" --arg root "$root" --arg network "${project}_defaul
     --arg image "$(docker inspect --format '{{.Image}}' "$(container zeroshot)")" \
     '{containerName: $target, imageId: $image, directOrigin: $origin, stateMount: "\($root)/target-state",
       homeMount: "\($root)/target-home", network: $network, tlsContainerName: $tls,
-      rootKeyMount: "\($root)/tls-root-key", rootCertificateMount: "\($root)/tls-root", broodlingContainerName: $broodling}' \
+      rootKeyMount: "\($root)/tls-root-key", rootCertificateMount: "\($root)/tls-root", broodlingContainerName: $broodling,
+      bootstrapKeyFile: "\($root)/secrets/target-bootstrap-key"}' \
     >"$root/target-inventory.json"
 jq -n --arg origin "$origin" --arg root "$root" \
-    '{directOrigin: $origin, directRootCertificate: "\($root)/tls-root/root.crt"}' >"$root/config.json"
+    '{directOrigin: $origin, directControlTokenFile: "\($root)/secrets/host-control-token",
+      directRootCertificate: "\($root)/tls-root/root.crt"}' >"$root/config.json"
 readiness="$(dotnet "$root/host/Broodling.Host.dll" check-target "$root/target-inventory.json" "$root/config.json")" \
     || fail "check-target: $readiness"
 printf '%s\n' "$readiness"
@@ -166,9 +267,14 @@ docker run --rm --network none --mount "$(bind "$root" /owned)" --entrypoint /bi
     git -C /tmp/seed add README.md
     git -C /tmp/seed -c user.name=demo -c user.email=demo@example.invalid commit --quiet --message initial
     git -C /tmp/seed push --quiet origin main
-    chown -R $broodling_user /owned/forge/widget.git"
+    chown -R $broodling_user /owned/forge/widget.git
+    mkdir -m 1777 /owned/forge/probe && cp /owned/secrets/hashes.json /owned/forge/probe/ && chmod 0444 /owned/forge/probe/hashes.json"
 # The same native state, now served by the controlled layer; broodling restarts with processing configuration.
 processing up --detach --wait --wait-timeout 120 broodling zeroshot gateway
+# A new target process: bootstrap it before work is submitted.
+installed="$(bootstrap)"
+echo "bootstrap-target (controlled layer): $installed"
+[[ "$(jq -r .result <<<"$installed")" == installed ]] || fail 'bootstrap of the processing target'
 api() { processing exec -T broodling curl --silent --show-error --fail-with-body --max-time 30 "$@"; }
 submitted="$(api --json '{"issueUrl": "https://github.com/acme/widget/issues/1"}' http://127.0.0.1:8080/submissions)"
 submission="$(jq -r .submission.submissionId <<<"$submitted")"
@@ -190,6 +296,33 @@ jq -c '{attemptId: .attempt.attemptId, b1: .attempt.b1.repository, submission: .
     observation: .observation.phase}' <<<"$observed"
 # B1 custody is the service-owned bare repository under the configured root, recorded as the container's path.
 [[ "$(jq -r .attempt.b1.repository <<<"$observed")" == /var/lib/broodling/repositories/acme/widget.git ]] || fail 'B1 custody'
+
+step "Execution agent of the actual run: no control secret readable, every control route refused"
+# The controlled worker ran tests/fixtures/stock-target/access-probe as the native-spawned agent, before holding.
+probe_result() {
+    local found
+    for _ in $(seq 1 120); do
+        found="$(ls -1tr "$root/forge/probe" | grep "^result-.*\.json$" | sed -n "${1}p")"
+        [[ -n $found ]] && found="$root/forge/probe/$found"
+        [[ -n $found ]] && break
+        sleep 1
+    done
+    [[ -n $found ]] || fail "no access probe result $1"
+    printf '%s' "$found"
+}
+check_probe() {
+    local result
+    result="$(probe_result "$1")"
+    jq -c '{uid, gid, capEff, secretMatches, coverage, opened, rawSocket}' "$result"
+    jq -c '.answers' "$result"
+    jq -e '.uid != 0 and .gid != 0 and .capEff == "0000000000000000" and .secretMatches == [] and .coverage.files > 0
+        and .coverage.procEntries > 0 and ([.opened[] | select(. == "allowed")] | length) == 0 and .rawSocket != "allowed"
+        and (.answers | to_entries | all(
+            if (.key | test("forged-bootstrap$|ui$")) then .value == 404 else .value == 401 end))
+        and (.answers | length) == 20' "$result" >/dev/null || fail "access probe $1: $(cat "$result")"
+    echo "access probe $1: agent uid $(jq .uid "$result"), no secret among $(jq .coverage.files "$result") files and $(jq .coverage.procEntries "$result") process entries; all 20 control requests refused"
+}
+check_probe 1
 stopped="$(api --json '{"reason": "demonstration: replace under maintenance"}' "http://127.0.0.1:8080/attempts/$attempt/stop" \
     | jq -c '{abandoned: (.attempt.abandonment != null), error}')"
 echo "stop: $stopped"
@@ -207,8 +340,9 @@ check="$(docker inspect --format '{{json .Mounts}}' "$target_container" | jq -c 
     '{directOrigin: $origin, containerName: $container, stateMount: (.[] | select(.Destination == "/state") | .Source),
       homeMount: (.[] | select(.Destination == "/home/node") | .Source), verifiedAt: $now}')"
 echo "host check: $check"
-# compose.yaml alone: the image as 1654:1654 with only its state and the public root, and no credentials, peers,
-# host release artifact or caller checkout.
+# compose.yaml alone: the image as 1654:1654 with its state, the public root and its invocation configuration and
+# control token, which these commands do not use, and no dispatch credentials, peers, host release artifact or caller
+# checkout.
 retired="$(compose run --rm --no-deps -T broodling retire-attempt /var/lib/broodling/state.sqlite3 "$attempt" "$check")"
 echo "retire-attempt: $retired"
 [[ "$(jq -r '"\(.basis) \(.retiredAt != null) \(.stoppedTarget.containerName)"' <<<"$retired")" \
@@ -218,9 +352,24 @@ echo "replace-attempt: $(jq -c '{attemptId, state, intendedRunId}' <<<"$successo
 [[ "$(jq -r --arg predecessor "$attempt" '"\(.state) \(.attemptId != $predecessor)"' <<<"$successor")" == 'prepared true' ]] \
     || fail 'replacement'
 
+step 'Explicit token rotation while stopped and paused: every token copy replaced in place'
+secrets rotate
+docker run --rm --network none --mount "$(bind "$root" /owned)" --entrypoint /bin/sh "$target_image" -ec \
+    'chmod 0644 /owned/forge/probe/hashes.json && cp /owned/secrets/hashes.json /owned/forge/probe/hashes.json && chmod 0444 /owned/forge/probe/hashes.json'
+echo 'control token rotated for broodling and the host; the probe hashes now cover the former and the new token'
+
 step 'Release, restart, then dispatch the successor with the image resume command beside the running server'
 compose run --rm --no-deps -T broodling release-installation /var/lib/broodling/state.sqlite3
 processing up --detach --wait --wait-timeout 120 broodling zeroshot gateway
+# The restarted target process over the retained state takes the new token only through bootstrap.
+installed="$(bootstrap)"
+echo "bootstrap-target (restart, rotated token): $installed"
+[[ "$(jq -r .result <<<"$installed")" == installed ]] || fail 'bootstrap after restart'
+former="$(host_session "$root/secrets/former-host-token")"
+current="$(host_session "$root/secrets/host-control-token")"
+from_broodling="$(broodling_session)"
+echo "after rotation through the origin: former token $former, new token $current (host), $from_broodling (broodling)"
+[[ $former == 401 && $current == 200 && $from_broodling == 200 ]] || fail 'rotation'
 # The processing service's own definition: its invocation configuration, credentials, state and network.
 # Automatic progression never selects a Replacement Attempt, so only this command dispatches it.
 revision="$(jq -r .attempt.contractRevisionId <<<"$observed")"
@@ -242,6 +391,18 @@ jq -c '{attemptId: .attempt.attemptId, b1: .attempt.b1.repository, submission: .
 predecessor="$(api "http://127.0.0.1:8080/attempts/$attempt" | jq -c '{isCurrent: .attempt.isCurrent, retirement: .attempt.retirement.basis}')"
 echo "predecessor: $predecessor"
 [[ $predecessor == '{"isCurrent":false,"retirement":"stopped_target"}' ]] || fail 'the predecessor is no longer retired'
+# The successor's own agent, after rotation, finds neither the former nor the new token nor the bootstrap key.
+check_probe 2
+
+step 'No secret value in any service log or in this demonstration output'
+mkdir "$root/scan"
+for service in broodling zeroshot zeroshot-tls gateway; do processing logs --no-color "$service" >"$root/scan/$service.log" 2>&1 || :; done
+cp "$root/transcript.log" "$root/scan/"
+docker run --rm --network none --mount "$(bind "$root/secrets" /s),readonly" --mount "$(bind "$root/scan" /scan),readonly" \
+    --entrypoint /bin/sh "$target_image" -ec '
+        for secret in target-bootstrap-key former-host-token host-control-token; do cat "/s/$secret"; echo; done >/tmp/secrets
+        ! grep -rqF -f /tmp/secrets /scan' || fail 'a secret value appears in a log or output'
+echo "no bootstrap key, former or current token in $(ls "$root/scan" | wc -l) service logs and outputs"
 
 if [[ -n $facts ]]; then
     jq -n --argjson store "$store" --argjson readiness "$readiness" \

@@ -37,7 +37,7 @@ public sealed record SubmissionProgress(string SubmissionId, string State, strin
 /// takes over. It never waits for an Attempt and never initiates a stop, abandonment or replacement; only the
 /// dispatch it calls stops the exact run whose acknowledgement arrives after abandonment.
 /// </summary>
-/// <param name="directTargetRootCertificate">The PEM root for HTTPS DirectTarget connections; null deliberately selects system trust.</param>
+/// <param name="directTarget">The current DirectTarget connection material (control tokens and root) passed to every session.</param>
 /// <param name="target">The configured DirectTarget. A retained binding to another origin refuses and stops.</param>
 /// <param name="preparer">
 /// The process's one preparer, shared with callers that prepare the same submissions. Its lifetime ends only at
@@ -48,7 +48,7 @@ public sealed record SubmissionProgress(string SubmissionId, string State, strin
 /// Called once when a submission stops and needs attention, with the exception only for an unexpected failure.
 /// A callback that throws is ignored. It may be invoked concurrently from thread-pool threads.
 /// </param>
-public sealed class SubmissionProgressor(BroodlingApplication application, string storePath, string? directTargetRootCertificate,
+public sealed class SubmissionProgressor(BroodlingApplication application, string storePath, DirectTargetAccess? directTarget,
     InvocationTarget target, IssueSubmissionPreparer preparer, Func<ProgressionCredentials> credentials,
     Action<SubmissionProgress, Exception?> stopped)
 {
@@ -88,7 +88,7 @@ public sealed class SubmissionProgressor(BroodlingApplication application, strin
     /// </summary>
     public bool Resume(string submissionId)
     {
-        using (var store = application.OpenStore(storePath, directTargetRootCertificate))
+        using (var store = application.OpenStore(storePath, directTarget))
             if (!store.UnfinishedSubmissions().Contains(submissionId)) return false;
         lock (progress)
             if (progress.TryGetValue(submissionId, out var entry) && entry.State != SubmissionProgress.Progressing)
@@ -140,7 +140,7 @@ public sealed class SubmissionProgressor(BroodlingApplication application, strin
     {
         try
         {
-            using var store = application.OpenStore(storePath, directTargetRootCertificate);
+            using var store = application.OpenStore(storePath, directTarget);
             return store.UnfinishedSubmissions();
         }
         catch (Exception failure) when (failure is StoreStateException or SqliteException) { return null; }
@@ -176,7 +176,7 @@ public sealed class SubmissionProgressor(BroodlingApplication application, strin
             else if (prepared is IssueSubmissionPreparation.Decided { Admission.Decision.Admitted: true })
             {
                 stage = SubmissionProgress.Continuation;
-                using var store = application.OpenStore(storePath, directTargetRootCertificate);
+                using var store = application.OpenStore(storePath, directTarget);
                 // Allocation from retained B1, the retained prepared submission and exact dispatch or replay; a
                 // correlated or ended Attempt is handed back without target contact or credentials.
                 await new Invocation(store, target).ResumeSubmissionAsync(submissionId, credentials().Dispatch, cancellationToken);

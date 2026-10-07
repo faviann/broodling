@@ -1,6 +1,6 @@
 using Broodling.Host;
 
-if (args.FirstOrDefault() == "check-target")
+if (args.FirstOrDefault() is "check-target" or "bootstrap-target")
 {
     using var cancellation = new CancellationTokenSource();
     Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };

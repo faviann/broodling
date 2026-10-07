@@ -18,7 +18,10 @@ namespace Broodling.Tests;
 /// run/watch with events from the same source. Like
 /// the stock target, a submission key names at most one run and a replay returns that run's ID.
 /// It records each stage reached and can stall at one, or halfway through a submission body.
-/// With a server certificate it serves HTTPS and WSS at <c>https://localhost:port</c> instead.
+/// With a server certificate it serves HTTPS and WSS at <c>https://localhost:port</c> instead. Like the stock
+/// target in private mode, discovery is public and every submission, session and OECP upgrade needs
+/// <see cref="Token"/> as its bearer; the client reads its token from <see cref="TokenFile"/>, which
+/// <see cref="TestAccess.Live"/> names for this origin while the stand-in lives.
 /// </summary>
 internal sealed class StockTarget : IAsyncDisposable
 {
@@ -28,6 +31,13 @@ internal sealed class StockTarget : IAsyncDisposable
     private readonly Task accepting;
     private int connections;
     internal Uri Origin { get; }
+    /// <summary>The token this target accepts, as if bootstrapped; replaceable, like a restart with a rotated token.</summary>
+    internal string Token { get; set; } = TestAccess.NewSecret();
+    /// <summary>The control token file the client reads for this origin; initially <see cref="Token"/>.</summary>
+    internal string TokenFile { get; }
+    /// <summary>Requests refused for a missing or other bearer.</summary>
+    internal int Unauthorized => Volatile.Read(ref unauthorized);
+    private int unauthorized;
     internal int Connections => Volatile.Read(ref connections);
     private int sockets;
     /// <summary>OECP WebSockets the client still holds open.</summary>
@@ -65,6 +75,7 @@ internal sealed class StockTarget : IAsyncDisposable
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         Origin = new Uri(certificate is null ? $"http://127.0.0.1:{port}" : $"https://localhost:{port}");
+        TokenFile = TestAccess.Register(Origin, Token);
         accepting = Task.Run(async () =>
         {
             var handlers = new List<Task>();
@@ -126,9 +137,17 @@ internal sealed class StockTarget : IAsyncDisposable
                 await Reached("discovery");
                 await Discovery().WaitAsync(stop.Token);
                 await Respond(stream, 200, """
-                    {"kind":"zeroshot.native-v2-target/v2","authentication":"none","runPath":"/native-v2/run",
-                     "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller"}
+                    {"kind":"zeroshot.native-v2-target/v2","authentication":"private_capability","runPath":"/native-v2/run",
+                     "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller",
+                     "privateBootstrapPath":"/native-v2/private-bootstrap"}
                     """);
+            }
+            else if (Header(text, "Authorization") != "Bearer " + Token)
+            {
+                // Native authenticates every control route before reading its body.
+                Interlocked.Increment(ref unauthorized);
+                await Reached("unauthorized");
+                await Respond(stream, 401, """{"code":"request.unauthorized","message":"unauthorized"}""");
             }
             else if (line.StartsWith("POST /native-v2/run ", StringComparison.Ordinal))
             {
@@ -157,7 +176,7 @@ internal sealed class StockTarget : IAsyncDisposable
                 SessionBody = Encoding.UTF8.GetString(body);
                 await Reached("session");
                 var socket = Origin.Scheme == Uri.UriSchemeHttps ? "wss" : "ws";
-                var (status, reply) = Session ?? (200, $$"""{"endpoint":"{{socket}}://{{Origin.Authority}}/native-v2/oecp"}""");
+                var (status, reply) = Session ?? (200, $$"""{"endpoint":"{{socket}}://{{Origin.Authority}}/native-v2/oecp","bearerToken":"{{Token}}"}""");
                 await Respond(stream, status, reply);
             }
             else if (line.StartsWith("GET /native-v2/oecp ", StringComparison.Ordinal))
@@ -323,6 +342,42 @@ internal sealed class StockTarget : IAsyncDisposable
         listener.Stop();
         await accepting;
         stop.Dispose();
+        TestAccess.Unregister(Origin, TokenFile);
+    }
+}
+
+/// <summary>
+/// The suite's DirectTarget connection material: each live loopback stand-in or stock target registers its
+/// origin's token file, which <see cref="Live"/> resolves at each operation, as a configuration naming every
+/// test target would. Tokens are synthetic and their files are removed with their target.
+/// </summary>
+internal static class TestAccess
+{
+    private static readonly ConcurrentDictionary<string, string> files = new();
+    private static readonly string Directory = System.IO.Directory.CreateTempSubdirectory("broodling-control-").FullName;
+
+    internal static DirectTargetAccess Live { get; } = new(origin => files.TryGetValue(origin, out var file) ? file : null);
+
+    internal static DirectTargetAccess Trusting(string? rootCertificate) => Live with { RootCertificate = rootCertificate };
+
+    internal static string NewSecret() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+
+    /// <summary>A new token file holding <paramref name="token"/>, named for <paramref name="origin"/>; a reused port replaces an earlier entry.</summary>
+    internal static string Register(Uri origin, string token)
+    {
+        var file = Path.Combine(Directory, Guid.NewGuid().ToString("N"));
+        File.WriteAllText(file, token);
+        files[origin.GetLeftPart(UriPartial.Authority)] = file;
+        return file;
+    }
+
+    [TUnit.Core.After(TUnit.Core.HookType.Assembly)]
+    public static void RemoveDirectory() => System.IO.Directory.Delete(Directory, recursive: true);
+
+    internal static void Unregister(Uri origin, string file)
+    {
+        files.TryRemove(KeyValuePair.Create(origin.GetLeftPart(UriPartial.Authority), file));
+        File.Delete(file);
     }
 }
 

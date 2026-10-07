@@ -7,6 +7,9 @@ services:
     volumes:
       - { type: bind, source: "${DEMO_ROOT:?}/broodling", target: /var/lib/broodling }
       - { type: bind, source: "${DEMO_ROOT:?}/tls-root", target: /tls-root, read_only: true }
+      # Its invocation configuration names the target and its control token file, which only broodling receives.
+      - { type: bind, source: ./processing/invocation.json, target: /etc/broodling/invocation.json, read_only: true }
+    secrets: [zeroshot-control-token]
 
   zeroshot:
     image: ${TARGET_IMAGE:?}
@@ -15,6 +18,8 @@ services:
       - { type: bind, source: "${DEMO_ROOT:?}/target-state", target: /state }
       - { type: bind, source: "${DEMO_ROOT:?}/target-home", target: /home/node }
       - { type: bind, source: "${DEMO_ROOT:?}/tls-root", target: /tls-root, read_only: true }
+    # The root-only bootstrap key, which the entrypoint copies privately for native on every start.
+    secrets: [zeroshot-bootstrap-key]
 
   zeroshot-tls:
     image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
@@ -33,3 +38,11 @@ services:
 
 volumes:
   tls-data:
+
+# Per-recipient copies of the synthetic secrets that demonstrate.sh generates: the bootstrap key owned by root for
+# the target, the control token owned by the broodling user. The one-off bootstrap gets its own key copy.
+secrets:
+  zeroshot-bootstrap-key:
+    file: ${DEMO_ROOT:?}/secrets/target-bootstrap-key
+  zeroshot-control-token:
+    file: ${DEMO_ROOT:?}/secrets/broodling-control-token

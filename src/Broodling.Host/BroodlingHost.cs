@@ -41,7 +41,7 @@ public static class BroodlingHost
                 .AddOtlpExporter());
 
         var app = builder.Build();
-        HttpApi.Map(app, application, storePath, settings?.Configuration.DirectRootCertificate,
+        HttpApi.Map(app, application, storePath, settings?.Configuration.Access,
             settings is null ? null : app.Services.GetRequiredService<Processing>());
         return app;
     }

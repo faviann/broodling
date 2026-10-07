@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json.Nodes;
 using TUnit.Assertions;
 using TUnit.Core;
@@ -11,8 +12,10 @@ namespace Broodling.Tests;
 /// <c>BROODLING_TEST_TARGET_IMAGE</c>) and an update to it from each published target image listed in
 /// <c>deployment/native-state-transitions.json</c>, on the same state and home mounts and origin, through
 /// the entrypoint's ordinary startup. A listed image must carry the binding's own native: transitions are
-/// established only within one native release. Only the application observes the result. Provider, forge
-/// and PR receipt are controlled, as in the stock witness.
+/// established only within one native release. The new process is bootstrapped with a rotated control token,
+/// so retained correlation, results and replay are also shown to outlive an explicit token rotation, which the
+/// application follows by reading its configured token file again. Only the application observes the result.
+/// Provider, forge and PR receipt are controlled, as in the stock witness.
 /// </summary>
 public sealed class TargetImageTransitionTests
 {
@@ -55,7 +58,12 @@ public sealed class TargetImageTransitionTests
         var unresolved = await LoseAcknowledgementAsync(pendingStore, unacknowledged, replay, pending.Revision, unacknowledged.Head, target);
         await Assert.That(await target.RunCountAsync()).IsEqualTo(2);
 
-        await target.RestartAsync(await Controlled.Value);
+        // Served again through the explicit rotation: the same state, origin and mounts under a replacement
+        // control token, bootstrapped into the new process; the former token no longer controls the target.
+        var former = target.Token;
+        await target.RestartAsync(await Controlled.Value, rotate: true);
+        await Assert.That(await target.ControlAsync(former)).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(await target.ControlAsync(target.Token)).IsEqualTo(HttpStatusCode.OK);
 
         // Wait reconnects by the retained run identity and consumes the result the source image produced.
         var completion = await store.WaitAsync(attempt);
