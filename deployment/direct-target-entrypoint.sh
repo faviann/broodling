@@ -75,8 +75,6 @@ private_key() {
     # Execution agents run as other identities, so the key must stay readable by root alone.
     [ "$(stat -c %u "$key_secret")" = 0 ] && [ $((0$(stat -c %a "$key_secret") & 077)) -eq 0 ] \
         || refuse "the bootstrap key at $key_secret must be owned by root with no group or other access (mode 0400)"
-    [ "$(wc -c <"$key_secret")" -eq 64 ] && grep -qxE '[0-9a-f]{64}' "$key_secret" \
-        || refuse 'the bootstrap key must be exactly 64 lowercase hexadecimal characters with no newline'
     rm -rf "${key_copy%/*}"
     (umask 077 && mkdir "${key_copy%/*}" && cat "$key_secret" >"$key_copy") || refuse "cannot prepare native's private copy of the bootstrap key"
 }

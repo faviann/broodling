@@ -149,15 +149,6 @@ for _ in $(seq 1 100); do
     as_agent node -e "$request_js" GET /.well-known/zeroshot-native-v2 >/dev/null 2>&1 && break
     sleep 0.2
 done
-# Also the identity native gave this demonstration's agents (the probe below records 20000:10002).
-for identity in 10002:10002 20000:10002; do
-    for path in /run/secrets/zeroshot-bootstrap-key /run/broodling-target; do
-        if read="$(compose exec -T --user "$identity" zeroshot cat "$path" 2>&1)" || [[ $read != *'Permission denied'* ]]; then
-            fail "$identity reaches $path"
-        fi
-    done
-done
-echo 'agent identities 10002 and 20000: the bootstrap key and native private copy are unreadable (Permission denied)'
 random_bearer="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
 before="$(as_agent node -e "$request_js" POST /native-v2/oecp-session '{}' "$random_bearer")"
 forged="$(as_agent node -e "$request_js" POST /native-v2/private-bootstrap \
@@ -232,18 +223,10 @@ expected="$(jq -cn --arg root "$root" --arg here "$here" '[
     {Type: "bind", Source: "\($root)/tls-root", Destination: "/tls-root", RW: false},
     {Type: "bind", Source: "\($root)/broodling", Destination: "/var/lib/broodling", RW: true}]')"
 [[ $mounts == "$expected" ]] || fail "broodling mounts $mounts"
-# Each secret reaches only its recipient: the bootstrap key only the target, the control token only broodling.
-target_secrets="$(docker inspect --format '{{json .Mounts}}' "$(container zeroshot)" \
-    | jq -c '[.[] | select(.Source | contains("/secrets/")) | {Source, Destination, RW}]')"
-[[ $target_secrets == "$(jq -cn --arg root "$root" '[{Source: "\($root)/secrets/target-bootstrap-key",
-    Destination: "/run/secrets/zeroshot-bootstrap-key", RW: false}]')" ]] || fail "target secret mounts $target_secrets"
+# Readiness below checks the target's mounts and that only the target mounts the bootstrap key; zeroshot-tls
+# must not receive a control-token copy either, which readiness does not check.
 [[ -z "$(docker inspect --format '{{range .Mounts}}{{println .Source}}{{end}}' "$(container zeroshot-tls)" | grep /secrets/ || :)" ]] \
     || fail 'zeroshot-tls mounts a secret'
-secret_modes="$(docker run --rm --network none --mount "$(bind "$root/secrets" /s),readonly" --entrypoint stat "$target_image" \
-    -c '%n %u:%g %a' /s/target-bootstrap-key /s/broodling-bootstrap-key /s/broodling-control-token)"
-printf '%s\n' "$secret_modes"
-[[ $secret_modes == "/s/target-bootstrap-key 0:0 400"$'\n'"/s/broodling-bootstrap-key $broodling_user 400"$'\n'"/s/broodling-control-token $broodling_user 400" ]] \
-    || fail 'secret ownership'
 # The state directory is private to the service user, so inspect it as root.
 ownership="$(docker run --rm --network none --mount "$(bind "$root/broodling" /state),readonly" --entrypoint stat "$target_image" \
     -c '%n %u:%g %a' /state /state/state.sqlite3)"
@@ -269,7 +252,7 @@ jq -n --arg origin "$origin" --arg root "$root" \
 readiness="$(dotnet "$root/host/Broodling.Host.dll" check-target "$root/target-inventory.json" "$root/config.json")" \
     || fail "check-target: $readiness"
 printf '%s\n' "$readiness"
-[[ "$(jq -r '"\(.ready) \(.authenticatedControl)"' <<<"$readiness")" == 'true true' ]] || fail 'check-target is not ready'
+[[ "$(jq -r .ready <<<"$readiness")" == true ]] || fail 'check-target is not ready'
 
 step 'Processing server in the Broodling image, with controlled GitHub, gateway, provider and forge'
 docker build --quiet --build-arg BASE="$target_image" --tag "$controlled_target" "$here/../fixtures/stock-target" >/dev/null

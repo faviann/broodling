@@ -31,8 +31,7 @@ public sealed record DirectTargetAccess(Func<string, string?> ControlTokenFile, 
     internal string Token(Uri origin)
     {
         var file = ControlTokenFile(origin.GetLeftPart(UriPartial.Authority));
-        if (file is null || !Path.IsPathFullyQualified(file)) throw new NativeTransportError("credentials_unavailable");
-        return ReadSecret(file) ?? throw new NativeTransportError("credentials_unavailable");
+        return (file is null ? null : ReadSecret(file)) ?? throw new NativeTransportError("credentials_unavailable");
     }
 
     /// <summary>

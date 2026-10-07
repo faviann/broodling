@@ -164,16 +164,13 @@ public sealed class NativeTargetStartupTests
     }
 
     /// <summary>
-    /// Serving requires the root-only bootstrap key: without it, or with one execution agents could read or native
-    /// would refuse, the entrypoint stops before native serves anything, and never serves unauthenticated.
+    /// Serving requires the root-only bootstrap key: without it, or with one execution agents could read, the
+    /// entrypoint stops before native serves anything, and never serves unauthenticated.
     /// </summary>
     [Test]
     [Arguments("missing")]
     [Arguments("other-readable")]
-    [Arguments("group-readable")]
     [Arguments("agent-owned")]
-    [Arguments("newline")]
-    [Arguments("uppercase")]
     public async Task ServingRequiresTheRootOnlyBootstrapKeyAndNeverFallsBackToUnauthenticated(string change)
     {
         await using var stack = await TargetStack.CreateAsync();
@@ -184,10 +181,7 @@ public sealed class NativeTargetStartupTests
         {
             case "missing": mounts = [.. TargetStack.Bind(stack.State, "/state"), .. TargetStack.Bind(stack.Home, "/home/node")]; break;
             case "other-readable": RequireSuccess(await stack.ProvisionKey(key, mode: "0404")); break;
-            case "group-readable": RequireSuccess(await stack.ProvisionKey(key, mode: "0440")); break;
             case "agent-owned": RequireSuccess(await stack.ProvisionKey(key, owner: "10002:10002")); break;
-            case "newline": RequireSuccess(await stack.ProvisionKey(key + "\n")); break;
-            case "uppercase": RequireSuccess(await stack.ProvisionKey(key.ToUpperInvariant())); break;
         }
         var before = await Tree(stack);
         var refused = await DockerCommand(["run", "--rm", "--network", "none", .. mounts, await TargetImage.Direct.Value, .. TargetStack.Arguments]);

@@ -49,7 +49,7 @@ Since #186 the inventory describes the existing
 `network` is the Compose project network. Mount sources are canonical absolute
 host paths, and the root key and certificate locations must not contain each
 other. `bootstrapKeyFile` is the host file the target mounts as its bootstrap
-key; it must lie outside the state, home and TLS root locations. Their container
+key. Their container
 destinations are fixed. The operator records the exact existing stack, and
 readiness creates no directories or files. The separate `config.json` is the
 existing [invocation configuration](zeroshot-native-integration.md#thin-operator-commands):
@@ -68,7 +68,7 @@ is accepted. Targets bound to a loopback origin are not adopted.
 
 Success returns JSON with `ready`, selected `containerName`, `containerId`,
 `imageId`, `directOrigin`, checked `versions`, `apiPaginateSlurp`,
-`hostedUidTransition`, `providerTasks: 0` and `authenticatedControl: true`.
+`hostedUidTransition` and `providerTasks: 0`.
 Version facts are the checked pins, not raw process output. Refusal returns
 `ready: false` and a fixed safe `error` with exit 1. Usage exits 2; caller
 cancellation exits 130. No exception text, process stdout/stderr, configuration
@@ -143,11 +143,10 @@ Unknown or duplicate fields refuse.
 
 Public discovery alone never passes. Two OECP session requests follow, which
 issue a session but submit or change nothing: without credentials it must be
-refused with `401 request.unauthorized`, so a target that actually serves
-unauthenticated control (native's direct mode, or anything advertising private
-discovery without enforcing it) is not ready; with the configured token as
-bearer it must return `200` with the origin's `wss://…/native-v2/oecp` endpoint
-and that same token. A `401` there means the running target holds no token or
+refused with `401`, so a target that actually serves unauthenticated control
+(native's direct mode, or anything advertising private discovery without
+enforcing it) is not ready; with the configured token as bearer it must return
+`200`. A `401` there means the running target holds no token or
 another one: it has not been bootstrapped since it started, or was bootstrapped
 with a former or different token. The refusal names `bootstrap-target`.
 
@@ -190,8 +189,8 @@ exclusion of the token and of a synthetic secret appended to otherwise valid gh 
 Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check
 (including the bootstrap key mount and its absence from other services),
 inventory validity, credential, version/hash/help, UID and stock-discovery schema
-checks, and private control: unauthenticated control accepted, a refused or
-missing/malformed token, and a session naming another token or endpoint, plus a
+checks, and private control: unauthenticated control accepted or answered otherwise than
+`401`, and a refused or missing token, plus a
 controlled-clock discovery stall that expires as refusal and
 cancels as cancellation. Invalid configuration and origin witnesses require zero
 target access, including a configuration with no root or another root. The small

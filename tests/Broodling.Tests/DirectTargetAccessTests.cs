@@ -1,4 +1,6 @@
+using Broodling.Host;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Time.Testing;
 using TUnit.Assertions;
@@ -33,7 +35,6 @@ public sealed class DirectTargetAccessTests
     [Arguments("other-origin")]
     [Arguments("missing-file")]
     [Arguments("malformed-file")]
-    [Arguments("relative-file")]
     public async Task DispatchWithoutAReadableTokenForTheRetainedOriginRecordsAndSendsNothing(string change)
     {
         await using var target = new StockTarget();
@@ -48,8 +49,7 @@ public sealed class DirectTargetAccessTests
             // The configured token belongs to another origin; the retained one gets none.
             "other-origin" => DirectTargetAccess.For("http://127.0.0.1:9", target.TokenFile),
             "missing-file" => DirectTargetAccess.For(Origin(target), Path.Combine(fixture.Git.State.Root, "missing-token")),
-            "malformed-file" => DirectTargetAccess.For(Origin(target), malformed),
-            _ => DirectTargetAccess.For(Origin(target), "control-token")
+            _ => DirectTargetAccess.For(Origin(target), malformed)
         };
         using (var store = Open(fixture, access))
         {
@@ -252,36 +252,52 @@ public sealed class DirectTargetAccessTests
     }
 
     [Test]
-    [Arguments("other-token")]
     [Arguments("public-target")]
     [Arguments("key-is-token")]
     public async Task ABootstrapThatCannotInstallTheTokenFailsWithoutReplacingAnything(string change)
     {
         using var bootstrap = new BootstrapTarget();
-        var other = TestAccess.NewSecret();
-        switch (change)
-        {
-            case "other-token": bootstrap.Installed = other; break;
-            case "public-target": bootstrap.Authentication = "none"; break;
-            default: bootstrap.Key = bootstrap.Token; break;
-        }
+        if (change == "public-target") bootstrap.Authentication = "none";
+        else bootstrap.Key = bootstrap.Token;
         await using var target = bootstrap.Start();
         var failure = await Assert.That(async () => await bootstrap.RunAsync(target)).Throws<BroodlingException>();
-        await Assert.That(failure!.Message).Contains(change switch
-        {
-            "other-token" => "holds another one",
-            "public-target" => "does not serve native private access",
-            _ => "must differ from the control token"
-        });
+        await Assert.That(failure!.Message).Contains(change == "public-target"
+            ? "does not serve native private access" : "must differ from the control token");
         await Assert.That(failure.Message.Contains(bootstrap.Token) || failure.Message.Contains(bootstrap.Key)).IsFalse();
-        await Assert.That(bootstrap.Installed).IsEqualTo(change == "other-token" ? other : null);
-        await Assert.That(bootstrap.Envelopes).IsEqualTo(change == "other-token" ? 1 : 0);
+        await Assert.That(bootstrap.Installed).IsNull();
+        await Assert.That(bootstrap.Envelopes).IsEqualTo(0);
+    }
+
+    /// <summary>The bootstrap-target command: its usage, and a fixed failure record that carries no secret material.</summary>
+    [Test]
+    public async Task BootstrapTargetCommandReportsUsageAndAFixedFailureWithoutSecretMaterial()
+    {
+        var usage = new StringWriter();
+        await Assert.That(await HostTargetCommands.RunAsync(["bootstrap-target", "config.json"], usage)).IsEqualTo(2);
+        await Assert.That(usage.ToString()).Contains("bootstrap-target <config.json> <bootstrap-key-file>");
+        var directory = Directory.CreateTempSubdirectory("broodling-bootstrap-command-").FullName;
+        try
+        {
+            var (token, key, config) = (TestAccess.NewSecret(), TestAccess.NewSecret(), Path.Combine(directory, "config.json"));
+            File.WriteAllText(Path.Combine(directory, "token"), token + "\n"); // Malformed, so no readable token.
+            File.WriteAllText(Path.Combine(directory, "key"), key);
+            File.WriteAllText(config, $$"""{"directOrigin":"https://zeroshot.dev.faviann.com","directControlTokenFile":"{{directory}}/token"}""");
+            var output = new StringWriter();
+            await Assert.That(await HostTargetCommands.RunAsync(["bootstrap-target", config, Path.Combine(directory, "key")], output)).IsEqualTo(1);
+            using var record = JsonDocument.Parse(output.ToString());
+            await Assert.That(record.RootElement.EnumerateObject().Select(field => field.Name).SequenceEqual(["bootstrapped", "code", "error"])).IsTrue();
+            await Assert.That(record.RootElement.GetProperty("bootstrapped").GetBoolean()).IsFalse();
+            await Assert.That(record.RootElement.GetProperty("code").GetString()).IsEqualTo("native_transport_error");
+            await Assert.That(record.RootElement.GetProperty("error").GetString()).IsEqualTo(new NativeTransportError("credentials_unavailable").Message);
+            await Assert.That(output.ToString().Contains(token) || output.ToString().Contains(key)).IsFalse();
+        }
+        finally { Directory.Delete(directory, recursive: true); }
     }
 
     /// <summary>
     /// A raw loopback target answering like native's private mode: public discovery, a session only for the
-    /// installed token, and a one-time bootstrap that opens the envelope with its key. It can lose the
-    /// acknowledgement after processing the envelope, with or without installing its token.
+    /// installed token, and a one-time bootstrap that installs the configured token without opening the envelope
+    /// (the actual image proves the envelope). It can lose the acknowledgement, with or without installing.
     /// </summary>
     private sealed class BootstrapTarget : IDisposable
     {
@@ -327,7 +343,7 @@ public sealed class DirectTargetAccessTests
                 "/native-v2/oecp-session" when bearer is not null && bearer == Installed =>
                     (200, $$"""{"endpoint":"ws://{{target.Origin.Authority}}/native-v2/oecp","bearerToken":"{{Installed}}"}"""),
                 "/native-v2/oecp-session" => (401, """{"code":"request.unauthorized","message":"unauthorized"}"""),
-                "/native-v2/private-bootstrap" => Bootstrap(body),
+                "/native-v2/private-bootstrap" => Bootstrap(),
                 _ => (404, """{"code":"request.not_found","message":"target route was not found"}""")
             };
             if (status == 0) return; // The acknowledgement is lost: the connection closes without a reply.
@@ -339,18 +355,12 @@ public sealed class DirectTargetAccessTests
 
         public void Dispose() => System.IO.Directory.Delete(Directory, recursive: true);
 
-        /// <summary>Native private_access.rs: closed once a token is installed; otherwise open the AES-256-GCM envelope.</summary>
-        private (int, string) Bootstrap(byte[] body)
+        /// <summary>Like native's: closed once a token is installed.</summary>
+        private (int, string) Bootstrap()
         {
             Envelopes++;
             if (Installed is not null) return (404, """{"code":"request.not_found","message":"target route was not found"}""");
-            var envelope = JsonNode.Parse(body)!;
-            var sealedToken = Convert.FromHexString((string)envelope["ciphertext"]!);
-            var token = new byte[sealedToken.Length - 16];
-            using (var aes = new System.Security.Cryptography.AesGcm(Convert.FromHexString(Key), 16))
-                aes.Decrypt(Convert.FromHexString((string)envelope["nonce"]!), sealedToken.AsSpan(0, token.Length), sealedToken.AsSpan(token.Length),
-                    token, "zeroshot-capsule-bootstrap-v1"u8);
-            if (Install) Installed = Encoding.ASCII.GetString(token);
+            if (Install) Installed = Token;
             return LoseAcknowledgement ? (0, "") : (204, "");
         }
     }

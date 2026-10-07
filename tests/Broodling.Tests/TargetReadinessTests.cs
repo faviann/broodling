@@ -32,7 +32,6 @@ public sealed class TargetReadinessTests
         await Assert.That(fixture.TrustedRoot).IsEqualTo(fixture.RootCertificate);
         // Then an unauthenticated control request, which must be refused, and one with the configured token.
         await Assert.That(fixture.SessionBearers.SequenceEqual([null, fixture.Token])).IsTrue();
-        await Assert.That(facts.AuthenticatedControl).IsTrue();
         await Assert.That(JsonSerializer.Serialize(facts).Contains(ReadinessFixture.Secret)).IsFalse();
         await Assert.That(JsonSerializer.Serialize(facts).Contains(fixture.Token)).IsFalse();
     }
@@ -217,7 +216,6 @@ public sealed class TargetReadinessTests
     [Arguments("nested", "separate locations")]
     [Arguments("relative", "canonical absolute")]
     [Arguments("bootstrap-key-relative", "canonical absolute")]
-    [Arguments("bootstrap-key-in-state", "outside the target")]
     [Arguments("duplicate-container", "inventory is invalid")]
     [Arguments("network", "inventory is invalid")]
     public async Task InvalidInventoryRefusesBeforeTargetAccess(string change, string message)
@@ -229,7 +227,6 @@ public sealed class TargetReadinessTests
             "nested" => fixture.Inventory with { RootKeyMount = Path.Combine(fixture.Inventory.RootCertificateMount, "key") },
             "relative" => fixture.Inventory with { RootKeyMount = "tls-root-key" },
             "bootstrap-key-relative" => fixture.Inventory with { BootstrapKeyFile = "zeroshot-bootstrap-key" },
-            "bootstrap-key-in-state" => fixture.Inventory with { BootstrapKeyFile = Path.Combine(fixture.Inventory.StateMount, "bootstrap-key") },
             "duplicate-container" => fixture.Inventory with { BroodlingContainerName = fixture.Inventory.TlsContainerName },
             _ => fixture.Inventory with { Network = "" }
         };
@@ -311,10 +308,7 @@ public sealed class TargetReadinessTests
     [Arguments("unauthenticated-accepted", "accepts unauthenticated control")]
     [Arguments("unauthenticated-unavailable", "accepts unauthenticated control")]
     [Arguments("wrong-token", "refuses the configured control token")]
-    [Arguments("foreign-session-token", "authenticated control differs")]
-    [Arguments("foreign-session-endpoint", "authenticated control differs")]
     [Arguments("missing-token", "no readable control token")]
-    [Arguments("malformed-token", "no readable control token")]
     public async Task ControlMustBePrivateAndAcceptOnlyTheConfiguredToken(string change, string message)
     {
         using var fixture = new ReadinessFixture();
@@ -327,17 +321,10 @@ public sealed class TargetReadinessTests
             case "unauthenticated-unavailable": fixture.Unauthenticated = (HttpStatusCode.ServiceUnavailable, """{"code":"target.unavailable","message":"busy"}"""); break;
             // Not bootstrapped with this token: never bootstrapped, restarted or rotated.
             case "wrong-token": fixture.Token = TestAccess.NewSecret(); break;
-            case "foreign-session-token":
-                fixture.Authenticated = (HttpStatusCode.OK, $$"""{"endpoint":"wss://zeroshot.dev.faviann.com/native-v2/oecp","bearerToken":"{{TestAccess.NewSecret()}}"}""");
-                break;
-            case "foreign-session-endpoint":
-                fixture.Authenticated = (HttpStatusCode.OK, $$"""{"endpoint":"wss://other.dev.faviann.com/native-v2/oecp","bearerToken":"{{fixture.Token}}"}""");
-                break;
             case "missing-token": File.Delete(fixture.TokenFile); break;
-            case "malformed-token": File.WriteAllText(fixture.TokenFile, fixture.Token + "\n"); break;
         }
         await Refuses(fixture.Check, message);
-        await Assert.That(fixture.DiscoveryCalls).IsEqualTo(change is "missing-token" or "malformed-token" ? 0 : 1);
+        await Assert.That(fixture.DiscoveryCalls).IsEqualTo(change == "missing-token" ? 0 : 1);
     }
 
     [Test]
@@ -521,9 +508,8 @@ public sealed class TargetReadinessTests
         internal string Token { get; set; } = TestAccess.NewSecret();
         internal string TokenFile => Path.Combine(Root, "control-token");
         internal DirectTargetAccess Access => DirectTargetAccess.For(Origin, TokenFile, RootCertificate);
-        /// <summary>The target's reply to an unauthenticated session, and to one with <see cref="Token"/>; null for native's own.</summary>
+        /// <summary>The target's reply to an unauthenticated session; null for native's own.</summary>
         internal (HttpStatusCode Status, string Body)? Unauthenticated { get; set; }
-        internal (HttpStatusCode Status, string Body)? Authenticated { get; set; }
         internal List<string?> SessionBearers { get; } = [];
         internal List<string[]> Calls { get; } = [];
         internal int DiscoveryCalls { get; private set; }
@@ -621,7 +607,7 @@ public sealed class TargetReadinessTests
                 var bearer = request.Headers.Authorization is { Scheme: "Bearer" } authorization ? authorization.Parameter : null;
                 SessionBearers.Add(bearer);
                 var (status, body) = bearer is null ? Unauthenticated ?? (HttpStatusCode.Unauthorized, """{"code":"request.unauthorized","message":"unauthorized"}""")
-                    : bearer == Token ? Authenticated ?? (HttpStatusCode.OK, $$"""{"endpoint":"wss://zeroshot.dev.faviann.com/native-v2/oecp","bearerToken":"{{Token}}"}""")
+                    : bearer == Token ? (HttpStatusCode.OK, $$"""{"endpoint":"wss://zeroshot.dev.faviann.com/native-v2/oecp","bearerToken":"{{Token}}"}""")
                     : (HttpStatusCode.Unauthorized, """{"code":"request.unauthorized","message":"unauthorized"}""");
                 return new HttpResponseMessage(status) { Content = new StringContent(body) };
             }

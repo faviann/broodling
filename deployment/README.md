@@ -819,14 +819,15 @@ creates its tables in any SQLite file it opens, so an unrelated database must be
 refused before serving. Native owns the table shapes and rows.
 
 It then requires the bootstrap key at `/run/secrets/zeroshot-bootstrap-key`: a
-regular file, not a symbolic link, owned by root with no group or other access,
-holding exactly 64 lowercase hexadecimal characters and no newline. It copies the
-key to a new private file, `/run/broodling-target/bootstrap-key` (root, mode
-`0600`, in a mode-`0700` directory), and executes
+regular file, not a symbolic link, owned by root with no group or other access.
+It copies the key to a new private file, `/run/broodling-target/bootstrap-key`
+(root, mode `0600`, in a mode-`0700` directory), and executes
 `zeroshot target serve … --bootstrap-key-file /run/broodling-target/bootstrap-key`.
-Native reads and unlinks that copy before it listens, and refuses to start if it
-is missing or not private. A missing or unprotected key therefore stops startup
-with a refusal; there is no unauthenticated fallback.
+Native reads and unlinks that copy before it listens, and refuses to start
+(`private bootstrap key file is unavailable`) unless it is private and holds
+exactly 64 lowercase hexadecimal characters with no newline. A missing,
+unprotected or malformed key therefore stops startup with a refusal; there is no
+unauthenticated fallback.
 Missing, foreign or redirected state refuses without creating replacement files.
 Restore missing state; do not initialize an empty replacement at an existing
 origin. Existing targets without this binding, including targets bound to a

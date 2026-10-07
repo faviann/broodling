@@ -87,8 +87,8 @@ production state.
 | HTTP reader: existing-state startup refusal and session release, retained reads mapped to application operations without external services or writes, reads while another session holds the writer | `HttpReadTests` |
 | Processing server over real capture, Git and SQLite with controlled GitHub and gateway peers and the stock-target stand-in, through the host's own composition: acknowledgement with handle and `Location` after durable acceptance and before acquisition, refusal of an unsupported reference before any write, processing and result retention with no client connected, a stopped submission's visible reason and exact resume, retained facts apart from available and unavailable native observations, shutdown detaching in-flight dispatch; stops with a required reason that outlive a disconnected caller and report abandonment apart from cessation, submission cancellation and hand-back; a revision accepted once with its `Location` and replay, refused for active work, and its unchanged end readable; startup refusal of configurations that cannot process and a reader refusing submission; a failed service stopping the server | `HttpProcessingTests`: [HTTP service](../docs/implementation/invocation.md#http-service) |
 | Composed application/operator recovery and handback; operator configuration refusals (including a missing, relative or inline control token) and retained-origin mismatch refusal; a configuration-less wait contacting nothing; PR operations over loopback HTTP and over HTTPS with a configured root | `InvocationTests`: [invocation](../docs/implementation/invocation.md) |
-| Private control tokens at the application seams: none, another origin's, a missing or malformed file refusing dispatch before intent or contact; a refused token leaving dispatch unresolved and the exact replay with the current token converging on the intended run with an unchanged frozen request and no token in the store; observation, wait and stop failing with fixed kinds while authority holds and retained reads, including a retained completion, need neither token nor target; two origins each receiving only their own token, one target's token not controlling the other, and a configuration change redirecting no Attempt; the bootstrap resolving a lost acknowledgement only by authenticating, failing an uncertain one that installed nothing until the explicit rerun, and failing without replacing anything for a target holding another token, a public target or a key equal to the token | `DirectTargetAccessTests`: the loopback stand-in in native's private mode and a raw private-bootstrap stand-in, [private control access](../deployment/README.md#private-control-access) |
-| TLS root created once with a private key and public certificate; `zeroshot-tls` refusing to start without its provided root; network-free native initialization recording the binding and refusing an origin native rejects or respells; private startup behind the origin with control refused before bootstrap and to any other token; a bootstrap under another key refused without consuming the key; an idempotent bootstrap; a closed bootstrap never replacing the installed token; restart needing a new bootstrap and rotation retiring the former token over unchanged state; startup refusing a missing, unprotected or malformed bootstrap key without serving; the fixed unpublished inner port, refusal before serving and mixed UID preservation | `NativeTargetStartupTests`: actual target and pinned Caddy images with disposable state and synthetic secrets, [initialization](../deployment/README.md#explicit-initialization-and-guarded-startup) |
+| Private control tokens at the application seams: none, another origin's, a missing or malformed file refusing dispatch before intent or contact; a refused token leaving dispatch unresolved and the exact replay with the current token converging on the intended run with an unchanged frozen request and no token in the store; observation, wait and stop failing with fixed kinds while authority holds and retained reads, including a retained completion, need neither token nor target; two origins each receiving only their own token, one target's token not controlling the other, and a configuration change redirecting no Attempt; the bootstrap resolving a lost acknowledgement only by authenticating, failing an uncertain one that installed nothing until the explicit rerun, and failing without replacing anything for a public target or a key equal to the token; the `bootstrap-target` command's usage and fixed failure record without secret material | `DirectTargetAccessTests`: the loopback stand-in in native's private mode and a raw private-bootstrap stand-in, [private control access](../deployment/README.md#private-control-access) |
+| TLS root created once with a private key and public certificate; `zeroshot-tls` refusing to start without its provided root; network-free native initialization recording the binding and refusing an origin native rejects or respells; private startup behind the origin with control refused before bootstrap and to any other token; a bootstrap under another key refused without consuming the key; an idempotent bootstrap; a closed bootstrap never replacing the installed token; restart needing a new bootstrap and rotation retiring the former token over unchanged state; startup refusing a missing or unprotected bootstrap key without serving; the fixed unpublished inner port, refusal before serving and mixed UID preservation | `NativeTargetStartupTests`: actual target and pinned Caddy images with disposable state and synthetic secrets, [initialization](../deployment/README.md#explicit-initialization-and-guarded-startup) |
 | Selected ADR stack configuration, dependency, private discovery and authenticated-control decisions; a started but unbootstrapped target not ready; a stale Caddy intermediate after incomplete root rotation | `TargetReadinessTests`: controlled inspection, discovery and session requests, plus one actual-image stack, [readiness](../docs/implementation/dotnet-target-readiness.md) |
 | Readiness discovery's bounded read and budget | `DirectTargetExchangeTests`: [transport](../docs/implementation/zeroshot-native-integration.md#directtarget-transport-and-budgets) |
 | The configured root reaching the SDK's HTTPS and WSS connections: exactly that root, refusal of another root or system trust, a missing root failing only its operation with no dispatch intent, a new root read by each dispatch, and an HTTPS completion wait through the SDK's watch | `DirectTargetTrustTests`: the loopback stand-in serving TLS from an in-process private authority, [transport](../docs/implementation/zeroshot-native-integration.md#directtarget-transport-and-budgets) |
@@ -290,20 +290,18 @@ checks two kinds of fact separately:
 - Host-only checks, made by the host's Docker client: no service mounts a Docker
   socket; `broodling` runs as `1654:1654` under an init and mounts only its
   state directory read/write and the public root, its invocation configuration
-  and its token read-only; the target mounts only the bootstrap key secret and
-  `zeroshot-tls` none; the secret copies have their recipients' owners and mode
-  `0400`; the state directory and the store it created are owned by that user;
-  and the image's own `check-target`, copied out of the Broodling image and run
-  on the host, reports the stack ready, with authenticated control and its pinned
-  dependency versions.
+  and its token read-only; `zeroshot-tls` mounts no secret; the state directory
+  and the store it created are owned by that user; and the image's own
+  `check-target`, copied out of the Broodling image and run on the host, reports
+  the stack ready, including the target's mounts, authenticated control and its
+  pinned dependency versions.
 
 Before and around the first bootstrap, it checks the private-control boundary
 with the actual image, network and users:
 
-- Before bootstrap, as the hosted identity `10002:10002` that readiness probes
-  and as `20000:10002`, the identity native gave this run's agents, neither the
-  bootstrap key nor native's private copy is readable; over loopback a random
-  bearer is refused (`401`) and a forged envelope too (`400`). The operator's
+- Before bootstrap, as the hosted identity `10002:10002` that readiness probes,
+  over loopback a random bearer is refused (`401`) and a forged envelope too
+  (`400`). The operator's
   `bootstrap-target`, a one-off `broodling` container that alone receives the
   key, then reports `installed`, so the forged envelope consumed nothing, and
   `already_installed` on a rerun. The bootstrap route is then closed (`404`).
@@ -367,7 +365,7 @@ Each target start in the processing phases is followed by `bootstrap-target`.
 No real credentials, provider, GitHub or existing target are used, and no real
 Codex runs, so it proves neither a real agent's network reach nor PR delivery.
 No agent of a run can execute before the first bootstrap, so the pre-bootstrap
-refusals use the agents' identities through `docker compose exec`. The access
+refusals use the hosted agent identity through `docker compose exec`. The access
 probe searches only for native's 64-character secret format.
 It removes its containers, network, volumes, directory and controlled target
 image, and the pinned Caddy image if it pulled it. The optional `FACTS_JSON` receives the

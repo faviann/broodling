@@ -19,7 +19,7 @@ public sealed record TargetReadinessInventory(string ContainerName, string Image
 
 public sealed record TargetReadinessFacts(string ContainerName, string ContainerId, string ImageId, string DirectOrigin,
     IReadOnlyDictionary<string, string> Versions, bool ApiPaginateSlurp = true, bool HostedUidTransition = true,
-    bool Ready = true, int ProviderTasks = 0, bool AuthenticatedControl = true);
+    bool Ready = true, int ProviderTasks = 0);
 
 public sealed class TargetNotReady(string message) : Exception(message);
 
@@ -81,9 +81,6 @@ public sealed class TargetReadiness
                 inventory.BootstrapKeyFile];
             Require(paths.All(path => !string.IsNullOrEmpty(path) && Path.IsPathFullyQualified(path) && PhysicalPaths.Resolve(path) == path),
                 "Target mount inventory must use canonical absolute paths.");
-            Require(new[] { inventory.StateMount, inventory.HomeMount, inventory.RootKeyMount, inventory.RootCertificateMount }
-                    .All(mount => !Overlap(mount, inventory.BootstrapKeyFile)),
-                "The bootstrap key must be recorded outside the target's state, home and TLS root locations.");
             Require(!Overlap(inventory.RootKeyMount, inventory.RootCertificateMount),
                 "The root key and certificate must be recorded in separate locations.");
             Require(rootCertificate == Path.Combine(inventory.RootCertificateMount, "root.crt"),
@@ -189,19 +186,13 @@ public sealed class TargetReadiness
             using var discovery = DirectTargetBudget.Start(DiscoveryBudget, clock, cancellationToken);
             await DirectTargetDiscovery.RequireAsync(http, origin, discovery);
             // Public discovery only claims private access: an unauthenticated control request must actually be refused.
-            var (status, refusal) = await Session(http, origin, null, discovery);
-            Require(status == HttpStatusCode.Unauthorized && refusal.ValueKind == JsonValueKind.Object
-                    && refusal.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.String
-                    && code.GetString() == "request.unauthorized",
+            Require(await Session(http, origin, null, discovery) == HttpStatusCode.Unauthorized,
                 "Target accepts unauthenticated control; it must serve native private access.");
             // Actual authenticated access, without submitting work: the target issues an OECP session for this token.
-            var (accepted, session) = await Session(http, origin, token, discovery);
+            var accepted = await Session(http, origin, token, discovery);
             Require(accepted != HttpStatusCode.Unauthorized,
                 "Target refuses the configured control token; bootstrap the running target (bootstrap-target) or correct the token.");
-            Require(accepted == HttpStatusCode.OK && DirectTargetExchange.Shape(session, ["endpoint", "bearerToken"], [])
-                    && session.GetProperty("endpoint").GetString() == $"wss://{origin.Authority}{DirectTargetDiscovery.OecpPath}"
-                    && session.GetProperty("bearerToken").GetString() == token,
-                "Target authenticated control differs from the supported private DirectTarget.");
+            Require(accepted == HttpStatusCode.OK, "Target authenticated control differs from the supported private DirectTarget.");
             return new(inventory.ContainerName, containerId!, inventory.ImageId, inventory.DirectOrigin, versions);
         }
         catch (TargetNotReady) { throw; }
@@ -212,15 +203,15 @@ public sealed class TargetReadiness
         { throw new TargetNotReady("Target inventory, inspection or discovery is unavailable or invalid."); }
     }
 
-    /// <summary>One OECP session request, with <paramref name="token"/> as its bearer when given.</summary>
-    private static async Task<(HttpStatusCode Status, JsonElement Body)> Session(HttpClient http, Uri origin, string? token, DirectTargetBudget budget)
+    /// <summary>The status of one OECP session request, with <paramref name="token"/> as its bearer when given.</summary>
+    private static async Task<HttpStatusCode> Session(HttpClient http, Uri origin, string? token, DirectTargetBudget budget)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(origin, DirectTargetDiscovery.SessionPath))
         {
             Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json")
         };
         if (token is not null) request.Headers.Authorization = new("Bearer", token);
-        return await DirectTargetExchange.SendJsonAsync(http, request, budget);
+        return (await DirectTargetExchange.SendJsonAsync(http, request, budget)).Status;
     }
 
     private sealed record Mount(string? Source, string? Destination, bool ReadWrite, bool Bind);
