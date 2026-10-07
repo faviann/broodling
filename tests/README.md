@@ -52,8 +52,7 @@ give each case its own Docker network with the origin's alias; only `zeroshot-tl
 publishes, on a host-loopback port Docker chooses. Refusal cases use `--network none`.
 The [stock target](fixtures/README.md#controlled-stock-directtarget)
 serves on a bridge network because Docker cannot publish a port otherwise; it publishes
-only on host loopback. Its fixtures' only outbound call is the reference read from
-the test's reader, bound to the host's bridge gateway. No existing target is
+only on host loopback. Its fixtures make no outbound call. No existing target is
 accessed. No real credentials, networked provider or opt-in live campaign is required.
 
 Durable Git/SQLite fixtures use unique owned children of
@@ -76,7 +75,7 @@ production state.
 | Interrupted first capture, growing reference checkpoints, immutable RequestBundle completion and scoped source/Git reads | `RequestBundleTests`: [state](../docs/implementation/dotnet-identity-custody.md) |
 | Original B1 custody (dirty or transformed starting material, pin conflicts, missing objects, GC survival, hook suppression and injected Git configuration); Attempt admission convergence and races, interrupted admission, abandonment rollback and immutable bindings, with no local directory | `AttemptAdmissionTests`, `GitCustodyTests`: [allocation](../docs/implementation/dotnet-attempt-allocation.md) |
 | Controlled GitHub issue and service-owned repository acquisition; v1 request grammar, bounded reference closure and retained capture refusals; a stalled metadata read ending retryable with its process killed | `GitHubAdmissionTests`, `RepositoryPreparationTests`, `RequestCaptureTests`, [retained issue fixtures](fixtures/ingress/README.md): [ingress](../docs/implementation/dotnet-github-ingress.md) |
-| Offline HTTP preparation, exact text and binary source bytes in the frozen task, retained asset/request reopen, a bundle-bound task's compact manifest without reference bodies, corrupt-content refusal, the GitHub origin rule and HTTP submission SQL guards | `HttpSubmissionTests`: [HTTP preparation](../docs/implementation/zeroshot-native-integration.md#http-submission-preparation) |
+| Offline HTTP preparation, exact text and binary source bytes in the frozen task, retained asset/request reopen, a bundle-bound task's manifest with every reference's exact bytes, the native task-size refusal, corrupt-content refusal, the GitHub origin rule and HTTP submission SQL guards | `HttpSubmissionTests`: [HTTP preparation](../docs/implementation/zeroshot-native-integration.md#http-submission-preparation) |
 | HTTP send gates, intent before contact, one SDK attempt of the exact retained bytes, exact acknowledgement with a foreign one reported, retained conflict, concurrent replies, late acknowledgement stop, killed HTTP callers and a buffered request accepted after caller death | `HttpDispatchTests`, `DispatchProcessTests`: loopback stock-target stand-in, [HTTP dispatch](../docs/implementation/zeroshot-native-integration.md#http-dispatch-and-acknowledgement) |
 | Approved execution asset: build-output inclusion; loader refusal of a missing, changed or differently hashed asset, any manifest other than the reviewed one (a changed native, policy or recipe binding, the superseded 10.3.0 approval); the manifest policy read from the asset's own runtime; reproduction, structure and native admission from the binding's pinned release archive | `ExecutionAssetTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset), [recipe](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset) |
 | Bounded native progress observation, unavailable/timeout mapping and unchanged retained facts | `NativeObservationTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#dispatch-recovery-and-completion) |
@@ -93,7 +92,7 @@ production state.
 | Readiness discovery's bounded read and budget | `DirectTargetExchangeTests`: [transport](../docs/implementation/zeroshot-native-integration.md#directtarget-transport-and-budgets) |
 | The configured root reaching the SDK's HTTPS and WSS connections: exactly that root, refusal of another root or system trust, a missing root failing only its operation with no dispatch intent, a new root read by each dispatch, and an HTTPS completion wait through the SDK's watch | `DirectTargetTrustTests`: the loopback stand-in serving TLS from an in-process private authority, [transport](../docs/implementation/zeroshot-native-integration.md#directtarget-transport-and-budgets) |
 | SDK run reader and stopper: reconnection by the retained binding, unsupported bindings refused before contact, identity (`foreign_run`) and fixed failure kinds, read budgets, a finished first status as the result, wait through the SDK's watch without polling, a failed watch detaching with a fixed kind, cancellation detaching without stop; stop precheck, single force, a force that cannot connect as not sent, a foreign force reply as uncertain, waiting after a nonterminal force and the shared deadline | `DirectTargetRunTests`: the loopback stock-target stand-in with a controlled clock, [run reader and stopper](../docs/implementation/zeroshot-native-integration.md#directtarget-run-reader-and-stopper) |
-| Unmodified native HTTP/OECP boundary with the approved asset, through the application: controlled PR delivery from exact B1 without a client checkout, receipt consumption, restart and offline replay, unavailable-B1 failure and same-run replay, and on-demand frozen-reference reads through the installed helper | `StockDirectTargetTests`: [witness](#controlled-stock-directtarget-witness) |
+| Unmodified native HTTP/OECP boundary with the approved asset, through the application: controlled PR delivery from exact B1 without a client checkout, receipt consumption, restart and offline replay, unavailable-B1 failure and same-run replay, and frozen references read from the submission with no Broodling reachable | `StockDirectTargetTests`: [witness](#controlled-stock-directtarget-witness) |
 | The approved asset's stock PR readiness, repair and feedback contract on the same boundary: `ready` and accepted pinning despite a failing optional check or a missing approval native may hand off; a required check in progress or missing, or an approval it may not hand off, pending across polls until an explicit stop while a bounded Wait invents no receipt; behind-head advancement; CI-failure and conflict repair; ten-iteration repair exhaustion; new and edited versus unchanged feedback in one live run; exact PR identity refusal; no merge request in native's recorded forge requests, with the native and asset identities | `StockPullRequestDeliveryTests`: [witness](#pr-readiness-repair-and-feedback) |
 | Native state written by this revision's target image, or by each listed published image of the same native, and served by this revision's image on the same mounts and origin under a rotated control token: the recorded native version, the former token refused and the new one accepted, the retained correlation and its completed result, and exact replay of an unacknowledged submission onto its recorded run | `TargetImageTransitionTests`: [transition check](#native-state-transition-check) |
 
@@ -143,14 +142,10 @@ alone submits, observes and consumes:
   and sends the retained request itself, discarding the reply. An exact replay
   with rotated credentials correlates the same single run, whose checkout
   failure abandons the Attempt with no delivery branch.
-- A bundle-bound Attempt's controlled agent reads every reference listed in its
-  task through the image's `broodling-reference` helper, using only the bundle
-  and reference IDs. A real application reader over the retained store serves
-  them. It binds only to the host's default-bridge gateway, which the target
-  resolves as `broodling`; a mounted file replaces only the image's reader
-  origin. The delivered commit carries the exact retained bytes. This proves the
-  native execution environment's read, not Compose service-name networking
-  (homelab-iac#353).
+- A bundle-bound Attempt's controlled agent writes every reference listed in
+  its task from the bytes the task carries, including a non-UTF-8 member. No
+  Broodling reader runs and the target is given no name or route for one. The
+  delivered commit carries the exact captured bytes.
 
 Native 10.10.0 acknowledges a submission once it has recorded the run, then
 prepares the execution environment, including the checkout, in the background.
@@ -281,9 +276,7 @@ host operator's token. It then follows the documented order: `initialize-tls`,
 checks two kinds of fact separately:
 
 - Network application checks, on the project network only: the image health
-  check reports `broodling` healthy; `zeroshot` reads `http://broodling:8080/health`;
-  the installed `broodling-reference` helper reaches the reader by service name
-  and gets its `404 unknown_record` for the empty store; `broodling` discovers
+  check reports `broodling` healthy; `broodling` discovers
   the target through `https://zeroshot.dev.faviann.com`, trusting only the
   mounted public root, sees `private_capability` and gets an OECP session with
   its own token file (`200`).

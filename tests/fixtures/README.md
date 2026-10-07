@@ -8,8 +8,8 @@ target's fixed dependency paths:
 - `codex` answers each node from its response schema. Its worker writes known
   candidate bytes to `README.md`, verifiers accept, and a corrected reply
   resumes the requested thread. When the task lists a RequestBundle, the worker
-  also reads each listed reference through the installed `broodling-reference`
-  helper and writes its output to `references/<index>`. While the forge holds a
+  also writes each listed reference's bytes, decoded from the task, to
+  `references/<index>`. While the forge holds a
   `hold` file, the worker waits, so the image demonstration's run stays active
   until it is stopped. The delivery repair node appends its input's `outcome`
   and `deliveryFeedback` as one line of `delivery-repairs.jsonl`, rewrites

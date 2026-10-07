@@ -47,10 +47,12 @@ ownership and modes.
   control and OECP request needs the target's control token
   ([private control access](../../deployment/README.md#private-control-access)).
 - Broodling has no Compose dependency on `zeroshot` or `zeroshot-tls`; it starts
-  and serves retained history while either is down. Native agents reach
-  Broodling's reader by service name on the project network. With processing
-  configuration that same port also serves the unauthenticated mutating routes,
-  so agents can reach them too until #240 authorizes them (see
+  and serves retained history while either is down. Native agents reached
+  Broodling's reader by service name on the project network; #241 has since
+  carried references in each submission, so runs need no route to Broodling.
+  Agents can still reach its port on the shared network, and with processing
+  configuration that port also serves the unauthenticated mutating routes until
+  #240 authorizes them (see
   [private control access](../../deployment/README.md#private-control-access)).
 - Running jobs are protected from Broodling deploys by deploy policy (update by
   service, never `down` the project), not by separate Compose projects.
