@@ -50,9 +50,8 @@ target's fixed dependency paths:
   routed origin. It writes the result to the forge.
 
 A successful run produces a controlled PR receipt, not a real GitHub PR or
-semantic-quality result. Credentials are fixed fake values. The only network
-call a fixture makes is the helper's read from the test's own Broodling reader
-on the host.
+semantic-quality result. Credentials are fixed fake values. No fixture makes a
+network call.
 
 This is deliberately not an independent implementation of review, repair, or
 graph semantics. Historical custom-graph, evidence and supervisor fixtures and

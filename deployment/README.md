@@ -270,10 +270,6 @@ Zeroshot materializes its own execution checkout, separate from Broodling's
 source and Git custody; the `zeroshot` and `broodling` services share only the
 read-only public root.
 
-- Frozen references (#241): each submission carries its RequestBundle
-  references, so the image has no Broodling helper or address and the target
-  needs no route to Broodling. See
-  [frozen references](../docs/implementation/zeroshot-native-integration.md#frozen-references).
 - Evidence: the [controlled stock DirectTarget witness](../tests/README.md#controlled-stock-directtarget-witness)
   runs that unmodified native as `zeroshot target serve` in the actual
   DirectTarget image with the approved asset, in private mode with synthetic
@@ -283,8 +279,8 @@ read-only public root.
   `ready` receipt, no client checkout, failure rather than fallback for an
   unavailable B1, same-run replay after a lost acknowledgement, restart
   retention and offline
-  completion replay, and an agent reading frozen references through the installed
-  helper from a real reader. It is not production topology (homelab-iac#353), a
+  completion replay, and an agent reading frozen references from its submission
+  with no Broodling reader. It is not production topology (homelab-iac#353), a
   real GitHub PR or provider quality evidence.
 - Submit timing: native 10.10.0 acknowledges a run once recorded and checks out
   exact B1 afterwards, so a slow real fetch does not hold Broodling's fixed

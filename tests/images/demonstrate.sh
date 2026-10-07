@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Demonstrates the Broodling and DirectTarget images in a disposable instance of ADR 0001's topology
 # (compose.yaml): explicit initialization, service startup as the production users, real mount
-# ownership, credential-free health, in-project network reads and discovery, then host-only
+# ownership, credential-free health, in-project network discovery, then host-only
 # readiness of the containers, mounts and pinned dependencies. No service gets a Docker socket.
 # It then runs the Broodling image as the processing server with controlled peers (processing.yaml)
 # until its Attempt is correlated, stops that Attempt, and retires and replaces it under verified

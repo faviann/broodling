@@ -217,7 +217,8 @@ frozen title and runtime size, and the frozen repository, authorized branch and
 B1 source. It carries no credentials or adapter settings. Read and stop add the
 run ID. One internal reader of the retained request supplies that binding and
 the delivery, source and custody facts that dispatch and receipt validation use;
-it never rewrites the saved bytes.
+another takes the reference bytes for revalidation. Neither rewrites the saved
+bytes.
 
 ### Frozen references
 
@@ -235,17 +236,21 @@ Preparation reads each member through the sealed bundle reader, which checks its
 bytes against the retained digest, and the projection checks them against the
 digest-verified manifest the Contract binds. The members are exactly the sealed
 manifest's, fixed in the prepared request, so a run needs no Broodling access
-and agents have no way to refresh or extend the bundle. An acknowledgement-loss
-replay sends the same bytes, references included.
+and agents have no way to refresh or extend the bundle. The DirectTarget image
+has no Broodling helper or reader address, and the target needs no route to
+Broodling. An acknowledgement-loss replay sends the same bytes, references
+included. The task's JSON escapes only what JSON requires, so text keeps its
+characters as written.
 
 Native puts the whole task into every agent node's input. A node input is one
 ledger event of at most 1 MiB, and Codex refuses a turn over 1 Mi characters, so
-preparation refuses a task over 512 KiB as native serializes it (JSON-escaped
-UTF-8), leaving the rest for node instructions, the response contract and repair
-feedback. The refusal, `task_too_large`, states the task's size and the limit,
-happens before any prepared record exists and is never resolved by retrying;
-nothing is truncated. The model's context window behind the gateway is a
-provider-side limit that this budget does not enforce. The
+preparation refuses a task over Broodling's 512 KiB budget, measured as native
+serializes it (JSON-escaped UTF-8). That leaves the rest for node instructions,
+the response contract and repair feedback. The refusal, `task_too_large`,
+states the task's size and the limit, happens before any prepared record exists
+and is never resolved by retrying; nothing is truncated. The model's context
+window behind the gateway is a provider-side limit that this budget does not
+enforce. The
 [#241 findings](https://github.com/faviann/broodling/issues/241#issuecomment-6043665375)
 record the native, SDK and Codex limits and the alternatives considered.
 
