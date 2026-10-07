@@ -88,7 +88,7 @@ every control and OECP request needs that token, which the operator's
 `bootstrap-target` installs in each new target process and execution agents
 cannot obtain. Agents can still reach Broodling's own unauthenticated
 processing routes on the shared project network, so strict agent isolation
-awaits an operator-contract decision
+is not established until #240 authorizes those routes after the MVP
 ([private control access](../../deployment/README.md#private-control-access)). Callable
 `TargetReadiness.CheckAsync` and the thin `check-target` command check the
 actual target's image, configuration, pinned dependencies, including GitHub

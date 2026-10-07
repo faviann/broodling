@@ -890,23 +890,25 @@ observe or control its native execution directly. Broodling and the operator's
 Broodling commands hold it; the target's execution agents cannot read it, mint
 it or use native's control routes through loopback or the routed origin.
 
+The maintainer approved this policy in #187: one randomly generated,
+non-expiring bearer token per target, with no expiry, refresh or scheduled
+rotation; a distinct bootstrap key; a bootstrap on every target-process start;
+and rotation only as explicit operator maintenance. It addresses control access,
+not general hostile-agent confinement. Native 10.10.0 is the mechanism: started
+with a bootstrap key, it accepts one AES-256-GCM-encrypted token through its
+one-time bootstrap route, then requires that token as the bearer of every
+control and OECP request. Discovery stays public, and native's own client has no
+private-mode access.
+
 This does not yet stop an agent from acting through Broodling. The agents share
 the project network with `broodling`, whose port 8080 serves both the frozen-reference
 reads they need and, with processing configuration, the unauthenticated
 mutating routes (`POST /submissions`, revisions, resume and stops). An agent can
 call those routes, and Broodling then acts with its own token and authority.
-Closing that route needs a decision on the operator contract: #100 and
-homelab-iac#354 route the same port 8080 for operators with application
-authentication deferred, and ADR 0001 puts agents and `broodling` on one network.
-Until it is decided, strict agent isolation is not established. This is the policy the
-maintainer approved in #187: one randomly generated, non-expiring bearer token
-per target, with no expiry, refresh or scheduled rotation; a distinct bootstrap
-key; a bootstrap on every target-process start; and rotation only as explicit
-operator maintenance. It addresses control access, not general hostile-agent
-confinement. Native 10.10.0 is the mechanism: started with a bootstrap key, it
-accepts one AES-256-GCM-encrypted token through its one-time bootstrap route,
-then requires that token as the bearer of every control and OECP request.
-Discovery stays public, and native's own client has no private-mode access.
+#240 adds authorization to those routes after the MVP; it does not block the
+first deployment. Until it lands, strict agent isolation is not established.
+#241 will ship references with the submission, so agents will no longer need to
+reach Broodling at all.
 
 ### Control material and recipients
 
@@ -1009,7 +1011,10 @@ Broodling reads the token file for each operation, so its processes need no
 restart. The target's origin, native ledger, Attempt and run correlation and
 retained results are unchanged, and an unresolved dispatch replays exactly its
 frozen request with the new token. If a token or bootstrap key may have leaked,
-rotate it.
+replace both: native accepts a captured bootstrap envelope again in any new
+process started with the same key, so it could reinstall the former token
+before `bootstrap-target` runs, which then reports that the target holds
+another token.
 
 ### Several targets (#234, #235)
 
