@@ -445,7 +445,7 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 
 ### Current adoption record
 
-- Tested code revision: `a46f14cce0a5ae47d81da030de0b46ff3cffdd83` (#187). Later commits that only
+- Tested code revision: `cd7e8e53d01c93fadeced1b3acccd647a03fe46d` (#187, after its simplification review). Later commits that only
   edit this record or other documentation leave it valid; a code change
   requires a new run. #187 newly uses the package's private-mode surface
   (`TargetControlCredentials` on every submission and OECP session, and
@@ -473,10 +473,12 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 - Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.8.1, with no
   Python environment and the transition check building this revision's target
   image: the lane, now including `DirectTargetAccessTests` and
-  `NativeTargetStartupTests`, passed 268 of 268; the full suite passed 633 of
-  633; the Release build succeeded with no warnings; and the
+  `NativeTargetStartupTests`, passed 264 of 264; the full suite passed 625 of
+  625; the Release build succeeded with no warnings; and the
   [image demonstration](#image-demonstration) passed on images built from that
-  revision. Earlier lane runs during the change, on a host loaded by other
+  revision. That Broodling image restored the same `.nupkg` (SHA-256 above, locked
+  content hash checked) from a local folder source, because the host's GitHub
+  token could not read GitHub Packages. Earlier lane runs during the change, on a host loaded by other
   work (load average 5 to 9), failed the known `CompletionObserverTests`
   "did not settle" bounded waits, which then passed three consecutive isolated
   runs, and once a new control-token case whose 10-second observation budget
