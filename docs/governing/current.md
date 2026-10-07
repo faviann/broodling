@@ -237,16 +237,11 @@ worktree Attempts and C# Codex launcher. Contract admission now refuses an empty
 required-effect set, and the unreleased store schema 1 was redefined in place.
 #187 replaced the unauthenticated DirectTarget with native 10.10.0's private
 mode: a per-target random, non-expiring control token, distinct from a
-root-only bootstrap key; initialization without native's client; a bootstrap
-through the SDK after every target start, including restart over existing
-state; explicit rotation by restart and bootstrap; and readiness that requires
-authenticated control. Broodling reads the token for each operation from the
-file configured for the exact retained origin and never retains it, so a token
-change amends no Contract, Prepared submission, correlation or binding. The
-image demonstration qualifies that execution agents of an actual run can
-neither read the material nor use native's control routes; they can still
-reach Broodling's processing API, which acts with its token. Homelab provisioning remains
-homelab-iac#353 and #354.
+root-only bootstrap key; initialization without native's client; and explicit
+rotation by restart and bootstrap. Broodling reads the token for each operation
+from the file configured for the exact retained origin and never retains it, so
+a token change amends no Contract, Prepared submission, correlation or binding.
+Homelab provisioning remains homelab-iac#353 and #354.
 Remaining #100 intent includes
 Compose, maintenance and backup/restore; those remain unimplemented. The
 ASP.NET host is not authority to add them.

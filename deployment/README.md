@@ -891,15 +891,9 @@ observe or control its native execution directly. Broodling and the operator's
 Broodling commands hold it; the target's execution agents cannot read it, mint
 it or use native's control routes through loopback or the routed origin.
 
-The maintainer approved this policy in #187: one randomly generated,
-non-expiring bearer token per target, with no expiry, refresh or scheduled
-rotation; a distinct bootstrap key; a bootstrap on every target-process start;
-and rotation only as explicit operator maintenance. It addresses control access,
-not general hostile-agent confinement. Native 10.10.0 is the mechanism: started
-with a bootstrap key, it accepts one AES-256-GCM-encrypted token through its
-one-time bootstrap route, then requires that token as the bearer of every
-control and OECP request. Discovery stays public, and native's own client has no
-private-mode access.
+Each target has one random bearer token with no expiry, refresh or scheduled
+rotation, and a distinct bootstrap key; the operator bootstraps the token into
+every new target process and rotates it only as explicit maintenance.
 
 This does not yet stop an agent from acting through Broodling. The agents share
 the project network with `broodling`, whose port 8080 serves both the frozen-reference
@@ -948,7 +942,9 @@ for each operation and sent only as the bearer to its own origin. Execution
 agents run as native's isolated identities, which cannot read root-only files or
 other processes' environment and memory, and have no capabilities to capture
 traffic. Native unlinks its private copy of the key before serving and closes
-its bootstrap after the first accepted envelope.
+its bootstrap after the first accepted envelope. Provisioning the secrets and
+their routes in the homelab, and verifying that installation, belong to
+homelab-iac#353 and #354.
 
 ### Bootstrap after every target start
 
@@ -970,17 +966,9 @@ token, in which case it sends nothing. It requires private discovery, sends at
 most one envelope through the SDK's `NativeClient.Private.BootstrapAsync`, and
 confirms the result with an authenticated control request. It never restarts the
 target, touches native state or replaces an installed token, and never resends
-blindly. Its failures print `"bootstrapped":false` with a fixed message and exit 1:
-
-- The bootstrap key differs from the target's: native refused the envelope
-  without consuming its key. Correct the key copy and run it again.
-- The bootstrap is closed and the target refuses the configured token: it holds
-  another token. Restart the target, keeping its state, and bootstrap it again.
-- The outcome is unknown (a lost acknowledgement) and the target does not yet
-  accept the token: run it again. Once the target accepts the token, a rerun
-  reports `already_installed`.
-- No readable token for the origin (`credentials_unavailable`), or the target is
-  unreachable: nothing was installed.
+blindly. Its failures print `"bootstrapped":false` with a `code` and a fixed
+`error` that names the next step, and exit 1. A key that differs from the
+target's consumes nothing: correct the key copy and run it again.
 
 Until the target is bootstrapped, the processing server's operations on it fail
 as `unauthorized`: progression retries with its doubling delay and completion
@@ -1037,19 +1025,6 @@ Broodling resolves control credentials by exact origin for each operation
 Today's invocation configuration names one origin and its token file. The
 environment catalog and its selection (#234, #235) own how several are
 configured.
-
-### What is qualified
-
-The TUnit suite covers identity, replay and recipient behavior at the
-application seams (`DirectTargetAccessTests`, readiness and the loopback
-stand-in in private mode). The actual target image covers private startup,
-refusal before bootstrap, bootstrap outcomes, restart and rotation
-(`NativeTargetStartupTests`, `TargetImageTransitionTests`). The
-[image demonstration](../tests/README.md#image-demonstration) covers the actual
-users, network and secret access, including a real native-spawned agent's
-refusal and the intended clients' access. Provisioning the secrets and their
-routes in the homelab, and verifying that installation, belong to
-homelab-iac#353 and #354.
 
 ## Invocation and recovery
 

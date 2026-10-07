@@ -276,12 +276,9 @@ identity nor the request bytes.
 The send also carries the target's private control token as its bearer (#187).
 It is read, like the root, when the operation's SDK client is created, before
 the intent commits, from the token file the session's `DirectTargetAccess`
-names for exactly the retained origin. With no such file, or one that is missing,
-unreadable or not 64 lowercase hexadecimal characters, nothing is recorded or
-sent and the dispatch fails as `credentials_unavailable`. A target that refuses
-the token answers `401 request.unauthorized` before reading the request, which
-Broodling reports as `unauthorized`; like every outcome but the exact
-acknowledgement, it leaves the intent unresolved. The control token is not a
+names for exactly the retained origin, so a `credentials_unavailable` dispatch
+records and sends nothing. An `unauthorized` one, like every outcome but the
+exact acknowledgement, leaves the intent unresolved. The control token is not a
 dispatch credential: it is never part of the request body, the frozen request,
 the binding or any record, and replacing it changes neither the request nor its
 authority, so an exact replay with the current token converges on the intended run.
@@ -547,9 +544,8 @@ read, at client creation, from the file that the `DirectTargetAccess` names for
 exactly the canonical origin being contacted, which for an existing Attempt is
 its retained origin. The SDK sends it as the bearer of submissions and of the
 OECP session, never to discovery, and uses the session the target issues for the
-WebSocket. An origin with no configured token file, or a missing, unreadable or
-malformed token, is `credentials_unavailable` with nothing sent; a refused token
-is `unauthorized`. Reading the file per operation lets an explicit rotation take
+WebSocket. Its failures are the fixed kinds `credentials_unavailable` and
+`unauthorized` ([failure kinds](#directtarget-run-reader-and-stopper)). Reading the file per operation lets an explicit rotation take
 effect without restarting Broodling. A token configured for one origin is never
 sent to another, and a configuration change never redirects an Attempt: its
 retained origin still decides where it connects, and with no token for that
@@ -585,8 +581,8 @@ OECP `NOT_FOUND`. `TargetError` covers any other OECP error or HTTP problem.
 naming another run ID, and a watch that ends without a terminal result.
 `TimeoutError` is expiry and `transport_failed` connection loss.
 `unauthorized` is an HTTP 401: the target refuses the control token.
-`credentials_unavailable` sent nothing because no readable token is configured
-for the origin. An unsupported OECP protocol or SDK binding refuses as an
+`credentials_unavailable` sent nothing because no readable token (exactly 64
+lowercase hexadecimal characters) is configured for the origin. An unsupported OECP protocol or SDK binding refuses as an
 unsupported runtime.
 
 Progress is one bounded status read. The wait reads status once within its
