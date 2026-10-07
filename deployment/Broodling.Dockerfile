@@ -64,7 +64,6 @@ ENV HOME=/home/app \
     Broodling__Store=/var/lib/broodling/state.sqlite3 \
     ASPNETCORE_HTTP_PORTS=8080
 WORKDIR /home/app
-# The DirectTarget image's reference helper reads from http://broodling:8080.
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["curl", "--fail", "--silent", "--show-error", "--max-time", "4", "--output", "/dev/null", "http://127.0.0.1:8080/health"]

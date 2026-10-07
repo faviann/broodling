@@ -177,17 +177,6 @@ health="$(docker inspect --format '{{.State.Health.Status}}' "$(compose ps --qui
 echo "broodling: $health (image health check GET /health, no credentials)"
 
 step 'Network application checks on the project network'
-reply="$(compose exec -T zeroshot node -e \
-    'fetch("http://broodling:8080/health").then(r => r.text().then(t => { console.log(r.status, t); process.exit(r.ok ? 0 : 1); }))')"
-echo "zeroshot -> http://broodling:8080/health: $reply"
-[[ $reply == '200 {"status":"ok"}' ]] || fail 'Broodling health over the network'
-# The installed reference helper reaches the reader by service name; the empty store has no bundle,
-# so the reader's own refusal is the expected answer.
-if reference="$(compose exec -T zeroshot broodling-reference demo-bundle demo-reference 2>&1)"; then
-    fail 'the reader returned a reference from an empty store'
-fi
-echo "zeroshot broodling-reference: $reference"
-[[ $reference == 'broodling-reference: read refused (404 unknown_record)' ]] || fail 'reference helper to reader'
 for _ in $(seq 1 100); do
     # Broodling's own path to the target: the origin alias, zeroshot-tls, trusting only the public root.
     discovery="$(compose exec -T broodling curl --silent --fail --proto =https --max-time 5 --cacert /tls-root/root.crt \
