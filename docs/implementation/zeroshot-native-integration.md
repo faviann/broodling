@@ -215,10 +215,7 @@ different target origin refuses. Nothing is regenerated or rebound.
 The record's retained binding is a `NativeRunBinding`: the target origin, the
 frozen title and runtime size, and the frozen repository, authorized branch and
 B1 source. It carries no credentials or adapter settings. Read and stop add the
-run ID. One internal reader of the retained request supplies that binding and
-the delivery, source and custody facts that dispatch and receipt validation use;
-another takes the reference bytes for revalidation. Neither rewrites the saved
-bytes.
+run ID.
 
 ### Frozen references
 
@@ -227,30 +224,25 @@ the Executable Request and B1: the bundle identity, the manifest digest the
 Contract binds, and each member in manifest order with its reference ID, capture
 kind, selector (the capture's JSON; any other selector stays base64), content
 digest, the pinned commit and path of a Git capture, and its exact captured
-bytes. Like entitled sources, valid UTF-8 bytes are `content` text with
-`"encoding": "utf-8"`; other bytes are base64 with `"encoding": "base64"`. The
-text tells agents that a reference adds no work, cannot amend the Contract or
-Executable Request and authorizes no effect.
+bytes, encoded like entitled sources. The text tells agents that a reference
+adds no work, cannot amend the Contract or Executable Request and authorizes no
+effect.
 
-Preparation reads each member through the sealed bundle reader, which checks its
-bytes against the retained digest, and the projection checks them against the
-digest-verified manifest the Contract binds. The members are exactly the sealed
-manifest's, fixed in the prepared request, so a run needs no Broodling access
-and agents have no way to refresh or extend the bundle. The DirectTarget image
-has no Broodling helper or reader address, and the target needs no route to
-Broodling. An acknowledgement-loss replay sends the same bytes, references
-included. The task's JSON escapes only what JSON requires, so text keeps its
-characters as written.
+The members are exactly the sealed manifest's, fixed in the prepared request, so
+a run needs no Broodling access and agents have no way to refresh or extend the
+bundle. The DirectTarget image has no Broodling helper or reader address, and
+the target needs no route to Broodling. An acknowledgement-loss replay sends the
+same bytes, references included.
 
 Native puts the whole task into every agent node's input. A node input is one
 ledger event of at most 1 MiB, and Codex refuses a turn over 1 Mi characters, so
-preparation refuses a task over Broodling's 512 KiB budget, measured as native
-serializes it (JSON-escaped UTF-8). That leaves the rest for node instructions,
-the response contract and repair feedback. The refusal, `task_too_large`,
-states the task's size and the limit, happens before any prepared record exists
-and is never resolved by retrying; nothing is truncated. The model's context
-window behind the gateway is a provider-side limit that this budget does not
-enforce. The
+preparation refuses a task over Broodling's 512 KiB budget, measured as
+JSON-escaped UTF-8, an upper bound on what native writes. That leaves the rest
+for node instructions, the response contract and repair feedback. The refusal,
+`task_too_large`, states the task's size and the limit, happens before any
+prepared record exists and is never resolved by retrying; nothing is truncated.
+The model's context window behind the gateway is a provider-side limit that this
+budget does not enforce. The
 [#241 findings](https://github.com/faviann/broodling/issues/241#issuecomment-6043665375)
 record the native, SDK and Codex limits and the alternatives considered.
 
