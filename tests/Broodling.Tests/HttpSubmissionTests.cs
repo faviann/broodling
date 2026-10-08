@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
@@ -59,15 +60,19 @@ internal sealed class BundleHttpFixture : IDisposable
     internal RequestBundle Bundle { get; private set; } = null!;
     internal AttemptRecord Attempt { get; private set; } = null!;
 
-    internal static async Task<BundleHttpFixture> CreateAsync()
+    /// <summary>Captured bytes that are not UTF-8, so the task carries them as base64.</summary>
+    private static readonly byte[] Logo = [0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe, 0x0a];
+
+    internal static async Task<BundleHttpFixture> CreateAsync(string schema = "Schema canary — café <a&b>\n")
     {
         var fixture = new BundleHttpFixture();
         try
         {
             var git = fixture.Git;
-            git.CommitFile("docs/schema.md", "Schema canary\n");
+            git.CommitFile("docs/schema.md", schema);
+            git.CommitFile("docs/logo.png", Logo);
             git.SetIssue(12, "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n\n### Available references\n"
-                + "- schema: repo:docs/schema.md\n- design: https://github.com/acme/widget/issues/7\n");
+                + "- schema: repo:docs/schema.md\n- logo: repo:docs/logo.png\n- design: https://github.com/acme/widget/issues/7\n");
             git.SetIssue(7, "Supporting design canary.");
             var store = fixture.Store = git.State.Initialize();
             var submissionId = store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
@@ -192,7 +197,7 @@ public sealed class HttpSubmissionTests
     }
 
     [Test]
-    public async Task BundleBoundTaskListsItsReferencesForOnDemandReadsWithoutTheirBodies()
+    public async Task BundleBoundTaskCarriesEveryReferenceAsItsExactCapturedBytes()
     {
         using var fixture = await BundleHttpFixture.CreateAsync();
         var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target);
@@ -202,27 +207,72 @@ public sealed class HttpSubmissionTests
         var bundle = fixture.Bundle;
         await Assert.That(string.Join(",", authority.AsObject().Select(field => field.Key)))
             .IsEqualTo("contract,admittedInstructions,comparisonBase,requestBundle");
-        // The Executable Request stays the only inlined source; no reference body is expanded.
         await Assert.That((string)authority["admittedInstructions"]!.AsArray().Single()!["kind"]!).IsEqualTo("executable_request");
-        await Assert.That(prepared.RequestJson.Contains("canary")).IsFalse();
         var manifest = authority["requestBundle"]!;
         await Assert.That(new ContractRequestBundle((string)manifest["bundleId"]!, (string)manifest["manifestSha256"]!))
             .IsEqualTo(fixture.Store.GetContractRevision(fixture.Attempt.ContractRevisionId).Contract.RequestBundle);
-        // Every member in manifest order: identity, readable selector and digest, plus the pinned file of a Git capture.
-        await Assert.That(JsonNode.DeepEquals(manifest["references"], new JsonArray(bundle.References.Select(reference =>
+        await Assert.That(string.Join(",", bundle.References.Select(reference => reference.ReferenceId)))
+            .IsEqualTo("primary,request,repo:docs/schema.md,repo:docs/logo.png,github:acme/widget/issues/7");
+        await Assert.That(bundle.References[2].GitCommitOid).IsEqualTo(fixture.Attempt.B1.CommitOid);
+        // Every member in manifest order: identity, readable selector, digest, the pinned file of a Git capture,
+        // and its exact captured bytes, as text when they are UTF-8 and as base64 otherwise.
+        var entries = manifest["references"]!.AsArray();
+        await Assert.That(entries.Count).IsEqualTo(bundle.References.Count);
+        foreach (var (entry, reference) in entries.Zip(bundle.References))
         {
-            var entry = new JsonObject
+            var expected = new JsonObject
             {
                 ["referenceId"] = reference.ReferenceId, ["captureKind"] = reference.CaptureKind,
                 ["selector"] = JsonNode.Parse(reference.Selector), ["contentSha256"] = reference.ContentSha256
             };
-            if (reference.GitPath is not null) { entry["gitCommitOid"] = reference.GitCommitOid; entry["gitPath"] = reference.GitPath; }
-            return (JsonNode)entry;
-        }).ToArray()))).IsTrue();
-        await Assert.That(string.Join(",", bundle.References.Select(reference => reference.ReferenceId)))
-            .IsEqualTo("primary,request,repo:docs/schema.md,github:acme/widget/issues/7");
-        await Assert.That(bundle.References[2].GitCommitOid).IsEqualTo(fixture.Attempt.B1.CommitOid);
-        await Assert.That(task.Contains("`/usr/local/bin/broodling-reference <bundleId> <referenceId>`")).IsTrue();
+            if (reference.GitPath is not null) { expected["gitCommitOid"] = reference.GitCommitOid; expected["gitPath"] = reference.GitPath; }
+            expected["encoding"] = reference.ReferenceId == "repo:docs/logo.png" ? "base64" : "utf-8";
+            var content = (string)entry!["content"]!;
+            expected["content"] = content;
+            await Assert.That(JsonNode.DeepEquals(entry, expected)).IsTrue();
+            var bytes = (string)entry["encoding"]! == "base64" ? Convert.FromBase64String(content) : Encoding.UTF8.GetBytes(content);
+            await Assert.That(Convert.ToHexStringLower(SHA256.HashData(bytes))).IsEqualTo(reference.ContentSha256);
+        }
+        // HTML characters and accented text stay as written in the task, not as \u escapes.
+        await Assert.That(task.Contains("Schema canary — café <a&b>")).IsTrue();
+    }
+
+    [Test]
+    public async Task PreparationRefusesATaskOverTheNativeBudgetWithoutRetainingAnything()
+    {
+        // 600 KiB of one captured file: within the capture limits, beyond what native execution accepts in its task.
+        using var fixture = await BundleHttpFixture.CreateAsync(schema: new string('s', 600 * 1024));
+
+        var refused = await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+            .Throws<NativeTaskTooLarge>();
+        await Assert.That(refused!.Code).IsEqualTo("task_too_large");
+        await Assert.That(refused.Message).Contains($"the supported limit is {BroodlingStore.NativeTaskBytes} bytes");
+        await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)).IsNull();
+    }
+
+    [Test]
+    public async Task PreparationMeasuresTheTaskAsEscapedJson()
+    {
+        // 200 KiB of quotes: the task text holds each as \" and native's JSON writes that as \\\", so the task stays
+        // under the budget as raw text and exceeds it as native writes it.
+        using var fixture = await BundleHttpFixture.CreateAsync(schema: new string('"', 200 * 1024));
+
+        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+            .Throws<NativeTaskTooLarge>();
+        await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)).IsNull();
+    }
+
+    [Test]
+    public async Task RetainedReferenceBytesMustMatchTheManifestDigest()
+    {
+        using var fixture = await BundleHttpFixture.CreateAsync();
+        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target);
+        fixture.Git.State.Execute("DROP TRIGGER submission_binding_stable; "
+            + "UPDATE native_submissions SET request_json = replace(request_json, 'Schema canary', 'Schema canarx')");
+
+        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+            .Throws<SubmissionConflict>();
+        await Assert.That(fixture.Store.FindSubmission(prepared.AttemptId)!.RequestJson).Contains("Schema canarx");
     }
 
     [Test]

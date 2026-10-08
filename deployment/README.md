@@ -156,9 +156,7 @@ child processes.
   service that token file as its own secret (owned by `1654:1654`, mode `0400`;
   see [private control access](#private-control-access)), and use
   `Broodling__RepositoryRoot=/var/lib/broodling/repositories`, a directory the
-  operator creates in the state directory, owned by `1654:1654`. The
-  DirectTarget image's reference helper reads from `http://broodling:8080`, so
-  keep that port and service name.
+  operator creates in the state directory, owned by `1654:1654`.
 - Arguments select a store, inspection or maintenance command instead. For
   example, a new installation initializes its store once with
   `docker compose run --rm --no-deps broodling initialize-store /var/lib/broodling/state.sqlite3`.
@@ -272,13 +270,6 @@ Zeroshot materializes its own execution checkout, separate from Broodling's
 source and Git custody; the `zeroshot` and `broodling` services share only the
 read-only public root.
 
-- Frozen-reference access (#114): the image installs
-  `/usr/local/bin/broodling-reference`, which native agents run to read one
-  RequestBundle reference from the read-only HTTP reader. Its reader origin is
-  the image file `/etc/broodling/reader-origin`, `http://broodling:8080`. Native
-  clears agent environments, so a different address means replacing that file
-  (for example with a read-only mount), not setting an environment variable. See
-  [frozen-reference access](../docs/implementation/zeroshot-native-integration.md#frozen-reference-access).
 - Evidence: the [controlled stock DirectTarget witness](../tests/README.md#controlled-stock-directtarget-witness)
   runs that unmodified native as `zeroshot target serve` in the actual
   DirectTarget image with the approved asset, in private mode with synthetic
@@ -288,8 +279,8 @@ read-only public root.
   `ready` receipt, no client checkout, failure rather than fallback for an
   unavailable B1, same-run replay after a lost acknowledgement, restart
   retention and offline
-  completion replay, and an agent reading frozen references through the installed
-  helper from a real reader. It is not production topology (homelab-iac#353), a
+  completion replay, and an agent reading frozen references from its submission
+  with no Broodling reader. It is not production topology (homelab-iac#353), a
   real GitHub PR or provider quality evidence.
 - Submit timing: native 10.10.0 acknowledges a run once recorded and checks out
   exact B1 afterwards, so a slow real fetch does not hold Broodling's fixed
@@ -896,14 +887,13 @@ rotation, and a distinct bootstrap key; the operator bootstraps the token into
 every new target process and rotates it only as explicit maintenance.
 
 This does not yet stop an agent from acting through Broodling. The agents share
-the project network with `broodling`, whose port 8080 serves both the frozen-reference
-reads they need and, with processing configuration, the unauthenticated
-mutating routes (`POST /submissions`, revisions, resume and stops). An agent can
-call those routes, and Broodling then acts with its own token and authority.
-#240 adds authorization to those routes after the MVP; it does not block the
-first deployment. Until it lands, strict agent isolation is not established.
-#241 will ship references with the submission, so agents will no longer need to
-reach Broodling at all.
+the project network with `broodling`, whose port 8080 serves, with processing
+configuration, the unauthenticated mutating routes (`POST /submissions`,
+revisions, resume and stops). Runs need nothing from Broodling, since each
+submission carries its references (#241), but an agent can still call those
+routes, and Broodling then acts with its own token and authority. #240 adds
+authorization to those routes after the MVP; it does not block the first
+deployment. Until it lands, strict agent isolation is not established.
 
 ### Control material and recipients
 

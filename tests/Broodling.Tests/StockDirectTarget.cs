@@ -15,17 +15,14 @@ namespace Broodling.Tests;
 /// native to a literal-loopback origin, initialized and served through the unchanged entrypoint at the
 /// fixed inner port, published on host loopback only. Like an installation, the target mounts its own
 /// root-only synthetic bootstrap key, and every start is followed by the application's bootstrap of this
-/// target's synthetic control token, which <see cref="TestAccess.Live"/> then names for its origin. The only
-/// outbound call a fixture makes is to an optional
-/// Broodling reader, bound to the bridge gateway on the host and named <c>broodling</c> inside the
-/// target; a mounted file replaces only the helper's image-level reader origin.
+/// target's synthetic control token, which <see cref="TestAccess.Live"/> then names for its origin. No fixture
+/// makes an outbound call, and nothing names or serves Broodling to the target.
 /// </summary>
 internal sealed class StockDirectTarget : IAsyncDisposable
 {
     private readonly string id = "broodling-180-" + Guid.NewGuid().ToString("N");
     private string image;
     private readonly string root;
-    private readonly Uri? reader;
     private readonly int port = FreePort();
     internal string Origin => $"http://127.0.0.1:{port}";
     /// <summary>The control token currently configured, and installed after each start, for this target.</summary>
@@ -36,23 +33,21 @@ internal sealed class StockDirectTarget : IAsyncDisposable
     /// <summary>The forge's bare repository; the target reaches it as <c>https://github.com/acme/widget.git</c>.</summary>
     internal string Forge => Path.Combine(root, "widget.git");
 
-    private StockDirectTarget(string image, string root, Uri? reader) { this.image = image; this.root = root; this.reader = reader; }
+    private StockDirectTarget(string image, string root) { this.image = image; this.root = root; }
 
     /// <summary>
-    /// A freshly initialized target serving over an empty forge under <paramref name="parent"/>, whose
-    /// agents reach <paramref name="reader"/>, if given, as <c>broodling</c>. It runs the controlled layer
-    /// over this revision's DirectTarget image unless another controlled <paramref name="image"/> is given.
+    /// A freshly initialized target serving over an empty forge under <paramref name="parent"/>. It runs the controlled
+    /// layer over this revision's DirectTarget image unless another controlled <paramref name="image"/> is given.
     /// </summary>
-    internal static async Task<StockDirectTarget> StartAsync(string parent, Uri? reader = null, string? image = null)
+    internal static async Task<StockDirectTarget> StartAsync(string parent, string? image = null)
     {
-        var target = new StockDirectTarget(image ?? await Controlled.Value, Path.Combine(parent, "forge"), reader);
+        var target = new StockDirectTarget(image ?? await Controlled.Value, Path.Combine(parent, "forge"));
         try
         {
             Directory.CreateDirectory(target.root);
             AttemptFixture.RunGit(target.root, "init", "--quiet", "--bare", target.Forge);
             // Native writes as root and fetches as its isolated writer identity.
             AttemptFixture.RunGit(target.Forge, "config", "core.sharedRepository", "0666");
-            if (reader is not null) File.WriteAllText(target.ReaderOrigin, $"http://broodling:{reader.Port}\n");
             RequireSuccess(await DockerCommand("volume", "create", target.id + "-state"));
             RequireSuccess(await DockerCommand("volume", "create", target.id + "-home"));
             RequireSuccess(await DockerCommand("volume", "create", target.id + "-secrets"));
@@ -173,22 +168,11 @@ internal sealed class StockDirectTarget : IAsyncDisposable
     private string[] Secrets => ["--mount", $"type=volume,src={id}-secrets,dst=/run/secrets,readonly"];
     private string[] Arguments => ["--listen", TargetReadiness.NativeListen, "--public-origin", Origin, "--storage", "/state"];
     private string[] ForgeMount => ["--mount", $"type=bind,src={root},dst=/forge"];
-    private string ReaderOrigin => Path.Combine(root, "reader-origin");
-    private string[] Reader => reader is null ? [] : ["--add-host", $"broodling:{reader.Host}",
-        "--mount", $"type=bind,src={ReaderOrigin},dst=/etc/broodling/reader-origin,readonly"];
-
-    /// <summary>The host's address on the default bridge network, where a reader for the target can bind narrowly.</summary>
-    internal static async Task<string> BridgeGatewayAsync()
-    {
-        var inspected = await DockerCommand("network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}");
-        RequireSuccess(inspected);
-        return inspected.Output.Trim();
-    }
 
     private async Task ServeAsync()
     {
         RequireSuccess(await DockerCommand(["run", "--detach", "--name", id, "--publish", $"127.0.0.1:{port}:18770",
-            .. Volumes, .. Secrets, .. ForgeMount, .. Reader, image, .. Arguments]));
+            .. Volumes, .. Secrets, .. ForgeMount, image, .. Arguments]));
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
         for (var retry = 0; retry < 300; retry++)
         {

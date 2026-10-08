@@ -191,11 +191,9 @@ The Compose installation
 (homelab-iac#353) remains open. #113 serves retained
 work and frozen references over read-only HTTP from the ASP.NET host, opening
 existing state only. #118 adds a callable completion observer that retains
-correlated HTTP results with no caller waiting. #114 gives a new bundle-bound native task the RequestBundle's
-compact manifest instead of reference bodies; native agents read references on
-demand through a read-only helper in the DirectTarget image that calls the
-existing reader as the `broodling` service. Earlier prepared records keep their
-exact bytes. #112 adds the callable bundled proposer: the supported model
+correlated HTTP results with no caller waiting. #241 makes each native submission carry its RequestBundle
+references in place of #114's agent reads from Broodling; see
+[frozen references](../implementation/zeroshot-native-integration.md#frozen-references). #112 adds the callable bundled proposer: the supported model
 behind the pinned gateway prepares that bundle-bound Contract from the Executable
 Request, a compact manifest and on-demand frozen-reference reads. Malformed or
 authority-changing proposals retain findings and reject the submission; gateway

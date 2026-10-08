@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 """Controlled provider for the hosted target: each node's reply follows its response schema."""
+import base64
 import json
 import subprocess
 import sys
@@ -42,15 +43,15 @@ elif schema["type"] == "null":
         time.sleep(0.2)
     # The worker changes the checkout so delivery has a candidate commit.
     Path("README.md").write_text("candidate from the controlled provider\n")
-    # Like an agent consulting its available references, it reads each listed one through the
-    # installed helper, using only the bundle and reference identities from its frozen task.
+    # Like an agent consulting its available references, it writes each one's exact bytes as its frozen
+    # task carries them, with no reader to call.
     task = node_input["task"]
     bundle = json.loads(task.split("\n\n", 1)[1]).get("requestBundle")
     for index, reference in enumerate(bundle["references"] if bundle else []):
-        read = subprocess.run(["/usr/local/bin/broodling-reference", bundle["bundleId"], reference["referenceId"]],
-                              capture_output=True, check=True)
+        content = reference["content"]
         Path("references").mkdir(exist_ok=True)
-        Path("references", str(index)).write_bytes(read.stdout)
+        Path("references", str(index)).write_bytes(
+            base64.b64decode(content) if reference["encoding"] == "base64" else content.encode())
 # Hosted Codex resumes a session by thread ID when it asks for a corrected reply.
 thread = arguments[-2] if arguments[:2] == ["exec", "resume"] else str(uuid.uuid4())
 for event in (

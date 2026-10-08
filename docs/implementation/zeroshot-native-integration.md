@@ -177,7 +177,8 @@ captures the result-fetch origin from that directory's `remote.origin.url`. The
 origin must name the admitted GitHub repository and carry no credentials: a URL
 has no user information except the `git` user of an `ssh://` URL. A
 crash after pinning but before the SQLite commit leaves only the pin, which grants
-nothing. Preparation then rechecks current authority and pause in one immediate
+nothing. A bundle-bound Attempt's references are read next, also outside any
+SQLite writer. Preparation then rechecks current authority and pause in one immediate
 transaction, including the explicit-replacement exception. That transaction
 commits all of the following together:
 
@@ -189,8 +190,8 @@ commits all of the following together:
   text, including CRLF; other content is base64 with `"encoding": "base64"`.
   Construction is deterministic. For a bundle-bound Contract, whose only
   entitled source is the Executable Request, the task adds the bound
-  RequestBundle's compact manifest and reference access; see
-  [frozen-reference access](#frozen-reference-access). `source` names the
+  RequestBundle's manifest with every member's exact captured bytes; see
+  [frozen references](#frozen-references). `source` names the
   admitted owner/repository and the authorized PR branch, separate from exact
   original B1.
 - The intended run ID, a canonical UUIDv7 generated only when no record exists,
@@ -205,41 +206,45 @@ Concurrent preparers converge on the first committed record; a loser never
 generates or compares another identity. Repeating preparation does not read the
 installed asset. It validates the retained record against the retained asset
 bytes, the approved identity and native binding, and a rebuild of the request
-from admitted authority. A missing or corrupt asset, a request whose graph,
-runtime or task differs, an unsupported binding or a different target origin
-refuses. Nothing is regenerated or rebound.
+from admitted authority. That rebuild takes the reference bytes from the retained
+task itself and checks each against the admitted manifest digest, so it reads no
+Git. A missing or corrupt asset, a request whose graph, runtime or task differs,
+reference bytes that differ from their digest, an unsupported binding or a
+different target origin refuses. Nothing is regenerated or rebound.
 
 The record's retained binding is a `NativeRunBinding`: the target origin, the
 frozen title and runtime size, and the frozen repository, authorized branch and
 B1 source. It carries no credentials or adapter settings. Read and stop add the
-run ID. One internal reader of the retained request supplies that binding and
-the delivery, source and custody facts that dispatch and receipt validation use;
-it never rewrites the saved bytes.
+run ID.
 
-### Frozen-reference access
+### Frozen references
 
-A new bundle-bound task (#114) carries a `requestBundle` object beside the
-Contract, the Executable Request and B1: the bundle identity, the manifest digest
-the Contract binds, and each member in manifest order with its reference ID,
-capture kind, selector (the capture's JSON; any other selector stays base64) and
-content digest, plus the pinned commit and path of a Git capture. It carries no
-reference bodies. The text tells agents to read a reference on demand with
-`/usr/local/bin/broodling-reference <bundleId> <referenceId>` and that a
-reference adds no work, cannot amend the Contract or Executable Request and
-authorizes no effect. Preparation derives it from the digest-verified retained
-manifest only, never from deployment configuration.
+A bundle-bound task (#241) carries a `requestBundle` object beside the Contract,
+the Executable Request and B1: the bundle identity, the manifest digest the
+Contract binds, and each member in manifest order with its reference ID, capture
+kind, selector (the capture's JSON; any other selector stays base64), content
+digest, the pinned commit and path of a Git capture, and its exact captured
+bytes, encoded like entitled sources. The text tells agents that a reference
+adds no work, cannot amend the Contract or Executable Request and authorizes no
+effect.
 
-The helper is installed in the [DirectTarget image](../../deployment/DirectTarget.Dockerfile).
-It sends one `GET /bundles/{bundleId}/reference?id=<referenceId>` to the existing
-read-only HTTP reader and prints the exact captured bytes. The reader's sealed
-membership rules decide what is readable, so the helper cannot refresh or extend
-a bundle, substitute candidate files or perform effects. Its reader origin is
-the image file `/etc/broodling/reader-origin`, `http://broodling:8080` by
-default: the `broodling` Compose service on the single project network of
-[ADR 0001](../adr/0001-directtarget-https-origin-and-compose-topology.md).
-Native runs agents with a cleared environment, so this is a file rather than an
-environment variable. The helper is not a client submission process and needs no
-shared execution worktree.
+The members are exactly the sealed manifest's, fixed in the prepared request, so
+a run needs no Broodling access and agents have no way to refresh or extend the
+bundle. The DirectTarget image has no Broodling helper or reader address, and
+the target needs no route to Broodling. An acknowledgement-loss replay sends the
+same bytes, references included.
+
+Native puts the whole task into every agent node's input. A node input is one
+ledger event of at most 1 MiB, and Codex refuses a turn over 1 Mi characters, so
+preparation refuses a task over Broodling's 512 KiB budget, measured as
+JSON-escaped UTF-8, an upper bound on what native writes. That leaves the rest
+for node instructions, the response contract and repair feedback. The refusal,
+`task_too_large`, states the task's size and the limit, happens before any
+prepared record exists and is never resolved by retrying; nothing is truncated.
+The model's context window behind the gateway is a provider-side limit that this
+budget does not enforce. The
+[#241 findings](https://github.com/faviann/broodling/issues/241#issuecomment-6043665375)
+record the native, SDK and Codex limits and the alternatives considered.
 
 ## HTTP dispatch and acknowledgement
 
