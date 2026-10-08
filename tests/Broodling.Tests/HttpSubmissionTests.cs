@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
@@ -225,13 +226,14 @@ public sealed class HttpSubmissionTests
                 ["selector"] = JsonNode.Parse(reference.Selector), ["contentSha256"] = reference.ContentSha256
             };
             if (reference.GitPath is not null) { expected["gitCommitOid"] = reference.GitCommitOid; expected["gitPath"] = reference.GitPath; }
-            var captured = fixture.Store.ReadRequestBundleReference(bundle.BundleId, reference.ReferenceId).Content;
-            var base64 = reference.ReferenceId == "repo:docs/logo.png";
-            expected["encoding"] = base64 ? "base64" : "utf-8";
-            expected["content"] = base64 ? Convert.ToBase64String(captured) : Encoding.UTF8.GetString(captured);
+            expected["encoding"] = reference.ReferenceId == "repo:docs/logo.png" ? "base64" : "utf-8";
+            var content = (string)entry!["content"]!;
+            expected["content"] = content;
             await Assert.That(JsonNode.DeepEquals(entry, expected)).IsTrue();
+            var bytes = (string)entry["encoding"]! == "base64" ? Convert.FromBase64String(content) : Encoding.UTF8.GetBytes(content);
+            await Assert.That(Convert.ToHexStringLower(SHA256.HashData(bytes))).IsEqualTo(reference.ContentSha256);
         }
-        // Text stays as written in the task, not escaped beyond what JSON requires.
+        // HTML characters and accented text stay as written in the task, not as \u escapes.
         await Assert.That(task.Contains("Schema canary — café <a&b>")).IsTrue();
     }
 
@@ -246,6 +248,31 @@ public sealed class HttpSubmissionTests
         await Assert.That(refused!.Code).IsEqualTo("task_too_large");
         await Assert.That(refused.Message).Contains($"the supported limit is {BroodlingStore.NativeTaskBytes} bytes");
         await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)).IsNull();
+    }
+
+    [Test]
+    public async Task PreparationMeasuresTheTaskAsEscapedJson()
+    {
+        // 200 KiB of quotes: the task text holds each as \" and native's JSON writes that as \\\", so the task stays
+        // under the budget as raw text and exceeds it as native writes it.
+        using var fixture = await BundleHttpFixture.CreateAsync(schema: new string('"', 200 * 1024));
+
+        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+            .Throws<NativeTaskTooLarge>();
+        await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)).IsNull();
+    }
+
+    [Test]
+    public async Task RetainedReferenceBytesMustMatchTheManifestDigest()
+    {
+        using var fixture = await BundleHttpFixture.CreateAsync();
+        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target);
+        fixture.Git.State.Execute("DROP TRIGGER submission_binding_stable; "
+            + "UPDATE native_submissions SET request_json = replace(request_json, 'Schema canary', 'Schema canarx')");
+
+        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+            .Throws<SubmissionConflict>();
+        await Assert.That(fixture.Store.FindSubmission(prepared.AttemptId)!.RequestJson).Contains("Schema canarx");
     }
 
     [Test]
