@@ -110,7 +110,7 @@ builds and publishes ([adopted target environment](#adopted-target-environment))
 | Service | Source | Image | User |
 | --- | --- | --- | --- |
 | `broodling` | [`Broodling.Dockerfile`](Broodling.Dockerfile), repository root | `ghcr.io/faviann/broodling` | `1654:1654` |
-| `zeroshot` | the adoption record, [`target-environment.json`](target-environment.json) | the record's `image` by digest (`dotnet-r2`) | container root |
+| `zeroshot` | the adoption record, [`dotnet-r2.adoption.json`](../src/Broodling/environments/dotnet-r2.adoption.json) | the record's `image` by digest (`dotnet-r2`) | container root |
 | `zeroshot-tls` | not built | `caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b` | `10443:10443` |
 
 To build and check them locally from the repository root:
@@ -119,7 +119,7 @@ To build and check them locally from the repository root:
 export NuGetPackageSourceCredentials_github="Username=YOUR_GITHUB_USER;Password=READ_PACKAGES_TOKEN"
 docker build -f deployment/Broodling.Dockerfile \
   --secret id=nuget-github,env=NuGetPackageSourceCredentials_github -t broodling:REVIEWED_REVISION .
-target="$(jq -r .image deployment/target-environment.json)"
+target="$(jq -r .image src/Broodling/environments/dotnet-r2.adoption.json)"
 docker pull "$target"
 tests/images/demonstrate.sh broodling:REVIEWED_REVISION "$target"
 ```
@@ -266,7 +266,8 @@ its startup interface ([entrypoint boundary](#entrypoint-boundary)).
 Publication alone neither adopts nor deploys an image, and adoption deploys
 nothing.
 
-The adoption record, [`target-environment.json`](target-environment.json)
+The adoption record bundled with the release,
+[`dotnet-r2.adoption.json`](../src/Broodling/environments/dotnet-r2.adoption.json)
 (`broodling.target-environment-adoption/v1`), names one adopted environment
 release:
 
@@ -277,7 +278,7 @@ release:
   came from.
 - `manifest`: the retained exact bytes of that `manifest.json`
   (`zeroshot-environment.manifest/v2`), at
-  [`environments/dotnet-r2.manifest.json`](environments/dotnet-r2.manifest.json),
+  [`dotnet-r2.manifest.json`](../src/Broodling/environments/dotnet-r2.manifest.json),
   and their SHA-256. A mutable registry or release lookup is not evidence.
 - `image`: the adopted image by digest, which the manifest also records.
 
@@ -824,7 +825,7 @@ of the adopted environment's manifest with the digest from its
   "rootCertificateMount": "/NEW/zeroshot-tls/root",
   "broodlingContainerName": "broodling-broodling-1",
   "bootstrapKeyFile": "/NEW/secrets/zeroshot/zeroshot-bootstrap-key",
-  "environmentManifest": "/RELEASE/deployment/environments/dotnet-r2.manifest.json",
+  "environmentManifest": "/RELEASE/src/Broodling/environments/dotnet-r2.manifest.json",
   "environmentManifestSha256": "8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e"
 }
 ```

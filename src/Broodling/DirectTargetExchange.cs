@@ -132,7 +132,7 @@ internal static class DirectTargetDiscovery
     internal const string OecpPath = "/native-v2/oecp";
     internal const string BootstrapPath = "/native-v2/private-bootstrap";
 
-    private static readonly Dictionary<string, string> Required = new(StringComparer.Ordinal)
+    internal static readonly IReadOnlyDictionary<string, string> Required = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["kind"] = Kind, ["authentication"] = "private_capability", ["audience"] = "controller",
         ["runPath"] = RunPath, ["sessionPath"] = SessionPath, ["oecpPath"] = OecpPath, ["privateBootstrapPath"] = BootstrapPath

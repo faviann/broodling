@@ -36,7 +36,7 @@ The asset check and the image tests require rootful Docker access. The asset
 check copies the DirectTarget binding's native executable out of upstream's
 native 10.10.0 target image, pulled by its pinned digest when absent. The image
 tests run the adopted target environment image, pulled by the digest in
-[`deployment/target-environment.json`](../deployment/target-environment.json)
+[`src/Broodling/environments/dotnet-r2.adoption.json`](../src/Broodling/environments/dotnet-r2.adoption.json)
 when absent, so an uncached run needs access to GHCR. The
 [transition check](#native-state-transition-check) also pulls the
 listed published target images by digest when absent. They also use the pinned

@@ -43,7 +43,7 @@ Since #186 the inventory describes the existing
   "rootCertificateMount": "/srv/broodling/zeroshot-tls/root",
   "broodlingContainerName": "broodling-broodling-1",
   "bootstrapKeyFile": "/srv/broodling/secrets/zeroshot/zeroshot-bootstrap-key",
-  "environmentManifest": "/srv/broodling/release/deployment/environments/dotnet-r2.manifest.json",
+  "environmentManifest": "/srv/broodling/release/src/Broodling/environments/dotnet-r2.manifest.json",
   "environmentManifestSha256": "8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e"
 }
 ```

@@ -1,4 +1,4 @@
 # Execution-asset identity is SHA-256 of the exact committed bytes.
 src/Broodling/execution-assets/*.json -text
-# The adopted environment manifest is retained as its exact producer bytes.
-deployment/environments/*.json -text
+# The bundled adoption records and the producer manifests they retain are identified by their exact bytes.
+src/Broodling/environments/*.json -text

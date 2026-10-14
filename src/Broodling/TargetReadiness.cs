@@ -183,15 +183,15 @@ public sealed class TargetReadiness
             foreach (var (label, program, expected) in new[] {
                 ("native", TargetEnvironment.NativeExecutable, DirectTargetBinding.NativeVersion),
                 ("codex", "/usr/local/bin/codex", "codex-cli " + DirectTargetBinding.CodexVersion),
-                ("node", "/usr/local/bin/node", environment.NodeVersion) })
+                ("node", "/usr/local/bin/node", environment.Components.Node) })
             {
                 Require((await Execute(program, "--version")).Trim() == expected, $"Target {label} version differs from the adopted environment.");
                 versions[label] = expected;
             }
             // Only the first line: do not compare or return trailing process output.
-            Require((await Execute("/usr/bin/gh", "--version")).Trim().Split('\n')[0] == environment.GhVersion,
+            Require((await Execute("/usr/bin/gh", "--version")).Trim().Split('\n')[0] == environment.Components.Gh,
                 "Target GitHub CLI version differs from the adopted environment.");
-            versions["gh"] = environment.GhVersion;
+            versions["gh"] = environment.Components.Gh;
             foreach (var (program, expected) in new[] {
                 (TargetEnvironment.NativeExecutable, DirectTargetBinding.NativeExecutableSha256),
                 (TargetEnvironment.ResticExecutable, DirectTargetBinding.ResticExecutableSha256),

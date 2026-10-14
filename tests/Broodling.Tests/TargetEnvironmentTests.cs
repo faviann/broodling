@@ -8,10 +8,10 @@ using static Broodling.Tests.TargetImage;
 namespace Broodling.Tests;
 
 /// <summary>
-/// The adoption record, <c>deployment/target-environment.json</c>, and the producer manifest bytes it retains:
-/// the record's digest and image are the manifest's, the manifest is one this revision supports, every
-/// component is fixed by an artifact checksum or the base image digest, and the adopted image actually
-/// carries what the manifest states.
+/// The adoption record, <c>src/Broodling/environments/dotnet-r2.adoption.json</c>, and the producer manifest bytes
+/// it retains: the release bundles exactly that adoption, the record's digest and image are the manifest's, the
+/// manifest is one this revision supports, every component is fixed by an artifact checksum or the base image
+/// digest, and the adopted image actually carries what the manifest states.
 /// </summary>
 public sealed class TargetEnvironmentTests
 {
@@ -28,6 +28,61 @@ public sealed class TargetEnvironmentTests
         // The environment release is its own identity, apart from the native release it carries.
         await Assert.That(Adopted.Release).IsNotEqualTo(DirectTargetBinding.NativeRelease);
         await Assert.That(Adopted.Release).IsEqualTo("dotnet-r2");
+        await Assert.That(environment.Os).IsEqualTo((string)Manifest["os"]!);
+        await Assert.That(environment.Components.DotnetSdks).IsEquivalentTo(["10.0.401"]);
+    }
+
+    /// <summary>
+    /// The release carries exactly the dotnet-r2 adoption, as its committed bytes; nothing else is adopted. A
+    /// change here is a new adoption decision, not a refactoring.
+    /// </summary>
+    [Test]
+    public async Task ReleaseBundlesExactlyTheDotnetR2Adoption()
+    {
+        var bundled = AdoptedEnvironments.LoadBundled();
+        await Assert.That(bundled.Select(environment => environment.Release)).IsEquivalentTo(["dotnet-r2"]);
+        var adopted = bundled.Single();
+        await Assert.That(adopted.RecordSha256).IsEqualTo("abdd75035c7503d7e53819c64d02e204822dec4e6882dc54d399866d04acdb63");
+        await Assert.That(adopted.ManifestSha256).IsEqualTo("8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e");
+        await Assert.That(adopted.Record.SequenceEqual(File.ReadAllBytes(Adopted.RecordFile))).IsTrue();
+        await Assert.That(adopted.Manifest.SequenceEqual(File.ReadAllBytes(Adopted.Manifest))).IsTrue();
+        await Assert.That(adopted.Image).IsEqualTo(Adopted.Image);
+        await Assert.That(Directory.GetFiles(Adopted.Directory).Select(file => Path.GetFileName(file)))
+            .IsEquivalentTo(["dotnet-r2.adoption.json", "dotnet-r2.manifest.json"]);
+    }
+
+    /// <summary>
+    /// An adoption whose manifest names another native, a record that names another image than its manifest, a
+    /// manifest that is not the retained bytes and a repeated release are refused when the set is loaded.
+    /// </summary>
+    [Test]
+    [Arguments("native")]
+    [Arguments("discovery")]
+    [Arguments("image")]
+    [Arguments("digest")]
+    [Arguments("repeated")]
+    public async Task AdoptionSetRefusesWhatThisReleaseCannotUse(string defect)
+    {
+        var directory = Directory.CreateTempSubdirectory("broodling-adoption-").FullName;
+        try
+        {
+            var manifest = Manifest;
+            var record = Adopted.Record.DeepClone();
+            switch (defect)
+            {
+                case "native": manifest["native"]!["version"] = "10.9.0"; break;
+                case "discovery": manifest["startupInterfaces"]!["native"]!["discovery"]!["authentication"] = "none"; break;
+                case "image": record["image"] = "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:" + new string('0', 64); break;
+            }
+            byte[] bytes = defect == "digest" ? [.. File.ReadAllBytes(Adopted.Manifest), (byte)'\n'] : defect is "native" or "discovery"
+                ? System.Text.Encoding.UTF8.GetBytes(manifest.ToJsonString()) : File.ReadAllBytes(Adopted.Manifest);
+            if (defect is "native" or "discovery") record["manifest"]!["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            File.WriteAllBytes(Path.Combine(directory, "dotnet-r2.manifest.json"), bytes);
+            File.WriteAllText(Path.Combine(directory, "dotnet-r2.adoption.json"), record.ToJsonString());
+            if (defect == "repeated") File.WriteAllText(Path.Combine(directory, "again.adoption.json"), record.ToJsonString());
+            await Assert.That(() => AdoptedEnvironments.Load(directory)).Throws<UnsupportedRuntime>();
+        }
+        finally { Directory.Delete(directory, recursive: true); }
     }
 
     /// <summary>
@@ -102,38 +157,23 @@ public sealed class TargetEnvironmentTests
         await Assert.That(platform[0]).IsEqualTo((string)manifest["platform"]!);
         await Assert.That(JsonNode.Parse(platform[1])!.AsArray().Select(digest => (string)digest!)).Contains(Adopted.Image);
 
-        string Version(string tool) => (string)manifest["tools"]![tool]!["version"]!;
-        string Harness(string harness) => (string)manifest["harnesses"]![harness]!["version"]!;
+        var probes = EnvironmentProbe.For(TargetEnvironment.Read(File.ReadAllBytes(Adopted.Manifest), Adopted.ManifestSha256));
+        // Every stated version, the OS identity, the native, restic and entrypoint bytes and every Debian package.
+        await Assert.That(probes.Select(probe => probe.Component)).IsEquivalentTo(["os", "native", "codex", "harness-node",
+            "node", "gh", "git", "python", "claude", "copilot", "dotnet-sdks", "dotnet-runtimes"]);
         string[] expected =
         [
-            "zeroshot " + (string)manifest["native"]!["version"]!,
+            .. probes.SelectMany(probe => probe.Expected),
             (string)manifest["native"]!["zeroshot"]!["sha256"]! + "  /usr/local/bin/zeroshot",
             (string)manifest["native"]!["restic"]!["sha256"]! + "  /usr/local/bin/restic",
             (string)manifest["integration"]!["broodling-entrypoint"]!["sha256"]! + "  /usr/local/bin/broodling-target",
-            "codex-cli " + Harness("codex"),
-            Harness("claude") + " (Claude Code)",
-            "GitHub Copilot CLI " + Harness("copilot") + ".",
-            Version("node"), Version("harness-node"), Version("gh"), Version("git"), Version("python"),
-            .. manifest["dotnet"]!["sdks"]!.AsArray().Select(sdk => (string)sdk!),
-            .. manifest["dotnet"]!["runtimes"]!.AsArray().Select(runtime => (string)runtime!),
-            "PRETTY_NAME=\"" + (string)manifest["os"]! + "\"",
             .. manifest["osPackages"]!.AsArray().Select(package =>
                 $"{(string)package!["name"]!} {(string)package["version"]!} {(string)package["architecture"]!}")
         ];
-        var observed = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", image, "-ec", """
-            zeroshot --version
+        var observed = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", image, "-ec",
+            EnvironmentProbe.Script(probes) + """
+
             sha256sum /usr/local/bin/zeroshot /usr/local/bin/restic /usr/local/bin/broodling-target
-            codex --version 2>/dev/null
-            claude --version
-            copilot --version | head -n 1
-            node --version
-            /opt/zeroshot/bin/node --version
-            gh --version | head -n 1
-            git --version
-            python3 --version
-            dotnet --list-sdks | cut -d ' ' -f 1
-            dotnet --list-runtimes | cut -d ' ' -f 1,2
-            grep '^PRETTY_NAME=' /etc/os-release
             dpkg-query --show --showformat '${Package} ${Version} ${Architecture}\n'
             """);
         RequireSuccess(observed);

@@ -224,16 +224,16 @@ printf '%s\n' "$ownership"
 echo "broodling runs as $broodling_user; its only writable mount is its state, where the store it created is its own"
 
 # The image's own check-target command, run on the host as the operator with Docker access, against the
-# adopted environment manifest that the adoption record retains.
-deployment="$(realpath -- "$here/../../deployment")"
-manifest="$deployment/$(jq -r .manifest.path "$deployment/target-environment.json")"
+# adopted environment manifest that the adoption record bundled with the image retains.
 extract="$(docker create "$broodling_image")"
 docker cp --quiet "$extract:/app" "$root/host"
 docker rm "$extract" >/dev/null
+adoption="$root/host/environments/dotnet-r2.adoption.json"
+manifest="$root/host/environments/$(jq -r .manifest.path "$adoption")"
 jq -n --arg origin "$origin" --arg root "$root" --arg network "${project}_default" \
     --arg target "$(container zeroshot)" --arg tls "$(container zeroshot-tls)" --arg broodling "$broodling_container" \
     --arg image "$(docker inspect --format '{{.Image}}' "$(container zeroshot)")" --arg manifest "$manifest" \
-    --arg manifestSha256 "$(jq -r .manifest.sha256 "$deployment/target-environment.json")" \
+    --arg manifestSha256 "$(jq -r .manifest.sha256 "$adoption")" \
     '{containerName: $target, imageId: $image, directOrigin: $origin, stateMount: "\($root)/target-state",
       homeMount: "\($root)/target-home", network: $network, tlsContainerName: $tls,
       rootKeyMount: "\($root)/tls-root-key", rootCertificateMount: "\($root)/tls-root", broodlingContainerName: $broodling,
