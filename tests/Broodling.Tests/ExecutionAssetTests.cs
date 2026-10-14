@@ -24,6 +24,7 @@ public sealed class ExecutionAssetTests
     [Arguments("changed-asset")]
     [Arguments("wrong-hash")]
     [Arguments("rebound-native")]
+    [Arguments("rebound-codex")]
     [Arguments("rebound-policy")]
     [Arguments("rebound-recipe")]
     [Arguments("10.3-approval")]
@@ -48,7 +49,8 @@ public sealed class ExecutionAssetTests
                     File.WriteAllBytes(asset, bytes);
                     break;
                 case "wrong-hash": approval["asset"]!["sha256"] = new string('0', 64); break;
-                case "rebound-native": approval["native"]!["release"]!["resticLinuxX64ExecutableSha256"] = new string('0', 64); break;
+                case "rebound-native": approval["native"]!["resticLinuxX64ExecutableSha256"] = new string('0', 64); break;
+                case "rebound-codex": approval["codex"]!["version"] = "0.153.4"; break;
                 case "rebound-policy": approval["policy"]!["pullRequestFeedback"] = "ignore"; break;
                 case "rebound-recipe": approval["generation"]!["recipeRevision"] = new string('0', 40); break;
                 case "10.3-approval":
@@ -83,6 +85,7 @@ public sealed class ExecutionAssetTests
         await Assert.That(JsonNode.DeepEquals(manifest["asset"], new JsonObject { ["file"] = DirectTargetBinding.AssetFile,
             ["bytes"] = ExecutionAsset.LoadBundled().Content().Length, ["sha256"] = DirectTargetBinding.AssetSha256 })).IsTrue();
         await Assert.That(JsonNode.DeepEquals(manifest["native"], DirectTargetBinding.Native())).IsTrue();
+        await Assert.That(JsonNode.DeepEquals(manifest["codex"], DirectTargetBinding.Codex())).IsTrue();
         var policy = manifest["policy"]!;
         await Assert.That((string)policy["gatewayBaseUrl"]!).IsEqualTo(DirectTargetBinding.GatewayBaseUrl);
         var runtime = ExecutionAsset.LoadBundled().Runtime().AsObject();
@@ -113,16 +116,16 @@ public sealed class ExecutionAssetTests
     }
 
     [Test]
-    public async Task PinnedReleaseReproducesAndAdmitsTheApprovedAsset()
+    public async Task PinnedNativeImageReproducesAndAdmitsTheApprovedAsset()
     {
-        // The binding's own pinned native release; generate.sh downloads it once into the test workspace
-        // cache and verifies archive, executable, recipe and structure against approval.json.
-        var cache = Path.Combine(Environment.GetEnvironmentVariable("BROODLING_TEST_WORKSPACE_ROOT")
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "broodling-tests"), "native-releases");
+        // The binding's own pinned native: generate.sh copies the executable out of the native image (pulled by
+        // digest when absent, and then removed after the run) and verifies executable, recipe and structure
+        // against approval.json.
+        await TargetImage.Pinned(DirectTargetBinding.NativeImage);
         var output = Path.Combine(Directory.CreateTempSubdirectory("broodling-asset-").FullName, "asset.json");
         try
         {
-            await Run(Path.Combine(Source, "generate.sh"), "--fetch", cache, output);
+            await Run(Path.Combine(Source, "generate.sh"), "--image", output);
             await Assert.That(File.ReadAllBytes(output).SequenceEqual(ExecutionAsset.LoadBundled().Content())).IsTrue();
         }
         finally
