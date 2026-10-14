@@ -453,8 +453,7 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
   `37235647508`); the SDK publishes no GitHub release for it.
 - Approved asset: SHA-256
   `258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc`, with an
-  approval manifest that awaits the owner's explicit review in #234's pull
-  request. Native: `zeroshot 10.10.0`, source `3ee1192cec359a0b997f464e703a936e8b67d63c`,
+  approval manifest that the owner approved in #234's pull request (#244). Native: `zeroshot 10.10.0`, source `3ee1192cec359a0b997f464e703a936e8b67d63c`,
   Linux x86-64 executable SHA-256
   `fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5`, from
   `ghcr.io/the-open-engine/zeroshot-target:10.10.0@sha256:9769f74865d7e1137b82c9ed2ced4cbedb56cfd5fef6c9e8c0647955ba0c438b`;
