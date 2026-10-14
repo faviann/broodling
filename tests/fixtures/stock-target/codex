@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/local/bin/python3
 """Controlled provider for the hosted target: each node's reply follows its response schema."""
 import base64
 import json
@@ -10,7 +10,7 @@ from pathlib import Path
 
 arguments = sys.argv[1:]
 if arguments == ["--version"]:
-    print("codex-cli 0.153.4")
+    print("codex-cli 0.155.0")
     raise SystemExit(0)
 prompt = sys.stdin.read()
 schema = json.loads(Path(arguments[arguments.index("--output-schema") + 1]).read_text())["properties"]["response"]

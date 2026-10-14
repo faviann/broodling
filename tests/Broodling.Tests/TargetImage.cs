@@ -1,17 +1,31 @@
 using System.Diagnostics;
+using System.Text.Json.Nodes;
 using TUnit.Core;
 
 namespace Broodling.Tests;
 
 /// <summary>
-/// The actual DirectTarget image and its controlled provider/forge layer. The DirectTarget image is
-/// the prebuilt candidate named by <c>BROODLING_TEST_TARGET_IMAGE</c>, which is kept afterwards, or
-/// else is built from this revision. Each image is made once per test run, and everything the run
-/// built or pulled is removed afterwards.
+/// The adopted target environment as its adoption record, <c>deployment/target-environment.json</c>, names it:
+/// the image by digest and the retained manifest bytes with their digest.
+/// </summary>
+internal static class Adopted
+{
+    private static readonly string deployment = Path.Combine(TestRepository.Root, "deployment");
+    internal static JsonNode Record { get; } = JsonNode.Parse(File.ReadAllText(Path.Combine(deployment, "target-environment.json")))!;
+    internal static string Release => (string)Record["environment"]!;
+    internal static string Image => (string)Record["image"]!;
+    internal static string Manifest => Path.Combine(deployment, (string)Record["manifest"]!["path"]!);
+    internal static string ManifestSha256 => (string)Record["manifest"]!["sha256"]!;
+}
+
+/// <summary>
+/// The actual DirectTarget image, the adopted environment image pulled by its digest, and its controlled
+/// provider/forge layer. Each image is made once per test run, and everything the run built or pulled is
+/// removed afterwards.
 /// </summary>
 internal static class TargetImage
 {
-    internal static readonly Lazy<Task<string>> Direct = new(BuildDirect);
+    internal static readonly Lazy<Task<string>> Direct = new(() => Pinned(Adopted.Image));
     internal static readonly Lazy<Task<string>> Controlled = new(async () => await ControlledOver(await Direct.Value));
     internal static readonly Lazy<Task<string>> Tls = new(() => Pinned(TargetReadiness.TlsImage));
     private static readonly Dictionary<string, Lazy<Task<string>>> made = [];
@@ -44,16 +58,6 @@ internal static class TargetImage
         }
         return reference;
     });
-
-    private static async Task<string> BuildDirect()
-    {
-        if (Environment.GetEnvironmentVariable("BROODLING_TEST_TARGET_IMAGE") is { Length: > 0 } candidate) return candidate;
-        var deployment = Path.Combine(TestRepository.Root, "deployment");
-        var tag = "broodling-startup-test:" + Guid.NewGuid().ToString("N");
-        RequireSuccess(await DockerCommand("build", "--tag", tag, "--file", Path.Combine(deployment, "DirectTarget.Dockerfile"), deployment));
-        lock (built) built.Add(tag);
-        return tag;
-    }
 
     private static Task<string> Once(string key, Func<Task<string>> make)
     {

@@ -12,18 +12,25 @@ namespace Broodling;
 /// <c>broodling</c> containers, their project network and canonical host mount paths. Neither
 /// installation nor lifecycle authority. <c>BootstrapKeyFile</c> is the host file the target reads its
 /// bootstrap key from, which only the target and the bootstrap operation receive.
+/// <c>EnvironmentManifest</c> is a host copy of the adopted environment's manifest and
+/// <c>EnvironmentManifestSha256</c> the digest its adoption record retains.
 /// </summary>
 public sealed record TargetReadinessInventory(string ContainerName, string ImageId, string DirectOrigin,
     string StateMount, string HomeMount, string Network, string TlsContainerName, string RootKeyMount,
-    string RootCertificateMount, string BroodlingContainerName, string BootstrapKeyFile);
+    string RootCertificateMount, string BroodlingContainerName, string BootstrapKeyFile, string EnvironmentManifest,
+    string EnvironmentManifestSha256);
 
+/// <summary><c>Environment</c> is the adopted environment release the target image is, such as <c>dotnet-r2</c>.</summary>
 public sealed record TargetReadinessFacts(string ContainerName, string ContainerId, string ImageId, string DirectOrigin,
-    IReadOnlyDictionary<string, string> Versions, bool ApiPaginateSlurp = true, bool HostedUidTransition = true,
+    string Environment, IReadOnlyDictionary<string, string> Versions, bool ApiPaginateSlurp = true, bool HostedUidTransition = true,
     bool Ready = true, int ProviderTasks = 0);
 
 public sealed class TargetNotReady(string message) : Exception(message);
 
-/// <summary>Inspect the selected stack and discovery through its origin without submitting work or changing its lifecycle.</summary>
+/// <summary>
+/// Inspect the selected stack, its target against the adopted environment manifest, and discovery through its
+/// origin without submitting work or changing its lifecycle.
+/// </summary>
 public sealed class TargetReadiness
 {
     /// <summary>The pinned <c>zeroshot-tls</c> image, exactly as the container must be created from it.</summary>
@@ -34,9 +41,6 @@ public sealed class TargetReadiness
     internal const string NativeListen = "0.0.0.0:18770";
     /// <summary>Where the target entrypoint reads its root-only bootstrap key, which it copies privately for native.</summary>
     internal const string BootstrapKeySecret = "/run/secrets/zeroshot-bootstrap-key";
-    /// <summary>The target image's Codex, as the DirectTarget image pins it.</summary>
-    private const string CodexVersion = "codex-cli 0.153.4";
-    private const string GhSha256 = "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff";
     private static readonly string[] CredentialNames = ["GH_TOKEN", "GITHUB_TOKEN", "GATEWAY_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY"];
     private static readonly TimeSpan DiscoveryBudget = TimeSpan.FromSeconds(10);
     private readonly Func<IReadOnlyList<string>, CancellationToken, Task<string>> command;
@@ -69,7 +73,8 @@ public sealed class TargetReadiness
             cancellationToken.ThrowIfCancellationRequested();
             string[] names = [inventory.ContainerName, inventory.TlsContainerName, inventory.BroodlingContainerName];
             Require(names.All(name => !string.IsNullOrWhiteSpace(name) && !name.StartsWith('-')) && names.Distinct().Count() == 3
-                && !string.IsNullOrWhiteSpace(inventory.ImageId) && !string.IsNullOrWhiteSpace(inventory.Network),
+                && !string.IsNullOrWhiteSpace(inventory.ImageId) && !inventory.ImageId.StartsWith('-')
+                && !string.IsNullOrWhiteSpace(inventory.Network),
                 "Target inventory is invalid.");
             // In-project clients reach zeroshot-tls through the alias on the origin's port, where Caddy listens.
             Require(DirectTargetExchange.CanonicalOrigin(inventory.DirectOrigin) is { Scheme: "https", IsDefaultPort: true,
@@ -78,18 +83,36 @@ public sealed class TargetReadiness
             Require(selectedDirectOrigin == inventory.DirectOrigin,
                 "Invocation configuration differs from the recorded DirectTarget.");
             string[] paths = [inventory.StateMount, inventory.HomeMount, inventory.RootKeyMount, inventory.RootCertificateMount,
-                inventory.BootstrapKeyFile];
+                inventory.BootstrapKeyFile, inventory.EnvironmentManifest];
             Require(paths.All(path => !string.IsNullOrEmpty(path) && Path.IsPathFullyQualified(path) && PhysicalPaths.Resolve(path) == path),
                 "Target mount inventory must use canonical absolute paths.");
             Require(!Overlap(inventory.RootKeyMount, inventory.RootCertificateMount),
                 "The root key and certificate must be recorded in separate locations.");
             Require(rootCertificate == Path.Combine(inventory.RootCertificateMount, "root.crt"),
                 "Invocation configuration must trust the stack's public root, root.crt in the recorded root certificate mount.");
+            byte[] manifest;
+            try { manifest = await File.ReadAllBytesAsync(inventory.EnvironmentManifest, cancellationToken); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            { throw new TargetNotReady("The adopted environment manifest is unavailable."); }
+            var environment = TargetEnvironment.Read(manifest, inventory.EnvironmentManifestSha256 ?? "");
 
             using var inspection = JsonDocument.Parse(await command(["inspect", "--type", "container", .. names], cancellationToken));
             var records = inspection.RootElement;
             Require(records.GetArrayLength() == 3, "Expected exactly the recorded zeroshot, zeroshot-tls and broodling containers.");
             var (actual, tls, broodling) = (records[0], records[1], records[2]);
+
+            // The image the target was created from must be the adopted image, pulled by its digest.
+            using var imageInspection = JsonDocument.Parse(await command(["image", "inspect", inventory.ImageId], cancellationToken));
+            Require(imageInspection.RootElement.GetArrayLength() == 1, "Target image inspection is invalid.");
+            var image = imageInspection.RootElement[0];
+            Require(image.GetProperty("Os").GetString() == "linux" && image.GetProperty("Architecture").GetString() == "amd64",
+                "Target image platform is not supported; only linux/amd64 is.");
+            Require(Strings(image, "RepoDigests").Contains(environment.Image, StringComparer.Ordinal),
+                "Target image is not the adopted environment image.");
+            // Docker gives every container a volume for each one the image declares (the base's unused
+            // /var/lib/zeroshot); only those volumes may accompany the inventory's mounts.
+            var declared = image.GetProperty("Config").TryGetProperty("Volumes", out var volumes) && volumes.ValueKind == JsonValueKind.Object
+                ? volumes.EnumerateObject().Select(volume => volume.Name).ToHashSet(StringComparer.Ordinal) : [];
 
             Require(actual.GetProperty("Image").GetString() == inventory.ImageId, "Target image differs from inventory.");
             Require(actual.GetProperty("State").GetProperty("Running").GetBoolean(), "Target is stopped; start its existing container.");
@@ -101,11 +124,12 @@ public sealed class TargetReadiness
             Require(Strings(host, "CapDrop").Length == 0, "Target requires Docker's default Linux capabilities.");
             Require(host.GetProperty("RestartPolicy").GetProperty("Name").GetString() == "no",
                 "Target restart must remain operator controlled.");
-            Require(Strings(config.GetProperty("Entrypoint")).SequenceEqual(["/usr/local/bin/broodling-target"]),
+            Require(Strings(config.GetProperty("Entrypoint")).SequenceEqual([TargetEnvironment.Entrypoint]),
                 "Target entrypoint differs from the supported profile.");
             Require(!Strings(config.GetProperty("Env")).Any(value => CredentialNames.Contains(value.Split('=', 2)[0])),
                 "Dispatch credentials must not be installed in target configuration.");
-            var mounts = Mounts(actual);
+            var mounts = Mounts(actual.GetProperty("Mounts").EnumerateArray().Where(mount => mount.GetProperty("Type").GetString() != "volume"
+                || !declared.Contains(mount.GetProperty("Destination").GetString() ?? "")));
             Require(mounts.Length == 4 && mounts.ToHashSet().SetEquals([
                     new Mount(inventory.StateMount, "/state", true, true), new Mount(inventory.HomeMount, "/home/node", true, true),
                     new Mount(inventory.RootCertificateMount, "/tls-root", false, true),
@@ -153,24 +177,27 @@ public sealed class TargetReadiness
             var containerId = actual.GetProperty("Id").GetString();
             Require(!string.IsNullOrWhiteSpace(containerId) && !containerId.StartsWith('-'), "Target container identity is invalid.");
 
+
             Task<string> Execute(params string[] arguments) => command(["exec", containerId!, .. arguments], cancellationToken);
             var versions = new Dictionary<string, string>();
             foreach (var (label, program, expected) in new[] {
-                ("native", "/usr/local/bin/zeroshot", DirectTargetBinding.NativeVersion),
-                ("codex", "/usr/local/bin/codex", CodexVersion),
-                ("node", "/usr/local/bin/node", "v22.23.2") })
+                ("native", TargetEnvironment.NativeExecutable, DirectTargetBinding.NativeVersion),
+                ("codex", "/usr/local/bin/codex", "codex-cli " + DirectTargetBinding.CodexVersion),
+                ("node", "/usr/local/bin/node", environment.NodeVersion) })
             {
-                Require((await Execute(program, "--version")).Trim() == expected, $"Target {label} version differs from supported pin.");
+                Require((await Execute(program, "--version")).Trim() == expected, $"Target {label} version differs from the adopted environment.");
                 versions[label] = expected;
             }
-            var gh = (await Execute("/usr/bin/gh", "--version")).Trim().Split('\n')[0];
-            Require(gh.StartsWith("gh version 2.101.0 ", StringComparison.Ordinal), "Target GitHub CLI version differs from supported pin.");
-            versions["gh"] = "gh version 2.101.0"; // Do not return arbitrary trailing process output.
+            // Only the first line: do not compare or return trailing process output.
+            Require((await Execute("/usr/bin/gh", "--version")).Trim().Split('\n')[0] == environment.GhVersion,
+                "Target GitHub CLI version differs from the adopted environment.");
+            versions["gh"] = environment.GhVersion;
             foreach (var (program, expected) in new[] {
-                ("/usr/local/bin/zeroshot", DirectTargetBinding.NativeExecutableSha256),
-                ("/usr/local/bin/restic", DirectTargetBinding.ResticExecutableSha256), ("/usr/bin/gh", GhSha256) })
+                (TargetEnvironment.NativeExecutable, DirectTargetBinding.NativeExecutableSha256),
+                (TargetEnvironment.ResticExecutable, DirectTargetBinding.ResticExecutableSha256),
+                (TargetEnvironment.Entrypoint, environment.EntrypointSha256) })
                 Require((await Execute("sha256sum", program)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() == expected,
-                    "Target executable bytes differ from supported pin.");
+                    "Target executable bytes differ from the adopted environment.");
             var help = await Execute("/usr/bin/gh", "api", "graphql", "--paginate", "--slurp", "--help");
             Require(Regex.IsMatch(help, @"^\s+--slurp(?:\s|$)", RegexOptions.Multiline), "Actual target GitHub CLI lacks api --paginate --slurp.");
             // The baseline's one short controlled target exec, not a provider task or lifecycle operation.
@@ -193,7 +220,7 @@ public sealed class TargetReadiness
             Require(accepted != HttpStatusCode.Unauthorized,
                 "Target refuses the configured control token; bootstrap the running target (bootstrap-target) or correct the token.");
             Require(accepted == HttpStatusCode.OK, "Target authenticated control differs from the supported private DirectTarget.");
-            return new(inventory.ContainerName, containerId!, inventory.ImageId, inventory.DirectOrigin, versions);
+            return new(inventory.ContainerName, containerId!, inventory.ImageId, inventory.DirectOrigin, environment.Release, versions);
         }
         catch (TargetNotReady) { throw; }
         catch (UnsupportedRuntime) { throw new TargetNotReady("Target discovery differs from supported DirectTarget."); }
@@ -216,7 +243,9 @@ public sealed class TargetReadiness
 
     private sealed record Mount(string? Source, string? Destination, bool ReadWrite, bool Bind);
 
-    private static Mount[] Mounts(JsonElement container) => container.GetProperty("Mounts").EnumerateArray().Select(m => new Mount(
+    private static Mount[] Mounts(JsonElement container) => Mounts(container.GetProperty("Mounts").EnumerateArray());
+
+    private static Mount[] Mounts(IEnumerable<JsonElement> mounts) => mounts.Select(m => new Mount(
         m.GetProperty("Source").GetString(), m.GetProperty("Destination").GetString(), m.GetProperty("RW").GetBoolean(),
         m.GetProperty("Type").GetString() == "bind")).ToArray();
 

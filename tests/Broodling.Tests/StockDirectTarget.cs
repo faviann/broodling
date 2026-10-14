@@ -84,7 +84,7 @@ internal sealed class StockDirectTarget : IAsyncDisposable
     /// </summary>
     internal async Task RestartAsync(string? replacement = null, bool rotate = false)
     {
-        RequireSuccess(await DockerCommand("rm", "--force", id));
+        RequireSuccess(await DockerCommand("rm", "--force", "--volumes", id));
         image = replacement ?? image;
         if (rotate)
         {
@@ -204,7 +204,7 @@ internal sealed class StockDirectTarget : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await DockerCommand("rm", "--force", id);
+        await DockerCommand("rm", "--force", "--volumes", id);
         await DockerCommand("volume", "rm", id + "-state", id + "-home", id + "-secrets");
         if (tokenFile is not null) TestAccess.Unregister(new Uri(Origin), tokenFile);
         // The target writes forge objects as root; open them so the owning test root can be deleted.

@@ -1,6 +1,8 @@
 # Controlled provider and forge over the unchanged DirectTarget image; the native binary is untouched.
 ARG BASE
 FROM ${BASE}
+# The adopted image links codex to its shared harness launcher; replace only the link.
+RUN rm -f /usr/local/bin/codex
 COPY --chmod=755 codex /usr/local/bin/codex
 COPY --chmod=755 gh /usr/bin/gh
 COPY --chmod=755 git /usr/bin/git

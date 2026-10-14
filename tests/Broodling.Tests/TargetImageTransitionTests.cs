@@ -8,9 +8,8 @@ using static Broodling.Tests.TargetImage;
 namespace Broodling.Tests;
 
 /// <summary>
-/// Native state survives a restart of this revision's DirectTarget image (or the candidate named by
-/// <c>BROODLING_TEST_TARGET_IMAGE</c>) and an update to it from each published target image listed in
-/// <c>deployment/native-state-transitions.json</c>, on the same state and home mounts and origin, through
+/// Native state survives a restart of the adopted environment image and an update to it from each published
+/// target image listed in <c>deployment/native-state-transitions.json</c>, on the same state and home mounts and origin, through
 /// the entrypoint's ordinary startup. A listed image must carry the binding's own native: transitions are
 /// established only within one native release. The new process is bootstrapped with a rotated control token,
 /// so retained correlation, results and replay are also shown to outlive an explicit token rotation, which the
@@ -76,11 +75,11 @@ public sealed class TargetImageTransitionTests
     }
 
     /// <summary>
-    /// A published target image by digest, or this revision's image itself (<c>null</c>, a restart), and the
+    /// A published target image by digest, or the adopted image itself (<c>null</c>, a restart), and the
     /// native it carries; displayed as its reference.
     /// </summary>
     public sealed record SourceTarget(string? Image, string NativeVersion, string NativeSha256)
     {
-        public override string ToString() => Image ?? "this image (restart)";
+        public override string ToString() => Image ?? "the adopted image (restart)";
     }
 }

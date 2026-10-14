@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/local/bin/python3
 """Controlled agent probe of the DirectTarget's private-control boundary (#187), run by the controlled provider's
 worker as the native-spawned execution agent. It receives only SHA-256 hashes of the installation's synthetic
 control secrets, never the secrets: every 64-character lowercase hexadecimal string it can read is hashed and

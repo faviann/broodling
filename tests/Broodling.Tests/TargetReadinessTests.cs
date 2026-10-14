@@ -20,10 +20,12 @@ public sealed class TargetReadinessTests
         await Assert.That(facts.ProviderTasks).IsEqualTo(0);
         await Assert.That(facts.ContainerId).IsEqualTo("selected-container-id");
         await Assert.That(facts.ImageId).IsEqualTo("sha256:installed");
-        await Assert.That(fixture.Calls.Count).IsEqualTo(10);
+        await Assert.That(facts.Environment).IsEqualTo("dotnet-r2");
+        await Assert.That(fixture.Calls.Count).IsEqualTo(11);
         await Assert.That(fixture.Calls[0].SequenceEqual(["inspect", "--type", "container", "installation-target", "installation-tls",
             "installation-broodling"])).IsTrue();
-        await Assert.That(fixture.Calls.Skip(1).All(args => args.Take(2).SequenceEqual(["exec", "selected-container-id"]))).IsTrue();
+        await Assert.That(fixture.Calls[1].SequenceEqual(["image", "inspect", "sha256:installed"])).IsTrue();
+        await Assert.That(fixture.Calls.Skip(2).All(args => args.Take(2).SequenceEqual(["exec", "selected-container-id"]))).IsTrue();
         await Assert.That(fixture.Calls[^1].SequenceEqual(["exec", "selected-container-id", "python3", "-c",
             "import os; os.setgroups([10002]); os.setgid(10002); os.setuid(10002); assert os.getuid() == 10002 and os.getgid() == 10002"])).IsTrue();
         await Assert.That(fixture.DiscoveryCalls).IsEqualTo(1);
@@ -74,6 +76,8 @@ public sealed class TargetReadinessTests
     [Arguments("mount-ro", "mounts")]
     [Arguments("mount-type", "mounts")]
     [Arguments("mount-extra", "mounts")]
+    [Arguments("mount-extra-volume", "mounts")]
+    [Arguments("mount-declared-bind", "mounts")]
     [Arguments("mount-duplicate", "mounts")]
     [Arguments("root-certificate-rw", "mounts")]
     [Arguments("root-key", "mounts")]
@@ -135,6 +139,9 @@ public sealed class TargetReadinessTests
             case "mount-ro": mount["RW"] = false; break;
             case "mount-type": mount["Type"] = "volume"; break;
             case "mount-extra": fixture.Target["Mounts"]!.AsArray().Add(Bind(fixture.Root, "/extra", false)); break;
+            // A volume is admitted only where the image declares one.
+            case "mount-extra-volume": fixture.Target["Mounts"]!.AsArray().Add(ReadinessFixture.Volume("/extra")); break;
+            case "mount-declared-bind": fixture.Target["Mounts"]![4] = Bind(fixture.Root, "/var/lib/zeroshot", true); break;
             case "mount-duplicate": fixture.Target["Mounts"]![1] = mount.DeepClone(); break;
             case "root-certificate-rw": fixture.Target["Mounts"]![2]!["RW"] = true; break;
             case "root-key": fixture.Target["Mounts"]![2]!["Source"] = fixture.Inventory.RootKeyMount; break;
@@ -171,7 +178,8 @@ public sealed class TargetReadinessTests
             case "malformed": fixture.Inspect = ReadinessFixture.Secret; break;
         }
         await Refuses(fixture.Check, message);
-        await Assert.That(fixture.Calls.Count).IsEqualTo(1);
+        // Two containers or malformed inspection refuse before the image is inspected.
+        await Assert.That(fixture.Calls.Count).IsEqualTo(change is "two-containers" or "malformed" ? 1 : 2);
         await Assert.That(fixture.DiscoveryCalls).IsEqualTo(0);
     }
 
@@ -190,7 +198,7 @@ public sealed class TargetReadinessTests
             fixture.Target["Config"]!["Env"] = new JsonArray(name + "=" + value);
             await Refuses(fixture.Check, "credentials");
         }
-        await Assert.That(fixture.Calls.All(args => args[0] == "inspect")).IsTrue();
+        await Assert.That(fixture.Calls.All(args => args[0] is "inspect" or "image")).IsTrue();
         await Assert.That(fixture.DiscoveryCalls).IsEqualTo(0);
     }
 
@@ -241,13 +249,89 @@ public sealed class TargetReadinessTests
     [Arguments("gh", "version")]
     [Arguments("native-hash", "executable bytes")]
     [Arguments("restic-hash", "executable bytes")]
-    [Arguments("gh-hash", "executable bytes")]
+    [Arguments("entrypoint-hash", "executable bytes")]
     [Arguments("slurp", "lacks api")]
     [Arguments("uid", "invalid")]
     public async Task ActualRuntimeDriftAndHostedIdentityFailureRefuse(string change, string message)
     {
         using var fixture = new ReadinessFixture { RuntimeFailure = change };
         await Refuses(fixture.Check, message);
+        await Assert.That(fixture.DiscoveryCalls).IsEqualTo(0);
+    }
+
+    /// <summary>
+    /// The adopted manifest is checked before any target access: other bytes than the adoption record's digest,
+    /// a malformed or unsupported manifest, and one naming another native, Codex or startup interface than this
+    /// revision supports all refuse, even when the inventory names their own digest.
+    /// </summary>
+    [Test]
+    [Arguments("other-bytes", "not the adopted bytes")]
+    [Arguments("unavailable", "manifest is unavailable")]
+    [Arguments("relative", "canonical absolute paths")]
+    [Arguments("malformed", "malformed")]
+    [Arguments("missing-native", "malformed")]
+    [Arguments("schema-v1", "schema is not supported")]
+    [Arguments("platform", "platform is not supported")]
+    [Arguments("native-version", "native identity")]
+    [Arguments("native-revision", "native identity")]
+    [Arguments("native-hash", "native identity")]
+    [Arguments("restic-hash", "native identity")]
+    [Arguments("codex", "approved harness")]
+    [Arguments("codex-node", "approved harness")]
+    [Arguments("startup-version", "startup interface")]
+    [Arguments("startup-command", "startup interface")]
+    [Arguments("image-digest", "malformed")]
+    public async Task MismatchedOrMalformedManifestRefusesBeforeTargetAccess(string change, string message)
+    {
+        using var fixture = new ReadinessFixture();
+        var manifest = JsonNode.Parse(File.ReadAllBytes(fixture.Inventory.EnvironmentManifest))!;
+        var native = manifest["native"]!;
+        switch (change)
+        {
+            case "other-bytes": File.AppendAllText(fixture.Inventory.EnvironmentManifest, " "); break;
+            case "unavailable": File.Delete(fixture.Inventory.EnvironmentManifest); break;
+            case "relative": fixture.Inventory = fixture.Inventory with { EnvironmentManifest = "environment/manifest.json" }; break;
+            case "malformed": fixture.UseManifest(System.Text.Encoding.UTF8.GetBytes(ReadinessFixture.Secret)); break;
+            case "missing-native": manifest.AsObject().Remove("native"); break;
+            case "schema-v1": manifest["schema"] = "zeroshot-environment.manifest/v1"; break;
+            case "platform": manifest["platform"] = "linux/arm64"; break;
+            case "native-version": native["version"] = "10.9.0"; break;
+            case "native-revision": native["sourceRevision"] = new string('0', 40); break;
+            // The release archive's executable of the same native release is another identity.
+            case "native-hash": native["zeroshot"]!["sha256"] = "d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e"; break;
+            case "restic-hash": native["restic"]!["sha256"] = new string('0', 64); break;
+            case "codex": manifest["harnesses"]!["codex"]!["version"] = "0.153.4"; break;
+            case "codex-node": manifest["tools"]!["harness-node"]!["version"] = "v22.23.2"; break;
+            case "startup-version": manifest["startupInterfaces"]!["entrypoint"]!["version"] = "zeroshot-environment.direct-target-startup/v2"; break;
+            case "startup-command": manifest["startupInterfaces"]!["entrypoint"]!["command"] = new JsonArray("/usr/local/bin/zeroshot-target-entrypoint"); break;
+            case "image-digest": manifest["image"]!["digest"] = "r2"; break;
+        }
+        if (change is not ("other-bytes" or "unavailable" or "relative" or "malformed"))
+            fixture.UseManifest(System.Text.Encoding.UTF8.GetBytes(manifest.ToJsonString()));
+        await Refuses(fixture.Check, message);
+        await Assert.That(fixture.Calls.Count + fixture.DiscoveryCalls).IsEqualTo(0);
+    }
+
+    /// <summary>The target container must run the adopted image, pulled by its digest, on the supported platform.</summary>
+    [Test]
+    [Arguments("other-digest", "not the adopted environment image")]
+    [Arguments("tag-only", "not the adopted environment image")]
+    [Arguments("architecture", "platform is not supported")]
+    [Arguments("os", "platform is not supported")]
+    public async Task OtherImageOrPlatformRefusesBeforeAnyExec(string change, string message)
+    {
+        using var fixture = new ReadinessFixture();
+        switch (change)
+        {
+            case "other-digest":
+                fixture.Image["RepoDigests"] = new JsonArray("ghcr.io/faviann/zeroshot-environments/dotnet@sha256:" + new string('0', 64));
+                break;
+            case "tag-only": fixture.Image["RepoDigests"] = new JsonArray(); break;
+            case "architecture": fixture.Image["Architecture"] = "arm64"; break;
+            case "os": fixture.Image["Os"] = "windows"; break;
+        }
+        await Refuses(fixture.Check, message);
+        await Assert.That(fixture.Calls.Count).IsEqualTo(2);
         await Assert.That(fixture.DiscoveryCalls).IsEqualTo(0);
     }
 
@@ -355,7 +439,7 @@ public sealed class TargetReadinessTests
         using var result = JsonDocument.Parse(output.ToString());
         await Assert.That(result.RootElement.GetProperty("ready").GetBoolean()).IsTrue();
         await Assert.That(result.RootElement.GetProperty("providerTasks").GetInt32()).IsEqualTo(0);
-        await Assert.That(fixture.Calls.Count).IsEqualTo(10);
+        await Assert.That(fixture.Calls.Count).IsEqualTo(11);
         // Discovery trusts the invocation configuration's root, as invocation itself does.
         await Assert.That(fixture.TrustedRoot).IsEqualTo(fixture.RootCertificate);
         await Assert.That(Directory.GetFiles(fixture.Root).Length).IsEqualTo(3);
@@ -493,12 +577,19 @@ public sealed class TargetReadinessTests
             Environment.GetEnvironmentVariable("BROODLING_TEST_WORKSPACE_ROOT")
                 ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "broodling-tests"),
             "target-readiness-" + Guid.NewGuid().ToString("N"))).FullName;
-        internal TargetReadinessInventory Inventory { get; }
+        internal TargetReadinessInventory Inventory { get; set; }
         internal string RootCertificate => Path.Combine(Inventory.RootCertificateMount, "root.crt");
         internal TargetReadiness Readiness { get; }
         internal JsonObject Target { get; }
         internal JsonObject Tls { get; }
         internal JsonObject Broodling { get; }
+        /// <summary>The adopted image as <c>docker image inspect</c> reports it.</summary>
+        internal JsonObject Image { get; } = new()
+        {
+            ["Id"] = "sha256:installed", ["Os"] = "linux", ["Architecture"] = "amd64",
+            ["RepoDigests"] = new JsonArray(Adopted.Image),
+            ["Config"] = new JsonObject { ["Volumes"] = new JsonObject { ["/var/lib/zeroshot"] = new JsonObject() } }
+        };
         internal JsonObject Discovery { get; } = JsonNode.Parse("""
             {"kind":"zeroshot.native-v2-target/v2","authentication":"private_capability","runPath":"/native-v2/run",
              "sessionPath":"/native-v2/oecp-session","oecpPath":"/native-v2/oecp","audience":"controller",
@@ -527,9 +618,12 @@ public sealed class TargetReadinessTests
 
         internal ReadinessFixture()
         {
+            Directory.CreateDirectory(Path.Combine(Root, "environment"));
+            File.Copy(Adopted.Manifest, Path.Combine(Root, "environment", "manifest.json"));
             Inventory = new("installation-target", "sha256:installed", Origin, Path.Combine(Root, "state"), Path.Combine(Root, "home"),
                 "broodling_default", "installation-tls", Path.Combine(Root, "tls-root-key"), Path.Combine(Root, "tls-root"),
-                "installation-broodling", Path.Combine(Root, "secrets", "zeroshot-bootstrap-key"));
+                "installation-broodling", Path.Combine(Root, "secrets", "zeroshot-bootstrap-key"),
+                Path.Combine(Root, "environment", "manifest.json"), Adopted.ManifestSha256);
             static JsonObject Bind(string source, string destination, bool readWrite) =>
                 new() { ["Type"] = "bind", ["RW"] = readWrite, ["Source"] = source, ["Destination"] = destination };
             Target = JsonNode.Parse("""
@@ -542,8 +636,10 @@ public sealed class TargetReadinessTests
                  "NetworkSettings":{"Ports":{},"Networks":{"broodling_default":{"Aliases":["zeroshot"]}}},
                  "Mounts":[]}
                 """)!.AsObject();
+            // With the anonymous volume Docker creates for the image's declared, unused /var/lib/zeroshot.
             Target["Mounts"] = new JsonArray(Bind(Inventory.StateMount, "/state", true), Bind(Inventory.HomeMount, "/home/node", true),
-                Bind(Inventory.RootCertificateMount, "/tls-root", false), Bind(Inventory.BootstrapKeyFile, TargetReadiness.BootstrapKeySecret, false));
+                Bind(Inventory.RootCertificateMount, "/tls-root", false), Bind(Inventory.BootstrapKeyFile, TargetReadiness.BootstrapKeySecret, false),
+                Volume("/var/lib/zeroshot"));
             Tls = JsonNode.Parse("""
                 {"Id":"tls-container-id","Image":"sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b",
                  "State":{"Running":true},"Config":{"User":"10443:10443","Image":"TLS_IMAGE"},
@@ -567,6 +663,20 @@ public sealed class TargetReadinessTests
 
         internal Task<TargetReadinessFacts> Check() => Readiness.CheckAsync(Inventory, Inventory.DirectOrigin, Access);
 
+        /// <summary>An anonymous volume as <c>docker inspect</c> reports it.</summary>
+        internal static JsonObject Volume(string destination) => new()
+        {
+            ["Type"] = "volume", ["Name"] = new string('a', 64), ["RW"] = true, ["Destination"] = destination,
+            ["Source"] = "/var/lib/docker/volumes/" + new string('a', 64) + "/_data"
+        };
+
+        /// <summary>Replaces the manifest copy with <paramref name="bytes"/> and records their own digest.</summary>
+        internal void UseManifest(byte[] bytes)
+        {
+            File.WriteAllBytes(Inventory.EnvironmentManifest, bytes);
+            Inventory = Inventory with { EnvironmentManifestSha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)) };
+        }
+
         private HttpClient DiscoveryClient(Uri origin, string? root, IPEndPoint published)
         {
             Published = published;
@@ -579,18 +689,19 @@ public sealed class TargetReadinessTests
             Calls.Add(arguments.ToArray());
             if (arguments.SequenceEqual(["inspect", "--type", "container", "installation-target", "installation-tls", "installation-broodling"]))
                 return Task.FromResult(Inspect ?? $"[{Target},{Tls},{Broodling}]");
+            if (arguments.SequenceEqual(["image", "inspect", "sha256:installed"])) return Task.FromResult($"[{Image}]");
             if (!arguments.Take(2).SequenceEqual(["exec", "selected-container-id"])) throw new InvalidOperationException("Unexpected target operation");
             var args = arguments.Skip(2).ToArray();
             var key = string.Join(' ', args);
             var (label, output) = key switch
             {
                 "/usr/local/bin/zeroshot --version" => ("native", "zeroshot 10.10.0"),
-                "/usr/local/bin/codex --version" => ("codex", "codex-cli 0.153.4"),
-                "/usr/local/bin/node --version" => ("node", "v22.23.2"),
-                "/usr/bin/gh --version" => ("gh", "gh version 2.101.0 (2026-09-15) " + Secret + "\nignored"),
-                "sha256sum /usr/local/bin/zeroshot" => ("native-hash", "d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e  /usr/local/bin/zeroshot"),
+                "/usr/local/bin/codex --version" => ("codex", "codex-cli 0.155.0"),
+                "/usr/local/bin/node --version" => ("node", "v24.21.0"),
+                "/usr/bin/gh --version" => ("gh", "gh version 2.101.0 (2026-09-15)\nhttps://github.com/cli/cli/releases/tag/v2.101.0 " + Secret),
+                "sha256sum /usr/local/bin/zeroshot" => ("native-hash", "fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5  /usr/local/bin/zeroshot"),
                 "sha256sum /usr/local/bin/restic" => ("restic-hash", "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf  /usr/local/bin/restic"),
-                "sha256sum /usr/bin/gh" => ("gh-hash", "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff  /usr/bin/gh"),
+                "sha256sum /usr/local/bin/broodling-target" => ("entrypoint-hash", "76c526fe8c51be094dbc48527c40181f5b0f23069996f3c4315c456a49107b79  /usr/local/bin/broodling-target"),
                 "/usr/bin/gh api graphql --paginate --slurp --help" => ("slurp", "FLAGS\n    --slurp Wrap pages"),
                 "python3 -c import os; os.setgroups([10002]); os.setgid(10002); os.setuid(10002); assert os.getuid() == 10002 and os.getgid() == 10002" => ("uid", ""),
                 _ => throw new InvalidOperationException("Unexpected target exec")
@@ -612,7 +723,7 @@ public sealed class TargetReadinessTests
                 return new HttpResponseMessage(status) { Content = new StringContent(body) };
             }
             if (request.Method != HttpMethod.Get || request.RequestUri!.AbsoluteUri != Origin + "/.well-known/zeroshot-native-v2"
-                || request.Headers.Authorization is not null || Calls.Count != 10)
+                || request.Headers.Authorization is not null || Calls.Count != 11)
                 throw new InvalidOperationException("Unexpected discovery request");
             DiscoveryCalls++;
             DiscoveryStarted.TrySetResult();
