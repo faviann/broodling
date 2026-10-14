@@ -1,11 +1,12 @@
 # Controlled stock DirectTarget
 
-`stock-target` layers a controlled provider and forge over the actual
-DirectTarget image. The pinned native binary, its HTTP/OECP server and the
+`stock-target` layers a controlled provider and forge over the adopted
+DirectTarget environment image. The pinned native binary, its HTTP/OECP server and the
 approved execution asset are unchanged. The layer replaces only the hosted
 target's fixed dependency paths:
 
-- `codex` answers each node from its response schema. Its worker writes known
+- `codex` replaces only the image's `codex` link to its shared harness
+  launcher and answers each node from its response schema. Its worker writes known
   candidate bytes to `README.md`, verifiers accept, and a corrected reply
   resumes the requested thread. When the task lists a RequestBundle, the worker
   also writes each listed reference's bytes, decoded from the task, to

@@ -109,7 +109,7 @@ internal sealed class TargetStack : IAsyncDisposable
 
     internal async Task StartTarget() => RequireSuccess(await DockerCommand(["run", "--detach", "--name", Zeroshot, "--network", id,
         "--network-alias", "zeroshot", .. TargetMounts, image, .. Arguments]));
-    internal async Task StopTarget() => RequireSuccess(await DockerCommand("rm", "--force", Zeroshot));
+    internal async Task StopTarget() => RequireSuccess(await DockerCommand("rm", "--force", "--volumes", Zeroshot));
 
     internal async Task StartBroodling() => RequireSuccess(await DockerCommand(["run", "--detach", "--name", Broodling, "--network", id,
         .. Bind(RootCertificate, "/tls-root", true), "--entrypoint", "sleep", image, "infinity"]));
@@ -162,7 +162,8 @@ internal sealed class TargetStack : IAsyncDisposable
     {
         var target = await DockerCommand("inspect", "--format", "{{.Image}}", Zeroshot);
         RequireSuccess(target);
-        return new(Zeroshot, target.Output.Trim(), Origin, State, Home, id, Tls, RootKey, RootCertificate, Broodling, BootstrapKeyFile);
+        return new(Zeroshot, target.Output.Trim(), Origin, State, Home, id, Tls, RootKey, RootCertificate, Broodling, BootstrapKeyFile,
+            Adopted.Manifest, Adopted.ManifestSha256);
     }
 
     /// <summary>

@@ -30,7 +30,7 @@ makes no live-provider or deployment claim. There is no Python Broodling package
 
 The [release and operations guide](deployment/README.md) gives ordinary
 `dotnet publish` commands, the complete host package, the published
-Broodling and DirectTarget images, explicit store
+Broodling image, the adopted DirectTarget environment image, explicit store
 initialization, invocation configuration and existing-target readiness checks.
 Source/release support is distinct from a validated live .NET deployment.
 The [#77 deployment record](deployment/validation.md) describes historical Python
@@ -70,8 +70,8 @@ Exactly one authorized GitHub `pull_request` effect naming a target branch
 selects DirectTarget PR delivery: the stock native 10.10.0
 `zeroshot target serve` receives the release-bundled approved asset (one uniform
 Codex / `gateway` / `gpt-5.6-sol` / medium-effort runtime) through exactly
-`https://cliproxy.local.faviann.com/v1`. The DirectTarget image pins Codex
-**0.153.4**.
+`https://cliproxy.local.faviann.com/v1`. The DirectTarget runs an adopted
+`zeroshot-environments` image (`dotnet-r2`) with Codex **0.155.0**.
 Current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` are required for
 dispatch/replay; their values are not frozen in the invocation. Durable
 correlation permits reconnection without those dispatch credentials. Every

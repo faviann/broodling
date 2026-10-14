@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/local/bin/python3
 """Controlled forge API: only the gh api calls native pull-request delivery makes, each traced.
 
 Every invocation is appended to /forge/gh-trace.jsonl. A test may script the forge through

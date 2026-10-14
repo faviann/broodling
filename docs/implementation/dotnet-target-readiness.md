@@ -7,7 +7,8 @@ Since #186 it checks the ADR 0001 stack behind the HTTPS origin instead of a
 target published on loopback; the image, pin, credential-exclusion and UID
 checks are unchanged. Since #187 the target serves only native's private mode,
 and readiness also requires actual authenticated control with the configured
-token. The pre-cutover #130 repair and its dated validation are
+token. Since #234 the target is an adopted environment image, and readiness
+checks it against that environment's retained manifest. The pre-cutover #130 repair and its dated validation are
 recorded below. The
 [release guide](../../deployment/README.md#existing-target-readiness) supplies
 current operator use; controlled validation is not a live .NET deployment claim.
@@ -41,7 +42,9 @@ Since #186 the inventory describes the existing
   "rootKeyMount": "/srv/broodling/zeroshot-tls/key",
   "rootCertificateMount": "/srv/broodling/zeroshot-tls/root",
   "broodlingContainerName": "broodling-broodling-1",
-  "bootstrapKeyFile": "/srv/broodling/secrets/zeroshot/zeroshot-bootstrap-key"
+  "bootstrapKeyFile": "/srv/broodling/secrets/zeroshot/zeroshot-bootstrap-key",
+  "environmentManifest": "/srv/broodling/release/deployment/environments/dotnet-r2.manifest.json",
+  "environmentManifestSha256": "8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e"
 }
 ```
 
@@ -49,7 +52,10 @@ Since #186 the inventory describes the existing
 `network` is the Compose project network. Mount sources are canonical absolute
 host paths, and the root key and certificate locations must not contain each
 other. `bootstrapKeyFile` is the host file the target mounts as its bootstrap
-key. Their container
+key. `environmentManifest` is a host copy of the adopted environment's manifest
+bytes, also a canonical absolute path, and `environmentManifestSha256` the
+digest its [adoption record](../../deployment/README.md#adopted-target-environment)
+retains. Their container
 destinations are fixed. The operator records the exact existing stack, and
 readiness creates no directories or files. The separate `config.json` is the
 existing [invocation configuration](zeroshot-native-integration.md#thin-operator-commands):
@@ -67,7 +73,8 @@ path, query, fragment, IP literal, loopback HTTP origin or noncanonical spelling
 is accepted. Targets bound to a loopback origin are not adopted.
 
 Success returns JSON with `ready`, selected `containerName`, `containerId`,
-`imageId`, `directOrigin`, checked `versions`, `apiPaginateSlurp`,
+`imageId`, `directOrigin`, the adopted `environment` release (such as
+`dotnet-r2`), checked `versions`, `apiPaginateSlurp`,
 `hostedUidTransition` and `providerTasks: 0`.
 Version facts are the checked pins, not raw process output. Refusal returns
 `ready: false` and a fixed safe `error` with exit 1. Usage exits 2; caller
@@ -77,8 +84,20 @@ The callable refusal is `TargetNotReady`; caller cancellation remains cancellati
 
 ## Checks and authority boundary
 
-One `docker inspect --type container` selects exactly the three recorded
-containers.
+Before any target access, readiness reads the adopted manifest. It refuses
+bytes whose SHA-256 is not `environmentManifestSha256`, a malformed manifest, a
+schema other than `zeroshot-environment.manifest/v2` and a platform other than
+`linux/amd64`. The manifest must name the
+[DirectTarget binding](zeroshot-native-integration.md#pinned-dependencies)'s
+native release, source revision and `zeroshot` and `restic` paths and SHA-256,
+the approved Codex version and its harness Node.js, and the startup interface
+`zeroshot-environment.direct-target-startup/v1` with the command
+`/usr/local/bin/broodling-target`
+([entrypoint boundary](../../deployment/README.md#entrypoint-boundary)).
+
+One `docker inspect --type container` then selects exactly the three recorded
+containers, and one `docker image inspect` of the recorded image requires
+`linux`/`amd64` and the manifest's `repository@digest` among its `RepoDigests`.
 
 The `zeroshot` target must have the exact recorded image, be running, run as
 container root (`""`, `0`, `0:0`, or `root`), use ordinary isolation (not
@@ -88,7 +107,9 @@ privileged or host networking), drop no capabilities and use restart policy
 values. Its mounts must be exactly the recorded read/write state and home binds
 at `/state` and `/home/node`, the public root directory bound read-only at
 `/tls-root` and the recorded bootstrap key file bound read-only at
-`/run/secrets/zeroshot-bootstrap-key`. It publishes no port, including through publish-all, and carries
+`/run/secrets/zeroshot-bootstrap-key`, beside only the volumes Docker creates
+for the image's declared volumes (the base's unused `/var/lib/zeroshot`). It
+publishes no port, including through publish-all, and carries
 the `zeroshot` alias on the recorded network, where `zeroshot-tls` forwards. Entrypoint is exactly `/usr/local/bin/broodling-target`;
 arguments must be exactly
 `--listen 0.0.0.0:18770 --public-origin <origin> --storage /state`, the fixed
@@ -115,19 +136,19 @@ key file or a directory containing it: only the target and the one-off
 bootstrap operation receive it.
 
 Subsequent execs use the inspected target container ID, never a newly selected
-name. The native version and the `zeroshot` and `restic` hashes are the
-[DirectTarget binding](zeroshot-native-integration.md#pinned-dependencies);
-the other pins are the DirectTarget image's own:
+name. The native version, the Codex version and the `zeroshot` and `restic`
+hashes are the binding's, which the manifest names; the other observations are
+the manifest's:
 
 | Probe | Required observation |
 | --- | --- |
 | `/usr/local/bin/zeroshot --version` | `zeroshot 10.10.0` |
-| `/usr/local/bin/codex --version` | `codex-cli 0.153.4` |
-| `/usr/local/bin/node --version` | `v22.23.2` |
-| `/usr/bin/gh --version` | First line begins `gh version 2.101.0 ` |
-| `sha256sum /usr/local/bin/zeroshot` | `d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e` |
-| `sha256sum /usr/local/bin/restic` | `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, the release archive's `restic` that native run allocation requires |
-| `sha256sum /usr/bin/gh` | `ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff` |
+| `/usr/local/bin/codex --version` | `codex-cli 0.155.0` |
+| `/usr/local/bin/node --version` | The manifest's `tools.node.version` (`v24.21.0`) |
+| `/usr/bin/gh --version` | First line is the manifest's `tools.gh.version` (`gh version 2.101.0 (2026-09-15)`) |
+| `sha256sum /usr/local/bin/zeroshot` | `fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5` |
+| `sha256sum /usr/local/bin/restic` | `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, the `restic` that native run allocation requires |
+| `sha256sum /usr/local/bin/broodling-target` | The manifest's `integration.broodling-entrypoint.sha256` |
 | `/usr/bin/gh api graphql --paginate --slurp --help` | Declares the `--slurp` flag |
 | Short Python exec | `setgroups([10002])`, `setgid(10002)`, `setuid(10002)` and assertions of the resulting UID/GID succeed |
 
@@ -186,7 +207,11 @@ exec selection, the complete UID probe, discovery URL/method, no authentication
 header on discovery, an unauthenticated then a token-bearing session request,
 the published endpoint and trusted root handed to discovery, checked facts and
 exclusion of the token and of a synthetic secret appended to otherwise valid gh output.
-Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check
+Manifest refusal cases (other bytes, unavailable or relative path, malformed,
+schema, platform, native version, revision and hashes, Codex and its Node.js,
+startup interface version and command) all refuse before any Docker command, and
+image refusal cases (another digest, no digest, another architecture or OS)
+refuse before any exec. Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check
 (including the bootstrap key mount and its absence from other services),
 inventory validity, credential, version/hash/help, UID and stock-discovery schema
 checks, and private control: unauthenticated control accepted or answered otherwise than

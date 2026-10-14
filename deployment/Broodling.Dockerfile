@@ -12,11 +12,10 @@
 # and replace-attempt run from the release artifact on a host with gh and the caller checkout's common
 # Git directory.
 
-# The DirectTarget binding's native release archive (src/Broodling/DirectTargetBinding.cs and
-# execution-assets/approval.json), the one the DirectTarget image installs.
-FROM scratch AS native
-ADD --checksum=sha256:fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16 \
-    https://github.com/the-open-engine/zeroshot/releases/download/v10.10.0/zeroshot-v10.10.0-x86_64-unknown-linux-musl.tar.gz /zeroshot.tar.gz
+# The DirectTarget binding's native (src/Broodling/DirectTargetBinding.cs and
+# execution-assets/approval.json): upstream's published target image for that release, pinned by
+# digest, carries the executable the adopted environment runs.
+FROM ghcr.io/the-open-engine/zeroshot-target:10.10.0@sha256:9769f74865d7e1137b82c9ed2ced4cbedb56cfd5fef6c9e8c0647955ba0c438b AS native
 
 # The same Ubuntu 24.04 as the runtime stage, so libbroodling_git.so links against its libc. python3
 # serves only the asset regeneration check below (generate.sh and describe.py).
@@ -34,19 +33,18 @@ RUN --mount=type=secret,id=nuget-github,required=true \
 # The published output must carry the approved execution asset, or HTTP preparation refuses. The
 # pinned native regenerates it with Zeroshot's own tooling and admits it (generate.sh); the published
 # bytes must equal what it produced, and the published approval must be the reviewed one.
-RUN --mount=type=bind,from=native,source=/zeroshot.tar.gz,target=/tmp/zeroshot.tar.gz \
-    tar -xzf /tmp/zeroshot.tar.gz -C /tmp zeroshot \
-    && src/Broodling/execution-assets/generate.sh /tmp/zeroshot /tmp/execution-asset.json \
+RUN --mount=type=bind,from=native,source=/usr/local/bin/zeroshot,target=/tmp/zeroshot \
+    src/Broodling/execution-assets/generate.sh /tmp/zeroshot /tmp/execution-asset.json \
     && cmp /tmp/execution-asset.json /app/execution-assets/software-change-pr-codex-gateway.json \
     && cmp src/Broodling/execution-assets/approval.json /app/execution-assets/approval.json \
-    && rm /tmp/zeroshot /tmp/execution-asset.json
+    && rm /tmp/execution-asset.json
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.12-noble@sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f
 LABEL org.opencontainers.image.source=https://github.com/faviann/broodling
 # Git for source/accepted-object custody; curl only for the credential-free health check; tini as
 # PID 1 to reap orphaned descendants of the host's gh and git children (a cancelled fetch kills its
 # process tree, and git's remote and credential helpers reparent to PID 1) and to forward signals.
-# The processing server acquires issues and repositories through gh, the DirectTarget image's pin.
+# The processing server acquires issues and repositories through gh, the adopted environment's version.
 # Completion fetches each accepted commit with plain Git, which asks gh for the current GH_TOKEN, so a
 # private repository's result can be retained; acquisition ignores system Git configuration.
 ADD --checksum=sha256:f876a3b87bf67c94f773d17becca4dc7340b056dab901473a9260ee2a73e237b \

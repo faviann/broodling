@@ -38,15 +38,24 @@ completion/current-authority loss atomically for the exact Attempt.
 ## Pinned dependencies
 
 The [`DirectTargetBinding`](../../src/Broodling/DirectTargetBinding.cs) pins the
-native release, source revision, Linux x86-64 executable and approved execution
+native release, source revision, Linux x86-64 `zeroshot` and `restic`
+executables, the Codex release with its Node.js, and the approved execution
 asset, recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json).
 Asset loading, each prepared submission's retained binding and its
 reopen/dispatch check, target readiness,
 [`generate.sh`](../../src/Broodling/execution-assets/generate.sh) and the release
-record use only these. Both image recipes carry a copy of the binding's release
-archive pin; the DirectTarget image installs its `zeroshot` and the `restic`
-native run allocation requires, and target readiness checks both executables'
-SHA-256.
+record use only these.
+
+The target image is an adopted environment release
+([adopted target environment](../../deployment/README.md#adopted-target-environment)).
+Its producer manifest states the image's actual native and components; Broodling
+adopts it only when that manifest names exactly this binding. Target readiness
+refuses another manifest and checks the running image's executables and
+versions against it. The binding's native is upstream's source build in its
+published target image for the release,
+`ghcr.io/the-open-engine/zeroshot-target:10.10.0@sha256:9769f74865d7e1137b82c9ed2ced4cbedb56cfd5fef6c9e8c0647955ba0c438b`,
+which the adopted environment is built on. The Broodling image recipe copies the
+executable out of that image to verify the asset.
 
 A DirectTarget binding change is a change to the Execution asset and native an
 HTTP Attempt's Prepared submission is bound to. The gateway URL is one shared
@@ -74,10 +83,10 @@ not define proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` or their
 lowercase forms), because a proxy would otherwise receive DirectTarget
 connections, including dispatch credentials in the submission body.
 
-The DirectTarget uses the official
+The DirectTarget runs native from the
 [v10.10.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.10.0)'s
-Linux x86-64 musl archive; its URL and SHA-256 are in the two image recipes and
-the approval manifest's `native.release`.
+source revision as upstream's target image builds it, not the release archive's
+musl executable. The approval manifest's `native.image` pins that image.
 
 Broodling has no production Python source and needs no Python environment.
 Target readiness runs a short inline `python3` UID probe inside the target, and
@@ -87,7 +96,8 @@ at build time; neither is a Broodling runtime dependency.
 The fixed PR runtime is uniform Codex / `gateway` / `gpt-5.6-sol` / medium /
 small / execution-scoped sessions through exactly
 `https://cliproxy.local.faviann.com/v1`, carried by the approved asset below.
-The DirectTarget image pins Codex **0.153.4**; Broodling installs no Codex.
+The binding approves Codex **0.155.0** on Node.js **v24.21.0**, which the
+adopted environment carries; Broodling installs no Codex.
 Per-node runtime, model/harness selection, node-local OAuth PR delivery and
 fleet placement remain unsupported.
 
@@ -96,7 +106,7 @@ fleet placement remain unsupported.
 The HTTP DirectTarget path (#163) submits one release-bundled graph/runtime,
 [`execution-assets/software-change-pr-codex-gateway.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway.json):
 native 10.10.0's stock `software-change` template with `pull_request` delivery
-(#214; #226 regenerated the same bytes with 10.10.0). Its identity is the
+(#214; #226 regenerated the same bytes with 10.10.0, and #234 with its source build). Its identity is the
 SHA-256 of the exact file bytes, formatting included:
 `258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc` (79,660
 bytes). This identity is Broodling's approval. It is not a stock `profileId` or a
@@ -105,16 +115,18 @@ native digest. The [approval manifest](../../src/Broodling/execution-assets/appr
 
 - The asset's bytes and SHA-256.
 - Native `zeroshot 10.10.0` from source `3ee1192cec359a0b997f464e703a936e8b67d63c`,
-  the Linux x86-64 executable `d0c84ffb…bb923e`, and the official `v10.10.0`
-  musl release archive (`fbc13b23…28d6f16`) with its `restic` executable
-  (`90ab22a5…8a8cf`).
+  the Linux x86-64 executable `fd5ffef2…aeff5` and the `restic` executable
+  (`90ab22a5…8a8cf`), with upstream's target image that carries both
+  (`native.image`).
+- Codex `0.155.0` with Node.js `v24.21.0` (`codex`), the harness the asset's
+  runtime runs on. Claude Code and Copilot CLI are not approved.
 - The policy: Codex / `gateway` / `gpt-5.6-sol` / medium / small / execution
   sessions, the symbolic `gateway` connection on every agent node, native's
   `github` delivery connection, native's default `consider` PR feedback and the
   gateway URL. Native serializes both defaults by omitting `sessionScope` and
   `pullRequestFeedback`.
 - The recipe: `generate.sh` and `describe.py` by SHA-256, from revision
-  `ebab6f40be923dba37c26a33e00ce94cd7761a71`, with its command, uniform runtime
+  `04daec4b65cfb16228426979126105cf7c2bb389`, with its command, uniform runtime
   and output format.
 - The asset structure that
   [`describe.py`](../../src/Broodling/execution-assets/describe.py) reads: six
@@ -130,9 +142,9 @@ gateway URL, which `DispatchCredentials` enforces separately.
 packaged files against the SHA-256 of the asset and of the whole reviewed
 approval manifest compiled into `DirectTargetBinding`. It refuses a missing,
 changed or unapproved asset, including the superseded 10.3.0 asset, and any
-other manifest, such as one naming another native release, policy or recipe
-revision. `ExecutionAssetTests` checks that the manifest's asset and native
-blocks are the binding's and that its policy is the asset's own runtime. C# passes the graph and runtime through opaquely. It never expands,
+other manifest, such as one naming another native, Codex, policy or recipe
+revision. `ExecutionAssetTests` checks that the manifest's asset, native and
+Codex blocks are the binding's and that its policy is the asset's own runtime. C# passes the graph and runtime through opaquely. It never expands,
 edits or regenerates them. Changing the asset requires a reviewed release with
 a new approved identity.
 
@@ -152,14 +164,12 @@ candidate before approval. The Broodling
 [image build](../../deployment/README.md#broodling-image) runs it with the
 pinned native and fails unless the published asset equals its output.
 
-With `--fetch`, it takes the executable from the pinned release archive in a
-cache directory. It downloads the archive only when that archive is absent,
-after checking that the release tag names the pinned commit and that the release
-`SHA256SUMS` lists the archive checksum. The standalone check needs network
-access on its first run:
+With `--image`, it copies the executable out of the manifest's `native.image`,
+which Docker pulls by its pinned digest when absent, so the standalone check
+needs Docker and, on its first run, registry access:
 
 ```bash
-src/Broodling/execution-assets/generate.sh --fetch ~/.cache/broodling-native
+src/Broodling/execution-assets/generate.sh --image
 ```
 
 ## HTTP submission preparation
@@ -230,7 +240,7 @@ effect.
 
 The members are exactly the sealed manifest's, fixed in the prepared request, so
 a run needs no Broodling access and agents have no way to refresh or extend the
-bundle. The DirectTarget image has no Broodling helper or reader address, and
+bundle. The target image has no Broodling helper or reader address, and
 the target needs no route to Broodling. An acknowledgement-loss replay sends the
 same bytes, references included.
 
@@ -556,7 +566,7 @@ sent to another, and a configuration change never redirects an Attempt: its
 retained origin still decides where it connects, and with no token for that
 origin it contacts nothing. `DirectTargetAccess` takes an origin-to-file lookup,
 so one session can serve several separately configured origins, each with its
-own token (the contract for environment selection, #234/#235).
+own token (the contract for environment selection, #235).
 
 ### DirectTarget run reader and stopper
 

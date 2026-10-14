@@ -223,17 +223,22 @@ printf '%s\n' "$ownership"
 [[ $ownership == "/state $broodling_user 700"$'\n'"/state/state.sqlite3 $broodling_user "* ]] || fail 'broodling state ownership'
 echo "broodling runs as $broodling_user; its only writable mount is its state, where the store it created is its own"
 
-# The image's own check-target command, run on the host as the operator with Docker access.
+# The image's own check-target command, run on the host as the operator with Docker access, against the
+# adopted environment manifest that the adoption record retains.
+deployment="$(realpath -- "$here/../../deployment")"
+manifest="$deployment/$(jq -r .manifest.path "$deployment/target-environment.json")"
 extract="$(docker create "$broodling_image")"
 docker cp --quiet "$extract:/app" "$root/host"
 docker rm "$extract" >/dev/null
 jq -n --arg origin "$origin" --arg root "$root" --arg network "${project}_default" \
     --arg target "$(container zeroshot)" --arg tls "$(container zeroshot-tls)" --arg broodling "$broodling_container" \
-    --arg image "$(docker inspect --format '{{.Image}}' "$(container zeroshot)")" \
+    --arg image "$(docker inspect --format '{{.Image}}' "$(container zeroshot)")" --arg manifest "$manifest" \
+    --arg manifestSha256 "$(jq -r .manifest.sha256 "$deployment/target-environment.json")" \
     '{containerName: $target, imageId: $image, directOrigin: $origin, stateMount: "\($root)/target-state",
       homeMount: "\($root)/target-home", network: $network, tlsContainerName: $tls,
       rootKeyMount: "\($root)/tls-root-key", rootCertificateMount: "\($root)/tls-root", broodlingContainerName: $broodling,
-      bootstrapKeyFile: "\($root)/secrets/target-bootstrap-key"}' \
+      bootstrapKeyFile: "\($root)/secrets/target-bootstrap-key", environmentManifest: $manifest,
+      environmentManifestSha256: $manifestSha256}' \
     >"$root/target-inventory.json"
 jq -n --arg origin "$origin" --arg root "$root" \
     '{directOrigin: $origin, directControlTokenFile: "\($root)/secrets/host-control-token",
@@ -400,7 +405,7 @@ if [[ -n $facts ]]; then
           storeDefinitionSha256: $store.schema.definitionSha256,
           upgradesFrom: ($store.upgradesFrom | map({storeFormat: .format, storeSchemaVersion: .schemaVersion,
             storeDefinitionSha256: .definitionSha256})),
-          zeroshotTlsImage: $tls, readiness: ($readiness | {versions, apiPaginateSlurp, hostedUidTransition, providerTasks})}' \
+          zeroshotTlsImage: $tls, readiness: ($readiness | {environment, versions, apiPaginateSlurp, hostedUidTransition, providerTasks})}' \
         >"$facts"
 fi
 step 'Demonstration passed'

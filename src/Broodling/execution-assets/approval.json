@@ -1,10 +1,10 @@
 {
   "kind": "broodling.execution-asset-approval/v1",
   "approval": {
-    "issue": "https://github.com/faviann/broodling/issues/226",
-    "decision": "https://github.com/faviann/zeroshot-dotnet-sdk/issues/10#issuecomment-5850866440",
-    "candidate": "https://github.com/faviann/broodling/issues/214",
-    "review": "Approved after verifying, as for 10.9.0 (#215), that native 10.10.0 regenerates the same bytes: the v10.10.0 tag names the pinned source commit and the release SHA256SUMS lists the archive; the archive yields both pinned executables; generate.sh reproduces these exact bytes twice in clean environments and native admits them with an exact round trip; the structure below, read from the bytes by describe.py, matches the decision: six executable nodes, builtin.git-delivery.pr@2 with the v2/pr receipt (ready, ci_failed, conflict, repair_required) whose non-ready outcomes route to delivery_repair, the 10-iteration change loop, no node deadlines, gateway connections on every agent node, GH_TOKEN only on delivery, and the default consider pull-request feedback."
+    "issue": "https://github.com/faviann/broodling/issues/234",
+    "decision": "https://github.com/faviann/broodling/pull/244#issuecomment-6180077952",
+    "candidate": "https://github.com/faviann/zeroshot-environments/releases/tag/dotnet-r2",
+    "review": "Approved by the owner in the decision pull request for #234, accepting that the upstream target image carries no attestation and that Codex 0.155.0 had not yet run a task through the gateway. Changes from the #226 approval: native is upstream's from-source build of the same 10.10.0 source, the Linux x86-64 executable fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5 carried by its published target image (pinned below), replacing the release archive's d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e; restic is unchanged; and the asset now runs on Codex 0.155.0 with Node.js v24.21.0, replacing Codex 0.153.4 with Node.js v22.23.2, as the adopted environment dotnet-r2 (manifest SHA-256 8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e) carries them. Verified: generate.sh, run with that executable copied out of the pinned image, reproduces the unchanged asset bytes twice in clean environments and native admits them with an exact round trip; describe.py reads the unchanged structure below (six executable nodes, builtin.git-delivery.pr@2 with the v2/pr receipt (ready, ci_failed, conflict, repair_required) whose non-ready outcomes route to delivery_repair, the 10-iteration change loop, no node deadlines, gateway connections on every agent node, GH_TOKEN only on delivery, and the default consider pull-request feedback); the asset's graph, runtime, policy and connections are unchanged."
   },
   "asset": {
     "file": "software-change-pr-codex-gateway.json",
@@ -14,14 +14,13 @@
   "native": {
     "version": "zeroshot 10.10.0",
     "sourceRevision": "3ee1192cec359a0b997f464e703a936e8b67d63c",
-    "linuxX64ExecutableSha256": "d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e",
-    "release": {
-      "repository": "the-open-engine/zeroshot",
-      "tag": "v10.10.0",
-      "archive": "zeroshot-v10.10.0-x86_64-unknown-linux-musl.tar.gz",
-      "archiveSha256": "fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16",
-      "resticLinuxX64ExecutableSha256": "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf"
-    }
+    "linuxX64ExecutableSha256": "fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5",
+    "resticLinuxX64ExecutableSha256": "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf",
+    "image": "ghcr.io/the-open-engine/zeroshot-target:10.10.0@sha256:9769f74865d7e1137b82c9ed2ced4cbedb56cfd5fef6c9e8c0647955ba0c438b"
+  },
+  "codex": {
+    "version": "0.155.0",
+    "node": "v24.21.0"
   },
   "policy": {
     "workflow": "software-change",
@@ -47,10 +46,10 @@
   "generation": {
     "recipe": "generate.sh",
     "recipeFiles": {
-      "generate.sh": "e8da2580e06afa0dbda5cf37e9c1deba71db112fe46a57e237535be61df58ac8",
+      "generate.sh": "4ca197a1a086ffcc04980c945d6a010c298788c74a0fdc7e13522137d84ece2f",
       "describe.py": "cce427fc7eb2cc8e9d1f27935d55d4d460abd179561e7af0b6f3b6c5aea303bf"
     },
-    "recipeRevision": "ebab6f40be923dba37c26a33e00ce94cd7761a71",
+    "recipeRevision": "04daec4b65cfb16228426979126105cf7c2bb389",
     "environment": "env -i PATH=/usr/bin:/bin with an empty temporary HOME, ZEROSHOT_CONFIG_DIR and ZEROSHOT_STATE_DIR for each generation and the admission",
     "command": [
       "zeroshot",

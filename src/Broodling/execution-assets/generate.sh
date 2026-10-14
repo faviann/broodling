@@ -2,18 +2,17 @@
 # Regenerate an execution asset with the native executable its manifest pins, verify its exact bytes,
 # a second clean generation and native graph/runtime admission. Runs no target or provider.
 # Usage: generate.sh [--manifest MANIFEST] ZEROSHOT_EXECUTABLE [OUTPUT]
-#        generate.sh [--manifest MANIFEST] --fetch CACHE_DIR [OUTPUT]
-# MANIFEST defaults to the approved binding, approval.json. --fetch takes the executable from the
-# manifest's pinned release archive, downloading it into CACHE_DIR (after checking the release tag's
-# commit and SHA256SUMS) unless already there.
+#        generate.sh [--manifest MANIFEST] --image [OUTPUT]
+# MANIFEST defaults to the approved binding, approval.json. --image copies the executable out of the
+# manifest's native image, which Docker pulls by its pinned digest when absent.
 set -euo pipefail
 
 assets="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-usage='Usage: generate.sh [--manifest MANIFEST] (ZEROSHOT_EXECUTABLE | --fetch CACHE_DIR) [OUTPUT]'
+usage='Usage: generate.sh [--manifest MANIFEST] (ZEROSHOT_EXECUTABLE | --image) [OUTPUT]'
 manifest="$assets/approval.json"
 if [[ "${1:-}" == --manifest ]]; then manifest="$(realpath -- "${2:?$usage}")"; shift 2; fi
-native='' cache=''
-if [[ "${1:-}" == --fetch ]]; then cache="${2:?$usage}"; shift 2; else native="$(realpath -- "${1:?$usage}")"; shift; fi
+native='' image=false
+if [[ "${1:-}" == --image ]]; then image=true; shift; else native="$(realpath -- "${1:?$usage}")"; shift; fi
 output="${1:-}"
 
 # Manifest values: strings print raw, other JSON compactly, and a missing member prints nothing.
@@ -42,31 +41,16 @@ for name, digest in (json.loads(text) if text.strip() else {}).items(): print(na
 work="$(mktemp -d -t broodling-execution-asset.XXXXXXXX)"
 trap 'rm -rf -- "$work"' EXIT
 
-if [[ -n "$cache" ]]; then
-    repository="$(field native.release.repository)" tag="$(field native.release.tag)"
-    archive_name="$(field native.release.archive)" archive_sha256="$(field native.release.archiveSha256)"
-    [[ -n "$archive_name" ]] || { printf 'The manifest names no native release archive.\n' >&2; exit 1; }
-    archive="$cache/$archive_name"
-    if [[ ! -f "$archive" ]]; then
-        tagged="$(curl -fsSL "https://api.github.com/repos/$repository/git/ref/tags/$tag" \
-            | python3 -c 'import json, sys; ref = json.load(sys.stdin)["object"]; print(ref["type"], ref["sha"])')"
-        [[ "$tagged" == "commit $(field native.sourceRevision)" ]] \
-            || { printf 'Release tag %s names %s, not the pinned source revision.\n' "$tag" "$tagged" >&2; exit 1; }
-        curl -fsSL -o "$work/SHA256SUMS" "https://github.com/$repository/releases/download/$tag/SHA256SUMS"
-        grep -qxF "$archive_sha256  $archive_name" "$work/SHA256SUMS" \
-            || { printf 'The release SHA256SUMS does not list the pinned archive checksum.\n' >&2; exit 1; }
-        mkdir -p -- "$cache"
-        download="$(mktemp -p "$cache" ".$archive_name.XXXXXXXX")"
-        curl -fsSL -o "$download" "https://github.com/$repository/releases/download/$tag/$archive_name" \
-            && [[ "$(sha256sum -- "$download" | cut -d ' ' -f 1)" == "$archive_sha256" ]] \
-            || { rm -f -- "$download"; printf 'The downloaded release archive is not the pinned archive.\n' >&2; exit 1; }
-        mv -- "$download" "$archive"
-    fi
-    [[ "$(sha256sum -- "$archive" | cut -d ' ' -f 1)" == "$archive_sha256" ]] \
-        || { printf 'The native release archive %s is not the pinned archive.\n' "$archive" >&2; exit 1; }
-    mkdir "$work/native"
-    tar -xzf "$archive" -C "$work/native" zeroshot
-    native="$work/native/zeroshot"
+if [[ "$image" == true ]]; then
+    reference="$(field native.image)"
+    [[ "$reference" =~ @sha256:[0-9a-f]{64}$ ]] \
+        || { printf 'The manifest names no native image pinned by digest.\n' >&2; exit 1; }
+    container="$(docker create --quiet "$reference")"
+    copied=0
+    docker cp --quiet "$container:/usr/local/bin/zeroshot" "$work/zeroshot" || copied=$?
+    docker rm "$container" >/dev/null
+    [[ $copied == 0 ]] || { printf 'The native image carries no /usr/local/bin/zeroshot.\n' >&2; exit 1; }
+    native="$work/zeroshot"
 fi
 
 [[ "$(sha256sum -- "$native" | cut -d ' ' -f 1)" == "$native_sha256" ]] \
