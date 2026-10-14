@@ -101,13 +101,16 @@ release for replay.
 
 ## Images
 
-This repository builds, checks and publishes two images; `zeroshot-tls` runs
-the upstream pinned Caddy image unchanged.
+This repository builds, checks and publishes the `broodling` image. The
+`zeroshot` service runs an adopted Zeroshot environment image, which
+[`faviann/zeroshot-environments`](https://github.com/faviann/zeroshot-environments)
+builds and publishes ([adopted target environment](#adopted-target-environment)).
+`zeroshot-tls` runs the upstream pinned Caddy image unchanged.
 
-| Service | Recipe and build context | Published repository | User |
+| Service | Source | Image | User |
 | --- | --- | --- | --- |
 | `broodling` | [`Broodling.Dockerfile`](Broodling.Dockerfile), repository root | `ghcr.io/faviann/broodling` | `1654:1654` |
-| `zeroshot` | [`DirectTarget.Dockerfile`](DirectTarget.Dockerfile), `deployment/` | `ghcr.io/faviann/broodling-target` | container root |
+| `zeroshot` | the adoption record, [`target-environment.json`](target-environment.json) | the record's `image` by digest (`dotnet-r2`) | container root |
 | `zeroshot-tls` | not built | `caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b` | `10443:10443` |
 
 To build and check them locally from the repository root:
@@ -116,30 +119,27 @@ To build and check them locally from the repository root:
 export NuGetPackageSourceCredentials_github="Username=YOUR_GITHUB_USER;Password=READ_PACKAGES_TOKEN"
 docker build -f deployment/Broodling.Dockerfile \
   --secret id=nuget-github,env=NuGetPackageSourceCredentials_github -t broodling:REVIEWED_REVISION .
-docker build -f deployment/DirectTarget.Dockerfile -t broodling-target:REVIEWED_REVISION deployment
-tests/images/demonstrate.sh broodling:REVIEWED_REVISION broodling-target:REVIEWED_REVISION
+target="$(jq -r .image deployment/target-environment.json)"
+docker pull "$target"
+tests/images/demonstrate.sh broodling:REVIEWED_REVISION "$target"
 ```
 
-Both builds fetch the official Zeroshot `v10.10.0` Linux x86-64 musl release
-archive by its pinned SHA-256
-`fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16`, the
-[DirectTarget binding](../docs/implementation/zeroshot-native-integration.md#pinned-dependencies)
-`zeroshot 10.10.0`, source `3ee1192cec359a0b997f464e703a936e8b67d63c`. The
-Broodling build uses only its `zeroshot` executable, SHA-256
-`d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e`, to verify
-the asset. The DirectTarget image installs that executable and the archive's
-`restic`, SHA-256
-`90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, which native
-run allocation requires beside it. Base images are pinned by digest; apt packages come from
-the base distribution at build time, so select a published image by digest, not
-by rebuilding.
+The Broodling build verifies the asset with the
+[DirectTarget binding](../docs/implementation/zeroshot-native-integration.md#pinned-dependencies)'s
+native, `zeroshot 10.10.0` from source `3ee1192cec359a0b997f464e703a936e8b67d63c`.
+It copies that `zeroshot` executable out of upstream's published target image
+for the release, pinned by digest in the Dockerfile and the approval manifest.
+The adopted environment is built on the same image and carries the same
+executable and `restic`. Base images are pinned by digest; apt packages come
+from the base distribution at build time, so select a published image by
+digest, not by rebuilding.
 
 ### Broodling image
 
 The runtime stage is ASP.NET Core 10.0.12 on Ubuntu 24.04. The build stage uses
 the matching SDK 10.0.401 image, so `libbroodling_git.so` links against the
 runtime's libc. The image holds the published host output at `/app`, including
-`execution-assets/`, plus Git, gh 2.101.0 (the DirectTarget image's pin, also
+`execution-assets/`, plus Git, gh 2.101.0 (the adopted environment's version, also
 Git's credential helper for `https://github.com`), curl and tini. It runs
 `dotnet /app/Broodling.Host.dll` under tini as the image's non-root `app` user,
 `1654:1654`; tini is PID 1, forwards signals to the host and reaps orphaned
@@ -257,22 +257,105 @@ asset structure and native admission offline, without credentials, target or pro
 [execution asset](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset).
 Without the asset, HTTP preparation refuses.
 
-### DirectTarget image
+### Adopted target environment
 
-The [target recipe](#existing-target-readiness) pins Node 22.23.2, Codex
-0.153.4, gh 2.101.0 and the native binary hash. It runs rootful with Docker's
-default capabilities, and its entrypoint requires explicitly initialized state
-and a root-only bootstrap key. It serves only native's private mode: every
-control and OECP request needs the bearer token that the operator's bootstrap
-installs in each new target process ([private control access](#private-control-access)).
-The image contains no control secret.
-Zeroshot materializes its own execution checkout, separate from Broodling's
-source and Git custody; the `zeroshot` and `broodling` services share only the
-read-only public root.
+The producer, `zeroshot-environments`, owns the environment recipes, their
+inventories, image production and publication. Broodling owns adoption: the
+adoption evidence, the Execution asset and its approval, and the entrypoint and
+its startup interface ([entrypoint boundary](#entrypoint-boundary)).
+Publication alone neither adopts nor deploys an image, and adoption deploys
+nothing.
+
+The adoption record, [`target-environment.json`](target-environment.json)
+(`broodling.target-environment-adoption/v1`), names one adopted environment
+release:
+
+- `environment`: the environment release identifier, `dotnet-r2`. It is the
+  producer's `<environment>-r<N>`, separate from the native release that the
+  manifest records. Several environments can carry one native release.
+- `producer`: the repository, the release and the release asset the manifest
+  came from.
+- `manifest`: the retained exact bytes of that `manifest.json`
+  (`zeroshot-environment.manifest/v2`), at
+  [`environments/dotnet-r2.manifest.json`](environments/dotnet-r2.manifest.json),
+  and their SHA-256. A mutable registry or release lookup is not evidence.
+- `image`: the adopted image by digest, which the manifest also records.
+
+The manifest states the image digest, the recipe revision, the platform, the
+OS and base image identity, every installed component with its exact version,
+native's identity, the harness versions and the startup interface versions.
+Each component names what fixes its bytes: its downloaded artifacts' checksums,
+or the base image digest that encloses it. `dotnet-r2` carries native 10.10.0
+(upstream's source build, executable SHA-256 `fd5ffef2…`), Codex 0.155.0 on
+Node.js v24.21.0, Claude Code 2.1.276, Copilot CLI 1.0.86, .NET SDK 10.0.401,
+gh 2.101.0 and Debian 13.
+
+Adoption is checked in three places:
+
+- `TargetEnvironmentTests` (the images workflow runs them on every push): the
+  record's digest is the retained bytes' digest, and its image is the
+  manifest's. The manifest is one this revision supports. Every component is
+  fixed by an artifact checksum or the base digest. The image embeds this
+  revision's entrypoint. The pulled image is the manifest's platform and
+  digest, and its executables' bytes, harness, Node.js, gh, Git, Python and .NET
+  versions and its full Debian package list are the manifest's.
+- [`check-target`](#existing-target-readiness) reads the adopted manifest from
+  the inventory, with the record's digest. It refuses other bytes, a malformed
+  manifest, a schema other than `v2`, a platform other than `linux/amd64` and a
+  native, Codex (with its Node.js) or startup interface other than this
+  revision's binding. It then requires the running target to be that image by
+  digest and checks the identities Broodling relies on live.
+- The [image demonstration](../tests/README.md#image-demonstration), the
+  [stock witness](../tests/README.md#controlled-stock-directtarget-witness) and
+  the [transition check](#native-state-transitions) run the pulled image.
+
+To adopt another release, retain its manifest as published
+(`gh release download RELEASE -R faviann/zeroshot-environments -p manifest.json`),
+compare its SHA-256 with the release asset's digest, and commit the bytes and a
+new record. That change's workflow run qualifies it. Deploying it is a separate
+pin of the image digest and the inventory's manifest. A release that changes only
+.NET or OS packages, with the same native, Codex, Node.js and startup interface,
+changes no application code: the published Broodling image's `check-target`
+accepts it from the inventory. A native, Codex or harness Node.js change also
+changes the [binding and its approval](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset),
+and needs explicit Execution asset review and a Broodling release.
+
+The approved asset runs only Codex. Claude Code and Copilot CLI are installed
+but unapproved: they authorize nothing, and check-target does not check them
+live. The image sets `DISABLE_AUTOUPDATER=1` and `COPILOT_AUTO_UPDATE=false`,
+but native 10.10.0 clears its environment before it starts an agent process, so
+those values reach only processes that inherit the container's environment,
+such as `docker exec`. Native sets `COPILOT_AUTO_UPDATE=false` for Copilot
+itself; it sets no update control for Codex or Claude Code.
+
+Limits of the verification:
+
+- The manifest is the producer's statement. Broodling verifies its bytes, its
+  consistency with the binding, and, in `TargetEnvironmentTests`, the versions,
+  executable digests and Debian packages it lists against the pulled image. It
+  does not compare every file. The base's OS packages and tools are fixed only
+  by the base digest; the manifest records no per-package checksum for them.
+- `check-target` ties the container to the adopted digest through Docker's
+  image metadata (`RepoDigests`) and trusts the Docker daemon. It checks live
+  only native, restic and entrypoint bytes and the native, Codex, Node.js and gh
+  versions. It does not detect a change to other files of a running container.
+- An image inventory does not enforce R13's prohibition against arbitrary
+  unprivileged downloads: execution agents can still fetch and run tools in
+  their own run home. [Private control access](#private-control-access) (#187)
+  settles target control only; whether the approved-tool policy forbids such
+  downloads remains open with environment selection (#235).
+
+The entrypoint requires explicitly initialized state and a root-only bootstrap
+key and serves only native's private mode: every control and OECP request needs
+the bearer token that the operator's bootstrap installs in each new target
+process ([private control access](#private-control-access)). The image contains
+no control secret. Zeroshot materializes its own execution checkout, separate
+from Broodling's source and Git custody; the `zeroshot` and `broodling` services
+share only the read-only public root.
 
 - Evidence: the [controlled stock DirectTarget witness](../tests/README.md#controlled-stock-directtarget-witness)
-  runs that unmodified native as `zeroshot target serve` in the actual
-  DirectTarget image with the approved asset, in private mode with synthetic
+  runs that unmodified native as `zeroshot target serve` in the adopted image
+  with the approved asset, in private mode with synthetic
   control material bootstrapped after every start. Its test-only layer replaces the
   Codex provider and the `git`/`gh` forge, so its PR receipt is controlled. It
   covers exact B1 after branch movement with the moved target integrated, a
@@ -288,15 +371,47 @@ read-only public root.
   whose reply is lost stays unresolved until an exact replay, which converges on
   the same run.
 
+### Entrypoint boundary
+
+[`direct-target-entrypoint.sh`](direct-target-entrypoint.sh) is Broodling's
+file, and Broodling owns its container interface: the paths, listener,
+bootstrap key, commands and refusals in
+[explicit initialization and guarded startup](#explicit-initialization-and-guarded-startup).
+That interface's version is `zeroshot-environment.direct-target-startup/v1`,
+defined here and as `TargetEnvironment.StartupInterface`. A change that an
+existing operator procedure or target cannot follow needs a new version.
+
+The entrypoint crosses into an environment image as a versioned interface with
+pinned source. An environment release embeds the file from an exact Broodling
+commit, verified by its SHA-256, and records that commit, the SHA-256 and the
+interface version in its manifest. Broodling adopts an environment release by
+its manifest digest. Neither side depends on the other's release, and neither
+fetches either repository's moving `main` or `latest`.
+
+Adoption requires the manifest's interface version to be the one this revision
+supports, and `TargetEnvironmentTests` requires the embedded entrypoint to be
+this revision's file. A Broodling entrypoint change is therefore adopted with
+the environment release that carries it:
+
+1. Commit the change in Broodling, with a new interface version if it is
+   incompatible.
+2. The producer publishes an environment release that embeds the file from that
+   exact commit.
+3. The same Broodling change adopts that release, and only then merges.
+
 ### Publication and release records
 
 The [images workflow](../.github/workflows/images.yml) runs for every push. It
-builds both images, runs the [image demonstration](../tests/README.md#image-demonstration)
-on them, the [native-state transition check](../tests/README.md#native-state-transition-check)
-on the target image and `ApplicationSchemaFreezeTests`, and then publishes
-exactly those images to GHCR:
+pulls the adopted target image by the digest in the adoption record and builds
+the Broodling image. It runs the [image demonstration](../tests/README.md#image-demonstration)
+on the two, `TargetEnvironmentTests` and the
+[native-state transition check](../tests/README.md#native-state-transition-check)
+on the target image, and `ApplicationSchemaFreezeTests`. It then publishes
+exactly that Broodling image to GHCR. It builds and publishes no target image:
+#234 retired the Broodling-built `broodling-target` image and its
+`DirectTarget.Dockerfile` recipe.
 
-- A branch push publishes `sha-<full commit>` candidates, so a pull request's
+- A branch push publishes a `sha-<full commit>` candidate, so a pull request's
   head is published before merge.
 - A `v*` tag publishes that tag name and attaches the release record to a
   GitHub release of the same name. Publish a version by pushing the tag only.
@@ -308,19 +423,22 @@ exactly those images to GHCR:
 
 Published tags are never moved: a run refuses to publish over an existing tag,
 and a re-run of a published commit therefore fails at publication. Select images
-by digest. If publication fails after only one image was pushed, a re-run refuses
-too; that half-published tag is not a release and has no record. Publish again
-from a new commit or a new version tag.
+by digest. If publication fails after the image was pushed, a re-run refuses
+too; that tag has no record and is not a release. Publish again from a new
+commit or a new version tag.
 
 Each publishing run uploads a `release-record` artifact, `release-record.json`
-(kind `broodling.image-release/v1`). For a `sha-` candidate that workflow
+(kind `broodling.image-release/v2`). For a `sha-` candidate that workflow
 artifact is the only copy, and it expires under the repository's artifact
 retention; a `v*` version keeps its record on the GitHub release. The record
 contains:
 
 - the source revision, and the version or `sha-` tag;
-- `images.broodling` and `images.zeroshot` as `repository@sha256:DIGEST`, and
-  `images["zeroshot-tls"]`, the pinned Caddy reference;
+- `images.broodling`, the published image, and `images.zeroshot`, the adopted
+  target image, as `repository@sha256:DIGEST`, and `images["zeroshot-tls"]`,
+  the pinned Caddy reference;
+- `targetEnvironment`: the adoption record of that target image (environment
+  release, producer release, manifest path and SHA-256, and image);
 - `zeroshotTls`: the user and the Caddyfile to mount (path, SHA-256 and content);
 - `application`: the exact application schema the Broodling image initializes
   and opens, taken from its own `initialize-store` output: `storeFormat`,
@@ -328,27 +446,32 @@ contains:
   definition. `upgradesFrom` lists the identities, with the same three fields,
   that its `upgrade-store` upgrades; it is empty so far (see
   [application schema compatibility](#application-schema-compatibility));
-- `executionAsset`: the approved asset SHA-256 and its native pins from the
-  approval manifest;
-- `nativeStateTransitions`: `to`, the published `images.zeroshot`, and `from`,
+- `executionAsset`: the approved asset SHA-256 and its native and Codex pins
+  from the approval manifest;
+- `nativeStateTransitions`: `to`, the adopted `images.zeroshot`, and `from`,
   the published target images listed in
   [`native-state-transitions.json`](native-state-transitions.json) at that
   revision, each with its source revision and native version and executable
   SHA-256 (see [native-state transitions](#native-state-transitions));
-- `demonstration`: the native, Codex, Node and gh versions and the other
-  dependency facts that `check-target` observed in the demonstration.
+- `demonstration`: the adopted environment release, the native, Codex, Node and
+  gh versions and the other dependency facts that `check-target` observed in
+  the demonstration.
 
 A record states that these two images passed the demonstration together at that
 revision, and that its target image passed the transition check from each listed
 source. It is not a compatibility registry, and the two images need not share a
-version. It does not establish supported-profile readiness (#126). An operator
+version. The `v1` records of earlier runs, whose `images.zeroshot` names a
+Broodling-built `broodling-target` image, stay as published and describe only
+their own revisions. It does not establish supported-profile readiness (#126). An operator
 records a deployed target's image ID from `docker inspect` of the running
 container in the readiness inventory.
 
 The first publication created the `broodling` and `broodling-target` packages
 linked to this repository and, like it, public: anonymous pulls by digest work.
 Visibility is an operator setting in each package's settings; the workflow
-never changes it. Keep both packages readable by the installation host.
+never changes it. Keep `broodling` and the adopted environment's package
+readable by the installation host. Published `broodling-target` images stay as
+they are; nothing publishes there now.
 
 ### Native-state transitions
 
@@ -360,11 +483,15 @@ release establishes exactly these:
   record's `images.zeroshot`;
 - keeping the deployed target image, which changes no native state.
 
-Transitions are established only within one native release, the DirectTarget
-binding's, so a listed image must carry this revision's native `zeroshot 10.10.0`,
-executable SHA-256
-`d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e`. The list is
-empty: #215 replaced the initial native, asset, receipt and store definition, and
+Transitions are established only within one native release and executable,
+the DirectTarget binding's, so a listed image must carry this revision's native
+`zeroshot 10.10.0` with its executable SHA-256 (`fd5ffef2…`). A source is a
+previously adopted environment image, or another published image with that
+native. The list is empty. `dotnet-r2` is the first adopted environment, and its
+own manifest lists no `nativeStateTransitions.from` either. The `broodling-target`
+images published from `main` with native 10.10.0 carry the release archive's
+executable (`d0c84ffb…`), not the adopted one, so they are not sources and
+their state is not carried forward. Earlier, #215 replaced the initial native, asset, receipt and store definition, and
 removed the two native 10.3.0 `sha-` candidates published from `main` since #121
 (`sha-ae6fe2baa1beffe083683bddb6ce8cced5eecfc9`,
 `@sha256:48055a75977cf85c95739abae4b6b9c348fd3f191509f6b8d596c55bbc854dc5`, and
@@ -373,13 +500,13 @@ removed the two native 10.3.0 `sha-` candidates published from `main` since #121
 transition from those images, to or from another native version, or from an
 unlisted image is established; their state is not carried forward. #226 moved
 the binding to native 10.10.0, so the target images published from `main` with
-native 10.9.0 are not sources either. Adding a
-published 10.10.0 image to the list is a reviewed change that the next workflow
+native 10.9.0 are not sources either. Adding a published image with the
+binding's executable to the list is a reviewed change that the next workflow
 run checks.
 
 Before publishing, the images workflow runs the
 [transition check](../tests/README.md#native-state-transition-check): a restart of
-the candidate target image over native state it wrote itself, and an update from
+the adopted target image over native state it wrote itself, and an update from
 every listed source to it; if one fails, nothing is published.
 The host update procedure owns refusing any other selection.
 
@@ -407,12 +534,38 @@ To change the `zeroshot` image, the procedure needs:
   alias, `zeroshot-tls` and its root, and Broodling's `directOrigin` and
   `directRootCertificate`: retained Attempts reconnect to their retained origin.
 - Native UID ownership preserved: no recursive ownership change.
-- Afterwards, `check-target` with the inventory's `imageId` updated to the new
-  image.
+- Afterwards, `check-target` with the inventory's `imageId`, `environmentManifest`
+  and `environmentManifestSha256` updated to the new image and its adoption
+  record.
 
 Rollback is not a reverse transition: restore the pre-update snapshot with the
 prior image. Running a prior image over state that a newer image served is not
 established.
+
+#### Ending old execution and starting fresh state
+
+Moving to a target image that is not a listed source, such as from a
+`broodling-target` image to the adopted environment, is not an image swap over
+existing state. No test qualifies carrying that state, so it is not a migration.
+The separate operational path ends the old execution and starts fresh native
+state:
+
+1. Set the installation pause and let local initiation drain.
+2. Let every dispatched Attempt finish with its result captured, or request its
+   stop.
+3. Stop the old `zeroshot` container and keep it stopped. Retire each dispatched
+   Attempt on the verified `stopped_target` maintenance path
+   ([lifecycle](../docs/implementation/dotnet-retirement-replacement.md)).
+4. Keep the old target state and home directories unchanged. Nothing here
+   authorizes deleting them.
+5. Provision new empty state and home directories, initialize the adopted image
+   over them ([explicit initialization](#explicit-initialization-and-guarded-startup)),
+   start and bootstrap it, and run `check-target`.
+6. Release the pause. Retired Attempts never reconnect. New work, and an explicit
+   Replacement Attempt of an abandoned one, are fresh executions on the new
+   target.
+
+Nothing is deployed today, so no installation needs this path yet.
 
 ### Application schema compatibility
 
@@ -654,8 +807,9 @@ dotnet /RELEASE/host/Broodling.Host.dll check-target /NEW/target-inventory.json 
 ```
 
 An operator records the **existing stack's** containers, the exact `zeroshot`
-image, the Compose project network and canonical host mount paths in
-`target-inventory.json`:
+image, the Compose project network, canonical host mount paths and a host copy
+of the adopted environment's manifest with the digest from its
+[adoption record](#adopted-target-environment) in `target-inventory.json`:
 
 ```json
 {
@@ -669,17 +823,22 @@ image, the Compose project network and canonical host mount paths in
   "rootKeyMount": "/NEW/zeroshot-tls/key",
   "rootCertificateMount": "/NEW/zeroshot-tls/root",
   "broodlingContainerName": "broodling-broodling-1",
-  "bootstrapKeyFile": "/NEW/secrets/zeroshot/zeroshot-bootstrap-key"
+  "bootstrapKeyFile": "/NEW/secrets/zeroshot/zeroshot-bootstrap-key",
+  "environmentManifest": "/RELEASE/deployment/environments/dotnet-r2.manifest.json",
+  "environmentManifestSha256": "8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e"
 }
 ```
 
 The [readiness reference](../docs/implementation/dotnet-target-readiness.md)
-lists every check: the `zeroshot` image, running/root/isolation/restart settings,
-exact mounts, no published port, fixed launch arguments and the `zeroshot` alias
+lists every check: the adopted manifest's bytes and its native, Codex and
+startup interface; the `zeroshot` image as the adopted image by digest on
+`linux/amd64`; running/root/isolation/restart settings, exact mounts (beside
+the image's declared, unused `/var/lib/zeroshot` volume), no published port, fixed launch arguments and the `zeroshot` alias
 on the project network; `zeroshot-tls`'s pinned image, non-root user,
 `NET_BIND_SERVICE`-only capabilities, 443 publication, origin alias and separate
 root mounts; a read-only public root mount and no key mount in `broodling`;
-credential exclusion, native/Codex/Node/gh pins and binary hashes,
+credential exclusion, the native, Codex, Node and gh versions and the native,
+`restic` and entrypoint bytes against the manifest,
 `gh api graphql --paginate --slurp`, the hosted UID/GID transition, the target's
 read-only bootstrap key mount (which no other service may mount), and, through
 `zeroshot-tls` using the configuration's root, native's private-mode discovery,
@@ -691,18 +850,15 @@ readable by the account running the check. A target started but not yet
 bootstrapped, or bootstrapped with another token, is not ready. It creates no
 target/state, never bootstraps and dispatches zero provider tasks.
 
-The [DirectTarget Dockerfile](DirectTarget.Dockerfile) records the
-target dependency recipe: Node **22.23.2**, Codex **0.153.4**, gh
-**2.101.0** and the native **10.10.0** `zeroshot` and `restic` hashes. Its build
-context is `deployment/`; it fetches both from the pinned release archive itself.
-The [images workflow](#publication-and-release-records) builds and publishes
-it. Target provisioning is operator-owned and separately authorized; nothing
-here deploys it.
+The [adopted environment](#adopted-target-environment) supplies the target
+image: `dotnet-r2` carries native **10.10.0**, Codex **0.155.0** on Node.js
+**v24.21.0** and gh **2.101.0**. Target provisioning is operator-owned and
+separately authorized; nothing here deploys it.
 
 The supported topology is ADR 0001's single Compose project on rootful Docker on
 one trusted host:
 
-- `zeroshot` runs this image as container root with Docker's default
+- `zeroshot` runs the adopted image as container root with Docker's default
   capabilities. It has four bind mounts: state at `/state`, home at
   `/home/node`, the public root directory read-only at `/tls-root` and its
   bootstrap key file read-only at `/run/secrets/zeroshot-bootstrap-key` (a
@@ -733,12 +889,8 @@ used target storage.
 The target image entrypoint is `/usr/local/bin/broodling-target`. It keeps the
 native paths `/state`, `/home/node` and `CODEX_HOME=/home/node/.codex` and the
 listener `0.0.0.0:18770` fixed. `ZEROSHOT_CONFIG_DIR` and `XDG_CONFIG_HOME`
-overrides are refused. Select a published image by digest, or build it from the
-repository root:
-
-```bash
-docker build -f deployment/DirectTarget.Dockerfile -t broodling-target:REVIEWED_REVISION deployment
-```
+overrides are refused. Select the adopted image by the digest in its
+[adoption record](#adopted-target-environment), shown below as `TARGET_IMAGE`.
 
 For an authorized **new installation only**, first provision four empty durable
 host directories: target state and home, with explicit root ownership and
@@ -753,7 +905,7 @@ target's control material and its recipient copies as described in
    docker run --rm --network none \
      --mount type=bind,src=/NEW/zeroshot-tls/key,dst=/tls-root-key \
      --mount type=bind,src=/NEW/zeroshot-tls/root,dst=/tls-root \
-     broodling-target:REVIEWED_REVISION initialize-tls
+     TARGET_IMAGE initialize-tls
    ```
 
    It writes an OpenSSL P-256 key, `root.key`, mode `0400` in the key directory,
@@ -995,7 +1147,7 @@ process started with the same key, so it could reinstall the former token
 before `bootstrap-target` runs, which then reports that the target holds
 another token.
 
-### Several targets (#234, #235)
+### Several targets (#235)
 
 Each target is its own canonical origin with its own token and bootstrap key.
 Broodling resolves control credentials by exact origin for each operation
@@ -1013,7 +1165,7 @@ Broodling resolves control credentials by exact origin for each operation
   selects another target, starts a new Attempt or resets storage.
 
 Today's invocation configuration names one origin and its token file. The
-environment catalog and its selection (#234, #235) own how several are
+environment catalog and its selection (#235) own how several are
 configured.
 
 ## Invocation and recovery
