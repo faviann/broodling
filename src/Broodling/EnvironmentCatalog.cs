@@ -32,12 +32,17 @@ public sealed class EnvironmentCatalog
     private static readonly Regex Name = new("^[a-z0-9]([a-z0-9-]{0,52}[a-z0-9])?$", RegexOptions.CultureInvariant);
     private static readonly Regex Container = new("^[a-zA-Z0-9][a-zA-Z0-9_.-]*$", RegexOptions.CultureInvariant);
 
-    private EnvironmentCatalog(IReadOnlyList<ConfiguredEnvironment> entries, string? defaultEnvironment, DirectTargetAccess access)
+    private EnvironmentCatalog(IReadOnlyList<ConfiguredEnvironment> entries, string? defaultEnvironment, DirectTargetAccess access,
+        Func<string, ConfiguredEnvironment?>? lookup = null)
     {
         Entries = entries;
         Default = defaultEnvironment;
         Access = access;
+        this.lookup = lookup;
     }
+
+    /// <summary>Tests only: further environments found by name, see <see cref="WithLookup"/>.</summary>
+    private readonly Func<string, ConfiguredEnvironment?>? lookup;
 
     internal IReadOnlyList<ConfiguredEnvironment> Entries { get; }
 
@@ -50,9 +55,28 @@ public sealed class EnvironmentCatalog
     /// </summary>
     public DirectTargetAccess Access { get; }
 
-    internal ConfiguredEnvironment? Find(string name) => Entries.SingleOrDefault(entry => entry.Name == name);
+    internal ConfiguredEnvironment? Find(string name) => Entries.SingleOrDefault(entry => entry.Name == name) ?? lookup?.Invoke(name);
 
     internal ConfiguredEnvironment? DefaultEntry => Default is null ? null : Find(Default);
+
+    internal static bool IsName(string name) => Name.IsMatch(name);
+
+    /// <summary>
+    /// The configured environment <paramref name="requirement"/> selects: its declared name exactly, or the default
+    /// when it declares none. Never a nearest or similar entry.
+    /// </summary>
+    internal EnvironmentResolution Resolve(EnvironmentRequirement requirement)
+    {
+        if (requirement.Name is { } name)
+            return Find(name) is { } declared
+                ? new(requirement, declared.Adoption, declared.Target)
+                : throw new EnvironmentRefused("environment_unapproved",
+                    $"The repository declares the environment {name}, which the operator's environment catalog does not approve.");
+        return DefaultEntry is { } fallback
+            ? new(requirement, fallback.Adoption, fallback.Target)
+            : throw new EnvironmentRefused("environment_default_missing",
+                "The repository declares no environment and the operator's environment catalog names no default.");
+    }
 
     /// <summary>
     /// Validates <paramref name="entries"/> against <paramref name="adopted"/>, refusing a name that is not a DNS label
@@ -99,7 +123,13 @@ public sealed class EnvironmentCatalog
     }
 
     /// <summary>The same entries with other connection material, for tests whose stand-ins register tokens as they start.</summary>
-    internal EnvironmentCatalog WithAccess(DirectTargetAccess access) => new(Entries, Default, access);
+    internal EnvironmentCatalog WithAccess(DirectTargetAccess access) => new(Entries, Default, access, lookup);
+
+    /// <summary>
+    /// The same entries, also naming whatever <paramref name="lookup"/> finds by name, for tests whose stand-in
+    /// targets are configured as they start.
+    /// </summary>
+    internal EnvironmentCatalog WithLookup(Func<string, ConfiguredEnvironment?> lookup) => new(Entries, Default, Access, lookup);
 
     private static bool Absolute(string? path) =>
         !string.IsNullOrEmpty(path) && Path.IsPathFullyQualified(path) && Path.GetFullPath(path) == path && (path == "/" || !path.EndsWith('/'));

@@ -31,10 +31,10 @@ public sealed class ReplacementCompletionTests
                     b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, admitted_at FROM attempts;
                 {guard};
                 INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id,
-                    asset_sha256, binding_json)
+                    asset_sha256, binding_json, environment_name, environment_sha256, adoption_sha256, manifest_sha256, declaration_sha256)
                     SELECT 'historical-completed', 'broodling:http:v1:historical-completed',
                     json_set(request_json, '$.runId', $run, '$.submission.submissionKey', 'broodling:http:v1:historical-completed'),
-                    'prepared', $run, asset_sha256, binding_json FROM native_submissions;
+                    'prepared', $run, asset_sha256, binding_json, environment_name, environment_sha256, adoption_sha256, manifest_sha256, declaration_sha256 FROM native_submissions;
                 UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = 'historical-completed';
                 UPDATE native_submissions SET state = 'correlated', run_id = $run WHERE attempt_id = 'historical-completed';
                 INSERT INTO attempt_completions SELECT attempt_id, work_unit_id, contract_revision_id,
@@ -91,7 +91,7 @@ public sealed class ReplacementCompletionTests
         var historical = reopened.AdmitRetry(original.AttemptId, "completed-key");
         await Assert.That(historical.AttemptId).IsEqualTo(successor.AttemptId);
         await Assert.That(historical.IsCurrent).IsFalse();
-        await Assert.That(() => reopened.PrepareHttpSubmission(successor.AttemptId, fixture.Origin)).Throws<StaleAttempt>();
+        await Assert.That(() => reopened.PrepareHttpSubmission(successor.AttemptId, TestEnvironments.For(fixture.Origin))).Throws<StaleAttempt>();
         // A correlated record is handed back as a retained fact; nothing is sent.
         await Assert.That((await reopened.DispatchHttpAsync(successor.AttemptId, null)).State).IsEqualTo("correlated");
         await Assert.That(async () => await reopened.StopAsync(successor.AttemptId, "too late")).Throws<StaleAttempt>();

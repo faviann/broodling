@@ -1,8 +1,9 @@
 namespace Broodling;
 
 /// <summary>
-/// One explicit work reference. Ended authority is handed back without automatic replacement. A new Attempt is
-/// prepared against <paramref name="environments"/>; an existing Attempt continues only through its retained origin.
+/// One explicit work reference. Ended authority is handed back without automatic replacement. A new Attempt's
+/// environment is resolved against <paramref name="environments"/>; an existing Attempt continues only with its
+/// retained environment and target.
 /// </summary>
 public sealed class Invocation(BroodlingStore store, EnvironmentCatalog environments)
 {
@@ -58,11 +59,8 @@ public sealed class Invocation(BroodlingStore store, EnvironmentCatalog environm
         }
         if (CanResumeWithoutDispatch(status)) return status;
         var attempt = status.Attempts.LastOrDefault() ?? allocate();
-        // Returns the retained preparation, refusing a different configured origin. Until environment resolution
-        // (#235), a new Attempt is prepared at the default environment's target.
-        var target = environments.DefaultEntry
-            ?? throw new UnsupportedRuntime("The environment catalog names no default environment.");
-        store.PrepareHttpSubmission(attempt.AttemptId, target.Origin);
+        // A new Attempt's environment is resolved once against the catalog; a retained preparation is returned as is.
+        store.PrepareHttpSubmission(attempt.AttemptId, environments);
         await store.DispatchHttpAsync(attempt.AttemptId, credentials, cancellationToken);
         return store.Status(revisionId);
     }

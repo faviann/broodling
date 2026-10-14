@@ -208,8 +208,8 @@ public sealed class DirectTargetAccessTests
             var attempt = atFirst.Attempt.AttemptId;
             await Assert.That(((NativeObservation.Unavailable)(await store.ObserveAsync(attempt))!).Reason).IsEqualTo("credentials_unavailable");
             await DirectTargetRunTests.Fails(() => store.WaitAsync(attempt), "credentials_unavailable");
-            await Assert.That(() => store.PrepareHttpSubmission(attempt, Origin(second)))
-                .Throws<SubmissionConflict>();
+            // Preparation hands back the retained record; the configured catalog never rebinds it.
+            await Assert.That(store.PrepareHttpSubmission(attempt, TestEnvironments.For(Origin(second))).Origin).IsEqualTo(Origin(first));
             await Assert.That(store.FindSubmission(attempt)!.Origin).IsEqualTo(Origin(first));
         }
         await Assert.That((first.Connections, second.Connections)).IsEqualTo(contacted);

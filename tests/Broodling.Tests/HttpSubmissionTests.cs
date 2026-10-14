@@ -16,18 +16,20 @@ internal sealed class HttpFixture : IDisposable
     internal BroodlingStore Store { get; }
     internal AttemptRecord Attempt { get; }
 
-    internal HttpFixture(string? origin = "https://github.com/acme/widget.git")
+    /// <param name="source">Changes committed to the repository before the Attempt is admitted at its new head.</param>
+    internal HttpFixture(string? origin = "https://github.com/acme/widget.git", Action<AttemptFixture>? source = null)
     {
         if (origin is not null) Git.Git("remote", "add", "origin", origin);
         Directory.CreateDirectory(Assets);
         foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "execution-assets")))
             File.Copy(file, Path.Combine(Assets, Path.GetFileName(file)));
+        source?.Invoke(Git);
         Store = Git.State.Open();
-        Attempt = Git.Admit(Store);
+        Attempt = Git.Admit(Store, Git.Git("rev-parse", "HEAD").Trim());
     }
 
     internal NativeSubmission Prepare(BroodlingStore? store = null, string? attemptId = null, string target = Target) =>
-        (store ?? Store).PrepareHttpSubmission(attemptId ?? Attempt.AttemptId, target, () => ExecutionAsset.Load(Assets));
+        (store ?? Store).PrepareHttpSubmission(attemptId ?? Attempt.AttemptId, TestEnvironments.For(target), () => ExecutionAsset.Load(Assets));
 
     /// <summary>Prepare against a loopback target, then take only the phase steps the SQL guards allow; no submission is sent.</summary>
     internal NativeSubmission PrepareAt(Uri target, string state = "prepared")
@@ -135,7 +137,12 @@ public sealed class HttpSubmissionTests
             await Assert.That(((byte[])command.ExecuteScalar()!).SequenceEqual(
                 File.ReadAllBytes(Path.Combine(fixture.Assets, DirectTargetBinding.AssetFile)))).IsTrue();
         }
-        await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(prepared.BindingJson!), new JsonObject
+        // The environment the Attempt resolved to is retained with the binding (EnvironmentSelectionTests).
+        var binding = JsonNode.Parse(prepared.BindingJson!)!.AsObject();
+        var environment = binding["environment"]!;
+        binding.Remove("environment");
+        await Assert.That((string)environment["resolution"]!["target"]!["origin"]!).IsEqualTo(HttpFixture.Target);
+        await Assert.That(JsonNode.DeepEquals(binding, new JsonObject
         {
             ["protocol"] = "zeroshot.native-v2-target/v2", ["origin"] = HttpFixture.Target, ["repository"] = attempt.B1.Repository,
             ["resultOrigin"] = "https://github.com/acme/widget.git",
@@ -200,7 +207,7 @@ public sealed class HttpSubmissionTests
     public async Task BundleBoundTaskCarriesEveryReferenceAsItsExactCapturedBytes()
     {
         using var fixture = await BundleHttpFixture.CreateAsync();
-        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target);
+        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, TestEnvironments.For(HttpFixture.Target));
 
         var task = (string)JsonNode.Parse(prepared.RequestJson)!["submission"]!["initialInput"]!["task"]!;
         var authority = JsonNode.Parse(task[(task.IndexOf("\n\n", StringComparison.Ordinal) + 2)..])!;
@@ -243,7 +250,7 @@ public sealed class HttpSubmissionTests
         // 600 KiB of one captured file: within the capture limits, beyond what native execution accepts in its task.
         using var fixture = await BundleHttpFixture.CreateAsync(schema: new string('s', 600 * 1024));
 
-        var refused = await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+        var refused = await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, TestEnvironments.For(HttpFixture.Target)))
             .Throws<NativeTaskTooLarge>();
         await Assert.That(refused!.Code).IsEqualTo("task_too_large");
         await Assert.That(refused.Message).Contains($"the supported limit is {BroodlingStore.NativeTaskBytes} bytes");
@@ -257,7 +264,7 @@ public sealed class HttpSubmissionTests
         // under the budget as raw text and exceeds it as native writes it.
         using var fixture = await BundleHttpFixture.CreateAsync(schema: new string('"', 200 * 1024));
 
-        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, TestEnvironments.For(HttpFixture.Target)))
             .Throws<NativeTaskTooLarge>();
         await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)).IsNull();
     }
@@ -266,11 +273,11 @@ public sealed class HttpSubmissionTests
     public async Task RetainedReferenceBytesMustMatchTheManifestDigest()
     {
         using var fixture = await BundleHttpFixture.CreateAsync();
-        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target);
+        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, TestEnvironments.For(HttpFixture.Target));
         fixture.Git.State.Execute("DROP TRIGGER submission_binding_stable; "
             + "UPDATE native_submissions SET request_json = replace(request_json, 'Schema canary', 'Schema canarx')");
 
-        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, TestEnvironments.For(HttpFixture.Target)))
             .Throws<SubmissionConflict>();
         await Assert.That(fixture.Store.FindSubmission(prepared.AttemptId)!.RequestJson).Contains("Schema canarx");
     }
@@ -341,8 +348,8 @@ public sealed class HttpSubmissionTests
             await Assert.That(fixture.Prepare(reopened)).IsEqualTo(prepared);
             Directory.Delete(fixture.Assets, recursive: true);
             await Assert.That(fixture.Prepare(reopened)).IsEqualTo(prepared);
-            // The retained target binding is never replaced.
-            await Assert.That(() => fixture.Prepare(reopened, target: "http://127.0.0.1:10")).Throws<SubmissionConflict>();
+            // The retained environment and target are never replaced, whatever the catalog now says.
+            await Assert.That(fixture.Prepare(reopened, target: "http://127.0.0.1:10")).IsEqualTo(prepared);
         }
         using var again = fixture.Git.State.Open();
         await Assert.That(again.FindSubmission(attempt.AttemptId)).IsEqualTo(prepared);
@@ -501,12 +508,16 @@ public sealed class HttpSubmissionTests
                         ["source"] = new JsonObject { ["revision"] = attempt.B1.CommitOid }
                     }
                 }.ToJsonString());
-                command.Parameters.AddWithValue("$binding", new JsonObject { ["repository"] = attempt.B1.Repository }.ToJsonString());
                 command.ExecuteNonQuery();
             }
+            // The other Attempt's environment and binding, so only the run identities differ from a valid record.
             var insert = $"""
-                INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256, binding_json)
-                VALUES ('{attempt.AttemptId}', 'broodling:http:v1:{attempt.AttemptId}', $request, 'prepared', $intended, '{sent.AssetSha256}', $binding)
+                INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256, binding_json,
+                    environment_name, environment_sha256, adoption_sha256, manifest_sha256, declaration_sha256)
+                SELECT '{attempt.AttemptId}', 'broodling:http:v1:{attempt.AttemptId}', $request, 'prepared', $intended, asset_sha256,
+                    binding_json, environment_name, environment_sha256,
+                    adoption_sha256, manifest_sha256, declaration_sha256
+                FROM native_submissions WHERE attempt_id = '{other.AttemptId}'
                 """;
             // Another Attempt's intended identity, confirmed or not, is never reserved twice.
             await Assert.That(() => Run(insert, sent.IntendedRunId)).Throws<SqliteException>();

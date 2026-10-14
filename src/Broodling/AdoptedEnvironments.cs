@@ -44,27 +44,35 @@ internal static class AdoptedEnvironments
     private static AdoptedEnvironment Read(string directory, string path)
     {
         var name = Path.GetFileName(path);
+        try { return Parse(File.ReadAllBytes(path), manifestPath => File.ReadAllBytes(Path.Combine(directory, manifestPath)), name); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        { throw new UnsupportedRuntime($"The adopted environment {name} is unavailable."); }
+    }
+
+    /// <summary>
+    /// The adopted environment that <paramref name="record"/> and the manifest it names make, under this release's
+    /// rules; <paramref name="manifest"/> supplies the bytes for the manifest path the record names.
+    /// </summary>
+    internal static AdoptedEnvironment Parse(byte[] record, Func<string, byte[]> manifest, string name)
+    {
         try
         {
-            var record = File.ReadAllBytes(path);
             using var document = JsonDocument.Parse(record);
             var root = document.RootElement;
             var manifestPath = Text(root.GetProperty("manifest"), "path");
             var manifestSha256 = Text(root.GetProperty("manifest"), "sha256");
             if (Text(root, "kind") != Kind || manifestPath != Path.GetFileName(manifestPath) || manifestPath is "" or "." or "..")
                 throw new UnsupportedRuntime($"The adoption record {name} is not a supported adoption record.");
-            var manifest = File.ReadAllBytes(Path.Combine(directory, manifestPath));
+            var bytes = manifest(manifestPath);
             TargetEnvironment environment;
-            try { environment = TargetEnvironment.Read(manifest, manifestSha256); }
+            try { environment = TargetEnvironment.Read(bytes, manifestSha256); }
             catch (TargetNotReady error) { throw new UnsupportedRuntime($"The adopted environment {name} is not supported: {error.Message}"); }
             if (Text(root, "environment") != environment.Release || Text(root, "image") != environment.Image)
                 throw new UnsupportedRuntime($"The adoption record {name} names another release or image than its manifest.");
-            return new(environment.Release, environment.Image, record, Digests.Bytes(record), manifest, manifestSha256, environment);
+            return new(environment.Release, environment.Image, record, Digests.Bytes(record), bytes, manifestSha256, environment);
         }
         catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException)
         { throw new UnsupportedRuntime($"The adoption record {name} is malformed."); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        { throw new UnsupportedRuntime($"The adopted environment {name} is unavailable."); }
     }
 
     private static string Text(JsonElement element, string name) =>

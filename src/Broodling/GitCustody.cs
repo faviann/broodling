@@ -96,6 +96,47 @@ internal static class GitCustody
         return new(blob, Checked(repository, ["cat-file", "blob", blob]));
     }
 
+    /// <summary>What one exact path names in a pinned commit: nothing, a regular file, or anything else.</summary>
+    internal abstract record TreeEntry
+    {
+        internal sealed record Absent : TreeEntry;
+        /// <summary>A symbolic link, submodule, directory, or a parent that is not a directory.</summary>
+        internal sealed record NotAFile : TreeEntry;
+        internal sealed record File(string Mode, string BlobOid, byte[] Content) : TreeEntry;
+    }
+
+    /// <summary>
+    /// Read the exact entry at <paramref name="path"/> (slash-separated, from the repository root) through a
+    /// retained direct commit pin, one tree level at a time so that a parent that is not a directory is told
+    /// apart from an absent path. A regular file larger than <paramref name="maxBytes"/> is never read.
+    /// </summary>
+    internal static TreeEntry ReadTreeEntry(string repository, string commit, string path, long maxBytes)
+    {
+        if (RetentionOid(repository, "refs/broodling/starting/" + commit) != commit)
+            throw new UnsupportedStartingState("The selected Git commit no longer has its exact Broodling retention pin.");
+        var parts = path.Split('/');
+        for (var depth = 1; depth <= parts.Length; depth++)
+        {
+            var prefix = string.Join('/', parts[..depth]);
+            var entry = Checked(repository, ["ls-tree", "-z", "--full-tree", commit, "--", ":(top,literal)" + prefix]);
+            if (entry.Length == 0) return new TreeEntry.Absent();
+            var separator = Array.IndexOf(entry, (byte)'\t');
+            var fields = separator <= 0 ? Array.Empty<string>() : Encoding.ASCII.GetString(entry, 0, separator).Split(' ');
+            if (fields.Length != 3 || Array.IndexOf(entry, (byte)0) != entry.Length - 1
+                || StrictUtf8.GetString(entry, separator + 1, entry.Length - separator - 2) != prefix)
+                throw new UnsupportedStartingState("Cannot read the pinned Git tree.");
+            if (depth < parts.Length)
+            {
+                if (fields[1] != "tree") return new TreeEntry.NotAFile();
+                continue;
+            }
+            if (fields[0] is not ("100644" or "100755") || fields[1] != "blob") return new TreeEntry.NotAFile();
+            if (BlobSize(repository, fields[2]) is var size && size > maxBytes) throw new GitBlobTooLarge(size);
+            return new TreeEntry.File(fields[0], fields[2], Checked(repository, ["cat-file", "blob", fields[2]]));
+        }
+        throw new ArgumentException("The path is empty.", nameof(path));
+    }
+
     internal static long BlobSize(string repository, string blob) =>
         long.Parse(Encoding.ASCII.GetString(Checked(repository, ["cat-file", "-s", blob])).Trim(),
             System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture);

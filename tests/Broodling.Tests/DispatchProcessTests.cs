@@ -28,7 +28,8 @@ public sealed class DispatchProcessTests
 
         var start = new ProcessStartInfo("dotnet") { RedirectStandardError = true };
         foreach (var argument in new[] { Path.Combine(AppContext.BaseDirectory, "Broodling.ProcessWitness.dll"),
-            "http-dispatch", fixture.Git.State.Path, prepared.AttemptId, target.Origin.GetLeftPart(UriPartial.Authority), target.TokenFile })
+            "http-dispatch", fixture.Git.State.Path, prepared.AttemptId, target.Origin.GetLeftPart(UriPartial.Authority), target.TokenFile,
+            TestEnvironments.NameFor(target.Origin) })
             start.ArgumentList.Add(argument);
         using var caller = Process.Start(start)!;
         var error = caller.StandardError.ReadToEndAsync();
@@ -87,7 +88,8 @@ public sealed class DispatchProcessTests
 
         var start = new ProcessStartInfo("dotnet") { RedirectStandardError = true };
         foreach (var argument in new[] { Path.Combine(AppContext.BaseDirectory, "Broodling.ProcessWitness.dll"),
-            "http-dispatch", fixture.Git.State.Path, prepared.AttemptId, target.Origin.GetLeftPart(UriPartial.Authority), target.TokenFile })
+            "http-dispatch", fixture.Git.State.Path, prepared.AttemptId, target.Origin.GetLeftPart(UriPartial.Authority), target.TokenFile,
+            TestEnvironments.NameFor(target.Origin) })
             start.ArgumentList.Add(argument);
         using var caller = Process.Start(start)!;
         var error = caller.StandardError.ReadToEndAsync();

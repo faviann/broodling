@@ -11,30 +11,37 @@ public sealed partial class BroodlingStore
     /// <summary>
     /// Freeze one complete, secret-free stock DirectTarget request for an HTTP Attempt, with no
     /// target contact or dispatch credentials. The prepared record is the preparation fact: it
-    /// retains the approved asset bytes, intended run identity and exact bindings, and implies
-    /// neither dispatch nor acceptance. Repeating it returns the first committed record,
-    /// validated against retained content only.
+    /// retains the approved asset bytes, intended run identity, exact bindings and the Attempt's environment,
+    /// resolved once from the declaration at original B1 against <paramref name="environments"/>. It implies
+    /// neither dispatch nor acceptance. Repeating it returns the first committed record, validated against
+    /// retained content only, whatever the catalog now says.
     /// </summary>
-    public NativeSubmission PrepareHttpSubmission(string attemptId, string directOrigin) =>
-        PrepareHttpSubmission(attemptId, directOrigin, ExecutionAsset.LoadBundled);
+    public NativeSubmission PrepareHttpSubmission(string attemptId, EnvironmentCatalog environments) =>
+        PrepareHttpSubmission(attemptId, environments, ExecutionAsset.LoadBundled);
 
-    internal NativeSubmission PrepareHttpSubmission(string attemptId, string directOrigin, Func<ExecutionAsset> installed)
+    internal NativeSubmission PrepareHttpSubmission(string attemptId, EnvironmentCatalog environments, Func<ExecutionAsset> installed) =>
+        PrepareHttpSubmission(attemptId, attempt => environments.Resolve(EnvironmentDeclaration.Read(attempt.B1.Repository, attempt.B1.CommitOid)),
+            installed);
+
+    private NativeSubmission PrepareHttpSubmission(string attemptId, Func<AttemptRecord, EnvironmentResolution> resolve,
+        Func<ExecutionAsset> installed)
     {
-        if (DirectTargetExchange.CanonicalOrigin(directOrigin) is null)
-            throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1].");
         var attempt = RequireCurrentAttempt(attemptId);
         ExecutionAsset? asset = null;
+        EnvironmentResolution? environment = null;
         string? resultOrigin = null;
         Dictionary<string, byte[]>? references = null;
         if (FindSubmission(attemptId) is null)
         {
-            // Only a new preparation reads the installed asset and the captured references; a retained record carries both.
-            asset = installed();
-            resultOrigin = ResultOrigin(attempt, ReadWorkUnit(attempt.WorkUnitId)!);
-            references = CapturedReferences(attempt);
             // Git and SQLite cannot share a transaction. A crash may leave this exact pin without
             // a prepared record; it grants nothing, and a later preparation reuses it.
             GitCustody.Retain(new(attempt.B1.Repository, attempt.B1.CommitOid, attempt.B1.RequestedRevision));
+            // Only a new preparation reads the declaration, the installed asset and the captured references; a
+            // retained record carries all three. A refusal leaves no record.
+            environment = resolve(attempt);
+            asset = installed();
+            resultOrigin = ResultOrigin(attempt, ReadWorkUnit(attempt.WorkUnitId)!);
+            references = CapturedReferences(attempt);
         }
         using var transaction = connection.BeginTransaction(deferred: false);
         attempt = RequireCurrentAttempt(attemptId, transaction);
@@ -42,10 +49,8 @@ public sealed partial class BroodlingStore
         if (ReadSubmission(attemptId, transaction) is { } previous)
         {
             RequireRetainedHttpSubmission(attempt, previous, transaction);
-            if (previous.Origin != directOrigin)
-                throw new SubmissionConflict("The DirectTarget origin differs from the retained binding.");
             transaction.Commit();
-            return previous; // A losing concurrent preparer adopts the first identity; it never invents another.
+            return previous; // A losing concurrent preparer adopts the first record and its environment; it never invents another.
         }
         // A successor of work retired under verified maintenance is first prepared only within a maintenance pause.
         if (attempt.Retry is { } retry && ReadRetirement(retry.PredecessorId, transaction)?.Basis == "stopped_target")
@@ -54,15 +59,34 @@ public sealed partial class BroodlingStore
         Execute("INSERT OR IGNORE INTO execution_assets VALUES ($p0, $p1)", transaction, asset!.Sha256, asset.Content());
         // A row retained by an earlier preparation is reused, so it must still be the approved content.
         if (RetainedAsset(asset.Sha256, transaction) is null) throw RetainedDiffers();
+        foreach (var document in environment!.Documents)
+        {
+            Execute("INSERT OR IGNORE INTO environment_documents VALUES ($p0, $p1)", transaction, Digests.Bytes(document), document);
+            if (RetainedDocument(Digests.Bytes(document), transaction) is null) throw RetainedDiffers();
+        }
         Execute("""
             INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id,
-                asset_sha256, binding_json) VALUES ($p0, $p1, $p2, 'prepared', $p3, $p4, $p5)
+                asset_sha256, binding_json, environment_name, environment_sha256, adoption_sha256, manifest_sha256,
+                declaration_sha256) VALUES ($p0, $p1, $p2, 'prepared', $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10)
             """, transaction, attemptId, HttpSubmissionKey(attemptId), RetainedRequest(HttpRequest(attempt, transaction, intended, asset, references!)),
-            intended, asset.Sha256, HttpBinding(attempt, directOrigin, resultOrigin!).ToJsonString());
+            intended, asset.Sha256, HttpBinding(attempt, resultOrigin!, environment).ToJsonString(), environment.Name, environment.Sha256,
+            environment.Adoption.RecordSha256, environment.Adoption.ManifestSha256, environment.Requirement.Declaration?.Sha256);
         var result = ReadSubmission(attemptId, transaction)!;
         transaction.Commit();
         return result;
     }
+
+    /// <summary>
+    /// A successor's preparation: exactly its predecessor's retained resolution, recorded as inherited from it.
+    /// </summary>
+    private NativeSubmission PrepareInheritedHttpSubmission(string attemptId, string predecessorId) =>
+        PrepareHttpSubmission(attemptId, _ =>
+        {
+            var predecessor = ReadAttempt(predecessorId);
+            var inherited = RetainedEnvironment(predecessor, FindSubmission(predecessorId)
+                ?? throw new SubmissionNotReady("The predecessor has no retained environment."));
+            return inherited with { Replacement = new(predecessorId, "inherited", inherited.Sha256) };
+        }, ExecutionAsset.LoadBundled);
 
     /// <summary>
     /// First send or exact acknowledgement-loss replay of a prepared HTTP submission. A correlated
@@ -163,8 +187,9 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// The retained record must still be exactly what preparation froze from admitted authority,
-    /// the approved asset retained in this store and a binding this release supports. Missing or
-    /// corrupt content refuses; nothing is regenerated from today's installed files or rebound.
+    /// the approved asset retained in this store, a binding this release supports and the environment its
+    /// retained documents state. Missing or corrupt content refuses; nothing is regenerated from today's
+    /// installed files, repository or catalog, and nothing is rebound.
     /// </summary>
     private void RequireRetainedHttpSubmission(AttemptRecord attempt, NativeSubmission record, SqliteTransaction transaction)
     {
@@ -173,13 +198,52 @@ public sealed partial class BroodlingStore
         JsonNode? binding;
         try { binding = JsonNode.Parse(record.BindingJson); }
         catch (JsonException) { binding = null; }
-        var origin = (binding?["origin"] as JsonValue)?.TryGetValue<string>(out var text) == true ? text : "";
         var resultOrigin = (binding?["resultOrigin"] as JsonValue)?.TryGetValue<string>(out var result) == true ? result : "";
+        var environment = RetainedEnvironment(attempt, record, transaction);
         if (asset is null || record.AssetSha256 != asset.Sha256 || record.SubmissionKey != HttpSubmissionKey(attempt.AttemptId)
-            || DirectTargetExchange.CanonicalOrigin(origin) is null || !ValidResultOrigin(resultOrigin, work)
-            || !JsonNode.DeepEquals(binding, HttpBinding(attempt, origin, resultOrigin))
+            || DirectTargetExchange.CanonicalOrigin(environment.Target.Origin) is null || !ValidResultOrigin(resultOrigin, work)
+            || !JsonNode.DeepEquals(binding, HttpBinding(attempt, resultOrigin, environment))
             || HttpRequest(attempt, transaction, record.IntendedRunId, asset, RetainedReferences(record.RequestJson)) != record.RequestJson)
             throw RetainedDiffers();
+    }
+
+    /// <summary>
+    /// The environment <paramref name="record"/> retains, rebuilt from its binding and retained documents only and
+    /// matching its retained columns. A retained adoption this release cannot use refuses with that reason.
+    /// </summary>
+    private EnvironmentResolution RetainedEnvironment(AttemptRecord attempt, NativeSubmission record, SqliteTransaction? transaction = null)
+    {
+        string name, sha256;
+        using (var command = Command("SELECT environment_name, environment_sha256 FROM native_submissions WHERE attempt_id = $p0",
+            transaction, record.AttemptId))
+        using (var row = command.ExecuteReader())
+        {
+            if (!row.Read()) throw RetainedDiffers();
+            (name, sha256) = (row.GetString(0), row.GetString(1));
+        }
+        EnvironmentResolution? environment;
+        try
+        {
+            environment = EnvironmentResolution.Read(JsonNode.Parse(record.BindingJson)?["environment"],
+                digest => RetainedDocument(digest, transaction));
+        }
+        catch (JsonException) { throw RetainedDiffers(); }
+        catch (UnsupportedRuntime)
+        {
+            throw new SubmissionConflict("This Attempt was prepared for an environment this release's native binding does not support; "
+                + "stop and retire it, then replace it.");
+        }
+        if (environment is null || environment.Name != name || environment.Sha256 != sha256
+            || environment.Requirement.Declaration is { } declaration
+                && (declaration.Path != EnvironmentDeclaration.Path || declaration.Commit != attempt.B1.CommitOid))
+            throw RetainedDiffers();
+        return environment;
+    }
+
+    private byte[]? RetainedDocument(string sha256, SqliteTransaction? transaction)
+    {
+        using var command = Command("SELECT content FROM environment_documents WHERE sha256 = $p0", transaction, sha256);
+        return command.ExecuteScalar() is byte[] content && Digests.Bytes(content) == sha256 ? content : null;
     }
 
     /// <summary>
@@ -226,11 +290,11 @@ public sealed partial class BroodlingStore
         }.ToJsonString();
     }
 
-    /// <summary>Broodling-only retention facts: never sent, never secrets.</summary>
-    private static JsonObject HttpBinding(AttemptRecord attempt, string origin, string resultOrigin) => new()
+    /// <summary>Broodling-only retention facts: never sent, never secrets. The origin is the resolved target's.</summary>
+    private static JsonObject HttpBinding(AttemptRecord attempt, string resultOrigin, EnvironmentResolution environment) => new()
     {
-        ["protocol"] = DirectTargetDiscovery.Kind, ["origin"] = origin, ["repository"] = attempt.B1.Repository, ["resultOrigin"] = resultOrigin,
-        ["native"] = DirectTargetBinding.Native()
+        ["protocol"] = DirectTargetDiscovery.Kind, ["origin"] = environment.Target.Origin, ["repository"] = attempt.B1.Repository,
+        ["resultOrigin"] = resultOrigin, ["native"] = DirectTargetBinding.Native(), ["environment"] = environment.Json()
     };
 
     /// <summary>Captured once from the retained common Git directory; later remote changes never rebind it.</summary>

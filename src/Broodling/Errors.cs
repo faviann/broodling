@@ -23,6 +23,13 @@ public class SubmissionConflict(string message, string? existingRunId = null) : 
 public sealed class ReceiptRefused(string message) : SubmissionConflict(message);
 public sealed class UnsupportedRuntime(string message) : BroodlingException("unsupported_runtime", message);
 /// <summary>
+/// An Attempt's environment cannot be chosen or used, refused before any target contact:
+/// <c>environment_declaration_invalid</c>, <c>environment_declaration_conflict</c>,
+/// <c>environment_requirement_unsupported</c>, <c>environment_unapproved</c>, <c>environment_default_missing</c>
+/// at first preparation. Retrying cannot resolve any of them; the repository or the catalog must change.
+/// </summary>
+public sealed class EnvironmentRefused(string code, string message) : BroodlingException(code, message);
+/// <summary>
 /// A fixed transport outcome. <c>credentials_unavailable</c> sent nothing: no readable control token is configured
 /// for the target's exact origin. <c>unauthorized</c> is the target refusing the token it was sent.
 /// </summary>

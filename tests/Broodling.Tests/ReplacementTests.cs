@@ -178,7 +178,7 @@ public sealed class ReplacementTests
         var original = fixture.Attempt;
         var origin = target.Origin.GetLeftPart(UriPartial.Authority);
         // The predecessor's send is left unresolved: the target may hold its run until maintenance stops it.
-        var sent = store.PrepareHttpSubmission(original.AttemptId, origin);
+        var sent = store.PrepareHttpSubmission(original.AttemptId, TestEnvironments.For(origin));
         target.Submit = _ => Task.FromResult((503, """{"code":"target.unavailable","message":"unavailable"}"""));
         await Assert.That(async () => await store.DispatchHttpAsync(original.AttemptId, HttpDispatchTests.Credentials()))
             .Throws<NativeTransportError>();

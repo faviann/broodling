@@ -543,16 +543,19 @@ public sealed class InvocationTests
     }
 
     [Test]
-    public async Task RetainedOriginDecidesTargetAndAMismatchRefusesBeforeContact()
+    public async Task RetainedEnvironmentDecidesTargetWhateverTheCatalogDefault()
     {
         await using var target = new StockTarget();
         using var http = new HttpFixture();
-        // A prepared HTTP Attempt keeps its retained origin; a differently configured one is refused.
+        // A prepared HTTP Attempt keeps its retained environment and origin; a catalog whose default is another
+        // target never redirects it.
         var prepared = http.Prepare(target: target.Origin.GetLeftPart(UriPartial.Authority));
-        await Assert.That(async () => await new Invocation(http.Store, TestEnvironments.For("http://127.0.0.1:9"))
-            .ResumeAsync(http.Attempt.ContractRevisionId)).Throws<SubmissionConflict>();
-        await Assert.That(http.Store.FindSubmission(http.Attempt.AttemptId)).IsEqualTo(prepared);
-        await Assert.That(target.Connections).IsEqualTo(0);
+        await new Invocation(http.Store, TestEnvironments.For("http://127.0.0.1:9"))
+            .ResumeAsync(http.Attempt.ContractRevisionId, credentials: HttpDispatchTests.Credentials());
+        var correlated = http.Store.FindSubmission(http.Attempt.AttemptId)!;
+        await Assert.That(correlated.RunId).IsEqualTo(prepared.IntendedRunId);
+        await Assert.That(correlated.BindingJson).IsEqualTo(prepared.BindingJson);
+        await Assert.That(target.Bodies.Count).IsEqualTo(1);
     }
 
     /// <summary>A <c>gh</c> stand-in that answers every issue read with <see cref="Issue"/>.</summary>
