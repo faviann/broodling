@@ -37,8 +37,10 @@ public sealed record SubmissionProgress(string SubmissionId, string State, strin
 /// takes over. It never waits for an Attempt and never initiates a stop, abandonment or replacement; only the
 /// dispatch it calls stops the exact run whose acknowledgement arrives after abandonment.
 /// </summary>
-/// <param name="directTarget">The current DirectTarget connection material (control tokens and root) passed to every session.</param>
-/// <param name="target">The configured DirectTarget. A retained binding to another origin refuses and stops.</param>
+/// <param name="environments">
+/// The operator environment catalog passed to every session and invocation: where new Attempts are prepared and the
+/// current connection material (control tokens and root). A retained binding to another origin refuses and stops.
+/// </param>
 /// <param name="preparer">
 /// The process's one preparer, shared with callers that prepare the same submissions. Its lifetime ends only at
 /// shutdown, so a preparation it cancels detaches like this service's own cancellation.
@@ -48,8 +50,8 @@ public sealed record SubmissionProgress(string SubmissionId, string State, strin
 /// Called once when a submission stops and needs attention, with the exception only for an unexpected failure.
 /// A callback that throws is ignored. It may be invoked concurrently from thread-pool threads.
 /// </param>
-public sealed class SubmissionProgressor(BroodlingApplication application, string storePath, DirectTargetAccess? directTarget,
-    InvocationTarget target, IssueSubmissionPreparer preparer, Func<ProgressionCredentials> credentials,
+public sealed class SubmissionProgressor(BroodlingApplication application, string storePath, EnvironmentCatalog environments,
+    IssueSubmissionPreparer preparer, Func<ProgressionCredentials> credentials,
     Action<SubmissionProgress, Exception?> stopped)
 {
     /// <summary>
@@ -88,7 +90,7 @@ public sealed class SubmissionProgressor(BroodlingApplication application, strin
     /// </summary>
     public bool Resume(string submissionId)
     {
-        using (var store = application.OpenStore(storePath, directTarget))
+        using (var store = application.OpenStore(storePath, environments))
             if (!store.UnfinishedSubmissions().Contains(submissionId)) return false;
         lock (progress)
             if (progress.TryGetValue(submissionId, out var entry) && entry.State != SubmissionProgress.Progressing)
@@ -140,7 +142,7 @@ public sealed class SubmissionProgressor(BroodlingApplication application, strin
     {
         try
         {
-            using var store = application.OpenStore(storePath, directTarget);
+            using var store = application.OpenStore(storePath, environments);
             return store.UnfinishedSubmissions();
         }
         catch (Exception failure) when (failure is StoreStateException or SqliteException) { return null; }
@@ -176,10 +178,10 @@ public sealed class SubmissionProgressor(BroodlingApplication application, strin
             else if (prepared is IssueSubmissionPreparation.Decided { Admission.Decision.Admitted: true })
             {
                 stage = SubmissionProgress.Continuation;
-                using var store = application.OpenStore(storePath, directTarget);
+                using var store = application.OpenStore(storePath, environments);
                 // Allocation from retained B1, the retained prepared submission and exact dispatch or replay; a
                 // correlated or ended Attempt is handed back without target contact or credentials.
-                await new Invocation(store, target).ResumeSubmissionAsync(submissionId, credentials().Dispatch, cancellationToken);
+                await new Invocation(store, environments).ResumeSubmissionAsync(submissionId, credentials().Dispatch, cancellationToken);
             }
         }
         // Shutdown detaches and reports nothing. Any other cancellation, such as from the credential

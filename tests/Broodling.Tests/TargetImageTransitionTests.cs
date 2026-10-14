@@ -45,14 +45,14 @@ public sealed class TargetImageTransitionTests
         var admitted = Admit(delivered, target);
         using var store = admitted.Store;
         await target.PushAsync(delivered.Repository, "main");
-        var correlated = await new Invocation(store, new InvocationTarget(target.Origin))
+        var correlated = await new Invocation(store, TestEnvironments.For(target.Origin))
             .ResumeAsync(admitted.Revision, delivered.Repository, delivered.Head, Credentials);
         var attempt = correlated.Attempts.Single().AttemptId;
         await Finished(store, attempt);
         var reference = await TerminalAsync(correlated.Submissions.Single().Run!);
         var pending = Admit(unacknowledged, target);
         using var pendingStore = pending.Store;
-        var replay = new Invocation(pendingStore, new InvocationTarget(target.Origin));
+        var replay = new Invocation(pendingStore, TestEnvironments.For(target.Origin));
         // The target records the run, but its acknowledgement is lost.
         var unresolved = await LoseAcknowledgementAsync(pendingStore, unacknowledged, replay, pending.Revision, unacknowledged.Head, target);
         await Assert.That(await target.RunCountAsync()).IsEqualTo(2);

@@ -8,11 +8,11 @@ internal sealed record ProcessingPeers(Func<ProgressionCredentials> Credentials,
     GitHubIssueSource IssueSource, GitHubRepositorySource RepositorySource, HttpMessageHandler? Gateway);
 
 /// <summary>
-/// What a server needs to promise unattended processing of the work it accepts: the secret-free DirectTarget
-/// <see cref="InvocationConfiguration"/>, an existing durable root for service-owned repositories and current
-/// credentials. Without <c>Broodling:Invocation</c> and <c>Broodling:RepositoryRoot</c> the server only reads.
+/// What a server needs to promise unattended processing of the work it accepts: the secret-free environment
+/// catalog its <see cref="InvocationConfiguration"/> states, an existing durable root for service-owned
+/// repositories and current credentials. Without <c>Broodling:Invocation</c> and <c>Broodling:RepositoryRoot</c> the server only reads.
 /// </summary>
-internal sealed record ProcessingSettings(InvocationConfiguration Configuration, string RepositoryRoot,
+internal sealed record ProcessingSettings(EnvironmentCatalog Environments, string RepositoryRoot,
     Func<ProgressionCredentials> Credentials, ProcessingPeers? Peers)
 {
     /// <summary>Null selects the read-only server. Anything else that cannot process refuses startup.</summary>
@@ -23,7 +23,8 @@ internal sealed record ProcessingSettings(InvocationConfiguration Configuration,
         if (invocation is null && repositoryRoot is null) return null;
         if (string.IsNullOrEmpty(invocation) || string.IsNullOrEmpty(repositoryRoot))
             throw new UnsupportedRuntime("Submission needs both Broodling:Invocation and Broodling:RepositoryRoot.");
-        var target = InvocationConfiguration.Read(invocation);
+        // An invalid catalog refuses startup, before the server listens.
+        var environments = InvocationConfiguration.Read(invocation);
         if (!Path.IsPathFullyQualified(repositoryRoot) || !Directory.Exists(repositoryRoot))
             throw new UnsupportedRuntime("Broodling:RepositoryRoot must name an existing absolute directory.");
         var credentials = peers?.Credentials ?? FromEnvironment;
@@ -32,7 +33,7 @@ internal sealed record ProcessingSettings(InvocationConfiguration Configuration,
         var current = credentials();
         _ = current.Gateway.ApiKey();
         _ = current.Dispatch.TargetRun();
-        return new(target, repositoryRoot, credentials, peers);
+        return new(environments, repositoryRoot, credentials, peers);
     }
 
     /// <summary>The credentials the invocation commands use, from the process environment.</summary>
@@ -62,15 +63,14 @@ internal sealed class Processing : BackgroundService
     {
         this.lifetime = lifetime;
         this.logger = logger;
-        var access = settings.Configuration.Access;
+        var environments = settings.Environments;
         var peers = settings.Peers;
         var preparer = new IssueSubmissionPreparer(application, storePath, settings.RepositoryRoot, lifetime.ApplicationStopping)
         {
             IssueSource = peers?.IssueSource, RepositorySource = peers?.RepositorySource, Gateway = peers?.Gateway
         };
-        Progressor = new SubmissionProgressor(application, storePath, access, settings.Configuration.Target,
-            preparer, settings.Credentials, Stopped) { Clock = peers?.Clock ?? TimeProvider.System };
-        observer = new CompletionObserver(application, storePath, access, (attemptId, failure) =>
+        Progressor = new SubmissionProgressor(application, storePath, environments, preparer, settings.Credentials, Stopped) { Clock = peers?.Clock ?? TimeProvider.System };
+        observer = new CompletionObserver(application, storePath, environments, (attemptId, failure) =>
             logger.LogError(failure, "Completion observation of Attempt {AttemptId} failed unexpectedly; it is not observed again until restart.", attemptId))
         { Clock = peers?.Clock ?? TimeProvider.System };
     }

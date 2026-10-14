@@ -463,8 +463,8 @@ public sealed class TargetReadinessTests
         var config = JsonNode.Parse(File.ReadAllText(fixture.Arguments[2]))!;
         switch (change)
         {
-            case "different-origin": config["directOrigin"] = "https://other.dev.faviann.com"; break;
-            case "missing-origin": config.AsObject().Remove("directOrigin"); break;
+            case "different-origin": config["environments"]![0]!["origin"] = "https://other.dev.faviann.com"; break;
+            case "missing-origin": config["environments"]![0]!.AsObject().Remove("origin"); break;
             case "unknown-config": config["extra"] = ReadinessFixture.Secret; break;
             case "local-field": config["pythonExecutable"] = "/unavailable-python"; break;
             case "credential-config": config["gatewayApiKey"] = ReadinessFixture.Secret; break;
@@ -598,7 +598,7 @@ public sealed class TargetReadinessTests
         /// <summary>The token the target accepts, as if bootstrapped, and the configuration's token file.</summary>
         internal string Token { get; set; } = TestAccess.NewSecret();
         internal string TokenFile => Path.Combine(Root, "control-token");
-        internal DirectTargetAccess Access => DirectTargetAccess.For(Origin, TokenFile, RootCertificate);
+        internal DirectTargetAccess Access => new(origin => origin == Origin ? TokenFile : null, RootCertificate);
         /// <summary>The target's reply to an unauthenticated session; null for native's own.</summary>
         internal (HttpStatusCode Status, string Body)? Unauthenticated { get; set; }
         internal List<string?> SessionBearers { get; } = [];
@@ -655,9 +655,7 @@ public sealed class TargetReadinessTests
             Broodling = new JsonObject { ["Mounts"] = new JsonArray(Bind(Inventory.RootCertificateMount, "/tls-root", false)) };
             Readiness = new TargetReadiness(Command, DiscoveryClient, Clock);
             File.WriteAllText(Arguments[1], JsonSerializer.Serialize(Inventory, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-            File.WriteAllText(Arguments[2], $$"""
-                {"directOrigin":"{{Origin}}","directControlTokenFile":"{{TokenFile}}","directRootCertificate":"{{RootCertificate}}"}
-                """);
+            File.WriteAllText(Arguments[2], TestEnvironments.Configuration(Origin, TokenFile, RootCertificate).ToJsonString());
             File.WriteAllText(TokenFile, Token);
         }
 

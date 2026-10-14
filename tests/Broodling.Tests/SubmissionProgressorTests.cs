@@ -400,8 +400,8 @@ public sealed class SubmissionProgressorTests
             {
                 IssueSource = new GitHubIssueSource(fixture.Gh), RepositorySource = fixture.Source, Gateway = gateway
             };
-            Progressor = new SubmissionProgressor(fixture.State.Application, fixture.State.Path, TestAccess.Live,
-                new InvocationTarget(target.Origin.GetLeftPart(UriPartial.Authority)), preparer, () =>
+            Progressor = new SubmissionProgressor(fixture.State.Application, fixture.State.Path,
+                TestEnvironments.For(target.Origin.GetLeftPart(UriPartial.Authority)), preparer, () =>
                 {
                     Interlocked.Increment(ref credentialReads);
                     return provider?.Invoke() ?? new(GitHub, new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, "gateway-key"),

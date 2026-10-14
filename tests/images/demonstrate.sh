@@ -71,7 +71,7 @@ bootstrap() {
     for _ in $(seq 1 100); do
         result="$(compose run --rm --no-deps -T \
             --volume "$root/secrets/broodling-bootstrap-key:/run/secrets/zeroshot-bootstrap-key:ro" \
-            broodling bootstrap-target /etc/broodling/invocation.json /run/secrets/zeroshot-bootstrap-key || :)"
+            broodling bootstrap-target /etc/broodling/invocation.json dotnet /run/secrets/zeroshot-bootstrap-key || :)"
         [[ $result == *native_transport_error* ]] || break
         sleep 0.2
     done
@@ -118,6 +118,16 @@ docker run --rm --network none --mount "$(bind "$root" /owned)" --workdir /owned
 exec > >(tee -a "$root/transcript.log") 2>&1
 secrets new
 echo 'synthetic secrets generated: bootstrap key for the target and the bootstrap operation, token for broodling and the host'
+# The environment catalog: one environment, dotnet, served by the zeroshot target with its state and home. broodling's
+# copy names its control token secret; the host operator's copy, for check-target, names the host's token copy.
+catalog() {
+    jq -n --arg origin "$origin" --arg token "$1" --arg image "$target_image" --arg container "$project-zeroshot-1" \
+        --arg root "$root" --arg certificate "$2" \
+        '{directRootCertificate: $certificate, defaultEnvironment: "dotnet",
+          environments: [{name: "dotnet", origin: $origin, controlTokenFile: $token, image: $image, container: $container,
+            stateMount: "\($root)/target-state", homeMount: "\($root)/target-home"}]}'
+}
+catalog /run/secrets/zeroshot-control-token /tls-root/root.crt >"$root/invocation.json"
 
 step 'Create the TLS root once (target image, one-off root helper)'
 docker run --rm --network none --mount "$(bind "$root/tls-root-key" /tls-root-key)" \
@@ -207,7 +217,7 @@ broodling_container="$(container broodling)"
 mounts="$(docker inspect --format '{{json .Mounts}}' "$broodling_container" \
     | jq -c 'map({Type, Source, Destination, RW}) | sort_by(.Destination)')"
 expected="$(jq -cn --arg root "$root" --arg here "$here" '[
-    {Type: "bind", Source: "\($here)/processing/invocation.json", Destination: "/etc/broodling/invocation.json", RW: false},
+    {Type: "bind", Source: "\($root)/invocation.json", Destination: "/etc/broodling/invocation.json", RW: false},
     {Type: "bind", Source: "\($root)/secrets/broodling-control-token", Destination: "/run/secrets/zeroshot-control-token", RW: false},
     {Type: "bind", Source: "\($root)/tls-root", Destination: "/tls-root", RW: false},
     {Type: "bind", Source: "\($root)/broodling", Destination: "/var/lib/broodling", RW: true}]')"
@@ -240,9 +250,7 @@ jq -n --arg origin "$origin" --arg root "$root" --arg network "${project}_defaul
       bootstrapKeyFile: "\($root)/secrets/target-bootstrap-key", environmentManifest: $manifest,
       environmentManifestSha256: $manifestSha256}' \
     >"$root/target-inventory.json"
-jq -n --arg origin "$origin" --arg root "$root" \
-    '{directOrigin: $origin, directControlTokenFile: "\($root)/secrets/host-control-token",
-      directRootCertificate: "\($root)/tls-root/root.crt"}' >"$root/config.json"
+catalog "$root/secrets/host-control-token" "$root/tls-root/root.crt" >"$root/config.json"
 readiness="$(dotnet "$root/host/Broodling.Host.dll" check-target "$root/target-inventory.json" "$root/config.json")" \
     || fail "check-target: $readiness"
 printf '%s\n' "$readiness"

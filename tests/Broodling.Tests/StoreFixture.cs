@@ -17,7 +17,7 @@ internal sealed class StoreFixture : IDisposable
         return Open();
     }
     /// <summary>A session reaching every live test target with its own control token.</summary>
-    internal BroodlingStore Open() => Application.OpenStore(Path, TestAccess.Live);
+    internal BroodlingStore Open() => Application.OpenStore(Path, TestEnvironments.Live);
 
     internal SqliteConnection Connect()
     {

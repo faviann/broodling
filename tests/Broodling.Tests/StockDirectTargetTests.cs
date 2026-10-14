@@ -28,7 +28,7 @@ public sealed class StockDirectTargetTests
         await target.PushAsync(git.Repository, "main");
         var local = git.LocalResources();
 
-        var status = await new Invocation(store, new InvocationTarget(target.Origin)).ResumeAsync(revision, git.Repository, b1, Credentials);
+        var status = await new Invocation(store, TestEnvironments.For(target.Origin)).ResumeAsync(revision, git.Repository, b1, Credentials);
         var attempt = status.Attempts.Single();
         var submission = status.Submissions.Single();
         await Assert.That(submission.State).IsEqualTo("correlated");
@@ -75,7 +75,7 @@ public sealed class StockDirectTargetTests
         await target.PushAsync(git.Repository, "main");
         // B1 exists in local custody but was never published to the forge.
         var b1 = git.Commit("never published\n");
-        var invocation = new Invocation(store, new InvocationTarget(target.Origin));
+        var invocation = new Invocation(store, TestEnvironments.For(target.Origin));
         var unresolved = await LoseAcknowledgementAsync(store, git, invocation, revision, b1, target);
 
         // Exact replay with rotated credentials converges on the same key and run.
@@ -123,7 +123,7 @@ public sealed class StockDirectTargetTests
         AttemptFixture.RunGit(repository, "config", "url." + target.Forge + ".insteadOf", "https://github.com/acme/widget.git");
         await target.PushAsync(repository, attempt.B1.CommitOid + ":refs/heads/main");
 
-        await new Invocation(store, new InvocationTarget(target.Origin)).ResumeAsync(attempt.ContractRevisionId, credentials: Credentials);
+        await new Invocation(store, TestEnvironments.For(target.Origin)).ResumeAsync(attempt.ContractRevisionId, credentials: Credentials);
         var completion = await store.WaitAsync(attempt.AttemptId);
 
         // The controlled agent committed each listed reference as its task carried it: bytes matching the manifest digest.

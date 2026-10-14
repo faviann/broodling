@@ -39,7 +39,7 @@ internal sealed class TargetStack : IAsyncDisposable
     internal string OperatorBootstrapKeyFile => Path.Combine(Root, "bootstrap-key");
     internal string TokenFile => Path.Combine(Root, "control-token");
     internal string Token => File.ReadAllText(TokenFile);
-    internal DirectTargetAccess Access => DirectTargetAccess.For(Origin, TokenFile, RootCertificateFile);
+    internal DirectTargetAccess Access => new(origin => origin == Origin ? TokenFile : null, RootCertificateFile);
 
     internal static async Task<TargetStack> CreateAsync()
     {

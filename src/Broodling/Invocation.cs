@@ -1,24 +1,10 @@
 namespace Broodling;
 
 /// <summary>
-/// The explicitly configured DirectTarget for a new Attempt. The origin must be canonical HTTPS or HTTP to
-/// exactly 127.0.0.1 or [::1], the rule the native target and SDK apply. An existing Attempt continues only
-/// through its retained origin.
+/// One explicit work reference. Ended authority is handed back without automatic replacement. A new Attempt is
+/// prepared against <paramref name="environments"/>; an existing Attempt continues only through its retained origin.
 /// </summary>
-public sealed record InvocationTarget
-{
-    public InvocationTarget(string origin)
-    {
-        if (DirectTargetExchange.CanonicalOrigin(origin) is null)
-            throw new UnsupportedRuntime("The DirectTarget origin must be canonical HTTPS or HTTP to exactly 127.0.0.1 or [::1].");
-        Origin = origin;
-    }
-
-    public string Origin { get; }
-}
-
-/// <summary>One explicit work reference. Ended authority is handed back without automatic replacement.</summary>
-public sealed class Invocation(BroodlingStore store, InvocationTarget target)
+public sealed class Invocation(BroodlingStore store, EnvironmentCatalog environments)
 {
     public Task<AttemptCompletion> WaitAsync(string attemptId, CancellationToken cancellationToken = default) =>
         store.WaitAsync(attemptId, cancellationToken);
@@ -72,7 +58,10 @@ public sealed class Invocation(BroodlingStore store, InvocationTarget target)
         }
         if (CanResumeWithoutDispatch(status)) return status;
         var attempt = status.Attempts.LastOrDefault() ?? allocate();
-        // Returns the retained preparation, refusing a different configured origin.
+        // Returns the retained preparation, refusing a different configured origin. Until environment resolution
+        // (#235), a new Attempt is prepared at the default environment's target.
+        var target = environments.DefaultEntry
+            ?? throw new UnsupportedRuntime("The environment catalog names no default environment.");
         store.PrepareHttpSubmission(attempt.AttemptId, target.Origin);
         await store.DispatchHttpAsync(attempt.AttemptId, credentials, cancellationToken);
         return store.Status(revisionId);

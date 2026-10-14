@@ -7,8 +7,9 @@ services:
     volumes:
       - { type: bind, source: "${DEMO_ROOT:?}/broodling", target: /var/lib/broodling }
       - { type: bind, source: "${DEMO_ROOT:?}/tls-root", target: /tls-root, read_only: true }
-      # Its invocation configuration names the target and its control token file, which only broodling receives.
-      - { type: bind, source: ./processing/invocation.json, target: /etc/broodling/invocation.json, read_only: true }
+      # Its invocation configuration, the environment catalog demonstrate.sh writes, names the target and its control
+      # token file, which only broodling receives.
+      - { type: bind, source: "${DEMO_ROOT:?}/invocation.json", target: /etc/broodling/invocation.json, read_only: true }
     secrets: [zeroshot-control-token]
 
   zeroshot:

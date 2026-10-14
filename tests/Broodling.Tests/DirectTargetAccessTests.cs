@@ -23,7 +23,7 @@ public sealed class DirectTargetAccessTests
     /// A session with other connection material. Its operation budgets run on a controlled clock, so a loaded
     /// host cannot turn the refusal under test into a timeout.
     /// </summary>
-    private static BroodlingStore Open(HttpFixture fixture, DirectTargetAccess? access)
+    private static BroodlingStore Open(HttpFixture fixture, EnvironmentCatalog? access)
     {
         var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, access);
         store.DirectTargetClock = new FakeTimeProvider();
@@ -47,9 +47,9 @@ public sealed class DirectTargetAccessTests
         {
             "none" => null,
             // The configured token belongs to another origin; the retained one gets none.
-            "other-origin" => DirectTargetAccess.For("http://127.0.0.1:9", target.TokenFile),
-            "missing-file" => DirectTargetAccess.For(Origin(target), Path.Combine(fixture.Git.State.Root, "missing-token")),
-            _ => DirectTargetAccess.For(Origin(target), malformed)
+            "other-origin" => TestEnvironments.Configured(TestEnvironments.Entry("other", "http://127.0.0.1:9", target.TokenFile)),
+            "missing-file" => TestEnvironments.Configured(TestEnvironments.Entry("env0", Origin(target), Path.Combine(fixture.Git.State.Root, "missing-token"))),
+            _ => TestEnvironments.Configured(TestEnvironments.Entry("env0", Origin(target), malformed))
         };
         using (var store = Open(fixture, access))
         {
@@ -184,7 +184,8 @@ public sealed class DirectTargetAccessTests
         var firstPrepared = atFirst.PrepareAt(first.Origin);
         atSecond.PrepareAt(second.Origin);
         // One configuration naming both origins, each with its own token file.
-        var both = new DirectTargetAccess(origin => origin == Origin(first) ? first.TokenFile : origin == Origin(second) ? second.TokenFile : null);
+        var both = TestEnvironments.Configured(TestEnvironments.Entry("first", Origin(first), first.TokenFile),
+            TestEnvironments.Entry("second", Origin(second), second.TokenFile));
         using (var store = Open(atFirst, both))
             await store.DispatchHttpAsync(firstPrepared.AttemptId, HttpDispatchTests.Credentials());
         using (var store = Open(atSecond, both))
@@ -194,14 +195,14 @@ public sealed class DirectTargetAccessTests
         await Assert.That(second.Heads.Single().Contains("Authorization: Bearer " + second.Token)).IsTrue();
 
         // The first target's token, configured for the second origin, does not control the second target.
-        var crossed = DirectTargetAccess.For(Origin(second), first.TokenFile);
+        var crossed = TestEnvironments.Configured(TestEnvironments.Entry("second", Origin(second), first.TokenFile));
         using (var store = Open(atSecond, crossed))
             await Assert.That(((NativeObservation.Unavailable)(await store.ObserveAsync(atSecond.Attempt.AttemptId))!).Reason).IsEqualTo("unauthorized");
         await Assert.That(second.Unauthorized).IsEqualTo(1);
 
         // The operator's configuration now names only the second target: the first Attempt is not redirected there.
         var contacted = (first.Connections, second.Connections);
-        var switched = DirectTargetAccess.For(Origin(second), second.TokenFile);
+        var switched = TestEnvironments.Configured(TestEnvironments.Entry("second", Origin(second), second.TokenFile));
         using (var store = Open(atFirst, switched))
         {
             var attempt = atFirst.Attempt.AttemptId;
@@ -273,17 +274,17 @@ public sealed class DirectTargetAccessTests
     public async Task BootstrapTargetCommandReportsUsageAndAFixedFailureWithoutSecretMaterial()
     {
         var usage = new StringWriter();
-        await Assert.That(await HostTargetCommands.RunAsync(["bootstrap-target", "config.json"], usage)).IsEqualTo(2);
-        await Assert.That(usage.ToString()).Contains("bootstrap-target <config.json> <bootstrap-key-file>");
+        await Assert.That(await HostTargetCommands.RunAsync(["bootstrap-target", "config.json", "key"], usage)).IsEqualTo(2);
+        await Assert.That(usage.ToString()).Contains("bootstrap-target <config.json> <environment> <bootstrap-key-file>");
         var directory = Directory.CreateTempSubdirectory("broodling-bootstrap-command-").FullName;
         try
         {
             var (token, key, config) = (TestAccess.NewSecret(), TestAccess.NewSecret(), Path.Combine(directory, "config.json"));
             File.WriteAllText(Path.Combine(directory, "token"), token + "\n"); // Malformed, so no readable token.
             File.WriteAllText(Path.Combine(directory, "key"), key);
-            File.WriteAllText(config, $$"""{"directOrigin":"https://zeroshot.dev.faviann.com","directControlTokenFile":"{{directory}}/token"}""");
+            File.WriteAllText(config, TestEnvironments.Configuration("https://zeroshot.dev.faviann.com", Path.Combine(directory, "token")).ToJsonString());
             var output = new StringWriter();
-            await Assert.That(await HostTargetCommands.RunAsync(["bootstrap-target", config, Path.Combine(directory, "key")], output)).IsEqualTo(1);
+            await Assert.That(await HostTargetCommands.RunAsync(["bootstrap-target", config, "dotnet", Path.Combine(directory, "key")], output)).IsEqualTo(1);
             using var record = JsonDocument.Parse(output.ToString());
             await Assert.That(record.RootElement.EnumerateObject().Select(field => field.Name).SequenceEqual(["bootstrapped", "code", "error"])).IsTrue();
             await Assert.That(record.RootElement.GetProperty("bootstrapped").GetBoolean()).IsFalse();
@@ -321,7 +322,7 @@ public sealed class DirectTargetAccessTests
         {
             File.WriteAllText(Path.Combine(Directory, "token"), Token);
             File.WriteAllText(Path.Combine(Directory, "key"), Key);
-            return DirectTargetControl.BootstrapAsync(Origin(target), DirectTargetAccess.For(Origin(target), Path.Combine(Directory, "token")),
+            return DirectTargetControl.BootstrapAsync(Origin(target), TestEnvironments.Configured(TestEnvironments.Entry("env0", Origin(target), Path.Combine(Directory, "token"))).Access,
                 Path.Combine(Directory, "key"));
         }
 

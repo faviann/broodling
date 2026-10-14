@@ -6,8 +6,10 @@ try
     if (args[0] == "http-dispatch")
     {
         // The parent's controlled target decides where this caller is killed.
-        // The parent's target origin and its control token file, as the operator configuration names them.
-        using var httpStore = new BroodlingApplication().OpenStore(args[1], DirectTargetAccess.For(args[3], args[4]));
+        // The parent's target origin and its control token file, as the operator's catalog names them.
+        var environments = EnvironmentCatalog.Create([new("witness", args[3], args[4], AdoptedEnvironments.LoadBundled().Single().Image,
+            "broodling-witness", "/srv/broodling-witness/state", "/srv/broodling-witness/home")], "witness", null, AdoptedEnvironments.LoadBundled());
+        using var httpStore = new BroodlingApplication().OpenStore(args[1], environments);
         await httpStore.DispatchHttpAsync(args[2], new DispatchCredentials("witness-github-token", DirectTargetBinding.GatewayBaseUrl, "witness-gateway-key"));
         return 99;
     }

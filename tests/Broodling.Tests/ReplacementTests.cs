@@ -190,7 +190,7 @@ public sealed class ReplacementTests
             "/srv/broodling/target-state", "/srv/broodling/target-home", DateTimeOffset.UtcNow));
 
         // Replacement happens only within a maintenance pause: neither admission nor first preparation outside it.
-        var resume = new Invocation(store, new InvocationTarget(origin));
+        var resume = new Invocation(store, TestEnvironments.For(origin));
         store.ReleaseInstallation();
         await Assert.That(() => store.PrepareRetry(original.AttemptId, "after-maintenance")).Throws<MaintenanceUnverified>();
         await Assert.That(store.FindRetry("after-maintenance")).IsNull();

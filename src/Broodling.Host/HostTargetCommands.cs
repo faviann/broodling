@@ -4,17 +4,17 @@ using System.Text.Json.Serialization;
 namespace Broodling.Host;
 
 /// <summary>
-/// Operator commands for the configured DirectTarget's readiness and private-control bootstrap. Their output is
-/// fixed JSON that never carries secret material.
+/// Operator commands for a configured environment target's readiness and private-control bootstrap. Their output
+/// is fixed JSON that never carries secret material.
 /// </summary>
 public static class HostTargetCommands
 {
-    private const string Usage = "Usage: check-target <target-inventory.json> <config.json> | bootstrap-target <config.json> <bootstrap-key-file>";
+    private const string Usage = "Usage: check-target <target-inventory.json> <config.json> | bootstrap-target <config.json> <environment> <bootstrap-key-file>";
 
     public static async Task<int> RunAsync(string[] args, TextWriter output, TargetReadiness? readiness = null,
         CancellationToken cancellationToken = default)
     {
-        if (args.Length != 3 || args[0] is not ("check-target" or "bootstrap-target"))
+        if (!(args.Length == 3 && args[0] == "check-target" || args.Length == 4 && args[0] == "bootstrap-target"))
         {
             output.WriteLine(Usage);
             return 2;
@@ -31,8 +31,10 @@ public static class HostTargetCommands
             var inventory = JsonSerializer.Deserialize<TargetReadinessInventory>(File.ReadAllBytes(args[1]),
                 new JsonSerializerOptions(JsonSerializerDefaults.Web) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow })
                 ?? throw new TargetNotReady("Target inventory is invalid.");
-            var configuration = InvocationConfiguration.Read(args[2]);
-            var facts = await readiness.CheckAsync(inventory, configuration.DirectOrigin, configuration.Access, cancellationToken);
+            var environments = InvocationConfiguration.Read(args[2]);
+            // The inventory's target must be the one the catalog configures at its origin.
+            var configured = environments.Entries.SingleOrDefault(entry => entry.Origin == inventory.DirectOrigin);
+            var facts = await readiness.CheckAsync(inventory, configured?.Origin ?? "", environments.Access, cancellationToken);
             output.WriteLine(JsonSerializer.Serialize(facts, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             return 0;
         }
@@ -50,18 +52,21 @@ public static class HostTargetCommands
     }
 
     /// <summary>
-    /// Installs the configuration's control token in the target now serving its origin, which every target-process
-    /// start needs. The bootstrap key file is the same key the target was started with, supplied only to this command.
+    /// Installs the named environment's configured control token in the target now serving its origin, which every
+    /// target-process start needs. The bootstrap key file is the same key that target was started with, supplied only
+    /// to this command.
     /// </summary>
     private static async Task<int> BootstrapAsync(string[] args, TextWriter output, CancellationToken cancellationToken)
     {
         try
         {
-            var configuration = InvocationConfiguration.Read(args[1]);
-            var result = await DirectTargetControl.BootstrapAsync(configuration.DirectOrigin, configuration.Access, args[2], cancellationToken);
+            var environments = InvocationConfiguration.Read(args[1]);
+            var target = environments.Find(args[2])
+                ?? throw new UnsupportedRuntime("The invocation configuration has no such environment.");
+            var result = await DirectTargetControl.BootstrapAsync(target.Origin, environments.Access, args[3], cancellationToken);
             output.WriteLine(JsonSerializer.Serialize(new
             {
-                bootstrapped = true, origin = configuration.DirectOrigin,
+                bootstrapped = true, environment = target.Name, origin = target.Origin,
                 result = result == DirectTargetBootstrapResult.Installed ? "installed" : "already_installed"
             }));
             return 0;

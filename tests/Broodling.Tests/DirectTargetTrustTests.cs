@@ -52,7 +52,7 @@ public sealed class DirectTargetTrustTests
         fixture.PrepareAt(target.Origin);
         var root = Path.Combine(fixture.Git.State.Root, "zeroshot-root.crt");
         // Opening names the root without reading it.
-        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, TestAccess.Trusting(root));
+        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, TestEnvironments.Trusting(root));
         await Assert.That(async () => await store.DispatchHttpAsync(fixture.Attempt.AttemptId, HttpDispatchTests.Credentials()))
             .Throws<NativeTransportError>();
         await Assert.That(store.FindSubmission(fixture.Attempt.AttemptId)!.State).IsEqualTo("prepared");
@@ -77,7 +77,7 @@ public sealed class DirectTargetTrustTests
         var id = fixture.PrepareAt(target.Origin).AttemptId;
         var root = Path.Combine(fixture.Git.State.Root, "zeroshot-root.crt");
         File.WriteAllText(root, PrivateAuthority.Create().RootPem);
-        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, TestAccess.Trusting(root));
+        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, TestEnvironments.Trusting(root));
         // A readable root of another authority: intent commits, then the handshake refuses before any request.
         var error = await Assert.That(async () => await store.DispatchHttpAsync(id, HttpDispatchTests.Credentials()))
             .Throws<NativeTransportError>();
@@ -105,7 +105,7 @@ public sealed class DirectTargetTrustTests
         target.Projections.Enqueue(DirectTargetRunTests.Running(run));
         target.Projections.Enqueue(DirectTargetRunTests.Running(run));
         target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "succeeded", CompletionFixture.Receipt(head: accepted)));
-        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, TestAccess.Trusting(root));
+        using var store = fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, TestEnvironments.Trusting(root));
         await Assert.That((await store.WaitAsync(fixture.Attempt.AttemptId)).AcceptedRevision).IsEqualTo(accepted);
         await Assert.That(target.Count("run/watch")).IsEqualTo(1);
     }

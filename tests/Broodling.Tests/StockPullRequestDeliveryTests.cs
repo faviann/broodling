@@ -300,7 +300,7 @@ internal sealed class ScriptedDelivery : IAsyncDisposable
             target.Script(scenario);
             var (store, revision) = Admit(git, target);
             await target.PushAsync(git.Repository, "main");
-            var status = await new Invocation(store, new InvocationTarget(target.Origin)).ResumeAsync(revision, git.Repository, git.Head, Credentials);
+            var status = await new Invocation(store, TestEnvironments.For(target.Origin)).ResumeAsync(revision, git.Repository, git.Head, Credentials);
             await Assert.That(status.Submissions.Single().State).IsEqualTo("correlated");
             return new(git, target, await target.NativeAsync(), store, status.Attempts.Single().AttemptId);
         }

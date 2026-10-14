@@ -15,7 +15,7 @@ public sealed class InvocationTests
         using var fixture = GitHubRepository();
         using var gh = new IssueFixture(fixture.State.Root);
         using var store = fixture.State.Open();
-        var invocation = new Invocation(store, new InvocationTarget(target.Origin.GetLeftPart(UriPartial.Authority)));
+        var invocation = new Invocation(store, TestEnvironments.For(target.Origin.GetLeftPart(UriPartial.Authority)));
         var submitted = await invocation.SubmitAsync(ContractIngressTests.Reference, new ReviewedIssueProposal(Issue).Propose,
             ContractIngressTests.PullRequest, fixture.Repository, credentials: HttpDispatchTests.Credentials(), source: gh.Source);
         var attempt = submitted.Attempts.Single();
@@ -74,7 +74,7 @@ public sealed class InvocationTests
         AttemptCompletion completed;
         using (var store = fixture.State.Open())
         {
-            var invocation = new Invocation(store, new InvocationTarget(target.Origin.GetLeftPart(UriPartial.Authority)));
+            var invocation = new Invocation(store, TestEnvironments.For(target.Origin.GetLeftPart(UriPartial.Authority)));
             var submitted = await invocation.SubmitAsync(ContractIngressTests.Reference, Propose, effects,
                 fixture.Repository, credentials: credentials, source: gh.Source);
             revision = submitted.Revision.ContractRevisionId;
@@ -91,10 +91,7 @@ public sealed class InvocationTests
             await Assert.That(error.ToString()).Contains("\"kind\":\"credentials_unavailable\"");
             await Assert.That(target.Count("run/status")).IsEqualTo(0);
             var config = Path.Combine(fixture.State.Root, "direct.json");
-            File.WriteAllText(config, new JsonObject
-            {
-                ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority), ["directControlTokenFile"] = target.TokenFile
-            }.ToJsonString());
+            File.WriteAllText(config, TestEnvironments.Configuration(target.Origin.GetLeftPart(UriPartial.Authority), target.TokenFile).ToJsonString());
             using (var detached = new CancellationTokenSource())
             {
                 detached.Cancel();
@@ -119,7 +116,7 @@ public sealed class InvocationTests
         }
         gh.RemoveExecutable();
         using var reopened = fixture.State.Open();
-        var resumed = await new Invocation(reopened, new InvocationTarget("http://127.0.0.1:9")).ResumeAsync(revision);
+        var resumed = await new Invocation(reopened, TestEnvironments.For("http://127.0.0.1:9")).ResumeAsync(revision);
         await Assert.That(resumed.Completions.Single()).IsEqualTo(completed);
         await Assert.That(reopened.History(ContractIngressTests.Reference).Last().Completions.Single()).IsEqualTo(completed);
         foreach (var args in new[] {
@@ -148,7 +145,7 @@ public sealed class InvocationTests
         string attemptId;
         using (var store = fixture.State.Open())
         {
-            var invocation = new Invocation(store, new InvocationTarget(origin));
+            var invocation = new Invocation(store, TestEnvironments.For(origin));
             await Assert.That(async () => await invocation.SubmitAsync(ContractIngressTests.Reference, new ReviewedIssueProposal(Issue).Propose,
                 ContractIngressTests.PullRequest, fixture.Repository, credentials: HttpDispatchTests.Credentials(), source: gh.Source))
                 .Throws<NativeTransportError>();
@@ -160,16 +157,16 @@ public sealed class InvocationTests
         gh.RemoveExecutable();
         target.Submit = body => Task.FromResult(target.Accept(body));
         using var reopened = fixture.State.Open();
-        var recovered = await new Invocation(reopened, new InvocationTarget(origin))
+        var recovered = await new Invocation(reopened, TestEnvironments.For(origin))
             .ResumeAsync(revisionId, credentials: HttpDispatchTests.Credentials("rotated"));
         await Assert.That(recovered.Attempts.Single().AttemptId).IsEqualTo(attemptId);
         var correlated = recovered.Submissions.Single();
         await Assert.That(correlated.RunId).IsEqualTo(correlated.IntendedRunId);
         // Correlated handback needs no matching configuration or credentials.
-        var rebound = await new Invocation(reopened, new InvocationTarget("http://127.0.0.1:9")).ResumeAsync(revisionId);
+        var rebound = await new Invocation(reopened, TestEnvironments.For("http://127.0.0.1:9")).ResumeAsync(revisionId);
         await Assert.That(rebound.Submissions.Single().RunId).IsEqualTo(correlated.RunId);
         reopened.AbandonAttempt(attemptId, "operator handback");
-        var abandoned = await new Invocation(reopened, new InvocationTarget(origin)).ResumeAsync(revisionId);
+        var abandoned = await new Invocation(reopened, TestEnvironments.For(origin)).ResumeAsync(revisionId);
         await Assert.That(abandoned.Attempts.Single().Abandonment!.Reason).IsEqualTo("operator handback");
         await Assert.That(target.Bodies.Count).IsEqualTo(2);
         await Assert.That(target.Runs.Count).IsEqualTo(1);
@@ -181,7 +178,7 @@ public sealed class InvocationTests
         using var fixture = new AttemptFixture();
         using var store = fixture.State.Open();
         var attempt = fixture.Admit(store);
-        var invocation = new Invocation(store, new InvocationTarget("http://127.0.0.1:9"));
+        var invocation = new Invocation(store, TestEnvironments.For("http://127.0.0.1:9"));
         var rejected = store.AdmitSources(WorkReference.Parse("acme/widget", 99),
             [new("primary_issue", "https://github.com/acme/widget/issues/99", Issue, entitlement: new("caller", "reviewed"))],
             ContractIngressTests.Propose, [new("merge", "Merge upstream", "merge")]);
@@ -206,10 +203,7 @@ public sealed class InvocationTests
         var reviewed = Path.Combine(fixture.State.Root, "reviewed.json");
         File.WriteAllBytes(reviewed, Issue);
         var config = Path.Combine(fixture.State.Root, "config.json");
-        File.WriteAllText(config, new JsonObject
-        {
-            ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority), ["directControlTokenFile"] = target.TokenFile
-        }.ToJsonString());
+        File.WriteAllText(config, TestEnvironments.Configuration(target.Origin.GetLeftPart(UriPartial.Authority), target.TokenFile).ToJsonString());
         var args = new[] { "submit", fixture.State.Path, config, "acme/widget", "12", fixture.Repository, fixture.Head, "main", reviewed, "caller" };
         var output = new StringWriter();
         var error = new StringWriter();
@@ -269,29 +263,101 @@ public sealed class InvocationTests
     [Arguments("http://remote.example:8123")]
     [Arguments("http://127.0.0.1:8123/")]
     [Arguments("http://127.0.0.1:0")]
+    [Arguments("former-shape")]
+    [Arguments("no-environment")]
+    [Arguments("duplicate-member")]
+    [Arguments("duplicate-name")]
+    [Arguments("duplicate-origin")]
+    [Arguments("duplicate-container")]
+    [Arguments("overlapping-mounts")]
+    [Arguments("shared-token-file")]
+    [Arguments("token-inside-mount")]
+    [Arguments("uppercase-name")]
+    [Arguments("55-character-name")]
+    [Arguments("hyphen-edged-name")]
+    [Arguments("relative-mount")]
+    [Arguments("unknown-default")]
+    [Arguments("unadopted-image")]
     public async Task OperatorRejectsCredentialFieldsUnknownMembersAndUnsupportedOriginsBeforeAllocating(string invalid)
     {
         await using var target = new StockTarget();
         using var fixture = new AttemptFixture();
         // A refusal that were missed would reach this listening target.
-        var direct = new JsonObject { ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority), ["directControlTokenFile"] = target.TokenFile };
+        var origin = target.Origin.GetLeftPart(UriPartial.Authority);
+        var direct = TestEnvironments.Configuration(origin, target.TokenFile);
+        var entry = direct["environments"]![0]!.AsObject();
+        // A second, otherwise valid environment, so that only the named conflict is refused.
+        JsonObject Second(string field, string value)
+        {
+            var second = With(entry, "name", "other");
+            foreach (var (name, other) in new[] { ("origin", "http://127.0.0.1:9"), ("controlTokenFile", "/srv/other/control-token"),
+                ("container", "broodling-other"), ("stateMount", "/srv/other/state"), ("homeMount", "/srv/other/home") })
+                second[name] = other;
+            second[field] = value;
+            var changed = direct.DeepClone().AsObject();
+            changed["environments"]!.AsArray().Add(second);
+            return changed;
+        }
+        JsonObject Entry(Func<JsonObject, JsonObject> change)
+        {
+            var changed = direct.DeepClone().AsObject();
+            changed["environments"] = new JsonArray(change(entry));
+            return changed;
+        }
         var configuration = invalid switch
         {
             "secret-field" => With(direct, "GH_TOKEN", "CONFIG_SECRET"),
-            "missing-origin" => new JsonObject { ["directRootCertificate"] = "/root.crt" },
+            "missing-origin" => Entry(original => Without(original, "origin")),
             // The former kind discriminator and the removed target's members are unmapped members like any other.
             "target-kind" => With(direct, "target", "direct"),
             "python" => With(direct, "pythonExecutable", "/usr/bin/python3"),
             "workspace-root" => With(direct, "workspaceRoot", fixture.State.Root),
             "relative-root" => With(direct, "directRootCertificate", "root.crt"),
-            "missing-token-file" => Without(direct, "directControlTokenFile"),
-            "relative-token-file" => With(direct, "directControlTokenFile", "control-token"),
+            "missing-token-file" => Entry(original => Without(original, "controlTokenFile")),
+            "relative-token-file" => Entry(original => With(original, "controlTokenFile", "control-token")),
             // A token is named by its protected file, never carried in the configuration.
-            "inline-token" => With(direct, "directControlToken", "CONFIG_SECRET"),
-            _ => With(direct, "directOrigin", invalid)
+            "inline-token" => Entry(original => With(original, "controlToken", "CONFIG_SECRET")),
+            // The single-target configuration is not read as a catalog.
+            "former-shape" => new JsonObject { ["directOrigin"] = origin, ["directControlTokenFile"] = target.TokenFile },
+            "no-environment" => With(direct, "environments", new JsonArray()),
+            "duplicate-name" => Second("name", "dotnet"),
+            "duplicate-origin" => Second("origin", origin),
+            "duplicate-container" => Second("container", (string)entry["container"]!),
+            "overlapping-mounts" => Second("stateMount", (string)entry["homeMount"]! + "/other"),
+            "shared-token-file" => Second("controlTokenFile", target.TokenFile),
+            "token-inside-mount" => Second("controlTokenFile", (string)entry["stateMount"]! + "/control-token"),
+            "uppercase-name" => Entry(original => With(original, "name", "Dotnet")),
+            "55-character-name" => Entry(original => With(original, "name", new string('a', 55))),
+            "hyphen-edged-name" => Entry(original => With(original, "name", "dotnet-")),
+            "relative-mount" => Entry(original => With(original, "stateMount", "targets/dotnet/state")),
+            "unknown-default" => With(direct, "defaultEnvironment", "dotnet-r3"),
+            "unadopted-image" => Entry(original => With(original, "image", "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:" + new string('0', 64))),
+            "duplicate-member" => direct,
+            _ => Entry(original => With(original, "origin", invalid))
         };
+        var text = configuration.ToJsonString();
+        // Each environment is named once; a repeated member is not resolved by taking the last.
+        if (invalid == "duplicate-member") text = text.Replace("\"name\":\"dotnet\"", "\"name\":\"other\",\"name\":\"dotnet\"");
         var path = Path.Combine(fixture.State.Root, "invalid-config.json");
-        File.WriteAllText(path, configuration.ToJsonString());
+        File.WriteAllText(path, text);
+        // The refusal is the rule under test, not some other defect of the file.
+        var rule = invalid switch
+        {
+            "no-environment" => "names no environment",
+            "duplicate-name" => "names must be unique",
+            "duplicate-origin" => "origins must be unique",
+            "duplicate-container" => "containers must be unique",
+            "overlapping-mounts" or "shared-token-file" or "token-inside-mount" => "must not overlap",
+            "uppercase-name" or "55-character-name" or "hyphen-edged-name" => "DNS label",
+            "relative-mount" => "state and home mounts",
+            "unknown-default" => "default environment",
+            "unadopted-image" => "not an adopted environment image",
+            "relative-root" => "root certificate",
+            "relative-token-file" => "control token file",
+            _ when invalid.StartsWith("http", StringComparison.Ordinal) => "origin must be canonical",
+            _ => "Invalid invocation configuration."
+        };
+        await Assert.That(() => InvocationConfiguration.Read(path)).Throws<BroodlingException>().WithMessageContaining(rule);
         var output = new StringWriter();
         var error = new StringWriter();
         var code = await InvocationCommands.RunAsync(
@@ -305,6 +371,28 @@ public sealed class InvocationTests
         await Assert.That(store.Status(fixture.RevisionId).Attempts.Count).IsEqualTo(0);
     }
 
+    /// <summary>
+    /// A valid catalog of several environments: names up to 54 characters, one default, and each origin's control
+    /// token file sent to that origin only; an origin the catalog does not name gets none.
+    /// </summary>
+    [Test]
+    public async Task CatalogGivesEachTargetOnlyItsOwnControlToken()
+    {
+        var name = new string('a', 53) + "1";
+        var catalog = TestEnvironments.Configured(TestEnvironments.Entry("dotnet", "https://zeroshot-dotnet.dev.faviann.com"),
+            TestEnvironments.Entry(name, "https://zeroshot-other.dev.faviann.com"));
+        await Assert.That(catalog.Entries.Select(entry => entry.Name)).IsEquivalentTo(["dotnet", name]);
+        await Assert.That(catalog.DefaultEntry!.Name).IsEqualTo("dotnet");
+        await Assert.That(catalog.Find(name)!.Target).IsEqualTo(new TargetIdentity(name, "https://zeroshot-other.dev.faviann.com",
+            "broodling-test-" + name, $"/srv/broodling-test/{name}/state", $"/srv/broodling-test/{name}/home"));
+        await Assert.That(catalog.Find(name)!.Adoption).IsEqualTo(TestEnvironments.Adopted);
+        await Assert.That(catalog.Access.ControlTokenFile("https://zeroshot-dotnet.dev.faviann.com")).IsEqualTo("/srv/broodling-test/dotnet/control-token");
+        await Assert.That(catalog.Access.ControlTokenFile("https://zeroshot-other.dev.faviann.com")).IsEqualTo($"/srv/broodling-test/{name}/control-token");
+        await Assert.That(catalog.Access.ControlTokenFile("https://zeroshot.dev.faviann.com")).IsNull();
+        // Without a default, a catalog still configures its targets.
+        await Assert.That(TestEnvironments.Catalog([TestEnvironments.Entry("dotnet", "https://zeroshot-dotnet.dev.faviann.com")], null).DefaultEntry).IsNull();
+    }
+
     private static JsonObject Without(JsonObject configuration, string field)
     {
         var changed = configuration.DeepClone().AsObject();
@@ -312,7 +400,7 @@ public sealed class InvocationTests
         return changed;
     }
 
-    private static JsonObject With(JsonObject configuration, string field, string value)
+    private static JsonObject With(JsonObject configuration, string field, JsonNode value)
     {
         var changed = configuration.DeepClone().AsObject();
         changed[field] = value;
@@ -332,10 +420,7 @@ public sealed class InvocationTests
         using var fixture = GitHubRepository();
         var revision = fixture.RevisionId;
         var config = Path.Combine(fixture.State.Root, "direct.json");
-        File.WriteAllText(config, new JsonObject
-        {
-            ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority), ["directControlTokenFile"] = target.TokenFile
-        }.ToJsonString());
+        File.WriteAllText(config, TestEnvironments.Configuration(target.Origin.GetLeftPart(UriPartial.Authority), target.TokenFile).ToJsonString());
         var error = new StringWriter();
         var names = new[] { "GH_TOKEN", "GATEWAY_BASE_URL", "GATEWAY_API_KEY" };
         var saved = names.Select(Environment.GetEnvironmentVariable).ToArray();
@@ -378,7 +463,7 @@ public sealed class InvocationTests
         using var fixture = GitHubRepository();
         var revision = fixture.RevisionId;
         var config = Path.Combine(fixture.State.Root, "direct.json");
-        var direct = new JsonObject { ["directOrigin"] = target.Origin.GetLeftPart(UriPartial.Authority), ["directControlTokenFile"] = target.TokenFile };
+        var direct = TestEnvironments.Configuration(target.Origin.GetLeftPart(UriPartial.Authority), target.TokenFile);
         if (authority is not null)
         {
             var root = Path.Combine(fixture.State.Root, "zeroshot-root.crt");
@@ -420,7 +505,7 @@ public sealed class InvocationTests
         var submission = store2.FindSubmission(attempt.AttemptId)!;
         // A configuration naming another origin refuses before contact or abandonment.
         var elsewhere = Path.Combine(fixture.State.Root, "elsewhere.json");
-        File.WriteAllText(elsewhere, new JsonObject { ["directOrigin"] = "http://127.0.0.1:9", ["directControlTokenFile"] = "/nonexistent/control-token" }.ToJsonString());
+        File.WriteAllText(elsewhere, TestEnvironments.Configuration("http://127.0.0.1:9", "/nonexistent/control-token").ToJsonString());
         error.GetStringBuilder().Clear();
         await Assert.That(await InvocationCommands.RunAsync(["stop", fixture.State.Path, attempt.AttemptId, "operator requested stop", elsewhere],
             fixture.State.Application, output, error)).IsEqualTo(1);
@@ -464,7 +549,7 @@ public sealed class InvocationTests
         using var http = new HttpFixture();
         // A prepared HTTP Attempt keeps its retained origin; a differently configured one is refused.
         var prepared = http.Prepare(target: target.Origin.GetLeftPart(UriPartial.Authority));
-        await Assert.That(async () => await new Invocation(http.Store, new InvocationTarget("http://127.0.0.1:9"))
+        await Assert.That(async () => await new Invocation(http.Store, TestEnvironments.For("http://127.0.0.1:9"))
             .ResumeAsync(http.Attempt.ContractRevisionId)).Throws<SubmissionConflict>();
         await Assert.That(http.Store.FindSubmission(http.Attempt.AttemptId)).IsEqualTo(prepared);
         await Assert.That(target.Connections).IsEqualTo(0);

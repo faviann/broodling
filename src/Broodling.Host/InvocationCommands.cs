@@ -50,14 +50,14 @@ public static class InvocationCommands
                 "wait" => args.Length == 4 ? args[3] : null,
                 _ => args.Length == 5 ? args[4] : null
             };
-            var configuration = configPath is null ? null : InvocationConfiguration.Read(configPath);
-            using var store = application.OpenStore(args[1], configuration?.Access);
-            if (args[0] is "wait" or "stop" && configuration is not null)
+            var environments = configPath is null ? null : InvocationConfiguration.Read(configPath);
+            using var store = application.OpenStore(args[1], environments);
+            if (args[0] is "wait" or "stop" && environments is not null)
             {
                 // A supplied configuration must describe the retained target, refused before contact or
                 // abandonment. The retained binding, not the configuration, still decides where it connects.
                 var retainedOrigin = store.FindSubmission(args[2])?.Origin;
-                if (retainedOrigin is not null && retainedOrigin != configuration.DirectOrigin)
+                if (retainedOrigin is not null && environments.Entries.All(entry => entry.Origin != retainedOrigin))
                     throw new SubmissionConflict("The configured target differs from the retained Attempt's target.");
             }
             if (args[0] == "wait")
@@ -80,7 +80,7 @@ public static class InvocationCommands
                 return exitCode;
             }
             AdmissionStatus status;
-            var invocation = new Invocation(store, configuration!.Target);
+            var invocation = new Invocation(store, environments!);
             var credentials = new DispatchCredentials(Environment.GetEnvironmentVariable("GH_TOKEN"),
                 Environment.GetEnvironmentVariable("GATEWAY_BASE_URL"), Environment.GetEnvironmentVariable("GATEWAY_API_KEY"));
             if (args[0] == "submit")

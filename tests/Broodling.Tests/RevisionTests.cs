@@ -278,7 +278,7 @@ public sealed class RevisionTests
 
         /// <summary>What progression does next for an admitted submission: allocate, prepare and dispatch or replay.</summary>
         internal Task<AdmissionStatus> Continue(string submissionId) =>
-            new Invocation(Store, new InvocationTarget(Target.Origin.GetLeftPart(UriPartial.Authority)))
+            new Invocation(Store, TestEnvironments.For(Target.Origin.GetLeftPart(UriPartial.Authority)))
                 .ResumeSubmissionAsync(submissionId, HttpDispatchTests.Credentials());
 
         internal void Finish(string attemptId, string status, object detail)

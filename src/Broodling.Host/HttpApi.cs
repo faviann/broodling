@@ -18,14 +18,14 @@ internal static class HttpApi
     internal sealed record StopRequest(string? Reason);
 
     internal static void Map(WebApplication app, BroodlingApplication application, string storePath,
-        DirectTargetAccess? directTarget, Processing? processing)
+        EnvironmentCatalog? environments, Processing? processing)
     {
         // Reads observe with the configured connection material; the retained binding still decides where they connect.
         async Task<IResult> Respond(Func<BroodlingStore, Task<IResult>> operation)
         {
             try
             {
-                using var store = application.OpenStore(storePath, directTarget);
+                using var store = application.OpenStore(storePath, environments);
                 return await operation(store);
             }
             catch (Exception exception)
