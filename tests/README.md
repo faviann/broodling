@@ -438,11 +438,11 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 
 ### Current adoption record
 
-- Tested code revision: `cd7e8e53d01c93fadeced1b3acccd647a03fe46d` (#187, after its simplification review). Later commits that only
+- Tested code revision: `0ce8c655752a0b555c0d8aca99579d96cd571bc8` (#234). Later commits that only
   edit this record or other documentation leave it valid; a code change
-  requires a new run. #187 newly uses the package's private-mode surface
-  (`TargetControlCredentials` on every submission and OECP session, and
-  `NativeClient.Private.BootstrapAsync`) with the same package bytes.
+  requires a new run. #234 moves the target to the adopted `dotnet-r2`
+  environment image and the binding to its source-built native executable and
+  Codex 0.155.0, with the same package bytes.
 - SDK: `Zeroshot.Client` `10.10.0.1-preview.1` from
   `https://nuget.pkg.github.com/faviann/index.json`; `.nupkg` SHA-256
   `b6edd08c0054a057460a69b245d11e242e34737245b33ee51d7f2cd893fc7d10`, NuGet
@@ -452,35 +452,33 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
   source `0518360411d252539ff85137eec81a795c45e0ab`, qualification run
   `37235647508`); the SDK publishes no GitHub release for it.
 - Approved asset: SHA-256
-  `258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc`.
-  Native: `zeroshot 10.10.0`, source `3ee1192cec359a0b997f464e703a936e8b67d63c`,
+  `258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc`, with an
+  approval manifest that awaits the owner's explicit review in #234's pull
+  request. Native: `zeroshot 10.10.0`, source `3ee1192cec359a0b997f464e703a936e8b67d63c`,
   Linux x86-64 executable SHA-256
-  `d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e`, from the
-  `v10.10.0` musl archive SHA-256
-  `fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16`.
+  `fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5`, from
+  `ghcr.io/the-open-engine/zeroshot-target:10.10.0@sha256:9769f74865d7e1137b82c9ed2ced4cbedb56cfd5fef6c9e8c0647955ba0c438b`;
+  Codex 0.155.0 on Node.js v24.21.0. Target: `dotnet-r2`,
+  `ghcr.io/faviann/zeroshot-environments/dotnet@sha256:5d36313b1d38ad06c194c53b8f08a71d4bc61527e4e06d56b96c9a835ba54a1d`.
 - Fresh store, from `initialize-store` at that revision: format
   `broodling.application`, schema version 1, definition SHA-256
   `5db82936e167e9dd7c68b4f392d1ff7e350dce3e239ed9ce214c39ce34ac2075`, upgrading
   from nothing. #233 redefined the unreleased version in place; it is not yet
   frozen.
-- Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.8.1, with no
-  Python environment and the transition check building this revision's target
-  image: the lane, now including `DirectTargetAccessTests` and
-  `NativeTargetStartupTests`, passed 264 of 264; the full suite passed 625 of
-  625; the Release build succeeded with no warnings; and the
-  [image demonstration](#image-demonstration) passed on images built from that
-  revision. That Broodling image restored the same `.nupkg` (SHA-256 above, locked
-  content hash checked) from a local folder source, because the host's GitHub
-  token could not read GitHub Packages. Earlier lane runs during the change, on a host loaded by other
-  work (load average 5 to 9), failed the known `CompletionObserverTests`
-  "did not settle" bounded waits, which then passed three consecutive isolated
-  runs, and once a new control-token case whose 10-second observation budget
-  expired; that case now runs on a controlled clock.
-- Baseline: the transition check ran as a restart of this revision's native
-  10.10.0 target image over its own state, which is now also the explicit
-  control-token rotation (#187). No transition source is listed. The native
-  binding, approved asset and fresh-store definition are unchanged from the
-  #233 record.
+- Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.9.0, with no
+  Python environment and every image test on the pulled adopted image: the lane
+  passed 268 of 268; the full suite passed 655 of 655, none skipped; the Release
+  build succeeded with no warnings; and the
+  [image demonstration](#image-demonstration) passed on the Broodling image
+  built from that revision with the adopted image. That Broodling image, and
+  the suite's restore, used the same `.nupkg` (SHA-256 above, locked content
+  hash checked) from a local folder source, taken from the SDK qualification
+  run's `candidate` artifact, because the host's GitHub token could not read
+  GitHub Packages.
+- Baseline: the transition check ran as a restart of the adopted image over its
+  own state, which is also the explicit control-token rotation (#187). No
+  transition source is listed. The asset bytes and fresh-store definition are
+  unchanged from the #187 record; the native executable and Codex are not.
 
 ## Evidence limits and history
 
