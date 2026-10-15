@@ -52,10 +52,10 @@ public static class InvocationCommands
             };
             var environments = configPath is null ? null : InvocationConfiguration.Read(configPath);
             using var store = application.OpenStore(args[1], environments);
-            if (args[0] is "wait" or "stop" && environments is not null)
+            if (args[0] == "stop" && environments is not null)
             {
                 // A supplied configuration must still name the retained environment at its retained origin, refused
-                // before contact or abandonment. The retained binding, not the configuration, decides where it connects.
+                // before abandonment. The retained binding, not the configuration, decides where it connects.
                 if (store.FindSubmission(args[2])?.Environment is { } retained && !environments.Serves(retained))
                     throw new SubmissionConflict($"The environment catalog has no entry {retained.Name} at {retained.Target.Origin}.");
             }

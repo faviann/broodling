@@ -79,18 +79,9 @@ public sealed class EnvironmentCatalog
     }
 
     /// <summary>
-    /// Refuses, before any target contact, unless this catalog still serves <paramref name="retained"/> exactly: the
-    /// same name with the same adopted image and documents at the same target, origin, container and mounts.
+    /// How this catalog no longer serves <paramref name="retained"/> exactly (the same name with the same adopted image
+    /// and documents at the same target, origin, container and mounts); null when it still does.
     /// </summary>
-    internal void RequireUnchanged(RetainedEnvironment retained)
-    {
-        if (Change(retained) is { } change)
-            throw new EnvironmentRefused("environment_changed", $"The environment changed: {change}. This Attempt was prepared for "
-                + $"{retained.Name} ({retained.Image}) at {retained.Target.Origin}. Stop it, retire it under verified maintenance "
-                + "and replace it with an explicit environment update.");
-    }
-
-    /// <summary>How this catalog no longer serves <paramref name="retained"/> exactly; null when it still does.</summary>
     internal string? Change(RetainedEnvironment retained)
     {
         var current = Find(retained.Name);
@@ -104,12 +95,6 @@ public sealed class EnvironmentCatalog
 
     /// <summary>Whether this catalog still names <paramref name="retained"/>'s environment at its retained origin.</summary>
     internal bool Serves(RetainedEnvironment retained) => Find(retained.Name)?.Origin == retained.Target.Origin;
-
-    /// <summary>Refuses as <c>environment_unavailable</c>, before any contact, unless this catalog <see cref="Serves"/> it.</summary>
-    internal void RequireTarget(RetainedEnvironment retained)
-    {
-        if (!Serves(retained)) throw new NativeTransportError("environment_unavailable");
-    }
 
     /// <summary>
     /// Validates <paramref name="entries"/> against <paramref name="adopted"/>, refusing a name that is not a DNS label

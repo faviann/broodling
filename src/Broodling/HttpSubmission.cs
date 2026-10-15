@@ -127,7 +127,10 @@ public sealed partial class BroodlingStore
         if (record.ReplayBlockedReason is not null) throw ReplayBlocked();
         RequireUnpaused();
         // A removed entry, another image or a reassigned origin never rebinds the Attempt: nothing is recorded or sent.
-        environments?.RequireUnchanged(record.Environment);
+        if (environments?.Change(record.Environment) is { } change)
+            throw new EnvironmentRefused("environment_changed", $"The environment changed: {change}. This Attempt was prepared for "
+                + $"{record.Environment.Name} ({record.Environment.Image}) at {record.Environment.Target.Origin}. Stop it, retire it "
+                + "under verified maintenance and replace it with an explicit environment update.");
         // Credential and Git checks may be slow; they never hold the SQLite writer.
         var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).TargetRun();
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);

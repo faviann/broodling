@@ -43,7 +43,7 @@ public sealed partial class BroodlingStore
         if (run is null) return null;
         try
         {
-            environments?.RequireTarget(submission!.Environment);
+            if (environments?.Serves(submission!.Environment) == false) throw new NativeTransportError("environment_unavailable");
             var progress = await DirectTargetRun.ProgressAsync(run, directTarget, bound, DirectTargetClock, cancellationToken);
             return new NativeObservation.Available(DateTimeOffset.UtcNow, identity, progress);
         }
