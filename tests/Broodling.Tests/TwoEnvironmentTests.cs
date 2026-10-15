@@ -212,7 +212,6 @@ public sealed class TwoEnvironmentTests
         var readiness = new TargetReadiness();
 
         var report = await readiness.CheckAsync(await stack.Inventory(), catalog);
-        await Assert.That(report.Ready).IsTrue();
         await Assert.That(string.Join("; ", report.Targets.Select(target => $"{target.Environment} {target.Release} {target.Os}")))
             .IsEqualTo($"dotnet dotnet-r2 {TestEnvironments.Adopted.Environment.Os}; {Name} {TestEnvironmentImage.Release} {TestEnvironmentImage.Os}");
 

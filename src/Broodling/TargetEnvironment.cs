@@ -11,8 +11,8 @@ namespace Broodling;
 /// and checks the identities it relies on. <c>Os</c> and <c>Components</c> are the producer's statement, which
 /// only a live probe (<see cref="EnvironmentProbe"/>) verifies.
 /// </summary>
-internal sealed record TargetEnvironment(string Release, string Image, string Os, string Platform,
-    EnvironmentComponents Components, string EntrypointSha256, string DiscoveryKind)
+internal sealed record TargetEnvironment(string Release, string Image, string Os, EnvironmentComponents Components,
+    string EntrypointSha256)
 {
     internal const string Schema = "zeroshot-environment.manifest/v2";
     internal const string SupportedPlatform = "linux/amd64";
@@ -80,7 +80,7 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
                 Dotnet("sdks"), Dotnet("runtimes"));
             var environment = root.GetProperty("environment");
             return new(Text(environment, "name") + "-" + Text(environment, "release"), repository + "@" + digest, os,
-                SupportedPlatform, components, Text(entrypoint, "sha256"), Text(discovery, "kind"));
+                components, Text(entrypoint, "sha256"));
         }
         catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException)
         {

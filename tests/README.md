@@ -379,8 +379,7 @@ image, and the pinned Caddy image if it pulled it. The optional `FACTS_JSON` rec
 store format, schema version and definition SHA-256 and the identities that
 `upgrade-store` upgrades, all from the image's `initialize-store` output, the
 Caddy reference, the site file it mounted, and `check-target`'s readiness facts
-(`ready`, `providerTasks` and each target's environment, release, OS and
-versions) for the release record.
+(each target's environment, release, OS and versions) for the release record.
 
 ## SDK adoption
 

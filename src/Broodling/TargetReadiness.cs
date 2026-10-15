@@ -28,11 +28,10 @@ public sealed record InventoryTarget(string Environment, string ImageId, string 
 /// <c>Os</c> and <c>Versions</c> are what the live target reported, each equal to its adopted manifest's statement.
 /// </summary>
 public sealed record TargetReadinessFacts(string Environment, string Release, string ContainerName, string ContainerId,
-    string ImageId, string DirectOrigin, string Os, IReadOnlyDictionary<string, string> Versions, bool ApiPaginateSlurp = true,
-    bool HostedUidTransition = true);
+    string ImageId, string DirectOrigin, string Os, IReadOnlyDictionary<string, string> Versions);
 
 /// <summary>Every configured target ready, with no provider work submitted.</summary>
-public sealed record TargetReadinessReport(bool Ready, IReadOnlyList<TargetReadinessFacts> Targets, int ProviderTasks = 0);
+public sealed record TargetReadinessReport(IReadOnlyList<TargetReadinessFacts> Targets);
 
 public sealed class TargetNotReady(string message) : Exception(message);
 
@@ -196,7 +195,7 @@ public sealed class TargetReadiness
                     "Target refuses the configured control token; bootstrap the running target (bootstrap-target) or correct the token.");
                 Require(accepted == HttpStatusCode.OK, targets[index], "Target authenticated control differs from the supported private DirectTarget.");
             }
-            return new(true, facts);
+            return new(facts);
         }
         catch (TargetNotReady) { throw; }
         catch (UnsupportedRuntime) { throw new TargetNotReady("Target discovery differs from supported DirectTarget."); }

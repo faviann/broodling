@@ -69,10 +69,10 @@ explicit port, user info, path, query, fragment, IP literal, loopback HTTP
 origin or noncanonical spelling is accepted. Targets bound to a loopback origin
 are not adopted.
 
-Success returns `{"ready": true, "targets": [...], "providerTasks": 0}`, with
-one element per target: `environment`, the adopted `release` (such as
-`dotnet-r2`), `containerName`, `containerId`, `imageId`, `directOrigin`, the
-live `os`, the checked `versions`, `apiPaginateSlurp` and `hostedUidTransition`.
+Success returns `{"targets": [...]}`, with one element per target:
+`environment`, the adopted `release` (such as `dotnet-r2`), `containerName`,
+`containerId`, `imageId`, `directOrigin`, the live `os` and the checked
+`versions`.
 Version facts are the checked pins, not raw process output. Refusal returns
 `ready: false` and a fixed safe `error`, prefixed `Environment <name>:` when it
 concerns one target, with exit 1. Usage exits 2; caller cancellation exits 130.

@@ -32,9 +32,6 @@ internal sealed record EnvironmentProbe(string Component, string Command, IReadO
         return probes;
     }
 
-    /// <summary>One script running every probe in order, for a single <c>/bin/sh -ec</c> invocation.</summary>
-    internal static string Script(IEnumerable<EnvironmentProbe> probes) => string.Join('\n', probes.Select(probe => probe.Command));
-
     internal const string Marker = "@@broodling-environment-probe ";
 
     /// <summary>

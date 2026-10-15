@@ -102,7 +102,7 @@ internal static class GitCustody
         internal sealed record Absent : TreeEntry;
         /// <summary>A symbolic link, submodule, directory, or a parent that is not a directory.</summary>
         internal sealed record NotAFile : TreeEntry;
-        internal sealed record File(string Mode, string BlobOid, byte[] Content) : TreeEntry;
+        internal sealed record File(string BlobOid, byte[] Content) : TreeEntry;
     }
 
     /// <summary>
@@ -132,7 +132,7 @@ internal static class GitCustody
             }
             if (fields[0] is not ("100644" or "100755") || fields[1] != "blob") return new TreeEntry.NotAFile();
             if (BlobSize(repository, fields[2]) is var size && size > maxBytes) throw new GitBlobTooLarge(size);
-            return new TreeEntry.File(fields[0], fields[2], Checked(repository, ["cat-file", "blob", fields[2]]));
+            return new TreeEntry.File(fields[2], Checked(repository, ["cat-file", "blob", fields[2]]));
         }
         throw new ArgumentException("The path is empty.", nameof(path));
     }

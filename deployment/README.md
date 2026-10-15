@@ -468,9 +468,8 @@ contains:
   [`native-state-transitions.json`](native-state-transitions.json) at that
   revision, each with its source revision and native version and executable
   SHA-256 (see [native-state transitions](#native-state-transitions));
-- `demonstration`: `check-target`'s `ready` and `providerTasks` and, for each
-  demonstrated target, its environment, adopted release, live OS, checked
-  component versions and the other dependency facts it observed.
+- `demonstration`: for each target `check-target` reported, its environment,
+  adopted release, live OS and checked component versions.
 
 A record states that these two images passed the demonstration together at that
 revision, and that its target image passed the transition check from each listed

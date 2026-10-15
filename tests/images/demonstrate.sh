@@ -253,7 +253,7 @@ catalog "$root/secrets/host-control-token" "$root/tls-root/root.crt" >"$root/con
 readiness="$(dotnet "$root/host/Broodling.Host.dll" check-target "$root/target-inventory.json" "$root/config.json")" \
     || fail "check-target: $readiness"
 printf '%s\n' "$readiness"
-[[ "$(jq -r '"\(.ready) \([.targets[].environment])"' <<<"$readiness")" == 'true ["dotnet"]' ]] || fail 'check-target is not ready'
+[[ "$(jq -c '[.targets[].environment]' <<<"$readiness")" == '["dotnet"]' ]] || fail 'check-target is not ready'
 
 step 'Processing server in the Broodling image, with controlled GitHub, gateway, provider and forge'
 docker build --quiet --build-arg BASE="$target_image" --tag "$controlled_target" "$here/../fixtures/stock-target" >/dev/null
@@ -417,8 +417,7 @@ if [[ -n $facts ]]; then
             storeDefinitionSha256: .definitionSha256})),
           zeroshotTlsImage: $tls,
           zeroshotTlsSites: [{path: "/etc/caddy/sites/zeroshot-dotnet.caddy", sha256: $siteSha256, content: $site}],
-          readiness: ($readiness | {ready, providerTasks,
-            targets: [.targets[] | {environment, release, os, versions, apiPaginateSlurp, hostedUidTransition}]})}' \
+          readiness: ($readiness | {targets: [.targets[] | {environment, release, os, versions}]})}' \
         >"$facts"
 fi
 step 'Demonstration passed'

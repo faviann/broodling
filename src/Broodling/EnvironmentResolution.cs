@@ -71,7 +71,7 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
                 ["kind"] = AdoptedEnvironments.Kind, ["release"] = Adoption.Release, ["sha256"] = Adoption.RecordSha256
             },
             ["manifest"] = new JsonObject { ["schema"] = TargetEnvironment.Schema, ["sha256"] = Adoption.ManifestSha256 },
-            ["image"] = Adoption.Image, ["platform"] = environment.Platform, ["os"] = environment.Os,
+            ["image"] = Adoption.Image, ["platform"] = TargetEnvironment.SupportedPlatform, ["os"] = environment.Os,
             ["components"] = stated,
             ["target"] = new JsonObject
             {

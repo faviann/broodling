@@ -208,18 +208,19 @@ public sealed class TargetEnvironmentTests
         // Every stated version, the OS identity, the native, restic and entrypoint bytes and every Debian package.
         await Assert.That(probes.Select(probe => probe.Component)).IsEquivalentTo(["os", "native", "codex", "harness-node",
             "node", "gh", "git", "python", "claude", "copilot", "dotnet-sdks", "dotnet-runtimes"]);
+        var probed = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", image, "-c",
+            EnvironmentProbe.Sections(probes));
+        RequireSuccess(probed);
+        await Assert.That(EnvironmentProbe.Mismatches(probes, probed.Output)).IsEmpty();
         string[] expected =
         [
-            .. probes.SelectMany(probe => probe.Expected),
             (string)manifest["native"]!["zeroshot"]!["sha256"]! + "  /usr/local/bin/zeroshot",
             (string)manifest["native"]!["restic"]!["sha256"]! + "  /usr/local/bin/restic",
             (string)manifest["integration"]!["broodling-entrypoint"]!["sha256"]! + "  /usr/local/bin/broodling-target",
             .. manifest["osPackages"]!.AsArray().Select(package =>
                 $"{(string)package!["name"]!} {(string)package["version"]!} {(string)package["architecture"]!}")
         ];
-        var observed = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", image, "-ec",
-            EnvironmentProbe.Script(probes) + """
-
+        var observed = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", image, "-ec", """
             sha256sum /usr/local/bin/zeroshot /usr/local/bin/restic /usr/local/bin/broodling-target
             dpkg-query --show --showformat '${Package} ${Version} ${Architecture}\n'
             """);

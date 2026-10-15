@@ -23,9 +23,7 @@ internal sealed record InvocationConfiguration(IReadOnlyList<EnvironmentEntry> E
     };
 
     /// <summary>The catalog <paramref name="path"/> configures over the adoption set bundled with this release.</summary>
-    internal static EnvironmentCatalog Read(string path) => Read(path, AdoptedEnvironments.LoadBundled());
-
-    internal static EnvironmentCatalog Read(string path, IReadOnlyList<AdoptedEnvironment> adopted)
+    internal static EnvironmentCatalog Read(string path)
     {
         InvocationConfiguration? config = null;
         try { config = JsonSerializer.Deserialize<InvocationConfiguration>(File.ReadAllBytes(path), Options); }
@@ -33,6 +31,7 @@ internal sealed record InvocationConfiguration(IReadOnlyList<EnvironmentEntry> E
         if (config is null || config.Environments is null || config.Environments.Any(entry => entry is null))
             throw new InvalidContractProposal("Invalid invocation configuration.");
         if (config.Environments.Count == 0) throw new UnsupportedRuntime("The invocation configuration names no environment.");
-        return EnvironmentCatalog.Create(config.Environments, config.DefaultEnvironment, config.DirectRootCertificate, adopted);
+        return EnvironmentCatalog.Create(config.Environments, config.DefaultEnvironment, config.DirectRootCertificate,
+            AdoptedEnvironments.LoadBundled());
     }
 }
