@@ -274,14 +274,12 @@ the catalog is loaded.
    "image": "ghcr.io/…@sha256:…", "platform": "linux/amd64", "os": "Debian GNU/Linux 13 (trixie)",
    "components": {"native": "10.10.0", "codex": "0.155.0", "…": "…"},
    "target": {"environment": "dotnet", "origin": "https://zeroshot-dotnet.dev.faviann.com",
-     "container": "…", "stateMount": "…", "homeMount": "…"}},
- "replacement": null}
+     "container": "…", "stateMount": "…", "homeMount": "…"}}}
 ```
 
 An undeclared requirement has `name` and `declaration` null and basis
-`default`. A Replacement's `replacement` names its predecessor, the mode
-`inherited` or `updated` and the predecessor's resolution digest. The
-`native_submissions` row repeats the name, the resolution's SHA-256 and the
+`default`. A Replacement records where its environment came from on its retry
+row: its predecessor and `environment_update`. The `native_submissions` row repeats the name, the resolution's SHA-256 and the
 document digests in columns that triggers tie to the binding and freeze. No
 token value or token path is retained. Status and Attempt reads report
 `environment`: name, image, adoption and manifest digests and the target.

@@ -4,17 +4,13 @@ using System.Text.Json.Nodes;
 
 namespace Broodling;
 
-/// <summary>How a Replacement Attempt came by its environment: from <paramref name="Predecessor"/>'s resolution.</summary>
-internal sealed record EnvironmentReplacement(string Predecessor, string Mode, string PreviousSha256);
-
 /// <summary>
 /// One Attempt's environment, fixed once at first preparation and retained with its Prepared submission: the
-/// requirement, its resolution to an adopted environment and the target serving it, and for a Replacement where
-/// the resolution came from. Secret-free: no control token or token file. <see cref="Json"/> is the retained
-/// form; <see cref="Sha256"/> identifies the resolution alone, so a successor that inherits it keeps it.
+/// requirement and its resolution to an adopted environment and the target serving it. Secret-free: no control
+/// token or token file. <see cref="Json"/> is the retained form; <see cref="Sha256"/> identifies the resolution
+/// alone, so a successor that inherits it keeps it.
 /// </summary>
-internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement, AdoptedEnvironment Adoption, TargetIdentity Target,
-    EnvironmentReplacement? Replacement = null)
+internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement, AdoptedEnvironment Adoption, TargetIdentity Target)
 {
     internal string Name => Target.Environment;
 
@@ -27,13 +23,7 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
     internal JsonObject Json() => new()
     {
         ["requirement"] = RequirementJson(Requirement),
-        ["resolution"] = Resolution(),
-        ["replacement"] = Replacement is { } replacement
-            ? new JsonObject
-            {
-                ["predecessor"] = replacement.Predecessor, ["mode"] = replacement.Mode, ["previousSha256"] = replacement.PreviousSha256
-            }
-            : null
+        ["resolution"] = Resolution()
     };
 
     private static JsonObject RequirementJson(EnvironmentRequirement requirement) => new()
@@ -96,14 +86,10 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
             var record = document(Text(resolution["adoption"]!["sha256"])) ?? throw new InvalidOperationException();
             var manifest = document(Text(resolution["manifest"]!["sha256"])) ?? throw new InvalidOperationException();
             var target = resolution["target"]!;
-            var replacement = environment["replacement"] is JsonObject lineage
-                ? new EnvironmentReplacement(Text(lineage["predecessor"]), Text(lineage["mode"]), Text(lineage["previousSha256"]))
-                : null;
             var result = new EnvironmentResolution(requirement,
                 AdoptedEnvironments.Parse(record, _ => manifest, "retained"),
                 new(Text(target["environment"]), Text(target["origin"]), Text(target["container"]), Text(target["stateMount"]),
-                    Text(target["homeMount"])),
-                replacement);
+                    Text(target["homeMount"])));
             return JsonNode.DeepEquals(result.Json(), environment) ? result : null;
         }
         catch (Exception error) when (error is InvalidOperationException or NullReferenceException or JsonException

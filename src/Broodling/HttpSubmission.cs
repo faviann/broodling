@@ -97,14 +97,14 @@ public sealed partial class BroodlingStore
                 throw new EnvironmentRefused("environment_changed", $"The predecessor's environment changed: {change}. "
                     + "Its successor inherits its exact environment; replace it with an explicit environment update "
                     + "(--update-environment) to sign off on what the catalog names now.");
-            return inherited with { Replacement = new(predecessorId, "inherited", inherited.Sha256) };
+            return inherited;
         }
-        var (name, sha256) = RetainedEnvironmentIdentity(predecessorId, transaction);
+        var name = RetainedEnvironmentIdentity(predecessorId, transaction).Name;
         var requirement = EnvironmentResolution.ReadRequirement(JsonNode.Parse(record.BindingJson)?["environment"]?["requirement"],
             digest => RetainedDocument(digest, transaction)) ?? throw RetainedDiffers();
         var current = environments.Find(name) ?? throw new EnvironmentRefused("environment_unapproved",
             $"The predecessor's environment {name} is no longer in the operator's environment catalog; an environment update keeps the predecessor's environment name.");
-        return new(requirement, current.Adoption, current.Target, new(predecessorId, "updated", sha256));
+        return new(requirement, current.Adoption, current.Target);
     }
 
     /// <summary>
@@ -251,12 +251,9 @@ public sealed partial class BroodlingStore
             throw new SubmissionConflict("This Attempt was prepared for an environment this release's native binding does not support; "
                 + "stop and retire it, then replace it with an explicit environment update.");
         }
-        // Only a Replacement of prepared work records where its environment came from: its own predecessor, as its retry states.
         if (environment is null || environment.Name != name || environment.Sha256 != sha256
             || environment.Requirement.Declaration is { } declaration
-                && (declaration.Path != EnvironmentDeclaration.Path || declaration.Commit != attempt.B1.CommitOid)
-            || environment.Replacement?.Predecessor != InheritsFrom(attempt, transaction)?.PredecessorId
-            || environment.Replacement is { } replacement && replacement.Mode != (attempt.Retry!.EnvironmentUpdate ? "updated" : "inherited"))
+                && (declaration.Path != EnvironmentDeclaration.Path || declaration.Commit != attempt.B1.CommitOid))
             throw RetainedDiffers();
         return environment;
     }

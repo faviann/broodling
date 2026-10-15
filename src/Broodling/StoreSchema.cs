@@ -471,23 +471,18 @@ internal static class StoreSchema
         CREATE TRIGGER retries_no_delete BEFORE DELETE ON attempt_retries
         BEGIN SELECT RAISE(ABORT, 'retry lineage is immutable'); END;
         -- A successor's environment is exactly its predecessor's, unless its retry records the operator's update,
-        -- which still keeps the predecessor's environment name and requirement. Only such a successor names a
-        -- predecessor; one whose predecessor was never prepared resolves like a first Attempt.
+        -- which still keeps the predecessor's environment name and requirement. One whose predecessor was never
+        -- prepared resolves like a first Attempt.
         CREATE TRIGGER replacement_environment BEFORE INSERT ON native_submissions
-        WHEN CASE WHEN EXISTS (SELECT 1 FROM attempt_retries AS r JOIN native_submissions AS p ON p.attempt_id = r.predecessor_id
+        WHEN EXISTS (SELECT 1 FROM attempt_retries AS r JOIN native_submissions AS p ON p.attempt_id = r.predecessor_id
                 WHERE r.attempt_id = NEW.attempt_id)
-            THEN NOT EXISTS (
+          AND NOT EXISTS (
               SELECT 1 FROM attempt_retries AS r JOIN native_submissions AS p ON p.attempt_id = r.predecessor_id
               WHERE r.attempt_id = NEW.attempt_id
-                AND json_extract(NEW.binding_json, '$.environment.replacement.predecessor') = r.predecessor_id
-                AND json_extract(NEW.binding_json, '$.environment.replacement.mode')
-                  = CASE r.environment_update WHEN 1 THEN 'updated' ELSE 'inherited' END
-                AND json_extract(NEW.binding_json, '$.environment.replacement.previousSha256') = p.environment_sha256
                 AND json_extract(NEW.binding_json, '$.environment.requirement')
                   = json_extract(p.binding_json, '$.environment.requirement')
                 AND NEW.declaration_sha256 IS p.declaration_sha256 AND NEW.environment_name = p.environment_name
                 AND (r.environment_update = 1 OR NEW.environment_sha256 = p.environment_sha256))
-            ELSE json_type(NEW.binding_json, '$.environment.replacement') IS NOT 'null' END
         BEGIN SELECT RAISE(ABORT, 'replacement must inherit its predecessor environment or record its update'); END;
 
         DROP TRIGGER attempts_no_abandoned_work;

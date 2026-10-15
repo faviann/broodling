@@ -334,10 +334,6 @@ public sealed class ReplacementTests
         await Assert.That(EnvironmentSha256(fixture, successor.AttemptId)).IsEqualTo(EnvironmentSha256(fixture, id));
         await Assert.That(JsonNode.DeepEquals(Environment(successor)["requirement"], Environment(predecessor)["requirement"])).IsTrue();
         await Assert.That(JsonNode.DeepEquals(Environment(successor)["resolution"], Environment(predecessor)["resolution"])).IsTrue();
-        await Assert.That(JsonNode.DeepEquals(Environment(successor)["replacement"], new JsonObject
-        {
-            ["predecessor"] = id, ["mode"] = "inherited", ["previousSha256"] = EnvironmentSha256(fixture, id)
-        })).IsTrue();
         await Assert.That(successor.Environment).IsEqualTo(predecessor.Environment);
         await Assert.That(fixture.Store.FindRetry("inherit")!.EnvironmentUpdate).IsFalse();
         // Once prepared, the successor keeps its retained environment whatever the catalog says later.
@@ -345,8 +341,8 @@ public sealed class ReplacementTests
     }
 
     /// <summary>
-    /// The explicit update is recorded on the successor's retry and resolution: the predecessor's environment name and
-    /// requirement (here a declaration at original B1), resolved to the image the catalog names now.
+    /// The explicit update is recorded on the successor's retry, and its resolution keeps the predecessor's environment
+    /// name and requirement (here a declaration at original B1), resolved to the image the catalog names now.
     /// </summary>
     [Test]
     public async Task ExplicitUpdateIsRecorded()
@@ -369,10 +365,6 @@ public sealed class ReplacementTests
         await Assert.That(EnvironmentSha256(fixture, successor.AttemptId) == EnvironmentSha256(fixture, id)).IsFalse();
         await Assert.That(JsonNode.DeepEquals(Environment(successor)["requirement"], Environment(predecessor)["requirement"])).IsTrue();
         await Assert.That((string)Environment(successor)["resolution"]!["basis"]!).IsEqualTo("declared");
-        await Assert.That(JsonNode.DeepEquals(Environment(successor)["replacement"], new JsonObject
-        {
-            ["predecessor"] = id, ["mode"] = "updated", ["previousSha256"] = EnvironmentSha256(fixture, id)
-        })).IsTrue();
         // The successor's request keeps its predecessor's exact source.
         JsonNode Source(NativeSubmission record) => JsonNode.Parse(record.RequestJson)!["submission"]!["source"]!;
         await Assert.That(JsonNode.DeepEquals(Source(successor), Source(predecessor))).IsTrue();
@@ -404,20 +396,16 @@ public sealed class ReplacementTests
         await Assert.That(fixture.Store.AdmitRetry(id, "key", updateEnvironment: true)).IsEqualTo(successor);
         // Preparation follows the recorded choice, through the ordinary preparation that resumption uses as well.
         var prepared = fixture.Store.PrepareHttpSubmission(successor.AttemptId, Catalog(adopted, image: adopted[1].Image));
-        await Assert.That((string)Environment(prepared)["replacement"]!["mode"]!).IsEqualTo("updated");
         await Assert.That(prepared.Environment.Image).IsEqualTo(adopted[1].Image);
     }
 
     /// <summary>
     /// SQL keeps a successor's retained environment to its predecessor's exact resolution unless its retry records an
-    /// update, and to its own predecessor and requirement either way; only the exact inherited form is accepted.
+    /// update, and to its predecessor's requirement either way.
     /// </summary>
     [Test]
     [Arguments("exact")]
     [Arguments("other-resolution")]
-    [Arguments("other-predecessor")]
-    [Arguments("no-replacement")]
-    [Arguments("updated-without-flag")]
     [Arguments("other-requirement")]
     public async Task SqlRefusesAForgedSuccessorEnvironment(string forgery)
     {
@@ -427,16 +415,7 @@ public sealed class ReplacementTests
         var successor = fixture.Store.AdmitRetry(id, "forged").AttemptId;
         var run = Guid.CreateVersion7().ToString();
         var key = "broodling:http:v1:" + successor;
-        var replacement = forgery switch
-        {
-            "other-predecessor" => $"json_object('predecessor', '{successor}', 'mode', 'inherited', 'previousSha256', environment_sha256)",
-            "no-replacement" => "json('null')",
-            "updated-without-flag" => $"json_object('predecessor', '{id}', 'mode', 'updated', 'previousSha256', environment_sha256)",
-            _ => $"json_object('predecessor', '{id}', 'mode', 'inherited', 'previousSha256', environment_sha256)"
-        };
-        var binding = forgery == "other-requirement"
-            ? $"json_set(binding_json, '$.environment.replacement', {replacement}, '$.environment.requirement.name', 'dotnet')"
-            : $"json_set(binding_json, '$.environment.replacement', {replacement})";
+        var binding = forgery == "other-requirement" ? "json_set(binding_json, '$.environment.requirement.name', 'dotnet')" : "binding_json";
         var sha256 = forgery == "other-resolution" ? $"'{new string('f', 64)}'" : "environment_sha256";
         var insert = $"""
             INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256,

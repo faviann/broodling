@@ -172,8 +172,8 @@ and is refused with `environment_changed` when the catalog no longer serves it
 exactly, for example after an image swap. `--update-environment` is the
 operator's sign-off: it resolves the predecessor's environment name against the
 current catalog (`environment_unapproved` if that name is gone), so the update
-still satisfies the original requirement, and the successor records
-`environment_update` and `replacement.mode` `updated`. Either refusal admits
+still satisfies the original requirement, and the successor's retry records
+`environment_update`. Either refusal admits
 nothing. Repeating the command with the same key prints the successor's existing
 submission; the same key with the other choice is an `attempt_conflict`. A
 predecessor without a retained environment is refused before anything is
