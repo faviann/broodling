@@ -454,11 +454,11 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 
 ### Current adoption record
 
-- Tested code revision: `0ce8c655752a0b555c0d8aca99579d96cd571bc8` (#234). Later commits that only
+- Tested code revision: `092b87431acf85d6fd7951f12f3ebc06757e503e` (#235). Later commits that only
   edit this record or other documentation leave it valid; a code change
-  requires a new run. #234 moves the target to the adopted `dotnet-r2`
-  environment image and the binding to its source-built native executable and
-  Codex 0.155.0, with the same package bytes.
+  requires a new run. #235 adds the environment catalog, per-Attempt
+  environment resolution and one target per environment, with the same
+  package bytes, asset and adopted image.
 - SDK: `Zeroshot.Client` `10.10.0.1-preview.1` from
   `https://nuget.pkg.github.com/faviann/index.json`; `.nupkg` SHA-256
   `b6edd08c0054a057460a69b245d11e242e34737245b33ee51d7f2cd893fc7d10`, NuGet
@@ -477,23 +477,28 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
   `ghcr.io/faviann/zeroshot-environments/dotnet@sha256:5d36313b1d38ad06c194c53b8f08a71d4bc61527e4e06d56b96c9a835ba54a1d`.
 - Fresh store, from `initialize-store` at that revision: format
   `broodling.application`, schema version 1, definition SHA-256
-  `5db82936e167e9dd7c68b4f392d1ff7e350dce3e239ed9ce214c39ce34ac2075`, upgrading
-  from nothing. #233 redefined the unreleased version in place; it is not yet
+  `270eda3579365c45aa6e7c91ae86fc7e9c115b74e6ff797342a37faa1c694318`, upgrading
+  from nothing. #235 redefined the unreleased version in place; it is not yet
   frozen.
 - Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.9.0, with no
   Python environment and every image test on the pulled adopted image: the lane
-  passed 268 of 268; the full suite passed 655 of 655, none skipped; the Release
-  build succeeded with no warnings; and the
+  passed 291 of 291; the full suite passed 762 of 762 in each of two runs, none
+  skipped; the Release build succeeded with no warnings; and the
   [image demonstration](#image-demonstration) passed on the Broodling image
-  built from that revision with the adopted image. That Broodling image, and
-  the suite's restore, used the same `.nupkg` (SHA-256 above, locked content
-  hash checked) from a local folder source, taken from the SDK qualification
-  run's `candidate` artifact, because the host's GitHub token could not read
-  GitHub Packages.
+  built from that revision with the adopted image. That Broodling image
+  restored the same `.nupkg` (SHA-256 above, locked content hash checked) from
+  GitHub Packages; the suite's restore used the same package from the host's
+  NuGet global packages folder. Of three earlier full runs on this host at
+  the preceding revision, two failed under load: one concurrent open refused
+  in `StoreLifecycleTests`, and one host-port collision between two stock
+  targets that failed two `StockPullRequestDeliveryTests` cases. One of two
+  runs of `main` failed one `AttemptCompletionTests` case. Each passed in later
+  runs.
 - Baseline: the transition check ran as a restart of the adopted image over its
   own state, which is also the explicit control-token rotation (#187). No
-  transition source is listed. The asset bytes and fresh-store definition are
-  unchanged from the #187 record; the native executable and Codex are not.
+  transition source is listed. The asset bytes, native executable, Codex and
+  adopted image are unchanged from the #234 record; the fresh-store definition
+  is not.
 
 ## Evidence limits and history
 
