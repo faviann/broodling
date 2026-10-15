@@ -284,7 +284,7 @@ public sealed class InvocationTests
         using var fixture = new AttemptFixture();
         // A refusal that were missed would reach this listening target.
         var origin = target.Origin.GetLeftPart(UriPartial.Authority);
-        var direct = TestEnvironments.Configuration(origin, target.TokenFile);
+        var direct = TestEnvironments.Configuration(origin, target.TokenFile, name: "dotnet");
         var entry = direct["environments"]![0]!.AsObject();
         // A second, otherwise valid environment, so that only the named conflict is refused.
         JsonObject Second(string field, string value)
@@ -512,6 +512,14 @@ public sealed class InvocationTests
         await Assert.That(error.ToString()).Contains("submission_conflict");
         await Assert.That(await InvocationCommands.RunAsync(["wait", fixture.State.Path, attempt.AttemptId, elsewhere],
             fixture.State.Application, output, error)).IsEqualTo(1);
+        // So does one naming the retained origin for another environment.
+        var renamed = Path.Combine(fixture.State.Root, "renamed.json");
+        File.WriteAllText(renamed, With(With(direct, "environments", new JsonArray(With(direct["environments"]![0]!.AsObject(), "name", "renamed"))),
+            "defaultEnvironment", "renamed").ToJsonString());
+        error.GetStringBuilder().Clear();
+        await Assert.That(await InvocationCommands.RunAsync(["stop", fixture.State.Path, attempt.AttemptId, "operator requested stop", renamed],
+            fixture.State.Application, output, error)).IsEqualTo(1);
+        await Assert.That(error.ToString()).Contains("submission_conflict");
         await Assert.That(store2.GetAttempt(attempt.AttemptId).Abandonment).IsNull();
         // Only the one submission contacted the target; the refused configuration never did.
         await Assert.That(target.Stages.Count(stage => stage == "run")).IsEqualTo(1);

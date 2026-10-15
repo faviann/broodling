@@ -46,10 +46,11 @@ public sealed class DirectTargetAccessTests
         var access = change switch
         {
             "none" => null,
-            // The configured token belongs to another origin; the retained one gets none.
-            "other-origin" => TestEnvironments.Configured(TestEnvironments.Entry("other", "http://127.0.0.1:9", target.TokenFile)),
-            "missing-file" => TestEnvironments.Configured(TestEnvironments.Entry("env0", Origin(target), Path.Combine(fixture.Git.State.Root, "missing-token"))),
-            _ => TestEnvironments.Configured(TestEnvironments.Entry("env0", Origin(target), malformed))
+            // The target's token is configured for another origin; the retained one gets none.
+            "other-origin" => TestEnvironments.Configured(TestEnvironments.EntryFor(Origin(target), Path.Combine(fixture.Git.State.Root, "missing-token")),
+                TestEnvironments.Entry("other", "http://127.0.0.1:9", target.TokenFile)),
+            "missing-file" => TestEnvironments.Configured(TestEnvironments.EntryFor(Origin(target), Path.Combine(fixture.Git.State.Root, "missing-token"))),
+            _ => TestEnvironments.Configured(TestEnvironments.EntryFor(Origin(target), malformed))
         };
         using (var store = Open(fixture, access))
         {
@@ -170,7 +171,7 @@ public sealed class DirectTargetAccessTests
     /// <summary>
     /// Two separately configured origins with distinct tokens: each target receives only its own token, one
     /// target's token cannot control the other, and a configuration that no longer names an Attempt's retained
-    /// origin redirects nothing: its Attempt reaches no target until its own origin is configured again.
+    /// environment and origin redirects nothing: its Attempt reaches no target until they are configured again.
     /// </summary>
     [Test]
     public async Task TwoOriginsReceiveOnlyTheirOwnTokensAndAConfigurationChangeRedirectsNoAttempt()
@@ -184,8 +185,8 @@ public sealed class DirectTargetAccessTests
         var firstPrepared = atFirst.PrepareAt(first.Origin);
         atSecond.PrepareAt(second.Origin);
         // One configuration naming both origins, each with its own token file.
-        var both = TestEnvironments.Configured(TestEnvironments.Entry("first", Origin(first), first.TokenFile),
-            TestEnvironments.Entry("second", Origin(second), second.TokenFile));
+        var both = TestEnvironments.Configured(TestEnvironments.EntryFor(Origin(first), first.TokenFile),
+            TestEnvironments.EntryFor(Origin(second), second.TokenFile));
         using (var store = Open(atFirst, both))
             await store.DispatchHttpAsync(firstPrepared.AttemptId, HttpDispatchTests.Credentials());
         using (var store = Open(atSecond, both))
@@ -195,19 +196,19 @@ public sealed class DirectTargetAccessTests
         await Assert.That(second.Heads.Single().Contains("Authorization: Bearer " + second.Token)).IsTrue();
 
         // The first target's token, configured for the second origin, does not control the second target.
-        var crossed = TestEnvironments.Configured(TestEnvironments.Entry("second", Origin(second), first.TokenFile));
+        var crossed = TestEnvironments.Configured(TestEnvironments.EntryFor(Origin(second), first.TokenFile));
         using (var store = Open(atSecond, crossed))
             await Assert.That(((NativeObservation.Unavailable)(await store.ObserveAsync(atSecond.Attempt.AttemptId))!).Reason).IsEqualTo("unauthorized");
         await Assert.That(second.Unauthorized).IsEqualTo(1);
 
         // The operator's configuration now names only the second target: the first Attempt is not redirected there.
         var contacted = (first.Connections, second.Connections);
-        var switched = TestEnvironments.Configured(TestEnvironments.Entry("second", Origin(second), second.TokenFile));
+        var switched = TestEnvironments.Configured(TestEnvironments.EntryFor(Origin(second), second.TokenFile));
         using (var store = Open(atFirst, switched))
         {
             var attempt = atFirst.Attempt.AttemptId;
-            await Assert.That(((NativeObservation.Unavailable)(await store.ObserveAsync(attempt))!).Reason).IsEqualTo("credentials_unavailable");
-            await DirectTargetRunTests.Fails(() => store.WaitAsync(attempt), "credentials_unavailable");
+            await Assert.That(((NativeObservation.Unavailable)(await store.ObserveAsync(attempt))!).Reason).IsEqualTo("environment_unavailable");
+            await DirectTargetRunTests.Fails(() => store.WaitAsync(attempt), "environment_unavailable");
             // Preparation hands back the retained record; the configured catalog never rebinds it.
             await Assert.That(store.PrepareHttpSubmission(attempt, TestEnvironments.For(Origin(second))).Origin).IsEqualTo(Origin(first));
             await Assert.That(store.FindSubmission(attempt)!.Origin).IsEqualTo(Origin(first));
@@ -282,7 +283,7 @@ public sealed class DirectTargetAccessTests
             var (token, key, config) = (TestAccess.NewSecret(), TestAccess.NewSecret(), Path.Combine(directory, "config.json"));
             File.WriteAllText(Path.Combine(directory, "token"), token + "\n"); // Malformed, so no readable token.
             File.WriteAllText(Path.Combine(directory, "key"), key);
-            File.WriteAllText(config, TestEnvironments.Configuration("https://zeroshot.dev.faviann.com", Path.Combine(directory, "token")).ToJsonString());
+            File.WriteAllText(config, TestEnvironments.Configuration("https://zeroshot.dev.faviann.com", Path.Combine(directory, "token"), name: "dotnet").ToJsonString());
             var output = new StringWriter();
             await Assert.That(await HostTargetCommands.RunAsync(["bootstrap-target", config, "dotnet", Path.Combine(directory, "key")], output)).IsEqualTo(1);
             using var record = JsonDocument.Parse(output.ToString());
@@ -322,7 +323,7 @@ public sealed class DirectTargetAccessTests
         {
             File.WriteAllText(Path.Combine(Directory, "token"), Token);
             File.WriteAllText(Path.Combine(Directory, "key"), Key);
-            return DirectTargetControl.BootstrapAsync(Origin(target), TestEnvironments.Configured(TestEnvironments.Entry("env0", Origin(target), Path.Combine(Directory, "token"))).Access,
+            return DirectTargetControl.BootstrapAsync(Origin(target), TestEnvironments.Configured(TestEnvironments.EntryFor(Origin(target), Path.Combine(Directory, "token"))).Access,
                 Path.Combine(Directory, "key"));
         }
 

@@ -376,4 +376,166 @@ public sealed class EnvironmentSelectionTests
         await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, catalog)).Throws<SubmissionConflict>();
         await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)).IsEqualTo(prepared);
     }
+
+    /// <summary>
+    /// The bundled adoption plus a variant at another image digest, adopted as a stable name's image swap would be;
+    /// its native, Codex and startup interface are the bundled one's.
+    /// </summary>
+    private static IReadOnlyList<AdoptedEnvironment> WithSwappedImage(string directory)
+    {
+        var bundled = TestEnvironments.Adopted;
+        var manifest = JsonNode.Parse(bundled.Manifest)!;
+        manifest["environment"]!["release"] = "r235";
+        manifest["image"]!["digest"] = "sha256:" + new string('5', 64);
+        var bytes = Encoding.UTF8.GetBytes(manifest.ToJsonString());
+        var record = JsonNode.Parse(bundled.Record)!;
+        record["environment"] = "dotnet-r235";
+        record["manifest"]!["path"] = "swapped.manifest.json";
+        record["manifest"]!["sha256"] = Digests.Bytes(bytes);
+        record["image"] = (string)manifest["image"]!["repository"]! + "@sha256:" + new string('5', 64);
+        Directory.CreateDirectory(directory);
+        File.WriteAllBytes(Path.Combine(directory, "swapped.manifest.json"), bytes);
+        File.WriteAllText(Path.Combine(directory, "swapped.adoption.json"), record.ToJsonString());
+        return [bundled, .. AdoptedEnvironments.Load(directory)];
+    }
+
+    /// <summary>
+    /// After a restart, a catalog that removed the retained entry, swapped its image or reassigned its origin cannot
+    /// rebind the Attempt: dispatch refuses with a useful reason before intent or contact. A changed default alone
+    /// changes nothing for it, and the send reaches the retained target.
+    /// </summary>
+    [Test]
+    [Arguments("entry-removed")]
+    [Arguments("image-changed")]
+    [Arguments("origin-reassigned")]
+    [Arguments("default-changed")]
+    public async Task ARestartAfterCatalogChangesNeverRebindsAPreparedAttempt(string change)
+    {
+        await using var first = new StockTarget();
+        await using var second = new StockTarget();
+        using var fixture = new HttpFixture();
+        var (a, b) = (first.Origin.GetLeftPart(UriPartial.Authority), second.Origin.GetLeftPart(UriPartial.Authority));
+        var adopted = WithSwappedImage(Path.Combine(fixture.Git.State.Root, "adopted"));
+        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, Catalog(a, b));
+        fixture.Store.Dispose();
+        var today = change switch
+        {
+            "entry-removed" => TestEnvironments.Catalog([TestEnvironments.Entry("approved-alt", b)], "approved-alt"),
+            "image-changed" => TestEnvironments.Catalog([TestEnvironments.Entry("dotnet", a, image: adopted[1].Image),
+                TestEnvironments.Entry("approved-alt", b)], "dotnet", adopted),
+            "origin-reassigned" => TestEnvironments.Catalog([TestEnvironments.Entry("dotnet", b), TestEnvironments.Entry("approved-alt", a)], "dotnet"),
+            _ => Catalog(a, b, "approved-alt")
+        };
+
+        using var store = Open(fixture, today);
+        var resume = () => new Invocation(store, today).ResumeAsync(fixture.Attempt.ContractRevisionId, credentials: HttpDispatchTests.Credentials());
+        if (change == "default-changed")
+        {
+            await resume();
+            await Assert.That(store.FindSubmission(fixture.Attempt.AttemptId)!.RunId).IsEqualTo(prepared.IntendedRunId);
+            await Assert.That(first.Bodies.Count).IsEqualTo(1);
+            await Assert.That(second.Connections).IsEqualTo(0);
+            return;
+        }
+        var refused = await Assert.That(resume).Throws<EnvironmentRefused>();
+        await Assert.That(refused!.Code).IsEqualTo("environment_changed");
+        await Assert.That(refused.Message).Contains($"prepared for dotnet ({TestEnvironments.Adopted.Image}) at {a}");
+        await Assert.That(store.FindSubmission(fixture.Attempt.AttemptId)).IsEqualTo(prepared);
+        await Assert.That(first.Connections + second.Connections).IsEqualTo(0);
+    }
+
+    /// <summary>
+    /// An acknowledgement lost after the target accepted the run, then a catalog whose default moved to another
+    /// target: the exact replay reaches only the retained target, which converges on the intended run.
+    /// </summary>
+    [Test]
+    public async Task AReplayAfterALostAcknowledgementReachesOnlyTheRetainedTarget()
+    {
+        await using var first = new StockTarget();
+        await using var second = new StockTarget();
+        using var fixture = new HttpFixture();
+        var (a, b) = (first.Origin.GetLeftPart(UriPartial.Authority), second.Origin.GetLeftPart(UriPartial.Authority));
+        var catalog = Catalog(a, b);
+        first.Submit = body =>
+        {
+            first.Accept(body);
+            return Task.FromResult((503, """{"code":"target.unavailable","message":"unavailable"}"""));
+        };
+        using (var store = Open(fixture, catalog))
+            await Assert.That(async () => await new Invocation(store, catalog).ResumeAsync(fixture.Attempt.ContractRevisionId,
+                credentials: HttpDispatchTests.Credentials())).Throws<NativeTransportError>();
+        var unresolved = fixture.Store.FindSubmission(fixture.Attempt.AttemptId)!;
+        await Assert.That(unresolved.State).IsEqualTo("dispatched");
+        first.Submit = body => Task.FromResult(first.Accept(body));
+
+        var moved = Catalog(a, b, "approved-alt");
+        using (var restarted = Open(fixture, moved))
+            await new Invocation(restarted, moved).ResumeAsync(fixture.Attempt.ContractRevisionId, credentials: HttpDispatchTests.Credentials());
+
+        var correlated = fixture.Store.FindSubmission(fixture.Attempt.AttemptId)!;
+        await Assert.That(correlated.RunId).IsEqualTo(unresolved.IntendedRunId);
+        await Assert.That(correlated.BindingJson).IsEqualTo(unresolved.BindingJson);
+        await Assert.That(first.Bodies.Count).IsEqualTo(2);
+        await Assert.That(first.Runs.Values.Single()).IsEqualTo(unresolved.IntendedRunId);
+        await Assert.That(second.Connections).IsEqualTo(0);
+    }
+
+    /// <summary>
+    /// An image swapped under the same name at the same origin still lets a correlated Attempt's run be read and
+    /// waited on there, since reading starts no tools; a catalog that no longer names it at that origin sends nothing.
+    /// </summary>
+    [Test]
+    public async Task ACorrelatedWaitAfterAnImageSwapReadsTheRetainedRun()
+    {
+        var target = new StockTarget();
+        await using var other = new StockTarget();
+        using var fixture = new HttpFixture();
+        var (a, b) = (target.Origin.GetLeftPart(UriPartial.Authority), other.Origin.GetLeftPart(UriPartial.Authority));
+        var adopted = WithSwappedImage(Path.Combine(fixture.Git.State.Root, "adopted"));
+        fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, Catalog(a, b));
+        fixture.Git.State.Execute("UPDATE native_submissions SET state = 'dispatched'");
+        fixture.Git.State.Execute("UPDATE native_submissions SET state = 'correlated', run_id = intended_run_id");
+        var submission = fixture.Store.FindSubmission(fixture.Attempt.AttemptId)!;
+
+        // Another catalog moved the name elsewhere: nothing is read, waited on or stopped there.
+        var elsewhere = TestEnvironments.Catalog([TestEnvironments.Entry("dotnet", b)], "dotnet");
+        using (var store = Open(fixture, elsewhere))
+        {
+            await Assert.That(((NativeObservation.Unavailable)(await store.ObserveAsync(submission.AttemptId))!).Reason)
+                .IsEqualTo("environment_unavailable");
+            await DirectTargetRunTests.Fails(() => store.WaitAsync(submission.AttemptId), "environment_unavailable");
+        }
+        await Assert.That(target.Connections + other.Connections).IsEqualTo(0);
+
+        var swapped = TestEnvironments.Catalog([TestEnvironments.Entry("dotnet", a, image: adopted[1].Image)], "dotnet", adopted);
+        var accepted = fixture.Git.Deliver();
+        target.Projections.Enqueue(AttemptCompletionTests.HttpFinished(submission, "succeeded", CompletionFixture.Receipt(head: accepted)));
+        using (var store = Open(fixture, swapped))
+        {
+            var completion = await store.WaitAsync(submission.AttemptId);
+            await Assert.That(completion.RunId).IsEqualTo(submission.IntendedRunId);
+            await Assert.That(completion.AcceptedRevision).IsEqualTo(accepted);
+        }
+        await Assert.That(other.Connections).IsEqualTo(0);
+        await target.DisposeAsync();
+    }
+
+    /// <summary>A stop under a catalog that no longer names the Attempt's environment at its origin abandons it and sends nothing.</summary>
+    [Test]
+    public async Task AStopUnderAnotherCatalogAbandonsAndSendsNothing()
+    {
+        await using var target = new StockTarget();
+        await using var other = new StockTarget();
+        using var fixture = new HttpFixture();
+        var (a, b) = (target.Origin.GetLeftPart(UriPartial.Authority), other.Origin.GetLeftPart(UriPartial.Authority));
+        fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, Catalog(a, b));
+        fixture.Git.State.Execute("UPDATE native_submissions SET state = 'dispatched'");
+
+        using var store = Open(fixture, Catalog(b, a));
+        var error = await Assert.That(async () => await store.StopAsync(fixture.Attempt.AttemptId, "operator requested stop"))
+            .Throws<CessationUnconfirmed>();
+        await Assert.That(error!.Message).Contains("Native stop was not sent (environment_unavailable)");
+        await Assert.That(store.GetAttempt(fixture.Attempt.AttemptId).Abandonment!.Reason).IsEqualTo("operator requested stop");
+        await Assert.That(target.Connections + other.Connections).IsEqualTo(0);
+    }
 }

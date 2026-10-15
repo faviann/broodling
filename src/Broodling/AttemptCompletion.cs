@@ -80,7 +80,9 @@ public sealed partial class BroodlingStore
             submitted = RequireCompletionBinding(attemptId, transaction);
             transaction.Commit();
         }
-        // Cancellation and transport errors detach the caller; neither abandons nor requests stop.
+        // Cancellation and transport errors detach the caller; neither abandons nor requests stop. A catalog that
+        // no longer names the retained environment at its origin sends nothing.
+        environments?.RequireTarget(submitted.Environment);
         var result = await DirectTargetRun.WaitAsync(submitted.Run!, directTarget, DirectTargetClock, cancellationToken);
         if (result.RunId != submitted.RunId) throw new ReceiptRefused("The result belongs to another native run.");
         if (!result.Succeeded)

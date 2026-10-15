@@ -48,6 +48,14 @@ public sealed class HttpProcessingTests
         var invalid = await server.Client.PostAsJsonAsync("/submissions", new { issueUrl = "https://github.com/acme/widget/pull/12" });
         await Assert.That(invalid.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         await Assert.That(store.FindIssueSubmission(issue)).IsNull();
+        // A caller cannot select an environment, image, endpoint, setup or toolchain: any other member is refused.
+        foreach (var member in new[] { "environment", "image", "origin", "setup", "toolchain" })
+        {
+            var selecting = await server.Client.PostAsJsonAsync("/submissions", new JsonObject { ["issueUrl"] = issue, [member] = "dotnet" });
+            await Assert.That(selecting.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+            await Assert.That((string)(await Body(selecting))["error"]!).IsEqualTo("invalid_request");
+            await Assert.That(store.FindIssueSubmission(issue)).IsNull();
+        }
 
         // Acceptance answers from the committed record before anything is acquired; the client then leaves.
         string submissionId;

@@ -91,7 +91,8 @@ public sealed partial class BroodlingStore
     /// <summary>
     /// First send or exact acknowledgement-loss replay of a prepared HTTP submission. A correlated
     /// record is handed back with no other prerequisite. Otherwise the send needs current authority,
-    /// no retained replay block, no pause, current credentials, exact retained B1 custody, a readable control token for the
+    /// no retained replay block, no pause, a catalog that still serves the retained environment exactly (the same
+    /// name, adopted image and target), current credentials, exact retained B1 custody, a readable control token for the
     /// retained origin and a readable configured root; dispatch intent commits before any target contact and the writer is released before any
     /// network I/O. Only the exact acknowledgement correlates; every other outcome leaves the intent
     /// unresolved. A correlation that arrives after abandonment is retained, then that exact run is stopped.
@@ -106,6 +107,8 @@ public sealed partial class BroodlingStore
             throw new SubmissionNotReady("HTTP dispatch requires a prepared HTTP submission.");
         if (record.ReplayBlockedReason is not null) throw ReplayBlocked();
         RequireUnpaused();
+        // A removed entry, another image or a reassigned origin never rebinds the Attempt: nothing is recorded or sent.
+        environments?.RequireUnchanged(record.Environment);
         // Credential and Git checks may be slow; they never hold the SQLite writer.
         var ephemeral = (credentials ?? throw new UnsupportedRuntime("Current PR dispatch credentials are required.")).TargetRun();
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);

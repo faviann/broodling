@@ -63,7 +63,10 @@ public sealed partial class BroodlingStore
         var (run, identity) = submitted.Run is { } confirmed
             ? (confirmed, NativeRunIdentity.Confirmed)
             : (submitted.Frozen.Run(submitted.IntendedRunId), NativeRunIdentity.Intended);
-        var stop = await DirectTargetRun.StopAsync(run, identity, directTarget, DirectTargetClock, cancellationToken);
+        // The control token goes only to the retained origin while the catalog still names it for this environment.
+        var stop = environments?.Serves(submitted.Environment) == false
+            ? new DirectTargetStop(DirectTargetForce.NotSent, "environment_unavailable")
+            : await DirectTargetRun.StopAsync(run, identity, directTarget, DirectTargetClock, cancellationToken);
         throw stop.Force switch
         {
             DirectTargetForce.Terminal => new CessationUnconfirmed(

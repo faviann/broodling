@@ -82,11 +82,13 @@ internal static class TestEnvironments
 
     /// <summary>
     /// The invocation configuration file contents for one environment at <paramref name="origin"/> with its real
-    /// <paramref name="controlTokenFile"/>, the default unless <paramref name="isDefault"/> is false.
+    /// <paramref name="controlTokenFile"/>, the default unless <paramref name="isDefault"/> is false. Unless
+    /// <paramref name="name"/> is given, it is the environment <see cref="For(string[])"/> configures there.
     /// </summary>
     internal static JsonObject Configuration(string origin, string controlTokenFile, string? rootCertificate = null,
-        string name = "dotnet", bool isDefault = true)
+        string? name = null, bool isDefault = true)
     {
+        name ??= NameFor(origin);
         var entry = Entry(name, origin, controlTokenFile);
         var configuration = new JsonObject
         {

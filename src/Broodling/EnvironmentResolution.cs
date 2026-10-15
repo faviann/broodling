@@ -119,3 +119,20 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
     private static string Text(JsonNode? node) =>
         (node as JsonValue)?.TryGetValue<string>(out var text) == true ? text : throw new InvalidOperationException();
 }
+
+/// <summary>
+/// The retained environment's identity as an Attempt's binding names it, for checks against the current catalog:
+/// the environment name, adopted image and documents, and the target serving it.
+/// </summary>
+internal sealed record RetainedEnvironment(string Name, string Image, string AdoptionSha256, string ManifestSha256, TargetIdentity Target)
+{
+    internal static RetainedEnvironment Read(string bindingJson)
+    {
+        var resolution = JsonNode.Parse(bindingJson)!["environment"]!["resolution"]!;
+        var target = resolution["target"]!;
+        return new((string)resolution["name"]!, (string)resolution["image"]!, (string)resolution["adoption"]!["sha256"]!,
+            (string)resolution["manifest"]!["sha256"]!,
+            new((string)target["environment"]!, (string)target["origin"]!, (string)target["container"]!,
+                (string)target["stateMount"]!, (string)target["homeMount"]!));
+    }
+}
