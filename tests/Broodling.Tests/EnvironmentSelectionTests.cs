@@ -12,12 +12,12 @@ namespace Broodling.Tests;
 /// </summary>
 public sealed class EnvironmentSelectionTests
 {
-    private const string Declaration = ".broodling/environment.json";
+    internal const string Declaration = ".broodling/environment.json";
 
-    private static byte[] Declare(string name) => Encoding.UTF8.GetBytes($$"""{"version": 1, "environment": "{{name}}"}""" + "\n");
+    internal static byte[] Declare(string name) => Encoding.UTF8.GetBytes($$"""{"version": 1, "environment": "{{name}}"}""" + "\n");
 
     /// <summary>Write <paramref name="content"/> at <paramref name="path"/> in the repository and commit it.</summary>
-    private static string Commit(AttemptFixture git, string path, byte[] content)
+    internal static string Commit(AttemptFixture git, string path, byte[] content)
     {
         var file = Path.Combine(git.Repository, path);
         Directory.CreateDirectory(Path.GetDirectoryName(file)!);
@@ -381,7 +381,7 @@ public sealed class EnvironmentSelectionTests
     /// The bundled adoption plus a variant at another image digest, adopted as a stable name's image swap would be;
     /// its native, Codex and startup interface are the bundled one's.
     /// </summary>
-    private static IReadOnlyList<AdoptedEnvironment> WithSwappedImage(string directory)
+    internal static IReadOnlyList<AdoptedEnvironment> WithSwappedImage(string directory)
     {
         var bundled = TestEnvironments.Adopted;
         var manifest = JsonNode.Parse(bundled.Manifest)!;

@@ -20,7 +20,8 @@ public sealed class RetirementProcessTests
         {
             var start = new ProcessStartInfo("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true };
             foreach (var arg in new[] { Path.Combine(AppContext.BaseDirectory, "Broodling.ProcessWitness.dll"),
-                "replacement-crash", fixture.Git.State.Path, predecessor.AttemptId, mode })
+                "replacement-crash", fixture.Git.State.Path, predecessor.AttemptId, mode, HttpFixture.Target,
+                TestEnvironments.NameFor(HttpFixture.Target) })
                 start.ArgumentList.Add(arg);
             using var process = Process.Start(start)!;
             var error = process.StandardError.ReadToEndAsync();
@@ -46,8 +47,8 @@ public sealed class RetirementProcessTests
             }
         }
         fixture.Git.Commit("later source tip\n");
-        var prepared = store.PrepareRetry(predecessor.AttemptId, "process-retry");
-        await Assert.That(store.PrepareRetry(predecessor.AttemptId, "process-retry")).IsEqualTo(prepared);
+        var prepared = store.PrepareRetry(predecessor.AttemptId, "process-retry", TestEnvironments.Live);
+        await Assert.That(store.PrepareRetry(predecessor.AttemptId, "process-retry", TestEnvironments.Live)).IsEqualTo(prepared);
         await Assert.That((string)JsonNode.Parse(prepared.RequestJson)!["submission"]!["source"]!["revision"]!).IsEqualTo(predecessor.B1.CommitOid);
         await Assert.That(prepared.State).IsEqualTo("prepared");
         await Assert.That(store.Status(predecessor.ContractRevisionId).Attempts.Count).IsEqualTo(2);

@@ -349,7 +349,8 @@ retired="$(compose run --rm --no-deps -T broodling retire-attempt /var/lib/brood
 echo "retire-attempt: $retired"
 [[ "$(jq -r '"\(.basis) \(.retiredAt != null) \(.stoppedTarget.containerName)"' <<<"$retired")" \
     == "stopped_target true $target_container" ]] || fail 'retirement'
-successor="$(compose run --rm --no-deps -T broodling replace-attempt /var/lib/broodling/state.sqlite3 "$attempt" demonstration)"
+successor="$(compose run --rm --no-deps -T broodling replace-attempt /var/lib/broodling/state.sqlite3 "$attempt" demonstration \
+    /etc/broodling/invocation.json)"
 echo "replace-attempt: $(jq -c '{attemptId, state, intendedRunId}' <<<"$successor")"
 [[ "$(jq -r --arg predecessor "$attempt" '"\(.state) \(.attemptId != $predecessor)"' <<<"$successor")" == 'prepared true' ]] \
     || fail 'replacement'

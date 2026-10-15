@@ -13,12 +13,14 @@ public static class StoreCommands
             2 => args[0] is "initialize-store" or "upgrade-store"
                 or "pause-installation" or "installation-status" or "release-installation",
             3 => args[0] == "status",
-            4 => args[0] is "history" or "retire-attempt" or "replace-attempt",
+            4 => args[0] is "history" or "retire-attempt",
+            5 => args[0] == "replace-attempt",
+            6 => args[0] == "replace-attempt" && args[5] == "--update-environment",
             _ => false
         };
         if (!valid)
         {
-            error.WriteLine("Usage: initialize-store <new-path> | upgrade-store <existing-path> | pause-installation <path> | installation-status <path> | release-installation <path> | status <path> <revision-id> | history <path> <repository> <issue> | retire-attempt <path> <attempt-id> <stopped-target-check-json> | replace-attempt <path> <predecessor-attempt-id> <retry-key>");
+            error.WriteLine("Usage: initialize-store <new-path> | upgrade-store <existing-path> | pause-installation <path> | installation-status <path> | release-installation <path> | status <path> <revision-id> | history <path> <repository> <issue> | retire-attempt <path> <attempt-id> <stopped-target-check-json> | replace-attempt <path> <predecessor-attempt-id> <retry-key> <config.json> [--update-environment]");
             return 2;
         }
         try
@@ -37,7 +39,9 @@ public static class StoreCommands
                 "installation-status" => store.GetInstallationStatus(),
                 "release-installation" => store.ReleaseInstallation(),
                 "retire-attempt" => store.RetireStoppedTargetAttempt(args[2], ParseStoppedTargetCheck(args[3])),
-                "replace-attempt" => store.PrepareRetry(args[2], args[3]),
+                // The secret-free catalog only: no control token is read and no target is contacted.
+                "replace-attempt" => store.PrepareRetry(args[2], args[3], InvocationConfiguration.Read(args[4]),
+                    updateEnvironment: args.Length == 6),
                 // The release record takes the exact schema identity and the upgradable ones from here.
                 _ => new { operation = args[0], store = store.Path, schema = store.Information, upgradesFrom = StoreSchema.UpgradesFrom }
             };

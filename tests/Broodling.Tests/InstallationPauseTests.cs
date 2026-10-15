@@ -187,7 +187,7 @@ public sealed class InstallationPauseTests
         store.PauseInstallation();
 
         var successor = store.AdmitRetry(original.AttemptId, "paused-replacement");
-        var prepared = store.PrepareRetry(original.AttemptId, "paused-replacement");
+        var prepared = store.PrepareRetry(original.AttemptId, "paused-replacement", TestEnvironments.Live);
         await Assert.That(prepared.AttemptId).IsEqualTo(successor.AttemptId);
         await Assert.That(prepared.State).IsEqualTo("prepared");
         await Assert.That(async () => await store.DispatchHttpAsync(successor.AttemptId, HttpDispatchTests.Credentials()))

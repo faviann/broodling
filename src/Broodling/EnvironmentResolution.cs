@@ -26,22 +26,24 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
 
     internal JsonObject Json() => new()
     {
-        ["requirement"] = new JsonObject
-        {
-            ["name"] = Requirement.Name,
-            ["declaration"] = Requirement.Declaration is { } declaration
-                ? new JsonObject
-                {
-                    ["path"] = declaration.Path, ["commit"] = declaration.Commit, ["blob"] = declaration.BlobOid,
-                    ["sha256"] = declaration.Sha256
-                }
-                : null
-        },
+        ["requirement"] = RequirementJson(Requirement),
         ["resolution"] = Resolution(),
         ["replacement"] = Replacement is { } replacement
             ? new JsonObject
             {
                 ["predecessor"] = replacement.Predecessor, ["mode"] = replacement.Mode, ["previousSha256"] = replacement.PreviousSha256
+            }
+            : null
+    };
+
+    private static JsonObject RequirementJson(EnvironmentRequirement requirement) => new()
+    {
+        ["name"] = requirement.Name,
+        ["declaration"] = requirement.Declaration is { } declaration
+            ? new JsonObject
+            {
+                ["path"] = declaration.Path, ["commit"] = declaration.Commit, ["blob"] = declaration.BlobOid,
+                ["sha256"] = declaration.Sha256
             }
             : null
     };
@@ -89,14 +91,7 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
     {
         try
         {
-            var requirement = environment!["requirement"]!;
-            DeclarationSource? source = null;
-            if (requirement["declaration"] is JsonObject declaration)
-            {
-                var sha256 = Text(declaration["sha256"]);
-                source = new(Text(declaration["path"]), Text(declaration["commit"]), Text(declaration["blob"]), sha256,
-                    document(sha256) ?? throw new InvalidOperationException());
-            }
+            var requirement = ReadRequirement(environment!["requirement"], document) ?? throw new InvalidOperationException();
             var resolution = environment["resolution"]!;
             var record = document(Text(resolution["adoption"]!["sha256"])) ?? throw new InvalidOperationException();
             var manifest = document(Text(resolution["manifest"]!["sha256"])) ?? throw new InvalidOperationException();
@@ -104,13 +99,35 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
             var replacement = environment["replacement"] is JsonObject lineage
                 ? new EnvironmentReplacement(Text(lineage["predecessor"]), Text(lineage["mode"]), Text(lineage["previousSha256"]))
                 : null;
-            var result = new EnvironmentResolution(
-                new(source is null ? null : EnvironmentDeclaration.Parse(source.Bytes), source),
+            var result = new EnvironmentResolution(requirement,
                 AdoptedEnvironments.Parse(record, _ => manifest, "retained"),
                 new(Text(target["environment"]), Text(target["origin"]), Text(target["container"]), Text(target["stateMount"]),
                     Text(target["homeMount"])),
                 replacement);
             return JsonNode.DeepEquals(result.Json(), environment) ? result : null;
+        }
+        catch (Exception error) when (error is InvalidOperationException or NullReferenceException or JsonException
+            or EnvironmentRefused) { return null; }
+    }
+
+    /// <summary>
+    /// The requirement a retained <paramref name="requirement"/> states, with its declaration bytes from
+    /// <paramref name="document"/>; null when it is not the form <see cref="Json"/> writes. It needs no adoption, so
+    /// an explicit environment update can still satisfy it when this release cannot use the retained resolution.
+    /// </summary>
+    internal static EnvironmentRequirement? ReadRequirement(JsonNode? requirement, Func<string, byte[]?> document)
+    {
+        try
+        {
+            DeclarationSource? source = null;
+            if (requirement!["declaration"] is JsonObject declaration)
+            {
+                var sha256 = Text(declaration["sha256"]);
+                source = new(Text(declaration["path"]), Text(declaration["commit"]), Text(declaration["blob"]), sha256,
+                    document(sha256) ?? throw new InvalidOperationException());
+            }
+            var result = new EnvironmentRequirement(source is null ? null : EnvironmentDeclaration.Parse(source.Bytes), source);
+            return JsonNode.DeepEquals(RequirementJson(result), requirement) ? result : null;
         }
         catch (Exception error) when (error is InvalidOperationException or NullReferenceException or JsonException
             or EnvironmentRefused) { return null; }

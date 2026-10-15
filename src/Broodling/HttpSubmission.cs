@@ -20,8 +20,16 @@ public sealed partial class BroodlingStore
         PrepareHttpSubmission(attemptId, environments, ExecutionAsset.LoadBundled);
 
     internal NativeSubmission PrepareHttpSubmission(string attemptId, EnvironmentCatalog environments, Func<ExecutionAsset> installed) =>
-        PrepareHttpSubmission(attemptId, attempt => environments.Resolve(EnvironmentDeclaration.Read(attempt.B1.Repository, attempt.B1.CommitOid)),
-            installed);
+        PrepareHttpSubmission(attemptId, attempt => InheritsFrom(attempt) is { } retry
+            ? ReplacementEnvironment(retry.PredecessorId, retry.EnvironmentUpdate, environments)
+            : environments.Resolve(EnvironmentDeclaration.Read(attempt.B1.Repository, attempt.B1.CommitOid)), installed);
+
+    /// <summary>
+    /// The retry whose predecessor's retained environment a successor's environment comes from; null for a first Attempt
+    /// and for a successor of a predecessor that was never prepared, which resolves like a first Attempt.
+    /// </summary>
+    private AttemptRetry? InheritsFrom(AttemptRecord attempt, SqliteTransaction? transaction = null) =>
+        attempt.Retry is { } retry && ReadSubmission(retry.PredecessorId, transaction) is not null ? retry : null;
 
     private NativeSubmission PrepareHttpSubmission(string attemptId, Func<AttemptRecord, EnvironmentResolution> resolve,
         Func<ExecutionAsset> installed)
@@ -77,16 +85,31 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>
-    /// A successor's preparation: exactly its predecessor's retained resolution, recorded as inherited from it.
+    /// A successor's environment. By default exactly its predecessor's retained resolution, refused as
+    /// <c>environment_changed</c> unless <paramref name="environments"/> still serves it exactly. With
+    /// <paramref name="update"/>, the operator's recorded sign-off: the predecessor's requirement, copied as retained,
+    /// resolved to what the catalog now names for the predecessor's environment, which therefore still satisfies it.
     /// </summary>
-    private NativeSubmission PrepareInheritedHttpSubmission(string attemptId, string predecessorId) =>
-        PrepareHttpSubmission(attemptId, _ =>
+    private EnvironmentResolution ReplacementEnvironment(string predecessorId, bool update, EnvironmentCatalog environments,
+        SqliteTransaction? transaction = null)
+    {
+        var record = ReadSubmission(predecessorId, transaction) ?? throw new SubmissionNotReady("The predecessor has no retained environment.");
+        if (!update)
         {
-            var predecessor = ReadAttempt(predecessorId);
-            var inherited = RetainedEnvironment(predecessor, FindSubmission(predecessorId)
-                ?? throw new SubmissionNotReady("The predecessor has no retained environment."));
+            var inherited = RetainedEnvironment(ReadAttempt(predecessorId, transaction), record, transaction);
+            if (environments.Change(record.Environment) is { } change)
+                throw new EnvironmentRefused("environment_changed", $"The predecessor's environment changed: {change}. "
+                    + "Its successor inherits its exact environment; replace it with an explicit environment update "
+                    + "(--update-environment) to sign off on what the catalog names now.");
             return inherited with { Replacement = new(predecessorId, "inherited", inherited.Sha256) };
-        }, ExecutionAsset.LoadBundled);
+        }
+        var (name, sha256) = RetainedEnvironmentIdentity(predecessorId, transaction);
+        var requirement = EnvironmentResolution.ReadRequirement(JsonNode.Parse(record.BindingJson)?["environment"]?["requirement"],
+            digest => RetainedDocument(digest, transaction)) ?? throw RetainedDiffers();
+        var current = environments.Find(name) ?? throw new EnvironmentRefused("environment_unapproved",
+            $"The predecessor's environment {name} is no longer in the operator's environment catalog; an environment update keeps the predecessor's environment name.");
+        return new(requirement, current.Adoption, current.Target, new(predecessorId, "updated", sha256));
+    }
 
     /// <summary>
     /// First send or exact acknowledgement-loss replay of a prepared HTTP submission. A correlated
@@ -216,14 +239,7 @@ public sealed partial class BroodlingStore
     /// </summary>
     private EnvironmentResolution RetainedEnvironment(AttemptRecord attempt, NativeSubmission record, SqliteTransaction? transaction = null)
     {
-        string name, sha256;
-        using (var command = Command("SELECT environment_name, environment_sha256 FROM native_submissions WHERE attempt_id = $p0",
-            transaction, record.AttemptId))
-        using (var row = command.ExecuteReader())
-        {
-            if (!row.Read()) throw RetainedDiffers();
-            (name, sha256) = (row.GetString(0), row.GetString(1));
-        }
+        var (name, sha256) = RetainedEnvironmentIdentity(record.AttemptId, transaction);
         EnvironmentResolution? environment;
         try
         {
@@ -234,13 +250,24 @@ public sealed partial class BroodlingStore
         catch (UnsupportedRuntime)
         {
             throw new SubmissionConflict("This Attempt was prepared for an environment this release's native binding does not support; "
-                + "stop and retire it, then replace it.");
+                + "stop and retire it, then replace it with an explicit environment update.");
         }
+        // Only a Replacement of prepared work records where its environment came from: its own predecessor, as its retry states.
         if (environment is null || environment.Name != name || environment.Sha256 != sha256
             || environment.Requirement.Declaration is { } declaration
-                && (declaration.Path != EnvironmentDeclaration.Path || declaration.Commit != attempt.B1.CommitOid))
+                && (declaration.Path != EnvironmentDeclaration.Path || declaration.Commit != attempt.B1.CommitOid)
+            || environment.Replacement?.Predecessor != InheritsFrom(attempt, transaction)?.PredecessorId
+            || environment.Replacement is { } replacement && replacement.Mode != (attempt.Retry!.EnvironmentUpdate ? "updated" : "inherited"))
             throw RetainedDiffers();
         return environment;
+    }
+
+    private (string Name, string Sha256) RetainedEnvironmentIdentity(string attemptId, SqliteTransaction? transaction = null)
+    {
+        using var command = Command("SELECT environment_name, environment_sha256 FROM native_submissions WHERE attempt_id = $p0",
+            transaction, attemptId);
+        using var row = command.ExecuteReader();
+        return row.Read() ? (row.GetString(0), row.GetString(1)) : throw RetainedDiffers();
     }
 
     private byte[]? RetainedDocument(string sha256, SqliteTransaction? transaction)

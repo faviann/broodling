@@ -56,7 +56,7 @@ public sealed class ReplacementCompletionTests
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "INSERT INTO attempt_retries VALUES ('sql-retry', $predecessor, 'sql-successor', 'now')";
+            command.CommandText = "INSERT INTO attempt_retries VALUES ('sql-retry', $predecessor, 'sql-successor', 'now', 0)";
             command.Parameters.AddWithValue("$predecessor", original.AttemptId);
             command.ExecuteNonQuery(); // Valid safe lineage: the abandoned-work exception applies.
             command.CommandText = """

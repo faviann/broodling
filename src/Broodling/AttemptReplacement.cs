@@ -2,8 +2,11 @@ using Microsoft.Data.Sqlite;
 
 namespace Broodling;
 
-/// <summary>A successor's preparation freezes its own binding; the lineage carries only identities.</summary>
-public sealed record AttemptRetry(string RetryKey, string PredecessorId, string AttemptId, string RequestedAt);
+/// <summary>
+/// A successor's preparation freezes its own binding; the lineage carries only identities and whether the operator
+/// signed off on an environment update instead of the predecessor's exact environment.
+/// </summary>
+public sealed record AttemptRetry(string RetryKey, string PredecessorId, string AttemptId, string RequestedAt, bool EnvironmentUpdate);
 
 public sealed partial class BroodlingStore
 {
@@ -11,13 +14,24 @@ public sealed partial class BroodlingStore
 
     private AttemptRetry? ReadRetry(string column, string id, SqliteTransaction? transaction = null)
     {
-        using var command = Command($"SELECT retry_key, predecessor_id, attempt_id, requested_at FROM attempt_retries WHERE {column} = $p0", transaction, id);
+        using var command = Command($"SELECT retry_key, predecessor_id, attempt_id, requested_at, environment_update FROM attempt_retries WHERE {column} = $p0",
+            transaction, id);
         using var row = command.ExecuteReader();
-        return row.Read() ? new(row.GetString(0), row.GetString(1), row.GetString(2), row.GetString(3)) : null;
+        return row.Read() ? new(row.GetString(0), row.GetString(1), row.GetString(2), row.GetString(3), row.GetInt64(4) == 1) : null;
     }
 
-    /// <summary>One explicit successor from original B1. Commit identity and lineage before any preparation or dispatch.</summary>
-    public AttemptRecord AdmitRetry(string predecessorId, string retryKey)
+    /// <summary>
+    /// One explicit successor from original B1. Commit identity and lineage, including whether its environment is an
+    /// explicit <paramref name="updateEnvironment"/>, before any preparation or dispatch.
+    /// </summary>
+    public AttemptRecord AdmitRetry(string predecessorId, string retryKey, bool updateEnvironment = false) =>
+        AdmitRetry(predecessorId, retryKey, updateEnvironment, null);
+
+    /// <summary>
+    /// With <paramref name="environments"/>, a new successor is admitted only when its environment can be prepared from
+    /// that catalog, checked after every authority rule; a refusal admits nothing.
+    /// </summary>
+    private AttemptRecord AdmitRetry(string predecessorId, string retryKey, bool updateEnvironment, EnvironmentCatalog? environments)
     {
         if (string.IsNullOrWhiteSpace(retryKey)) throw new AttemptAdmissionError("Replacement requires a nonempty explicit retry key.");
         using var transaction = connection.BeginTransaction(deferred: false);
@@ -29,6 +43,8 @@ public sealed partial class BroodlingStore
         {
             if (existing.PredecessorId != predecessorId)
                 throw new AttemptConflict("The retry key already binds a different predecessor.");
+            if (existing.EnvironmentUpdate != updateEnvironment)
+                throw new AttemptConflict("The retry key already binds the other environment choice.");
             var historical = ReadAttempt(existing.AttemptId, transaction);
             transaction.Commit();
             return historical; // Historical identity only; never restore authority here.
@@ -62,10 +78,12 @@ public sealed partial class BroodlingStore
                 throw new SourceAttributionError("Original entitled source material changed.");
         }
         GitCustody.Retain(new(predecessor.B1.Repository, predecessor.B1.CommitOid, predecessor.B1.RequestedRevision));
+        if (environments is not null) ReplacementEnvironment(predecessorId, updateEnvironment, environments, transaction);
         var id = "at-" + Digests.Parts("broodling.dotnet.attempt.retry.v1", predecessorId, retryKey);
         var now = Now();
         // The deferred FK requires the new Attempt to commit in this very transaction.
-        Execute("INSERT INTO attempt_retries VALUES ($p0, $p1, $p2, $p3)", transaction, retryKey, predecessorId, id, now);
+        Execute("INSERT INTO attempt_retries VALUES ($p0, $p1, $p2, $p3, $p4)", transaction, retryKey, predecessorId, id, now,
+            updateEnvironment ? 1 : 0);
         InsertAttempt(new(id, predecessor.WorkUnitId, predecessor.ContractRevisionId, true, predecessor.B1, now, null), transaction);
         var result = ReadAttempt(id, transaction);
         transaction.Commit();
@@ -74,15 +92,19 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// Admit and prepare one explicit successor, never dispatching it. It inherits the predecessor's retained
-    /// environment resolution, and so its DirectTarget; for a <c>stopped_target</c> predecessor that is the target
-    /// its maintenance check named. Repeating it returns the successor's existing submission unchanged.
+    /// environment resolution, and so its DirectTarget (for a <c>stopped_target</c> predecessor, the target its
+    /// maintenance check named), unless <paramref name="environments"/> no longer serves it exactly: then nothing is
+    /// admitted. <paramref name="updateEnvironment"/> is the operator's recorded sign-off instead: the successor takes
+    /// what the catalog now names for the predecessor's environment. Repeating it returns the successor's existing
+    /// submission unchanged.
     /// </summary>
-    public NativeSubmission PrepareRetry(string predecessorId, string retryKey)
+    public NativeSubmission PrepareRetry(string predecessorId, string retryKey, EnvironmentCatalog environments,
+        bool updateEnvironment = false)
     {
         // Checked first, so a predecessor without a retained environment leaves no successor behind.
         if (FindSubmission(predecessorId) is null)
             throw new SubmissionNotReady("The predecessor has no retained environment or DirectTarget origin.");
-        var attempt = AdmitRetry(predecessorId, retryKey);
-        return FindSubmission(attempt.AttemptId) ?? PrepareInheritedHttpSubmission(attempt.AttemptId, predecessorId);
+        var attempt = AdmitRetry(predecessorId, retryKey, updateEnvironment, environments);
+        return FindSubmission(attempt.AttemptId) ?? PrepareHttpSubmission(attempt.AttemptId, environments);
     }
 }

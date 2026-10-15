@@ -91,7 +91,7 @@ public sealed class RevisionTests
         var second = store.ReviseIssueSubmission(first).SubmissionId;
         // The revision supersedes the predecessor's Contract, whose retired Attempt is then never replaced.
         store.PauseInstallation();
-        await Assert.That(() => store.PrepareRetry(dispatched, "late")).Throws<AttemptConflict>();
+        await Assert.That(() => store.PrepareRetry(dispatched, "late", TestEnvironments.Live)).Throws<AttemptConflict>();
         store.ReleaseInstallation();
         await Assert.That(store.UnfinishedSubmissions()).IsEquivalentTo([second]);
         await revisions.Prepare(second);
@@ -211,7 +211,7 @@ public sealed class RevisionTests
         await Assert.That(async () => await store.WaitAsync(failed)).Throws<SubmissionNotReady>();
         // The earlier revision's success does not hold back replacing the later revision's own Attempt.
         revisions.Retire(failed, release: false);
-        var replacement = store.PrepareRetry(failed, "after-failure").AttemptId;
+        var replacement = store.PrepareRetry(failed, "after-failure", TestEnvironments.Live).AttemptId;
         store.ReleaseInstallation();
         await revisions.Continue(second);
         var later = await revisions.Succeed(replacement, "second result");

@@ -84,17 +84,22 @@ public sealed class EnvironmentCatalog
     /// </summary>
     internal void RequireUnchanged(RetainedEnvironment retained)
     {
+        if (Change(retained) is { } change)
+            throw new EnvironmentRefused("environment_changed", $"The environment changed: {change}. This Attempt was prepared for "
+                + $"{retained.Name} ({retained.Image}) at {retained.Target.Origin}. Stop it, retire it under verified maintenance "
+                + "and replace it with an explicit environment update.");
+    }
+
+    /// <summary>How this catalog no longer serves <paramref name="retained"/> exactly; null when it still does.</summary>
+    internal string? Change(RetainedEnvironment retained)
+    {
         var current = Find(retained.Name);
-        var change = current is null ? $"the catalog no longer names {retained.Name}"
+        return current is null ? $"the catalog no longer names {retained.Name}"
             : current.Adoption.Image != retained.Image || current.Adoption.RecordSha256 != retained.AdoptionSha256
                 || current.Adoption.ManifestSha256 != retained.ManifestSha256 ? $"{retained.Name} now names the image {current.Adoption.Image}"
             : current.Target.Origin != retained.Target.Origin ? $"{retained.Name} now names the origin {current.Target.Origin}"
             : current.Target != retained.Target ? $"{retained.Name} now names another container or other mounts"
             : null;
-        if (change is not null)
-            throw new EnvironmentRefused("environment_changed", $"The environment changed: {change}. This Attempt was prepared for "
-                + $"{retained.Name} ({retained.Image}) at {retained.Target.Origin}. Stop it, retire it under verified maintenance "
-                + "and replace it with an explicit environment update.");
     }
 
     /// <summary>Whether this catalog still names <paramref name="retained"/>'s environment at its retained origin.</summary>
