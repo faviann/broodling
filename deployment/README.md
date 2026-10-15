@@ -1250,9 +1250,10 @@ target creation.
   always connects to its retained target with the token configured for that
   origin, and a token configured for one origin is never sent to another.
 - Removing an entry, changing its image, origin, container or mounts, or giving
-  its origin to another name rebinds nothing: dispatch refuses
-  `environment_changed` and reads, wait and stop refuse
-  `environment_unavailable`, contacting no target. Keep an origin, its storage
+  its origin to another name rebinds nothing: dispatch and replay refuse
+  `environment_changed`, contacting no target. Reads, wait and stop refuse
+  `environment_unavailable` only when the catalog no longer names the
+  environment at its retained origin. Keep an origin, its storage
   and its catalog entry while unfinished work retains them.
 - A token change never amends a Contract, Prepared submission, Native
   correlation or retained target binding, and a refused or missing token never
