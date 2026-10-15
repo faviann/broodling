@@ -19,20 +19,7 @@ public sealed partial class BroodlingStore
     public NativeSubmission PrepareHttpSubmission(string attemptId, EnvironmentCatalog environments) =>
         PrepareHttpSubmission(attemptId, environments, ExecutionAsset.LoadBundled);
 
-    internal NativeSubmission PrepareHttpSubmission(string attemptId, EnvironmentCatalog environments, Func<ExecutionAsset> installed) =>
-        PrepareHttpSubmission(attemptId, attempt => InheritsFrom(attempt) is { } retry
-            ? ReplacementEnvironment(retry.PredecessorId, retry.EnvironmentUpdate, environments)
-            : environments.Resolve(EnvironmentDeclaration.Read(attempt.B1.Repository, attempt.B1.CommitOid)), installed);
-
-    /// <summary>
-    /// The retry whose predecessor's retained environment a successor's environment comes from; null for a first Attempt
-    /// and for a successor of a predecessor that was never prepared, which resolves like a first Attempt.
-    /// </summary>
-    private AttemptRetry? InheritsFrom(AttemptRecord attempt, SqliteTransaction? transaction = null) =>
-        attempt.Retry is { } retry && ReadSubmission(retry.PredecessorId, transaction) is not null ? retry : null;
-
-    private NativeSubmission PrepareHttpSubmission(string attemptId, Func<AttemptRecord, EnvironmentResolution> resolve,
-        Func<ExecutionAsset> installed)
+    internal NativeSubmission PrepareHttpSubmission(string attemptId, EnvironmentCatalog environments, Func<ExecutionAsset> installed)
     {
         var attempt = RequireCurrentAttempt(attemptId);
         ExecutionAsset? asset = null;
@@ -46,7 +33,9 @@ public sealed partial class BroodlingStore
             GitCustody.Retain(new(attempt.B1.Repository, attempt.B1.CommitOid, attempt.B1.RequestedRevision));
             // Only a new preparation reads the declaration, the installed asset and the captured references; a
             // retained record carries all three. A refusal leaves no record.
-            environment = resolve(attempt);
+            environment = InheritsFrom(attempt) is { } inherited
+                ? ReplacementEnvironment(inherited.PredecessorId, inherited.EnvironmentUpdate, environments)
+                : environments.Resolve(EnvironmentDeclaration.Read(attempt.B1.Repository, attempt.B1.CommitOid));
             asset = installed();
             resultOrigin = ResultOrigin(attempt, ReadWorkUnit(attempt.WorkUnitId)!);
             references = CapturedReferences(attempt);
@@ -83,6 +72,13 @@ public sealed partial class BroodlingStore
         transaction.Commit();
         return result;
     }
+
+    /// <summary>
+    /// The retry whose predecessor's retained environment a successor's environment comes from; null for a first Attempt
+    /// and for a successor of a predecessor that was never prepared, which resolves like a first Attempt.
+    /// </summary>
+    private AttemptRetry? InheritsFrom(AttemptRecord attempt, SqliteTransaction? transaction = null) =>
+        attempt.Retry is { } retry && ReadSubmission(retry.PredecessorId, transaction) is not null ? retry : null;
 
     /// <summary>
     /// A successor's environment. By default exactly its predecessor's retained resolution, refused as
