@@ -33,6 +33,12 @@ acquires only declared references and their bounded GitHub link closure. Every e
 fields must remain in the proposal. Unsupported obligations/prerequisites remain
 visible to admission; a proposer cannot delete them to obtain acceptance.
 
+A repository's [environment declaration](zeroshot-native-integration.md#environment-selection),
+`.broodling/environment.json`, is not a work reference or a source of
+authority. Preparation reads it from the Attempt's original B1 as execution
+context only: it selects an approved environment by name, never enters the
+Contract, the RequestBundle or the native request, and grants no effect.
+
 `ReviewedIssueProposal` compares the complete acquired response with the
 operator-reviewed file byte for byte, then preserves its title/body as a criterion.
 It is for a self-contained reviewed request; richer obligations or additional

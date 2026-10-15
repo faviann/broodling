@@ -1,6 +1,6 @@
 # Builds the Broodling image and pulls the adopted target environment image by the digest its adoption
 # record (src/Broodling/environments/dotnet-r2.adoption.json) names, checks that image against its retained manifest,
-# demonstrates the two together in a disposable ADR 0001 stack, checks that the target image serves
+# demonstrates the two together in a disposable ADR 0002 stack, checks that the target image serves
 # native state it wrote itself across a restart and state written by each published target image listed
 # in deployment/native-state-transitions.json (all with the binding's native release), then publishes
 # exactly that Broodling image to GHCR with a release record naming the adopted target. Every push
@@ -140,7 +140,7 @@ jobs:
             --rawfile caddyfile deployment/zeroshot-tls.Caddyfile \
             --arg caddyfileSha256 "$(sha256sum deployment/zeroshot-tls.Caddyfile | cut -d ' ' -f 1)" \
             '$facts[0] as $facts | $approval[0] as $approval | {
-              kind: "broodling.image-release/v2",
+              kind: "broodling.image-release/v3",
               sourceRevision: $revision,
               version: (if $version == "" then null else $version end),
               tag: $tag,
@@ -149,7 +149,8 @@ jobs:
               application: ($facts | {storeFormat, storeSchemaVersion, storeDefinitionSha256, upgradesFrom}),
               executionAsset: {sha256: $approval.asset.sha256, native: $approval.native, codex: $approval.codex},
               nativeStateTransitions: {to: $target, from: $transitions[0].from},
-              zeroshotTls: {user: "10443:10443", caddyfile: {path: "deployment/zeroshot-tls.Caddyfile", sha256: $caddyfileSha256, content: $caddyfile}},
+              zeroshotTls: {user: "10443:10443", caddyfile: {path: "deployment/zeroshot-tls.Caddyfile", sha256: $caddyfileSha256, content: $caddyfile},
+                sites: $facts.zeroshotTlsSites},
               demonstration: $facts.readiness
             }' > release-record.json
           cat release-record.json

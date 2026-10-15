@@ -409,11 +409,15 @@ echo "no bootstrap key, former or current token in $(ls "$root/scan" | wc -l) se
 if [[ -n $facts ]]; then
     jq -n --argjson store "$store" --argjson readiness "$readiness" \
         --arg tls "$(docker inspect --format '{{.Config.Image}}' "$(container zeroshot-tls)")" \
+        --rawfile site "$root/caddy-sites/zeroshot-dotnet.caddy" \
+        --arg siteSha256 "$(sha256sum "$root/caddy-sites/zeroshot-dotnet.caddy" | cut -d ' ' -f 1)" \
         '{storeFormat: $store.schema.format, storeSchemaVersion: $store.schema.schemaVersion,
           storeDefinitionSha256: $store.schema.definitionSha256,
           upgradesFrom: ($store.upgradesFrom | map({storeFormat: .format, storeSchemaVersion: .schemaVersion,
             storeDefinitionSha256: .definitionSha256})),
-          zeroshotTlsImage: $tls, readiness: ($readiness | {ready, providerTasks,
+          zeroshotTlsImage: $tls,
+          zeroshotTlsSites: [{path: "/etc/caddy/sites/zeroshot-dotnet.caddy", sha256: $siteSha256, content: $site}],
+          readiness: ($readiness | {ready, providerTasks,
             targets: [.targets[] | {environment, release, os, versions, apiPaginateSlurp, hostedUidTransition}]})}' \
         >"$facts"
 fi
