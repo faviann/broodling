@@ -11,6 +11,12 @@ public static class HostTargetCommands
 {
     private const string Usage = "Usage: check-target <target-inventory.json> <config.json> | bootstrap-target <config.json> <environment> <bootstrap-key-file>";
 
+    private static readonly JsonSerializerOptions InventoryOptions = new(JsonSerializerDefaults.Web)
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        RespectNullableAnnotations = true, RespectRequiredConstructorParameters = true, AllowDuplicateProperties = false
+    };
+
     public static async Task<int> RunAsync(string[] args, TextWriter output, TargetReadiness? readiness = null,
         CancellationToken cancellationToken = default)
     {
@@ -28,14 +34,10 @@ public static class HostTargetCommands
     {
         try
         {
-            var inventory = JsonSerializer.Deserialize<TargetReadinessInventory>(File.ReadAllBytes(args[1]),
-                new JsonSerializerOptions(JsonSerializerDefaults.Web) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow })
+            var inventory = JsonSerializer.Deserialize<TargetReadinessInventory>(File.ReadAllBytes(args[1]), InventoryOptions)
                 ?? throw new TargetNotReady("Target inventory is invalid.");
-            var environments = InvocationConfiguration.Read(args[2]);
-            // The inventory's target must be the one the catalog configures at its origin.
-            var configured = environments.Entries.SingleOrDefault(entry => entry.Origin == inventory.DirectOrigin);
-            var facts = await readiness.CheckAsync(inventory, configured?.Origin ?? "", environments.Access, cancellationToken);
-            output.WriteLine(JsonSerializer.Serialize(facts, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+            var report = await readiness.CheckAsync(inventory, InvocationConfiguration.Read(args[2]), cancellationToken);
+            output.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             return 0;
         }
         catch (OperationCanceledException)

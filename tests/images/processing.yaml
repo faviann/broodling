@@ -1,5 +1,5 @@
 # demonstrate.sh's processing phase, layered over compose.yaml: `broodling` runs the unchanged Broodling image
-# as the processing server, and `zeroshot` the controlled provider/forge layer over the DirectTarget image on
+# as the processing server, and `zeroshot-dotnet` the controlled provider/forge layer over the DirectTarget image on
 # the same native state. Only external peers are controlled: `gh` and the GitHub URL of acme/widget (mounted
 # shims ahead of the image's own on PATH), the model gateway at its pinned origin (the `gateway` service,
 # trusted through the demonstration's TLS root) and the provider and forge inside the target. Credentials are
@@ -20,7 +20,7 @@ services:
       - { type: bind, source: ./processing/github, target: /github, read_only: true }
       - { type: bind, source: "${DEMO_ROOT:?}/forge", target: /forge, read_only: true }
 
-  zeroshot:
+  zeroshot-dotnet:
     image: ${CONTROLLED_TARGET_IMAGE:?}
     volumes:
       - { type: bind, source: "${DEMO_ROOT:?}/forge", target: /forge }

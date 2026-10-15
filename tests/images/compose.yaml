@@ -1,6 +1,7 @@
-# A disposable instance of ADR 0001's single Compose project over the images this revision builds,
-# used only by demonstrate.sh. It is not the production installation (homelab-iac#353 owns that):
-# zeroshot-tls publishes on host loopback, and all state lives in one disposable directory.
+# A disposable instance of the single Compose project over the images this revision builds, with one
+# environment target, dotnet, used only by demonstrate.sh. It is not the production installation
+# (homelab-iac#353 owns that): zeroshot-tls publishes on host loopback, and all state lives in one
+# disposable directory.
 services:
   broodling:
     image: ${BROODLING_IMAGE:?}
@@ -12,9 +13,10 @@ services:
       - { type: bind, source: "${DEMO_ROOT:?}/invocation.json", target: /etc/broodling/invocation.json, read_only: true }
     secrets: [zeroshot-control-token]
 
-  zeroshot:
+  # The dotnet environment's target; its service name is the zeroshot-dotnet alias zeroshot-tls forwards to.
+  zeroshot-dotnet:
     image: ${TARGET_IMAGE:?}
-    command: [--listen, 0.0.0.0:18770, --public-origin, https://zeroshot.dev.faviann.com, --storage, /state]
+    command: [--listen, 0.0.0.0:18770, --public-origin, https://zeroshot-dotnet.dev.faviann.com, --storage, /state]
     volumes:
       - { type: bind, source: "${DEMO_ROOT:?}/target-state", target: /state }
       - { type: bind, source: "${DEMO_ROOT:?}/target-home", target: /home/node }
@@ -30,11 +32,13 @@ services:
     ports: ["127.0.0.1::443"]
     networks:
       default:
-        aliases: [zeroshot.dev.faviann.com]
+        aliases: [zeroshot-dotnet.dev.faviann.com]
     volumes:
       - { type: bind, source: "${DEMO_ROOT:?}/tls-root-key", target: /tls-root-key, read_only: true }
       - { type: bind, source: "${DEMO_ROOT:?}/tls-root", target: /tls-root, read_only: true }
       - { type: bind, source: ../../deployment/zeroshot-tls.Caddyfile, target: /etc/caddy/Caddyfile, read_only: true }
+      # One site file per origin, which demonstrate.sh renders.
+      - { type: bind, source: "${DEMO_ROOT:?}/caddy-sites", target: /etc/caddy/sites, read_only: true }
       - { type: volume, source: tls-data, target: /data }
 
 volumes:

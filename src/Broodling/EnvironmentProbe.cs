@@ -34,4 +34,32 @@ internal sealed record EnvironmentProbe(string Component, string Command, IReadO
 
     /// <summary>One script running every probe in order, for a single <c>/bin/sh -ec</c> invocation.</summary>
     internal static string Script(IEnumerable<EnvironmentProbe> probes) => string.Join('\n', probes.Select(probe => probe.Command));
+
+    internal const string Marker = "@@broodling-environment-probe ";
+
+    /// <summary>
+    /// One script, for a single <c>/bin/sh -c</c> invocation, that runs every probe even when one fails and marks
+    /// where each probe's output starts, so <see cref="Mismatches"/> can attribute a missing or other component.
+    /// </summary>
+    internal static string Sections(IEnumerable<EnvironmentProbe> probes) =>
+        string.Join('\n', probes.Select(probe => $"echo '{Marker}{probe.Component}'; ({probe.Command}) 2>/dev/null || :"));
+
+    /// <summary>
+    /// The components of <paramref name="probes"/> whose section of <paramref name="output"/>, from
+    /// <see cref="Sections"/>, is not exactly the expected lines: missing, failing or another version.
+    /// </summary>
+    internal static IReadOnlyList<string> Mismatches(IReadOnlyList<EnvironmentProbe> probes, string output)
+    {
+        var sections = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        List<string>? current = null;
+        foreach (var line in output.Split('\n'))
+        {
+            if (line.StartsWith(Marker, StringComparison.Ordinal))
+                sections[line[Marker.Length..]] = current = [];
+            else if (current is null) return [.. probes.Select(probe => probe.Component)];
+            else if (line.Length > 0) current.Add(line);
+        }
+        return [.. probes.Where(probe => !sections.TryGetValue(probe.Component, out var lines) || !lines.SequenceEqual(probe.Expected))
+            .Select(probe => probe.Component)];
+    }
 }
