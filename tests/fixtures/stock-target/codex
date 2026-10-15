@@ -43,6 +43,11 @@ elif schema["type"] == "null":
         time.sleep(0.2)
     # The worker changes the checkout so delivery has a candidate commit.
     Path("README.md").write_text("candidate from the controlled provider\n")
+    # Environment selection (#235): when the forge holds /forge/report-os, the candidate also records the OS
+    # identity this agent observes.
+    if Path("/forge/report-os").exists():
+        Path("observed-os").write_text(next(line for line in Path("/etc/os-release").read_text().splitlines()
+                                            if line.startswith("PRETTY_NAME=")) + "\n")
     # Like an agent consulting its available references, it writes each one's exact bytes as its frozen
     # task carries them, with no reader to call.
     task = node_input["task"]

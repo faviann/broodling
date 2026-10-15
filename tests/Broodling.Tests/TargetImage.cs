@@ -61,6 +61,12 @@ internal static class TargetImage
         return reference;
     });
 
+    /// <summary>An image this run made some other way, removed afterwards in reverse order with the images it built.</summary>
+    internal static void Owned(string image)
+    {
+        lock (built) built.Add(image);
+    }
+
     private static Task<string> Once(string key, Func<Task<string>> make)
     {
         lock (made)

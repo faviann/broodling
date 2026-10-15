@@ -164,11 +164,12 @@ internal sealed class TargetStack : IAsyncDisposable
         return result;
     }
 
-    internal async Task StartTarget(StackTarget? target = null)
+    /// <summary>Start a target's container, with its own mounts unless others are given.</summary>
+    internal async Task StartTarget(StackTarget? target = null, string[]? mounts = null)
     {
         target ??= First;
         RequireSuccess(await DockerCommand(["run", "--detach", "--name", target.Container, "--network", id,
-            "--network-alias", target.Alias, .. target.Mounts, target.Image, .. target.Arguments]));
+            "--network-alias", target.Alias, .. mounts ?? target.Mounts, target.Image, .. target.Arguments]));
     }
 
     internal async Task StopTarget(StackTarget? target = null) =>
