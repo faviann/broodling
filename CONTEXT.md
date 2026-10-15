@@ -48,6 +48,25 @@ The immutable workflow and runtime material Broodling approves for native
 execution of an Attempt. It is distinct from that Attempt's task, source,
 credentials and permission to perform effects.
 
+**Environment**:
+An operator-approved name for one adopted image release in which an Attempt's
+native execution runs. Repositories select an environment by its exact name.
+
+**Execution target**:
+The one DirectTarget serving one environment at its own origin, with its own
+native state and home. Work selecting the same environment shares it.
+
+**Environment declaration**:
+The versioned repository file, read at an Attempt's original starting state,
+that names the environment its work requires. It supplies execution context,
+never Contract authority.
+
+**Environment resolution**:
+The mapping, fixed once at an Attempt's preparation and retained with its
+Prepared submission, of its environment requirement to an exact adopted
+environment and execution target. Later catalog or repository changes do not
+alter it.
+
 **Starting revision**:
 The exact repository revision selected as the source starting point for the
 requested work, independent of later branch movement.

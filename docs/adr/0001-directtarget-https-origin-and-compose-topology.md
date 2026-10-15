@@ -1,8 +1,13 @@
 ---
-status: accepted
+status: superseded by ADR-0002
 ---
 
 # DirectTarget HTTPS origin and single-project Compose topology
+
+[ADR 0002](0002-one-directtarget-per-environment-behind-one-tls-proxy.md)
+replaces the single `zeroshot` target and origin with one target per approved
+environment. The HTTPS-origin, TLS root, Caddy and Traefik rationale below
+still holds.
 
 Pinned Zeroshot 10.3.0 accepts only an HTTPS origin or literal-loopback HTTP,
 records that origin in native state at initialization, and its clients refuse
