@@ -16,6 +16,9 @@ target's fixed dependency paths:
   and `deliveryFeedback` as one line of `delivery-repairs.jsonl`, rewrites
   `README.md` and stages everything. Each repair is therefore a new commit that
   records what delivery reported, and a materialized conflict is resolved.
+  When the forge holds a `report-os` file, the worker also writes the target's
+  `PRETTY_NAME` line from `/etc/os-release` to `observed-os` in its candidate,
+  so a test can see which environment ran the work.
 - `git` maps `https://github.com/acme/widget.git` to a mounted host bare
   repository and marks only that repository as a safe directory, because the
   target's isolated identities do not own it. Native clears the Git environment
@@ -49,6 +52,12 @@ target's fixed dependency paths:
   create a raw socket, and the target's answers to unauthenticated,
   wrong-bearer and forged-bootstrap control requests over loopback and the
   routed origin. It writes the result to the forge.
+
+`test-environment` builds the two-environment tests' test-only second
+environment: the adopted image with only `/usr/lib/os-release` relabelled
+(`Broodling Test OS 235`). The suite builds it, pushes it to a disposable
+loopback registry, runs it by digest and removes it. It is never published or
+approved for real work.
 
 A successful run produces a controlled PR receipt, not a real GitHub PR or
 semantic-quality result. Credentials are fixed fake values. No fixture makes a
