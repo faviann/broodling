@@ -437,7 +437,7 @@ public sealed class EnvironmentSelectionTests
             await Assert.That(second.Connections).IsEqualTo(0);
             return;
         }
-        var refused = await Assert.That(resume).Throws<EnvironmentRefused>();
+        var refused = await Assert.That(async () => await resume()).Throws<EnvironmentRefused>();
         await Assert.That(refused!.Code).IsEqualTo("environment_changed");
         await Assert.That(refused.Message).Contains($"prepared for dotnet ({TestEnvironments.Adopted.Image}) at {a}");
         await Assert.That(store.FindSubmission(fixture.Attempt.AttemptId)).IsEqualTo(prepared);
