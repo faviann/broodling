@@ -339,7 +339,7 @@ target_container="$(container zeroshot)"
 [[ "$(docker inspect --format '{{.State.Running}}' "$target_container")" == false ]] || fail 'the target still runs'
 check="$(docker inspect --format '{{json .Mounts}}' "$target_container" | jq -c --arg origin "$origin" \
     --arg container "$target_container" --arg now "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" \
-    '{directOrigin: $origin, containerName: $container, stateMount: (.[] | select(.Destination == "/state") | .Source),
+    '{environment: "dotnet", directOrigin: $origin, containerName: $container, stateMount: (.[] | select(.Destination == "/state") | .Source),
       homeMount: (.[] | select(.Destination == "/home/node") | .Source), verifiedAt: $now}')"
 echo "host check: $check"
 # compose.yaml alone: the image as 1654:1654 with its state, the public root and its invocation configuration and

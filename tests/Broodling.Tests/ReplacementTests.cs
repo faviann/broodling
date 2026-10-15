@@ -186,8 +186,7 @@ public sealed class ReplacementTests
         var unresolved = store.FindSubmission(original.AttemptId)!;
         store.AbandonAttempt(original.AttemptId, "target lost");
         store.PauseInstallation();
-        var retired = store.RetireStoppedTargetAttempt(original.AttemptId, new StoppedTargetCheck(origin, "broodling-target",
-            "/srv/broodling/target-state", "/srv/broodling/target-home", DateTimeOffset.UtcNow));
+        var retired = store.RetireStoppedTargetAttempt(original.AttemptId, TestEnvironments.StoppedTarget(unresolved));
 
         // Replacement happens only within a maintenance pause: neither admission nor first preparation outside it.
         var resume = new Invocation(store, TestEnvironments.For(origin));
@@ -246,8 +245,7 @@ public sealed class ReplacementTests
         var id = fixture.Attempt.AttemptId;
         fixture.Store.AbandonAttempt(id, "operator stop");
         fixture.Store.PauseInstallation();
-        fixture.Store.RetireStoppedTargetAttempt(id, new StoppedTargetCheck(sent.Origin, "broodling-target",
-            "/srv/broodling/target-state", "/srv/broodling/target-home", DateTimeOffset.UtcNow));
+        fixture.Store.RetireStoppedTargetAttempt(id, TestEnvironments.StoppedTarget(sent));
         fixture.Store.ReleaseInstallation();
         var (path, application) = (fixture.Git.State.Path, fixture.Git.State.Application);
         // The secret-free catalog naming the predecessor's environment; its control token file is never read.
@@ -266,6 +264,7 @@ public sealed class ReplacementTests
         await Assert.That((string)printed["attemptId"]!).IsEqualTo(successor);
         await Assert.That((string)printed["state"]!).IsEqualTo("prepared");
         await Assert.That((string)printed["intendedRunId"]!).IsEqualTo(fixture.Store.FindSubmission(successor)!.IntendedRunId);
+        await Assert.That((string)printed["environment"]!["name"]!).IsEqualTo(TestEnvironments.NameFor(HttpFixture.Target));
         await Assert.That(fixture.Store.FindRetry("after-maintenance")!.EnvironmentUpdate).IsFalse();
         // The same key with the other environment choice conflicts; any other trailing argument is a usage error.
         error.GetStringBuilder().Clear();

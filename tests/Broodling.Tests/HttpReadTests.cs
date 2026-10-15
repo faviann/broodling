@@ -127,6 +127,13 @@ public sealed class HttpReadTests
             .IsEquivalentTo([boundAttempt.AttemptId]);
         var attempt = await Body(await client.GetAsync($"/attempts/{fixture.Attempt.AttemptId}"));
         await Assert.That(attempt["completion"]!["acceptedRevision"]!.GetValue<string>()).IsEqualTo(fixture.Accepted);
+        // Inspection shows the Attempt's retained environment and the exact target it was prepared for.
+        var environment = attempt["submission"]!["environment"]!;
+        var retained = store.FindSubmission(fixture.Attempt.AttemptId)!;
+        await Assert.That((string)environment["name"]!).IsEqualTo(TestEnvironments.NameFor(retained.Origin));
+        await Assert.That((string)environment["image"]!).IsEqualTo(TestEnvironments.Adopted.Image);
+        await Assert.That(environment["target"].Deserialize<TargetIdentity>(Json)).IsEqualTo(retained.Environment.Target);
+        await Assert.That((string)environment["target"]!["origin"]!).IsEqualTo(retained.Origin);
         var source = await Body(await client.GetAsync($"/bundles/{bundle.BundleId}/reference?id=issue%2F12"));
         await Assert.That(Convert.FromBase64String(source["content"]!.GetValue<string>())).IsEquivalentTo(new byte[] { 0, 255, 1, 128 });
 

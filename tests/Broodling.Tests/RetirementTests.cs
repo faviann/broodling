@@ -237,7 +237,7 @@ public sealed class RetirementTests
         var local = fixture.Git.LocalResources();
         await Assert.That(() => fixture.Git.State.Execute(StoppedTargetInsert(id))).Throws<SqliteException>(); // SQL requires the pause.
         fixture.Store.PauseInstallation();
-        var check = Check(submission.Origin);
+        var check = Check(submission);
         check = check with { VerifiedAt = check.VerifiedAt.ToOffset(TimeSpan.FromHours(-4)) };
 
         var retired = fixture.Store.RetireStoppedTargetAttempt(id, check);
@@ -247,7 +247,7 @@ public sealed class RetirementTests
         await Assert.That(retired.RetiredAt).IsNotNull();
         using var reopened = fixture.Git.State.Open();
         // The retained retirement is returned as recorded; a later check is neither needed nor recorded.
-        await Assert.That(reopened.RetireStoppedTargetAttempt(id, Check(submission.Origin))).IsEqualTo(retired);
+        await Assert.That(reopened.RetireStoppedTargetAttempt(id, Check(submission))).IsEqualTo(retired);
         await Assert.That(await reopened.StopAsync(id, "later stop")).IsEqualTo(retired);
         var status = reopened.Status(fixture.Attempt.ContractRevisionId);
         await Assert.That(status.Attempts.Single().Retirement).IsEqualTo(retired);
@@ -273,11 +273,11 @@ public sealed class RetirementTests
         fixture.Store.PauseInstallation();
         // A successful result whose accepted pin is gone is an unresolved retention condition.
         fixture.Git.Git("update-ref", "-d", "refs/broodling/accepted/" + accepted);
-        await Assert.That(() => fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission.Origin)))
+        await Assert.That(() => fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission)))
             .Throws<ResultRetentionError>();
         fixture.Git.Git("update-ref", "refs/broodling/accepted/" + accepted, accepted);
 
-        var retired = fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission.Origin));
+        var retired = fixture.Store.RetireStoppedTargetAttempt(fixture.Attempt.AttemptId, Check(submission));
         await Assert.That(retired.Basis).IsEqualTo("stopped_target");
         // A later operator stop hands back the retirement without abandoning the completed Attempt.
         var output = new StringWriter();
@@ -314,7 +314,7 @@ public sealed class RetirementTests
         // A current Attempt stays refused whatever its native label; the others are abandoned.
         if (condition != "current") fixture.Store.AbandonAttempt(id, "operator stop");
         fixture.Store.PauseInstallation();
-        var check = Check(submission.Origin);
+        var check = Check(submission);
         // A check made before a release and re-pause belongs to the earlier pause epoch.
         if (condition == "check-before-pause") { fixture.Store.ReleaseInstallation(); fixture.Store.PauseInstallation(); }
         if (condition == "unpaused") fixture.Store.ReleaseInstallation();
@@ -337,6 +337,48 @@ public sealed class RetirementTests
     }
 
     [Test]
+    [Arguments("environment")]
+    [Arguments("origin")]
+    [Arguments("container")]
+    [Arguments("state")]
+    [Arguments("home")]
+    [Arguments("other-targets-mounts")]
+    [Arguments("state-and-home-crossed")]
+    public async Task WrongTargetOrMountCheckRefused(string wrong)
+    {
+        using var fixture = new HttpFixture();
+        var submission = fixture.PrepareAt(new Uri(HttpFixture.Target), "dispatched");
+        var id = fixture.Attempt.AttemptId;
+        fixture.Store.AbandonAttempt(id, "operator stop");
+        fixture.Store.PauseInstallation();
+        var check = Check(submission);
+        // Another configured target, as the host would describe it if it checked that one instead.
+        var other = TestEnvironments.Configured(TestEnvironments.EntryFor(HttpFixture.Target), TestEnvironments.EntryFor("http://127.0.0.1:10"))
+            .Entries[1].Target;
+        var misnamed = wrong switch
+        {
+            "environment" => check with { Environment = other.Environment },
+            "origin" => check with { DirectOrigin = other.Origin },
+            "container" => check with { ContainerName = other.Container },
+            "state" => check with { StateMount = other.StateMount },
+            "home" => check with { HomeMount = other.HomeMount },
+            // Two targets' mounts swapped: this target's check carries the other target's state and home.
+            "other-targets-mounts" => check with { StateMount = other.StateMount, HomeMount = other.HomeMount },
+            _ => check with { StateMount = check.HomeMount, HomeMount = check.StateMount }
+        };
+        var before = fixture.Scalar("SELECT count(*) FROM attempt_retirements");
+
+        var refusal = await Assert.That(() => fixture.Store.RetireStoppedTargetAttempt(id, misnamed)).Throws<MaintenanceUnverified>();
+        await Assert.That(refusal!.Code).IsEqualTo("maintenance_unverified");
+        await Assert.That(refusal.Message).Contains("retained target");
+        await Assert.That(fixture.Store.FindRetirement(id)).IsNull();
+        await Assert.That(fixture.Scalar("SELECT count(*) FROM attempt_retirements")).IsEqualTo(before);
+        await Assert.That(fixture.Store.Status(fixture.Attempt.ContractRevisionId).QuarantinedAttemptIds.Single()).IsEqualTo(id);
+        // The exact retained target is still accepted afterwards.
+        await Assert.That(fixture.Store.RetireStoppedTargetAttempt(id, check).StoppedTarget).IsEqualTo(check);
+    }
+
+    [Test]
     public async Task RepeatedPauseRefusesAnInterruptedInvocationsCheck()
     {
         using var fixture = new HttpFixture();
@@ -344,13 +386,13 @@ public sealed class RetirementTests
         var id = fixture.Attempt.AttemptId;
         fixture.Store.AbandonAttempt(id, "operator stop");
         fixture.Store.PauseInstallation();
-        var interrupted = Check(submission.Origin);
+        var interrupted = Check(submission);
         // The next invocation starts by pausing again; the installation was never released.
         fixture.Store.PauseInstallation();
 
         await Assert.That(() => fixture.Store.RetireStoppedTargetAttempt(id, interrupted)).Throws<MaintenanceUnverified>();
         await Assert.That(fixture.Store.FindRetirement(id)).IsNull();
-        var fresh = Check(submission.Origin);
+        var fresh = Check(submission);
         await Assert.That(fixture.Store.RetireStoppedTargetAttempt(id, fresh).StoppedTarget).IsEqualTo(fresh);
     }
 
@@ -362,7 +404,7 @@ public sealed class RetirementTests
         var id = fixture.Attempt.AttemptId;
         fixture.Store.AbandonAttempt(id, "operator stop");
         fixture.Store.PauseInstallation();
-        var check = Check(submission.Origin);
+        var check = Check(submission);
         var json = JsonSerializer.SerializeToNode(check, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
         var incomplete = json.DeepClone().AsObject();
         incomplete["homeMount"] = " ";
@@ -379,8 +421,7 @@ public sealed class RetirementTests
         await Assert.That(fixture.Store.FindRetirement(id)!.StoppedTarget).IsEqualTo(check);
     }
 
-    private static StoppedTargetCheck Check(string origin) =>
-        new(origin, "broodling-target", "/srv/broodling/target-state", "/srv/broodling/target-home", DateTimeOffset.UtcNow);
+    private static StoppedTargetCheck Check(NativeSubmission submission) => TestEnvironments.StoppedTarget(submission);
 
     private static string StoppedTargetInsert(string attemptId) =>
         $"INSERT INTO attempt_retirements (attempt_id, basis, ceased_at, stopped_target_json) VALUES ('{attemptId}', 'stopped_target', 'now', '{{}}')";

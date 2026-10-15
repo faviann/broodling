@@ -302,8 +302,7 @@ public sealed class RevisionTests
         internal void Retire(string attemptId, bool release = true)
         {
             Store.PauseInstallation();
-            Store.RetireStoppedTargetAttempt(attemptId, new StoppedTargetCheck(Store.FindSubmission(attemptId)!.Origin,
-                "broodling-target", "/srv/broodling/target-state", "/srv/broodling/target-home", DateTimeOffset.UtcNow));
+            Store.RetireStoppedTargetAttempt(attemptId, TestEnvironments.StoppedTarget(Store.FindSubmission(attemptId)!));
             if (release) Store.ReleaseInstallation();
         }
 

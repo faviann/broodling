@@ -104,6 +104,17 @@ internal static class TestEnvironments
         return configuration;
     }
 
+    /// <summary>
+    /// The host maintenance procedure's check of <paramref name="record"/>'s stopped target, naming exactly its retained
+    /// environment, origin, container and mounts.
+    /// </summary>
+    internal static StoppedTargetCheck StoppedTarget(NativeSubmission record, DateTimeOffset? verifiedAt = null)
+    {
+        var target = record.Environment.Target;
+        return new(target.Environment, target.Origin, target.Container, target.StateMount, target.HomeMount,
+            verifiedAt ?? DateTimeOffset.UtcNow);
+    }
+
     internal static JsonObject Configuration(Uri origin, string controlTokenFile, string? rootCertificate = null) =>
         Configuration(origin.GetLeftPart(UriPartial.Authority), controlTokenFile, rootCertificate);
 }

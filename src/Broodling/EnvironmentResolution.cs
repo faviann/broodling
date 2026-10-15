@@ -138,10 +138,10 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
 }
 
 /// <summary>
-/// The retained environment's identity as an Attempt's binding names it, for checks against the current catalog:
-/// the environment name, adopted image and documents, and the target serving it.
+/// The retained environment's identity as an Attempt's binding names it, for checks against the current catalog and
+/// for inspection: the environment name, adopted image and documents, and the target serving it.
 /// </summary>
-internal sealed record RetainedEnvironment(string Name, string Image, string AdoptionSha256, string ManifestSha256, TargetIdentity Target)
+public sealed record RetainedEnvironment(string Name, string Image, string AdoptionSha256, string ManifestSha256, TargetIdentity Target)
 {
     internal static RetainedEnvironment Read(string bindingJson)
     {
