@@ -38,6 +38,7 @@ public sealed class DirectTargetRunTests
     [Arguments("size")]
     [Arguments("revision")]
     [Arguments("no-source")]
+    [Arguments("remote")]
     public async Task AStatusOfAnotherRunUnderTheSameIdIsForeign(string change)
     {
         var projection = Running();
@@ -47,6 +48,7 @@ public sealed class DirectTargetRunTests
             case "size": projection["size"] = "large"; break;
             case "revision": projection["source"]!["revision"] = new string('c', 40); break;
             case "no-source": projection.Remove("source"); break;
+            case "remote": projection["source"]!["remote"] = new JsonObject { ["url"] = "https://git.example/acme/widget.git" }; break;
         }
         await using var target = new StockTarget();
         target.Projections.Enqueue(projection);

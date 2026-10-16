@@ -116,15 +116,17 @@ internal static class DirectTargetRun
     }
 
     /// <summary>
-    /// The SDK checks the run ID; the frozen title, size and PR source must match too. A run without a source,
-    /// such as a local-folder run, is never the retained PR run.
+    /// The SDK checks the run ID; the frozen title, size and whole PR source must match too. Broodling submits no
+    /// remote, so a source with one, or no source at all, is never the retained PR run.
     /// </summary>
     private static void Require(NativeRunBinding run, RunTitle title, ResolvedSource? source, RunSize size)
     {
-        if (source is null || title.Value != run.Title || size.ToString().ToLowerInvariant() != run.Size || source.Repository.Value != run.Source.Repository
-            || source.Branch.Value != run.Source.Branch || source.Revision.Value != run.Source.Revision)
+        if (title.Value != run.Title || size.ToString().ToLowerInvariant() != run.Size || source != Frozen(run.Source))
             throw new NativeTransportError("foreign_run");
     }
+
+    private static ResolvedSource Frozen(NativeSource source) =>
+        new() { Repository = new(source.Repository), Branch = new(source.Branch), Revision = new(source.Revision) };
 
     private static NativeProgress Progress(RunStatusResult status) => status.Status switch
     {
