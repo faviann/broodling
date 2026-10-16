@@ -121,6 +121,7 @@ public sealed class BundledProposerTests
     [Arguments("http-503", true)]
     [Arguments("transport", true)]
     [Arguments("missing-key", false)]
+    [Arguments("version-path", false)]
     public async Task GatewayFailureRetainsNothingAndALaterCallProposesAgain(string failure, bool retryable)
     {
         using var fixture = Fixture(out var store, out var submissionId, out _);
@@ -130,11 +131,16 @@ public sealed class BundledProposerTests
             : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("overloaded") });
 
         var error = await Assert.That(async () => await store.AdmitRequestBundleAsync(submissionId,
-                failure == "missing-key" ? new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, null) : Credentials,
+                failure switch
+                {
+                    "missing-key" => new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, null),
+                    "version-path" => new GatewayCredentials("https://gateway.ai.faviann.com/v1", ApiKey),
+                    _ => Credentials
+                },
                 failing, default))
             .Throws<ContractProposerError>();
         await Assert.That(error!.Retryable).IsEqualTo(retryable);
-        await Assert.That(failing.Requests.Count).IsEqualTo(failure == "missing-key" ? 0 : 1);
+        await Assert.That(failing.Requests.Count).IsEqualTo(retryable ? 1 : 0);
         var pending = store.GetIssueSubmission(submissionId);
         await Assert.That(pending.State).IsEqualTo("capturing");
         await Assert.That(pending.ProposalRefusal).IsNull();
