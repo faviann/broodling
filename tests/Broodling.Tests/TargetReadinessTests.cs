@@ -24,7 +24,7 @@ public sealed class TargetReadinessTests
         await Assert.That(facts.ContainerId).IsEqualTo(ReadinessFixture.IdFor("installation-dotnet"));
         await Assert.That(facts.ImageId).IsEqualTo("sha256:image-dotnet");
         await Assert.That(facts.DirectOrigin).IsEqualTo("https://zeroshot-dotnet.dev.faviann.com");
-        await Assert.That(facts.Release).IsEqualTo("dotnet-r3");
+        await Assert.That(facts.Release).IsEqualTo("dotnet-r4");
         await Assert.That(facts.Os).IsEqualTo("Debian GNU/Linux 13 (trixie)");
         await Assert.That(facts.Versions["git"]).IsEqualTo("git version 2.47.3");
         await Assert.That(fixture.Calls.Count).IsEqualTo(fixture.ExpectedCalls);
@@ -392,9 +392,11 @@ public sealed class TargetReadinessTests
     [Arguments("missing-git", "git is missing or differs")]
     [Arguments("missing-dotnet-sdks", "dotnet-sdks is missing or differs")]
     [Arguments("extra-dotnet-sdk", "dotnet-sdks is missing or differs")]
-    [Arguments("native-hash", "executable bytes")]
-    [Arguments("restic-hash", "executable bytes")]
-    [Arguments("entrypoint-hash", "executable bytes")]
+    [Arguments("native-hash", "target /usr/local/bin/zeroshot bytes differ")]
+    [Arguments("restic-hash", "target /usr/local/bin/restic bytes differ")]
+    [Arguments("entrypoint-hash", "target /usr/local/bin/broodling-target bytes differ")]
+    [Arguments("managed-settings-hash", "target /etc/claude-code/managed-settings.json bytes differ")]
+    [Arguments("managed-settings-missing", "unavailable or invalid")]
     [Arguments("slurp", "lacks api")]
     [Arguments("uid", "invalid")]
     public async Task ActualRuntimeDriftAndHostedIdentityFailureRefuse(string change, string message)
@@ -402,6 +404,8 @@ public sealed class TargetReadinessTests
         using var fixture = new ReadinessFixture { RuntimeFailure = change };
         await Refuses(fixture.Check, message);
         await Assert.That(fixture.DiscoveryCalls).IsEqualTo(0);
+        if (change == "managed-settings-missing")
+            await Assert.That(string.Join(' ', fixture.Calls[^1].Skip(2))).IsEqualTo("sha256sum /etc/claude-code/managed-settings.json");
     }
 
     [Test]
@@ -539,7 +543,7 @@ public sealed class TargetReadinessTests
         using var result = JsonDocument.Parse(output.ToString());
         var target = result.RootElement.GetProperty("targets").EnumerateArray().Single();
         await Assert.That(target.GetProperty("environment").GetString()).IsEqualTo("dotnet");
-        await Assert.That(target.GetProperty("release").GetString()).IsEqualTo("dotnet-r3");
+        await Assert.That(target.GetProperty("release").GetString()).IsEqualTo("dotnet-r4");
         await Assert.That(target.GetProperty("os").GetString()).IsEqualTo("Debian GNU/Linux 13 (trixie)");
         await Assert.That(fixture.Calls.Count).IsEqualTo(fixture.ExpectedCalls);
         // Discovery trusts the invocation configuration's root, as invocation itself does.
@@ -768,8 +772,8 @@ public sealed class TargetReadinessTests
         internal TaskCompletionSource DiscoveryStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal FakeTimeProvider Clock { get; } = new();
         internal string[] Arguments => ["check-target", Path.Combine(Root, "target.json"), Path.Combine(Root, "config.json")];
-        /// <summary>Container inspection, each image, the network and its members, then six execs per target.</summary>
-        internal int ExpectedCalls => 1 + Names.Count + 2 + 6 * Names.Count;
+        /// <summary>Container inspection, each image, the network and its members, then seven execs per target.</summary>
+        internal int ExpectedCalls => 1 + Names.Count + 2 + 7 * Names.Count;
 
         internal static string IdFor(string name) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(name)));
 
@@ -914,11 +918,13 @@ public sealed class TargetReadinessTests
                 "sha256sum /usr/local/bin/zeroshot" => ("native-hash", "7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693  /usr/local/bin/zeroshot"),
                 "sha256sum /usr/local/bin/restic" => ("restic-hash", "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf  /usr/local/bin/restic"),
                 "sha256sum /usr/local/bin/broodling-target" => ("entrypoint-hash", "76c526fe8c51be094dbc48527c40181f5b0f23069996f3c4315c456a49107b79  /usr/local/bin/broodling-target"),
+                "sha256sum /etc/claude-code/managed-settings.json" => ("managed-settings-hash", "cbedfec6d9c688288255c084f95269b4198d86435dbb48953ca4e71dac961b0b  /etc/claude-code/managed-settings.json"),
                 "/usr/bin/gh api graphql --paginate --slurp --help" => ("slurp", "FLAGS\n    --slurp Wrap pages"),
                 "python3 -c import os; os.setgroups([10002]); os.setgid(10002); os.setuid(10002); assert os.getuid() == 10002 and os.getgid() == 10002" => ("uid", ""),
                 _ => throw new InvalidOperationException("Unexpected target exec")
             };
-            if (failure == label && label == "uid") throw new InvalidOperationException(Secret);
+            if ((failure == label && label == "uid") || (failure == "managed-settings-missing" && label == "managed-settings-hash"))
+                throw new InvalidOperationException(Secret);
             return Task.FromResult(failure == label ? Secret : output);
         }
 

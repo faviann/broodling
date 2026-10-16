@@ -8,7 +8,7 @@ using static Broodling.Tests.TargetImage;
 namespace Broodling.Tests;
 
 /// <summary>
-/// The adoption record, <c>src/Broodling/environments/dotnet-r3.adoption.json</c>, and the producer manifest bytes
+/// The adoption record, <c>src/Broodling/environments/dotnet-r4.adoption.json</c>, and the producer manifest bytes
 /// it retains: the release bundles exactly that adoption, the record's digest and image are the manifest's, the
 /// manifest is one this revision supports, every component is fixed by an artifact checksum or the base image
 /// digest, and the adopted image actually carries what the manifest states. The test-only environment T
@@ -28,12 +28,12 @@ public sealed class TargetEnvironmentTests
         internal JsonNode Manifest => JsonNode.Parse(ManifestBytes)!;
     }
 
-    /// <summary>The committed dotnet-r3 adoption, or T's, generated for this run.</summary>
+    /// <summary>The committed dotnet-r4 adoption, or T's, generated for this run.</summary>
     private static async Task<Adoption> Subject(string release) => release == TestEnvironmentImage.Release
         ? new(release, await TestEnvironmentImage.DirectoryAsync()) : new(release, Adopted.Directory);
 
     [Test]
-    [Arguments("dotnet-r3")]
+    [Arguments("dotnet-r4")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptionRecordRetainsTheSupportedProducerManifest(string release)
     {
@@ -53,7 +53,22 @@ public sealed class TargetEnvironmentTests
     }
 
     /// <summary>
-    /// T differs from dotnet-r3 only in its identity and its stated OS: the same native, Claude Code, startup interfaces,
+    /// Claude Code runs without its managed settings, and says nothing, when the file is missing. The adopted
+    /// manifest states the file the approval reviewed, so adoption and readiness can hold the image to it.
+    /// </summary>
+    [Test]
+    [Arguments("dotnet-r4")]
+    [Arguments(TestEnvironmentImage.Release)]
+    public async Task AdoptedClaudeCodeCarriesTheApprovedManagedSettings(string release)
+    {
+        var claude = (await Subject(release)).Manifest["harnesses"]!["claude"]!;
+        await Assert.That((string)claude["version"]!).IsEqualTo("2.1.276");
+        await Assert.That(claude["managedSettings"]!.ToJsonString()).IsEqualTo(
+            """{"path":"/etc/claude-code/managed-settings.json","sha256":"cbedfec6d9c688288255c084f95269b4198d86435dbb48953ca4e71dac961b0b"}""");
+    }
+
+    /// <summary>
+    /// T differs from dotnet-r4 only in its identity and its stated OS: the same native, Claude Code, startup interfaces,
     /// components and packages, so the DirectTarget binding it is adopted under is the bundled one.
     /// </summary>
     [Test]
@@ -72,32 +87,34 @@ public sealed class TargetEnvironmentTests
     }
 
     /// <summary>
-    /// The release carries exactly the dotnet-r3 adoption, as its committed bytes; nothing else is adopted. A
+    /// The release carries exactly the dotnet-r4 adoption, as its committed bytes; nothing else is adopted. A
     /// change here is a new adoption decision, not a refactoring.
     /// </summary>
     [Test]
-    public async Task ReleaseBundlesExactlyTheDotnetR3Adoption()
+    public async Task ReleaseBundlesExactlyTheDotnetR4Adoption()
     {
         var bundled = AdoptedEnvironments.LoadBundled();
-        await Assert.That(bundled.Select(environment => environment.Release)).IsEquivalentTo(["dotnet-r3"]);
+        await Assert.That(bundled.Select(environment => environment.Release)).IsEquivalentTo(["dotnet-r4"]);
         var adopted = bundled.Single();
-        await Assert.That(adopted.RecordSha256).IsEqualTo("7079d61e48d1ef7ed073e030770c2feadc7a331eb3bf03a4113ad6c071beb568");
-        await Assert.That(adopted.ManifestSha256).IsEqualTo("a939a82262b6d46898f598c90358fe12a23cbc14cf38b1d076206df90a1cec7b");
+        await Assert.That(adopted.RecordSha256).IsEqualTo("bcd347731958c2e2b0bfbb117a431c66484447befe1f37799e4c28cf3c44fc4b");
+        await Assert.That(adopted.ManifestSha256).IsEqualTo("cd12d897da384cc4aa802892c7841a7d29bc1c04f883f3f122a6bea0171c673e");
         await Assert.That(adopted.Record.SequenceEqual(File.ReadAllBytes(Adopted.RecordFile))).IsTrue();
         await Assert.That(adopted.Manifest.SequenceEqual(File.ReadAllBytes(Adopted.Manifest))).IsTrue();
         await Assert.That(adopted.Image).IsEqualTo(Adopted.Image);
         await Assert.That(Directory.GetFiles(Adopted.Directory).Select(file => Path.GetFileName(file)))
-            .IsEquivalentTo(["dotnet-r3.adoption.json", "dotnet-r3.manifest.json"]);
+            .IsEquivalentTo(["dotnet-r4.adoption.json", "dotnet-r4.manifest.json"]);
     }
 
     /// <summary>
-    /// An adoption whose manifest names another native or Claude Code or states a component readiness cannot probe, a record that
-    /// names another image than its manifest, a manifest that is not the retained bytes and a repeated release are
-    /// refused when the set is loaded.
+    /// An adoption whose manifest names another native, Claude Code or managed settings or states a component readiness
+    /// cannot probe, a record that names another image than its manifest, a manifest that is not the retained bytes
+    /// and a repeated release are refused when the set is loaded.
     /// </summary>
     [Test]
     [Arguments("native")]
     [Arguments("claude")]
+    [Arguments("unmanaged")]
+    [Arguments("managed-settings")]
     [Arguments("discovery")]
     [Arguments("unprobed")]
     [Arguments("image")]
@@ -114,19 +131,24 @@ public sealed class TargetEnvironmentTests
             {
                 case "native": manifest["native"]!["version"] = "10.9.0"; break;
                 case "claude": manifest["harnesses"]!["claude"]!["version"] = "2.1.237"; break;
+                case "unmanaged": manifest["harnesses"]!["claude"]!.AsObject().Remove("managedSettings"); break;
+                case "managed-settings": manifest["harnesses"]!["claude"]!["managedSettings"]!["sha256"] = new string('0', 64); break;
                 case "discovery": manifest["startupInterfaces"]!["native"]!["discovery"]!["authentication"] = "none"; break;
                 case "unprobed": manifest["tools"]!["go"] = new JsonObject { ["version"] = "go1.25.0", ["fixedBy"] = "base" }; break;
                 case "image": record["image"] = "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:" + new string('0', 64); break;
             }
-            byte[] bytes = defect == "digest" ? [.. File.ReadAllBytes(Adopted.Manifest), (byte)'\n'] : defect is "native" or "claude" or "discovery" or "unprobed"
+            var edited = defect is not ("image" or "digest" or "repeated");
+            byte[] bytes = defect == "digest" ? [.. File.ReadAllBytes(Adopted.Manifest), (byte)'\n'] : edited
                 ? System.Text.Encoding.UTF8.GetBytes(manifest.ToJsonString()) : File.ReadAllBytes(Adopted.Manifest);
-            if (defect is "native" or "claude" or "discovery" or "unprobed") record["manifest"]!["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
-            File.WriteAllBytes(Path.Combine(directory, "dotnet-r3.manifest.json"), bytes);
-            File.WriteAllText(Path.Combine(directory, "dotnet-r3.adoption.json"), record.ToJsonString());
+            if (edited) record["manifest"]!["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            File.WriteAllBytes(Path.Combine(directory, "dotnet-r4.manifest.json"), bytes);
+            File.WriteAllText(Path.Combine(directory, "dotnet-r4.adoption.json"), record.ToJsonString());
             if (defect == "repeated") File.WriteAllText(Path.Combine(directory, "again.adoption.json"), record.ToJsonString());
             var refused = await Assert.That(() => AdoptedEnvironments.Load(directory)).Throws<UnsupportedRuntime>();
             if (defect == "unprobed") await Assert.That(refused!.Message).Contains("states go, which readiness cannot probe");
             if (defect == "claude") await Assert.That(refused!.Message).Contains("Claude Code differs from the approved harness");
+            if (defect is "unmanaged" or "managed-settings")
+                await Assert.That(refused!.Message).Contains("Claude Code managed settings differ from the approved ones");
         }
         finally { Directory.Delete(directory, recursive: true); }
     }
@@ -136,7 +158,7 @@ public sealed class TargetEnvironmentTests
     /// checksums of its downloaded artifacts or the base image digest: nothing is installed at run time.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r3")]
+    [Arguments("dotnet-r4")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task EveryComponentIsFixedByAnArtifactChecksumOrTheBaseDigest(string release)
     {
@@ -179,7 +201,7 @@ public sealed class TargetEnvironmentTests
     /// exact Broodling commit; an entrypoint change is adopted only with an environment release that carries it.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r3")]
+    [Arguments("dotnet-r4")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptedImageEmbedsThisRevisionsEntrypoint(string release)
     {
@@ -194,11 +216,11 @@ public sealed class TargetEnvironmentTests
 
     /// <summary>
     /// Broodling's own qualification of the image bytes by digest: the pulled image is the manifest's platform and
-    /// digest, and its native, restic and entrypoint bytes, every component version and every Debian package are those
-    /// the manifest states.
+    /// digest, and its native, restic and entrypoint bytes, the Claude Code managed settings as native's first agent
+    /// identity reads them, every component version and every Debian package are those the manifest states.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r3")]
+    [Arguments("dotnet-r4")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptedImageCarriesWhatItsManifestStates(string release)
     {
@@ -225,11 +247,13 @@ public sealed class TargetEnvironmentTests
             (string)manifest["native"]!["zeroshot"]!["sha256"]! + "  /usr/local/bin/zeroshot",
             (string)manifest["native"]!["restic"]!["sha256"]! + "  /usr/local/bin/restic",
             (string)manifest["integration"]!["broodling-entrypoint"]!["sha256"]! + "  /usr/local/bin/broodling-target",
+            (string)manifest["harnesses"]!["claude"]!["managedSettings"]!["sha256"]! + "  /etc/claude-code/managed-settings.json",
             .. manifest["osPackages"]!.AsArray().Select(package =>
                 $"{(string)package!["name"]!} {(string)package["version"]!} {(string)package["architecture"]!}")
         ];
         var observed = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", image, "-ec", """
             sha256sum /usr/local/bin/zeroshot /usr/local/bin/restic /usr/local/bin/broodling-target
+            setpriv --reuid 20000 --regid 10002 --clear-groups sha256sum /etc/claude-code/managed-settings.json
             dpkg-query --show --showformat '${Package} ${Version} ${Architecture}\n'
             """);
         RequireSuccess(observed);

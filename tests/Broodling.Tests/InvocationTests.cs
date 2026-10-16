@@ -330,7 +330,7 @@ public sealed class InvocationTests
             "55-character-name" => Entry(original => With(original, "name", new string('a', 55))),
             "hyphen-edged-name" => Entry(original => With(original, "name", "dotnet-")),
             "relative-mount" => Entry(original => With(original, "stateMount", "targets/dotnet/state")),
-            "unknown-default" => With(direct, "defaultEnvironment", "dotnet-r3"),
+            "unknown-default" => With(direct, "defaultEnvironment", "dotnet-r4"),
             "unadopted-image" => Entry(original => With(original, "image", "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:" + new string('0', 64))),
             "duplicate-member" => direct,
             _ => Entry(original => With(original, "origin", invalid))

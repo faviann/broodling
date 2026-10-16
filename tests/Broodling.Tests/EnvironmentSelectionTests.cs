@@ -142,7 +142,7 @@ public sealed class EnvironmentSelectionTests
             "version-2" => git => Commit(git, Declaration, """{"version": 2, "environment": "dotnet"}"""u8.ToArray()),
             "sdk-member" => git => Commit(git, Declaration, """{"version": 1, "environment": "dotnet", "sdk": "10.0.401"}"""u8.ToArray()),
             // The catalog approves dotnet, never a nearest release of it.
-            _ => git => Commit(git, Declaration, Declare("dotnet-r3"))
+            _ => git => Commit(git, Declaration, Declare("dotnet-r4"))
         };
         using var fixture = new HttpFixture(source: source);
         var catalog = Catalog(first.Origin.GetLeftPart(UriPartial.Authority), second.Origin.GetLeftPart(UriPartial.Authority),
@@ -204,14 +204,14 @@ public sealed class EnvironmentSelectionTests
         {
             ["adoption"] = new JsonObject
             {
-                ["kind"] = "broodling.target-environment-adoption/v1", ["release"] = "dotnet-r3", ["sha256"] = adopted.RecordSha256
+                ["kind"] = "broodling.target-environment-adoption/v1", ["release"] = "dotnet-r4", ["sha256"] = adopted.RecordSha256
             },
             ["manifest"] = new JsonObject
             {
                 ["schema"] = "zeroshot-environment.manifest/v2",
-                ["sha256"] = "a939a82262b6d46898f598c90358fe12a23cbc14cf38b1d076206df90a1cec7b"
+                ["sha256"] = "cd12d897da384cc4aa802892c7841a7d29bc1c04f883f3f122a6bea0171c673e"
             },
-            ["image"] = "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:ff82ae0013bf4434ea1c7650893f9fd0d6d87ab08173d036bcb2f5592f48bd01",
+            ["image"] = "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:6536a8b9c3e7b80b5396b36e0f40e5dc9eda2ed9743eba6821a1b40bc56bb156",
             ["platform"] = "linux/amd64", ["os"] = manifest.Os,
             ["components"] = JsonNode.Parse("""
                 {"native": ["10.12.0"], "codex": ["0.155.0"], "claude": ["2.1.276"], "copilot": ["1.0.86"],

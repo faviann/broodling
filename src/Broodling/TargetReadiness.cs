@@ -24,7 +24,7 @@ public sealed record TargetReadinessInventory(string Network, string TlsContaine
 public sealed record InventoryTarget(string Environment, string ImageId, string BootstrapKeyFile);
 
 /// <summary>
-/// One ready target. <c>Release</c> is the adopted environment release its image is, such as <c>dotnet-r3</c>;
+/// One ready target. <c>Release</c> is the adopted environment release its image is, such as <c>dotnet-r4</c>;
 /// <c>Os</c> and <c>Versions</c> are what the live target reported, each equal to its adopted manifest's statement.
 /// </summary>
 public sealed record TargetReadinessFacts(string Environment, string Release, string ContainerName, string ContainerId,
@@ -277,7 +277,8 @@ public sealed class TargetReadiness
 
     /// <summary>
     /// The live checks of one target: its OS identity and every component its adopted manifest states,
-    /// the native, restic and entrypoint bytes, the GitHub CLI feature Broodling uses, and the hosted identity transition.
+    /// the native, restic, entrypoint and Claude Code managed settings bytes, the GitHub CLI feature Broodling uses,
+    /// and the hosted identity transition.
     /// </summary>
     private async Task<TargetReadinessFacts> RequireLiveEnvironment(Selected target, JsonElement actual, CancellationToken cancellationToken)
     {
@@ -289,12 +290,13 @@ public sealed class TargetReadiness
         Require(!mismatched.Contains("os"), target, "The live OS identity differs from the one the adopted environment manifest states.");
         Require(mismatched.Count == 0, target,
             $"The live {string.Join(", ", mismatched)} {(mismatched.Count == 1 ? "is missing or differs" : "are missing or differ")} from what the adopted environment manifest states.");
-        foreach (var (program, expected) in new[] {
+        foreach (var (path, expected) in new[] {
             (TargetEnvironment.NativeExecutable, DirectTargetBinding.NativeExecutableSha256),
             (TargetEnvironment.ResticExecutable, DirectTargetBinding.ResticExecutableSha256),
-            (TargetEnvironment.Entrypoint, environment.EntrypointSha256) })
-            Require((await Execute("sha256sum", program)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() == expected,
-                target, "Target executable bytes differ from the adopted environment.");
+            (TargetEnvironment.Entrypoint, environment.EntrypointSha256),
+            (DirectTargetBinding.ClaudeManagedSettings, DirectTargetBinding.ClaudeManagedSettingsSha256) })
+            Require((await Execute("sha256sum", path)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() == expected,
+                target, $"Target {path} bytes differ from the adopted environment.");
         var help = await Execute("/usr/bin/gh", "api", "graphql", "--paginate", "--slurp", "--help");
         Require(Regex.IsMatch(help, @"^\s+--slurp(?:\s|$)", RegexOptions.Multiline), target, "Actual target GitHub CLI lacks api --paginate --slurp.");
         // The baseline's one short controlled target exec, not a provider task or lifecycle operation.

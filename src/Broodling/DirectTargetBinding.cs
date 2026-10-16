@@ -33,10 +33,17 @@ internal static class DirectTargetBinding
     /// part of the harness.
     /// </summary>
     internal const string ClaudeVersion = "2.1.276";
+    /// <summary>
+    /// The managed settings the adopted environment installs for Claude Code. They stop its nonessential traffic and
+    /// title call, so every model call goes to the gateway, and lock out repository hooks and MCP servers. Claude
+    /// Code reports nothing and runs without them when the file is missing.
+    /// </summary>
+    internal const string ClaudeManagedSettings = "/etc/claude-code/managed-settings.json";
+    internal const string ClaudeManagedSettingsSha256 = "cbedfec6d9c688288255c084f95269b4198d86435dbb48953ca4e71dac961b0b";
     internal const string AssetFile = "software-change-pr-claude-gateway.json";
     internal const string AssetSha256 = "7e232da54ed2ca138b31fea38a6f002d08d77b584965253b18077205b2c1e5be";
     /// <summary>SHA-256 of the exact reviewed approval manifest, execution-assets/approval.json.</summary>
-    internal const string ApprovalSha256 = "72566fd763eae6c447367266e931526240696c9a1843b020328a3b9cc30fe9c0";
+    internal const string ApprovalSha256 = "07cda6c77dac541e8a724691416c260379fc0988a10a43471c24c2642d6fa0d2";
 
     /// <summary>The native identity as the approval manifest and a retained HTTP binding record it.</summary>
     internal static JsonObject Native() => new()
@@ -46,5 +53,9 @@ internal static class DirectTargetBinding
     };
 
     /// <summary>The approved harness as the approval manifest records it.</summary>
-    internal static JsonObject Claude() => new() { ["version"] = ClaudeVersion };
+    internal static JsonObject Claude() => new()
+    {
+        ["version"] = ClaudeVersion,
+        ["managedSettings"] = new JsonObject { ["path"] = ClaudeManagedSettings, ["sha256"] = ClaudeManagedSettingsSha256 }
+    };
 }

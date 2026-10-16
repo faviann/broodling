@@ -15,7 +15,7 @@ internal static class TestEnvironments
 
     internal static IReadOnlyList<AdoptedEnvironment> Bundled => bundled.Value;
 
-    /// <summary>The bundled dotnet-r3 adoption, which every test environment names unless it says otherwise.</summary>
+    /// <summary>The bundled dotnet-r4 adoption, which every test environment names unless it says otherwise.</summary>
     internal static AdoptedEnvironment Adopted => Bundled.Single();
 
     /// <summary>The environment name <see cref="For(string[])"/> gives <paramref name="origin"/>'s target.</summary>
