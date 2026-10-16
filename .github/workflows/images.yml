@@ -3,10 +3,11 @@
 # demonstrates the two together in a disposable ADR 0002 stack, checks that the target image serves
 # native state it wrote itself across a restart and state written by each published target image listed
 # in deployment/native-state-transitions.json (all with the binding's native release), then publishes
-# exactly that Broodling image to GHCR with a release record naming the adopted target. Every push
-# publishes an immutable sha-<commit> candidate; a v* tag publishes that version, only with a frozen
-# application schema. Fork pull requests only build and check; same-repository pull requests are covered
-# by the push run of their head.
+# exactly that Broodling image to GHCR with a release record naming the adopted target. A push publishes
+# an immutable sha-<commit> candidate; a v* tag publishes that version, only with a frozen application
+# schema. Neither publishes unless the execution asset approval's approval.decision is a public comment URL
+# on faviann/broodling. Until then the run fails after its checks and publishes nothing. Fork pull requests
+# only build and check; same-repository pull requests are covered by the push run of their head.
 name: Images
 
 on:

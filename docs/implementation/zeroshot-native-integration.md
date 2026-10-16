@@ -154,7 +154,10 @@ approval manifest compiled into `DirectTargetBinding`. It refuses a missing,
 changed or unapproved asset, including the superseded 10.3.0 asset, and any
 other manifest, such as one naming another native, harness, policy or recipe
 revision. `ExecutionAssetTests` checks that the manifest's asset, native and
-`claude` blocks are the binding's and that its policy is the asset's own runtime. C# passes the graph and runtime through opaquely. It never expands,
+`claude` blocks are the binding's, that its policy is the asset's own runtime,
+and that `approval.decision` is a public comment URL on `faviann/broodling`.
+The images workflow refuses to publish unless that decision is such a URL
+([publication](../../deployment/README.md#publication-and-release-records)). C# passes the graph and runtime through opaquely. It never expands,
 edits or regenerates them. Changing the asset requires a reviewed release with
 a new approved identity.
 

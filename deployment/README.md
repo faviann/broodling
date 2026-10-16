@@ -456,13 +456,21 @@ pulls the adopted target image by the digest in the adoption record and builds
 the Broodling image. It runs the [image demonstration](../tests/README.md#image-demonstration)
 on the two, `TargetEnvironmentTests` and the
 [native-state transition check](../tests/README.md#native-state-transition-check)
-on the target image, and `ApplicationSchemaFreezeTests`. It then publishes
-exactly that Broodling image to GHCR. It builds and publishes no target image:
+on the target image, and `ApplicationSchemaFreezeTests`. It then requires a
+decided Execution asset approval and publishes exactly that Broodling image to
+GHCR. It builds and publishes no target image:
 #234 retired the Broodling-built `broodling-target` image and its
 `DirectTarget.Dockerfile` recipe.
 
-- A branch push publishes a `sha-<full commit>` candidate, so a pull request's
-  head is published before merge.
+- No push publishes while the [approval manifest](../src/Broodling/execution-assets/approval.json)'s
+  `approval.decision` is not a public comment URL on `faviann/broodling`
+  (`https://github.com/faviann/broodling/(issues|pull)/N#issuecomment-M`). The
+  run then fails after its checks and publishes nothing, so an Execution asset
+  change publishes only after its decision is recorded.
+  `ExecutionAssetTests.ApprovalDecisionIsAPublicCommentOnTheRepository` states
+  the same rule in the test suite.
+- Otherwise a branch push publishes a `sha-<full commit>` candidate, so a pull
+  request's head is published before merge.
 - A `v*` tag publishes that tag name and attaches the release record to a
   GitHub release of the same name. Publish a version by pushing the tag only.
   Do not create the GitHub release first: that also creates the tag, and the
