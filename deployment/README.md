@@ -1500,6 +1500,9 @@ foreground. Upstream Claude Code also runs subagents in the background: on
 structured result and cost two more medium calls. Native waits for the process
 to exit but keeps only the first result, so edits made in that extra turn
 reach the workspace without appearing in the reported result.
+In a later #246 review run of native's hosted lane on `dotnet-r5`, automatic
+compaction made one full-context call on `claude-opus-5-5` at medium effort
+with 32000 output tokens, the bounds the adopted image's managed settings set.
 
 Supply the key through the same secret source as dispatch credentials.
 Broodling's proposer sends it only to the gateway, as the bearer token, and the

@@ -35,7 +35,7 @@ internal static class DirectTargetBinding
     internal const string ClaudeVersion = "2.1.276";
     /// <summary>
     /// The managed settings the adopted environment installs for Claude Code. They stop its nonessential traffic and
-    /// title call, pin every model call to medium effort and 32000 output tokens, deny WebFetch and WebSearch, and
+    /// title call, set Claude Code's effort to medium and its output tokens to 32000, deny WebFetch and WebSearch, and
     /// lock out repository hooks and MCP servers. Claude Code reports nothing and runs without them when the file is
     /// missing.
     /// </summary>

@@ -84,8 +84,9 @@ adoption record (the exact producer manifest bytes, their digest and the image
 digest), the Execution asset and its approval, and the target entrypoint's
 startup interface. The adopted `dotnet-r5` carries native 10.12.0 as upstream's
 source build and Claude Code 2.1.276 with managed settings that send Claude
-Code's own model calls only to the gateway at medium effort, deny it WebFetch
-and WebSearch, and lock out repository hooks and MCP servers
+Code's own model calls only to the gateway, set its effort and output-token
+bounds, deny it WebFetch and WebSearch, and lock out repository hooks and MCP
+servers
 ([adopted target environment](../../deployment/README.md#adopted-target-environment)).
 Broodling submits the
 release-bundled approved execution asset (native 10.12.0's standard
