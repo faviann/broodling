@@ -669,8 +669,10 @@ origin at each operation. An unsupported binding refuses as an
 unsupported runtime before contact.
 
 The SDK checks that a status or force reply names the requested run. Broodling
-then requires its title, size, repository, branch and B1 to equal the binding;
-anything else is `foreign_run`. Progress is the phase (`admitted`, `running`,
+then requires its title and size to equal the binding, and its whole resolved
+source to equal the frozen repository, branch and B1. Any difference is
+`foreign_run`. Broodling submits no `remote`, so that includes a reply with no
+source and a source that carries a `remote`. Progress is the phase (`admitted`, `running`,
 `stopping` or `finished`) and active nodes. The SDK validates and exposes
 native's metadata and workspace-recovery facts; Broodling drops them and never
 resumes a run. A result passes through the failure labels `force_stopped`,
