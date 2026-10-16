@@ -53,7 +53,6 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
                 && Text(native.GetProperty("restic"), "path") == ResticExecutable
                 && Text(native.GetProperty("restic"), "sha256") == DirectTargetBinding.ResticExecutableSha256,
                 "The environment's native identity differs from the DirectTarget binding.");
-            var tools = root.GetProperty("tools");
             Require(Text(root.GetProperty("harnesses").GetProperty(DirectTargetBinding.Harness), "version") == DirectTargetBinding.ClaudeVersion,
                 "The environment's Claude Code differs from the approved harness.");
             var startup = root.GetProperty("startupInterfaces").GetProperty("entrypoint");
@@ -68,6 +67,7 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
                 "The environment's native discovery differs from the SDK binding's DirectTarget protocol.");
             var os = Text(root, "os");
             Require(os.Length > 0, "The environment manifest is malformed.");
+            var tools = root.GetProperty("tools");
             var components = new OrderedDictionary<string, IReadOnlyList<string>> { ["native"] = [Text(native, "version")] };
             foreach (var component in root.GetProperty("harnesses").EnumerateObject().Concat(tools.EnumerateObject()))
                 Require(components.TryAdd(component.Name, [Text(component.Value, "version")]), "The environment manifest is malformed.");

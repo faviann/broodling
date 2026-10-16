@@ -508,10 +508,7 @@ previously adopted environment image, or another published image with that
 native. The list is empty. `dotnet-r3` is the only adopted environment with
 native 10.12.0, and its own manifest lists no `nativeStateTransitions.from`
 either. #246 moved the binding to native 10.12.0, so `dotnet-r2` and the other
-images with native 10.10.0 are not sources. The `broodling-target`
-images published from `main` with native 10.10.0 carry the release archive's
-executable (`d0c84ffb…`), not the adopted one, so they are not sources and
-their state is not carried forward. Earlier, #215 replaced the initial native, asset, receipt and store definition, and
+images with native 10.10.0 are not sources. Earlier, #215 replaced the initial native, asset, receipt and store definition, and
 removed the two native 10.3.0 `sha-` candidates published from `main` since #121
 (`sha-ae6fe2baa1beffe083683bddb6ce8cced5eecfc9`,
 `@sha256:48055a75977cf85c95739abae4b6b9c348fd3f191509f6b8d596c55bbc854dc5`, and
@@ -1367,8 +1364,8 @@ The gateway's support for these requests was confirmed on 2026-10-15 by a probe
 (#246) that mirrored `BundledProposer`'s request shapes against
 `https://gateway.ai.faviann.com` with `claude-opus-5-5` and a Claude-group key.
 The tool-call turn used tools, `tool_choice: auto` and the `json_object` response
-format, and the model returned a tool call. The final turn used
-`tool_choice: none` and `json_object` and returned parseable JSON; a rerun of
+format, and the model returned a tool call. The final turn carried the tool
+result under `tool_choice: none` and `json_object` and returned parseable JSON; a rerun of
 both turns on 2026-10-16 returned a `read_reference` call and a JSON object. The same
 probe ran Claude Code with `--json-schema` and a Read tool through the gateway
 and received `structured_output`. Proposal quality on real issues is still unverified.
