@@ -55,7 +55,8 @@ public sealed class TargetReadiness
     internal const string NativeListen = "0.0.0.0:18770";
     /// <summary>Where the target entrypoint reads its root-only bootstrap key, which it copies privately for native.</summary>
     internal const string BootstrapKeySecret = "/run/secrets/zeroshot-bootstrap-key";
-    private static readonly string[] CredentialNames = ["GH_TOKEN", "GITHUB_TOKEN", "GATEWAY_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY"];
+    private static readonly string[] CredentialNames = ["GH_TOKEN", "GITHUB_TOKEN", "GATEWAY_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_OAUTH_REFRESH_TOKEN"];
     private static readonly TimeSpan DiscoveryBudget = TimeSpan.FromSeconds(10);
     private static readonly Regex ContainerId = new("^[0-9a-f]{12,64}$", RegexOptions.CultureInvariant);
     private readonly Func<IReadOnlyList<string>, CancellationToken, Task<string>> command;

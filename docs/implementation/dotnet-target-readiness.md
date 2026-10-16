@@ -104,7 +104,8 @@ Each target must have its recorded image, be running, run as
 container root (`""`, `0`, `0:0`, or `root`), use ordinary isolation (not
 privileged or host networking), drop no capabilities and use restart policy
 `no`. It rejects installed `GH_TOKEN`, `GITHUB_TOKEN`, `GATEWAY_API_KEY`,
-`OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and `CODEX_API_KEY`, including empty
+`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `CODEX_API_KEY`, `ANTHROPIC_AUTH_TOKEN`,
+`CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_CODE_OAUTH_REFRESH_TOKEN`, including empty
 values. Its mounts must be exactly its catalog state and home as read/write
 binds at `/state` and `/home/node`, the public root directory bound read-only at
 `/tls-root` and its recorded bootstrap key file bound read-only at

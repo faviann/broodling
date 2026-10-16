@@ -225,6 +225,9 @@ public sealed class TargetReadinessTests
     [Arguments("OPENAI_API_KEY")]
     [Arguments("ANTHROPIC_API_KEY")]
     [Arguments("CODEX_API_KEY")]
+    [Arguments("ANTHROPIC_AUTH_TOKEN")]
+    [Arguments("CLAUDE_CODE_OAUTH_TOKEN")]
+    [Arguments("CLAUDE_CODE_OAUTH_REFRESH_TOKEN")]
     public async Task InstalledCredentialNamesRefuseEvenWhenEmpty(string name)
     {
         using var fixture = new ReadinessFixture();
