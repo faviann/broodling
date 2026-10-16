@@ -82,9 +82,10 @@ DirectTarget runs an adopted environment image (#234):
 owns its recipe, inventory, image and publication, and Broodling owns the
 adoption record (the exact producer manifest bytes, their digest and the image
 digest), the Execution asset and its approval, and the target entrypoint's
-startup interface. The adopted `dotnet-r4` carries native 10.12.0 as upstream's
-source build and Claude Code 2.1.276 with managed settings that keep its traffic
-on the gateway and lock out repository hooks and MCP servers
+startup interface. The adopted `dotnet-r5` carries native 10.12.0 as upstream's
+source build and Claude Code 2.1.276 with managed settings that send Claude
+Code's own model calls only to the gateway at medium effort, deny it WebFetch
+and WebSearch, and lock out repository hooks and MCP servers
 ([adopted target environment](../../deployment/README.md#adopted-target-environment)).
 Broodling submits the
 release-bundled approved execution asset (native 10.12.0's standard
@@ -155,6 +156,14 @@ Broodling `SUCCEEDED`, native acceptance and automated checks certify neither
 semantic correctness nor authority to merge, deploy or release. See the
 [retained outcome summary](../../evaluation/p5/README.md).
 
+Run Attempts only against repositories the owner controls and whose comments
+are restricted to collaborators. A target repository's own Claude Code settings
+`env` and `apiKeyHelper` still apply
+([#249](https://github.com/faviann/broodling/issues/249)), native acts on
+pull-request feedback from anyone who can comment, and every command an agent
+runs can read the gateway key
+([limits](../../deployment/README.md#adopted-target-environment)).
+
 The .NET application preserves the #75–#77 callable/operator behavior. The
 [passed migration review](../migration/130-migration-review.md) and
 [parity map](../migration/130-parity-map.md) retain its evidence. Current
@@ -223,7 +232,7 @@ the transition check, and publishes only the Broodling image, with a release
 record naming the adopted target; the binding moves to the source-built native
 executable and Codex 0.155.0 under explicit Execution asset review. #246 moves
 the binding to native 10.12.0, `Zeroshot.Client` 10.12.0.1-preview.1 and the
-adopted `dotnet-r4`, and regenerates the asset with one uniform Claude Code
+adopted `dotnet-r5`, and regenerates the asset with one uniform Claude Code
 runtime through the sub2api gateway; a run status or force reply without a
 source is refused as a foreign run. #241 makes each native submission carry its RequestBundle
 references in place of #114's agent reads from Broodling; see
