@@ -221,22 +221,22 @@ public sealed class EnvironmentSelectionTests
             },
             ["image"] = "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:5d36313b1d38ad06c194c53b8f08a71d4bc61527e4e06d56b96c9a835ba54a1d",
             ["platform"] = "linux/amd64", ["os"] = manifest.Os,
-            ["components"] = new JsonObject
-            {
-                ["native"] = DirectTargetBinding.NativeRelease, ["codex"] = DirectTargetBinding.CodexVersion,
-                ["claude"] = manifest.Components.Claude, ["copilot"] = manifest.Components.Copilot,
-                ["harness-node"] = DirectTargetBinding.CodexNodeVersion, ["node"] = manifest.Components.Node,
-                ["gh"] = manifest.Components.Gh, ["git"] = manifest.Components.Git, ["python"] = manifest.Components.Python,
-                ["dotnetSdks"] = new JsonArray([.. manifest.Components.DotnetSdks.Select(sdk => JsonValue.Create(sdk))]),
-                ["dotnetRuntimes"] = new JsonArray([.. manifest.Components.DotnetRuntimes.Select(runtime => JsonValue.Create(runtime))])
-            },
+            ["components"] = JsonNode.Parse("""
+                {"native": ["10.10.0"], "codex": ["0.155.0"], "claude": ["2.1.276"], "copilot": ["1.0.86"],
+                 "node": ["v24.21.0"], "harness-node": ["v24.21.0"], "npm": ["11.19.1"], "yarn": ["1.22.22"],
+                 "corepack": ["0.36.0"], "python": ["Python 3.12.14"], "pip": ["pip 25.0.1"],
+                 "rust": ["rustc 1.97.0 (2d8144b78 2026-07-07)"], "rustup": ["rustup 1.29.0 (28d1352db 2026-03-05)"],
+                 "rust-components": ["1.97.0-x86_64-unknown-linux-gnu: cargo-x86_64-unknown-linux-gnu clippy-x86_64-unknown-linux-gnu rust-std-x86_64-unknown-linux-gnu rustc-x86_64-unknown-linux-gnu rustfmt-x86_64-unknown-linux-gnu"],
+                 "gcc": ["14.2.0"], "git": ["git version 2.47.3"], "gh": ["gh version 2.101.0 (2026-09-15)"],
+                 "docker-cli": ["Docker version 26.1.5+dfsg1, build a72d7cd"], "dotnet-sdks": ["10.0.401"],
+                 "dotnet-runtimes": ["Microsoft.AspNetCore.App 10.0.12", "Microsoft.NETCore.App 10.0.12"]}
+                """),
             ["target"] = new JsonObject
             {
                 ["environment"] = "dotnet", ["origin"] = origin, ["container"] = "broodling-test-dotnet",
                 ["stateMount"] = "/srv/broodling-test/dotnet/state", ["homeMount"] = "/srv/broodling-test/dotnet/home"
             }
         })).IsTrue();
-        await Assert.That(manifest.Components.DotnetSdks).Contains("10.0.401");
         // The native/asset binding is retained beside it.
         await Assert.That(JsonNode.DeepEquals(binding["native"], DirectTargetBinding.Native())).IsTrue();
         await Assert.That(prepared.AssetSha256).IsEqualTo(DirectTargetBinding.AssetSha256);

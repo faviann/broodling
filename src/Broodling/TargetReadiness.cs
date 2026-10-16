@@ -86,7 +86,7 @@ public sealed class TargetReadiness
     /// invocation does, and every origin's control token must be readable and its own: readiness requires private
     /// discovery, an unauthenticated control request refused and an authenticated one accepted at each origin,
     /// without submitting work. An adopted manifest is only its producer's statement; each target is ready only when
-    /// its live OS identity and every tool the manifest states with a fixed probe match that statement.
+    /// its live OS identity and every component the manifest states match that statement.
     /// </summary>
     public async Task<TargetReadinessReport> CheckAsync(TargetReadinessInventory inventory, EnvironmentCatalog environments,
         CancellationToken cancellationToken = default)
@@ -275,7 +275,7 @@ public sealed class TargetReadiness
     }
 
     /// <summary>
-    /// The live checks of one target: its OS identity and every tool its adopted manifest states with a fixed probe,
+    /// The live checks of one target: its OS identity and every component its adopted manifest states,
     /// the native, restic and entrypoint bytes, the GitHub CLI feature Broodling uses, and the hosted identity transition.
     /// </summary>
     private async Task<TargetReadinessFacts> RequireLiveEnvironment(Selected target, JsonElement actual, CancellationToken cancellationToken)

@@ -7,30 +7,46 @@ namespace Broodling;
 /// </summary>
 internal sealed record EnvironmentProbe(string Component, string Command, IReadOnlyList<string> Expected)
 {
-    /// <summary>Every component of <paramref name="environment"/> that has a fixed probe.</summary>
-    internal static IReadOnlyList<EnvironmentProbe> For(TargetEnvironment environment)
-    {
-        var components = environment.Components;
-        List<EnvironmentProbe> probes =
-        [
-            new("os", "grep '^PRETTY_NAME=' /etc/os-release", ["PRETTY_NAME=\"" + environment.Os + "\""]),
-            new("native", TargetEnvironment.NativeExecutable + " --version", ["zeroshot " + components.Native]),
-            new("codex", "codex --version 2>/dev/null", ["codex-cli " + components.Codex]),
-            new("harness-node", "/opt/zeroshot/bin/node --version", [components.HarnessNode]),
-            new("node", "node --version", [components.Node]),
-            new("gh", "gh --version | head -n 1", [components.Gh]),
-            new("git", "git --version", [components.Git]),
-            new("python", "python3 --version", [components.Python])
-        ];
-        if (components.Claude is { } claude) probes.Add(new("claude", "claude --version", [claude + " (Claude Code)"]));
-        if (components.Copilot is { } copilot)
-            probes.Add(new("copilot", "copilot --version | head -n 1", ["GitHub Copilot CLI " + copilot + "."]));
-        if (components.DotnetSdks.Count > 0)
-            probes.Add(new("dotnet-sdks", "dotnet --list-sdks | cut -d ' ' -f 1", components.DotnetSdks));
-        if (components.DotnetRuntimes.Count > 0)
-            probes.Add(new("dotnet-runtimes", "dotnet --list-runtimes | cut -d ' ' -f 1,2", components.DotnetRuntimes));
-        return probes;
-    }
+    /// <summary>
+    /// The probe of each component a manifest may state, by its manifest name: the command and the line it prints for
+    /// each stated version. The adoption set refuses a manifest stating any other component.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, (string Command, Func<string, string> Line)> Commands =
+        new Dictionary<string, (string, Func<string, string>)>
+        {
+            ["native"] = (TargetEnvironment.NativeExecutable + " --version", version => "zeroshot " + version),
+            ["codex"] = ("codex --version 2>/dev/null", version => "codex-cli " + version),
+            ["claude"] = ("claude --version", version => version + " (Claude Code)"),
+            ["copilot"] = ("copilot --version | head -n 1", version => "GitHub Copilot CLI " + version + "."),
+            ["harness-node"] = ("/opt/zeroshot/bin/node --version", Verbatim),
+            ["node"] = ("node --version", Verbatim),
+            ["npm"] = ("npm --version", Verbatim),
+            ["yarn"] = ("yarn --version", Verbatim),
+            ["corepack"] = ("corepack --version", Verbatim),
+            ["python"] = ("python3 --version", Verbatim),
+            ["pip"] = ("pip --version | cut -d ' ' -f 1,2", Verbatim),
+            ["rust"] = ("rustc --version", Verbatim),
+            ["rustup"] = ("rustup --version", Verbatim),
+            ["rust-components"] = (
+                "echo \"$(rustup show active-toolchain | cut -d ' ' -f 1): $(rustup component list --installed | paste -sd ' ' -)\"",
+                Verbatim),
+            ["gcc"] = ("gcc -dumpfullversion", Verbatim),
+            ["git"] = ("git --version", Verbatim),
+            ["gh"] = ("gh --version | head -n 1", Verbatim),
+            ["docker-cli"] = ("docker --version", Verbatim),
+            ["dotnet-sdks"] = ("dotnet --list-sdks | cut -d ' ' -f 1", Verbatim),
+            ["dotnet-runtimes"] = ("dotnet --list-runtimes | cut -d ' ' -f 1,2", Verbatim)
+        };
+
+    private static string Verbatim(string version) => version;
+
+    /// <summary>The OS identity and every component <paramref name="environment"/>'s manifest states.</summary>
+    internal static IReadOnlyList<EnvironmentProbe> For(TargetEnvironment environment) =>
+    [
+        new("os", "grep '^PRETTY_NAME=' /etc/os-release", ["PRETTY_NAME=\"" + environment.Os + "\""]),
+        .. environment.Components.Select(component => new EnvironmentProbe(component.Key, Commands[component.Key].Command,
+            [.. component.Value.Select(Commands[component.Key].Line)]))
+    ];
 
     internal const string Marker = "@@broodling-environment-probe ";
 

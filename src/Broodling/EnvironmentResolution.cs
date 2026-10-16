@@ -41,17 +41,6 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
     private JsonObject Resolution()
     {
         var environment = Adoption.Environment;
-        var components = environment.Components;
-        var stated = new JsonObject { ["native"] = components.Native, ["codex"] = components.Codex };
-        if (components.Claude is not null) stated["claude"] = components.Claude;
-        if (components.Copilot is not null) stated["copilot"] = components.Copilot;
-        stated["harness-node"] = components.HarnessNode;
-        stated["node"] = components.Node;
-        stated["gh"] = components.Gh;
-        stated["git"] = components.Git;
-        stated["python"] = components.Python;
-        stated["dotnetSdks"] = new JsonArray([.. components.DotnetSdks.Select(sdk => JsonValue.Create(sdk))]);
-        stated["dotnetRuntimes"] = new JsonArray([.. components.DotnetRuntimes.Select(runtime => JsonValue.Create(runtime))]);
         return new()
         {
             ["basis"] = Requirement.Declaration is null ? "default" : "declared",
@@ -62,7 +51,8 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
             },
             ["manifest"] = new JsonObject { ["schema"] = TargetEnvironment.Schema, ["sha256"] = Adoption.ManifestSha256 },
             ["image"] = Adoption.Image, ["platform"] = TargetEnvironment.SupportedPlatform, ["os"] = environment.Os,
-            ["components"] = stated,
+            ["components"] = new JsonObject(environment.Components.Select(component => KeyValuePair.Create<string, JsonNode?>(
+                component.Key, new JsonArray([.. component.Value.Select(version => JsonValue.Create(version))])))),
             ["target"] = new JsonObject
             {
                 ["environment"] = Target.Environment, ["origin"] = Target.Origin, ["container"] = Target.Container,

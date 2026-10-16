@@ -26,7 +26,7 @@ public sealed class TargetReadinessTests
         await Assert.That(facts.DirectOrigin).IsEqualTo("https://zeroshot-dotnet.dev.faviann.com");
         await Assert.That(facts.Release).IsEqualTo("dotnet-r2");
         await Assert.That(facts.Os).IsEqualTo("Debian GNU/Linux 13 (trixie)");
-        await Assert.That(facts.Versions["git"]).IsEqualTo(TestEnvironments.Adopted.Environment.Components.Git);
+        await Assert.That(facts.Versions["git"]).IsEqualTo("git version 2.47.3");
         await Assert.That(fixture.Calls.Count).IsEqualTo(fixture.ExpectedCalls);
         await Assert.That(fixture.Calls[0].SequenceEqual(["inspect", "--type", "container", "installation-dotnet", "installation-tls",
             "installation-broodling"])).IsTrue();

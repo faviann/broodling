@@ -145,8 +145,9 @@ count). No second target, and no load balancing, sits behind one name.
 
 Subsequent execs use each inspected target container ID, never a newly selected
 name. One shell exec per target runs a probe for the live OS identity and every
-component its manifest states with a fixed probe, and reports each missing or
-differing component by name; one target's mismatch makes the whole installation
+component its manifest states, and reports each missing or differing component
+by name; a manifest stating a component with no probe below is refused when the
+adoption set loads; one target's mismatch makes the whole installation
 not ready. The native version, the Codex version and the `zeroshot` and
 `restic` hashes are the binding's, which the manifest names; the other
 observations are the manifest's:
@@ -157,7 +158,8 @@ observations are the manifest's:
 | `/usr/local/bin/zeroshot --version` | `zeroshot 10.10.0` |
 | `codex --version` | `codex-cli 0.155.0` |
 | `/opt/zeroshot/bin/node --version` | The manifest's harness Node.js (`v24.21.0`) |
-| `node`, `gh` (first line), `git`, `python3 --version` | The manifest's versions of those tools |
+| `node`, `npm`, `yarn`, `corepack`, `python3`, `rustc`, `rustup`, `git`, `docker --version`; `gh --version` (first line); `pip --version` (first two fields); `gcc -dumpfullversion` | The manifest's versions of `node`, `npm`, `yarn`, `corepack`, `python`, `rust`, `rustup`, `git`, `docker-cli`, `gh`, `pip` and `gcc` |
+| `rustup show active-toolchain` and `rustup component list --installed`, as `<toolchain>: <components>` | The manifest's `rust-components` |
 | `claude --version`, `copilot --version` (first line) | The manifest's versions, when it lists them; checking a version approves nothing |
 | `dotnet --list-sdks`, `dotnet --list-runtimes` | Exactly the manifest's SDKs and runtimes, when it lists them |
 | `sha256sum /usr/local/bin/zeroshot` | `fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5` |

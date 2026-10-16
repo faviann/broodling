@@ -8,11 +8,13 @@ namespace Broodling;
 /// states what its image carries; Broodling adopts it only when the manifest names the DirectTarget binding's
 /// native, the approved Codex, the startup interface Broodling's entrypoint implements and the native discovery
 /// the SDK binding speaks, on the supported platform. Readiness then requires the running target to be that image
-/// and checks the identities it relies on. <c>Os</c> and <c>Components</c> are the producer's statement, which
-/// only a live probe (<see cref="EnvironmentProbe"/>) verifies.
+/// and checks the identities it relies on. <c>Components</c> maps each component the manifest states, by its
+/// manifest name and in manifest order, to the versions it states: native, each harness and tool, and .NET's SDKs and
+/// runtimes as <c>dotnet-sdks</c> and <c>dotnet-runtimes</c>. <c>Os</c> and <c>Components</c> are the producer's
+/// statement, which only a live probe (<see cref="EnvironmentProbe"/>) verifies.
 /// </summary>
-internal sealed record TargetEnvironment(string Release, string Image, string Os, EnvironmentComponents Components,
-    string EntrypointSha256)
+internal sealed record TargetEnvironment(string Release, string Image, string Os,
+    IReadOnlyDictionary<string, IReadOnlyList<string>> Components, string EntrypointSha256)
 {
     internal const string Schema = "zeroshot-environment.manifest/v2";
     internal const string SupportedPlatform = "linux/amd64";
@@ -67,17 +69,13 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
                 "The environment's native discovery differs from the SDK binding's DirectTarget protocol.");
             var os = Text(root, "os");
             Require(os.Length > 0, "The environment manifest is malformed.");
-            var harnesses = root.GetProperty("harnesses");
-            string? Optional(JsonElement parent, string name) =>
-                parent.TryGetProperty(name, out var component) ? Text(component, "version") : null;
-            IReadOnlyList<string> Dotnet(string list) => root.TryGetProperty("dotnet", out var dotnet)
-                ? [.. dotnet.GetProperty(list).EnumerateArray().Select(item => item.GetString() ?? throw new InvalidOperationException())]
-                : [];
-            var components = new EnvironmentComponents(Text(native, "version"), Text(harnesses.GetProperty("codex"), "version"),
-                Optional(harnesses, "claude"), Optional(harnesses, "copilot"), Text(tools.GetProperty("harness-node"), "version"),
-                Text(tools.GetProperty("node"), "version"), Text(tools.GetProperty("gh"), "version"),
-                Text(tools.GetProperty("git"), "version"), Text(tools.GetProperty("python"), "version"),
-                Dotnet("sdks"), Dotnet("runtimes"));
+            var components = new OrderedDictionary<string, IReadOnlyList<string>> { ["native"] = [Text(native, "version")] };
+            foreach (var component in root.GetProperty("harnesses").EnumerateObject().Concat(tools.EnumerateObject()))
+                Require(components.TryAdd(component.Name, [Text(component.Value, "version")]), "The environment manifest is malformed.");
+            if (root.TryGetProperty("dotnet", out var dotnet))
+                foreach (var list in new[] { "sdks", "runtimes" })
+                    Require(components.TryAdd("dotnet-" + list, [.. dotnet.GetProperty(list).EnumerateArray()
+                        .Select(item => item.GetString() ?? throw new InvalidOperationException())]), "The environment manifest is malformed.");
             var environment = root.GetProperty("environment");
             return new(Text(environment, "name") + "-" + Text(environment, "release"), repository + "@" + digest, os,
                 components, Text(entrypoint, "sha256"));
@@ -96,11 +94,3 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
         if (!condition) throw new TargetNotReady(message);
     }
 }
-
-/// <summary>
-/// The component versions an environment manifest states, exactly as it states them: the native release, the
-/// harnesses (Codex required; Claude and Copilot when listed), the Node.js Codex runs on and the image's own
-/// Node.js, gh, Git, Python and, when the manifest lists .NET, its SDKs and runtimes.
-/// </summary>
-internal sealed record EnvironmentComponents(string Native, string Codex, string? Claude, string? Copilot, string HarnessNode,
-    string Node, string Gh, string Git, string Python, IReadOnlyList<string> DotnetSdks, IReadOnlyList<string> DotnetRuntimes);

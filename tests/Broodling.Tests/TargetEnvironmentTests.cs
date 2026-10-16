@@ -47,7 +47,7 @@ public sealed class TargetEnvironmentTests
         // The environment release is its own identity, apart from the native release it carries.
         await Assert.That(environment.Release).IsNotEqualTo(DirectTargetBinding.NativeRelease);
         await Assert.That(environment.Os).IsEqualTo((string)adoption.Manifest["os"]!);
-        await Assert.That(environment.Components.DotnetSdks).IsEquivalentTo(["10.0.401"]);
+        await Assert.That(environment.Components["dotnet-sdks"]).IsEquivalentTo(["10.0.401"]);
         // The adoption set loader accepts it under the same rules.
         await Assert.That(AdoptedEnvironments.Load(adoption.Directory).Select(adopted => adopted.Release)).IsEquivalentTo([release]);
     }
@@ -91,12 +91,14 @@ public sealed class TargetEnvironmentTests
     }
 
     /// <summary>
-    /// An adoption whose manifest names another native, a record that names another image than its manifest, a
-    /// manifest that is not the retained bytes and a repeated release are refused when the set is loaded.
+    /// An adoption whose manifest names another native or states a component readiness cannot probe, a record that
+    /// names another image than its manifest, a manifest that is not the retained bytes and a repeated release are
+    /// refused when the set is loaded.
     /// </summary>
     [Test]
     [Arguments("native")]
     [Arguments("discovery")]
+    [Arguments("unprobed")]
     [Arguments("image")]
     [Arguments("digest")]
     [Arguments("repeated")]
@@ -111,15 +113,17 @@ public sealed class TargetEnvironmentTests
             {
                 case "native": manifest["native"]!["version"] = "10.9.0"; break;
                 case "discovery": manifest["startupInterfaces"]!["native"]!["discovery"]!["authentication"] = "none"; break;
+                case "unprobed": manifest["tools"]!["go"] = new JsonObject { ["version"] = "go1.25.0", ["fixedBy"] = "base" }; break;
                 case "image": record["image"] = "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:" + new string('0', 64); break;
             }
-            byte[] bytes = defect == "digest" ? [.. File.ReadAllBytes(Adopted.Manifest), (byte)'\n'] : defect is "native" or "discovery"
+            byte[] bytes = defect == "digest" ? [.. File.ReadAllBytes(Adopted.Manifest), (byte)'\n'] : defect is "native" or "discovery" or "unprobed"
                 ? System.Text.Encoding.UTF8.GetBytes(manifest.ToJsonString()) : File.ReadAllBytes(Adopted.Manifest);
-            if (defect is "native" or "discovery") record["manifest"]!["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            if (defect is "native" or "discovery" or "unprobed") record["manifest"]!["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
             File.WriteAllBytes(Path.Combine(directory, "dotnet-r2.manifest.json"), bytes);
             File.WriteAllText(Path.Combine(directory, "dotnet-r2.adoption.json"), record.ToJsonString());
             if (defect == "repeated") File.WriteAllText(Path.Combine(directory, "again.adoption.json"), record.ToJsonString());
-            await Assert.That(() => AdoptedEnvironments.Load(directory)).Throws<UnsupportedRuntime>();
+            var refused = await Assert.That(() => AdoptedEnvironments.Load(directory)).Throws<UnsupportedRuntime>();
+            if (defect == "unprobed") await Assert.That(refused!.Message).Contains("states go, which readiness cannot probe");
         }
         finally { Directory.Delete(directory, recursive: true); }
     }
@@ -187,8 +191,8 @@ public sealed class TargetEnvironmentTests
 
     /// <summary>
     /// Broodling's own qualification of the image bytes by digest: the pulled image is the manifest's platform and
-    /// digest, and its native, restic and entrypoint bytes, harnesses, Node.js, gh, Git, .NET and every Debian
-    /// package are those the manifest states.
+    /// digest, and its native, restic and entrypoint bytes, every component version and every Debian package are those
+    /// the manifest states.
     /// </summary>
     [Test]
     [Arguments("dotnet-r2")]
@@ -206,8 +210,9 @@ public sealed class TargetEnvironmentTests
 
         var probes = EnvironmentProbe.For(TargetEnvironment.Read(adoption.ManifestBytes, adoption.ManifestSha256));
         // Every stated version, the OS identity, the native, restic and entrypoint bytes and every Debian package.
-        await Assert.That(probes.Select(probe => probe.Component)).IsEquivalentTo(["os", "native", "codex", "harness-node",
-            "node", "gh", "git", "python", "claude", "copilot", "dotnet-sdks", "dotnet-runtimes"]);
+        await Assert.That(probes.Select(probe => probe.Component)).IsEquivalentTo(["os", "native", "codex", "claude", "copilot",
+            "node", "harness-node", "npm", "yarn", "corepack", "python", "pip", "rust", "rustup", "rust-components", "gcc", "git",
+            "gh", "docker-cli", "dotnet-sdks", "dotnet-runtimes"]);
         var probed = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", image, "-c",
             EnvironmentProbe.Sections(probes));
         RequireSuccess(probed);

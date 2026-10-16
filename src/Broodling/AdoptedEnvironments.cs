@@ -24,8 +24,8 @@ internal static class AdoptedEnvironments
 
     /// <summary>
     /// Every record in <paramref name="directory"/>, refusing a record of another kind, a manifest that is not its
-    /// retained bytes or that this release's native binding does not support, a record whose release or image
-    /// differs from its manifest's, a repeated release or image, and an empty set.
+    /// retained bytes, that this release's native binding does not support or that states a component readiness cannot
+    /// probe, a record whose release or image differs from its manifest's, a repeated release or image, and an empty set.
     /// </summary>
     internal static IReadOnlyList<AdoptedEnvironment> Load(string directory)
     {
@@ -69,6 +69,8 @@ internal static class AdoptedEnvironments
             catch (TargetNotReady error) { throw new UnsupportedRuntime($"The adopted environment {name} is not supported: {error.Message}"); }
             if (Text(root, "environment") != environment.Release || Text(root, "image") != environment.Image)
                 throw new UnsupportedRuntime($"The adoption record {name} names another release or image than its manifest.");
+            if (environment.Components.Keys.FirstOrDefault(component => !EnvironmentProbe.Commands.ContainsKey(component)) is { } unprobed)
+                throw new UnsupportedRuntime($"The adopted environment {name} states {unprobed}, which readiness cannot probe.");
             return new(environment.Release, environment.Image, record, Digests.Bytes(record), bytes, manifestSha256, environment);
         }
         catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException)

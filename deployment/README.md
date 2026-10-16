@@ -302,16 +302,17 @@ Adoption is checked in three places:
   manifest's. The manifest is one this revision supports. Every component is
   fixed by an artifact checksum or the base digest. The image embeds this
   revision's entrypoint. The pulled image is the manifest's platform and
-  digest, and its executables' bytes, harness, Node.js, gh, Git, Python and .NET
-  versions and its full Debian package list are the manifest's.
+  digest, and its executables' bytes, every component version and its full
+  Debian package list are the manifest's.
 - Loading the bundled adoption set, at every configuration read: it refuses a
   manifest that is not the record's bytes, a malformed manifest, a schema other
   than `v2`, a platform other than `linux/amd64` and a native, Codex (with its
-  Node.js), startup interface or discovery other than this revision's binding.
+  Node.js), startup interface or discovery other than this revision's binding,
+  and a component that readiness cannot probe.
   A catalog entry's `image` must be exactly one adopted image.
 - [`check-target`](#existing-target-readiness) requires each running target to
   be its catalog image by digest and checks live its OS identity and every
-  component the manifest states with a fixed probe.
+  component the manifest states.
 - The [image demonstration](../tests/README.md#image-demonstration), the
   [stock witness](../tests/README.md#controlled-stock-directtarget-witness) and
   the [transition check](#native-state-transitions) run the pulled image.
@@ -346,7 +347,7 @@ Limits of the verification:
 - `check-target` ties the container to the adopted digest through Docker's
   image metadata (`RepoDigests`) and trusts the Docker daemon. It checks live
   only the native, restic and entrypoint bytes, the OS identity and the
-  versions of the components the manifest states with a fixed probe. It does
+  versions of the components the manifest states. It does
   not detect a change to other files of a running container.
 - An image inventory or an approved environment catalog does not enforce R13's
   prohibition against arbitrary unprivileged downloads: execution agents can

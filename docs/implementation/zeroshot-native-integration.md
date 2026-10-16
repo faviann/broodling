@@ -272,7 +272,7 @@ the catalog is loaded.
    "adoption": {"kind": "broodling.target-environment-adoption/v1", "release": "dotnet-r2", "sha256": "<record>"},
    "manifest": {"schema": "zeroshot-environment.manifest/v2", "sha256": "<manifest>"},
    "image": "ghcr.io/…@sha256:…", "platform": "linux/amd64", "os": "Debian GNU/Linux 13 (trixie)",
-   "components": {"native": "10.10.0", "codex": "0.155.0", "…": "…"},
+   "components": {"native": ["10.10.0"], "codex": ["0.155.0"], "…": ["…"]},
    "target": {"environment": "dotnet", "origin": "https://zeroshot-dotnet.dev.faviann.com",
      "container": "…", "stateMount": "…", "homeMount": "…"}}}
 ```
