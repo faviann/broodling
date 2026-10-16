@@ -55,9 +55,9 @@ options.
   container or origin is therefore a stopped-target transition after which its
   unfinished Attempts are retired and replaced.
 - **Image swap.** Changing an entry's image is drained maintenance. An Attempt
-  prepared for the old image refuses dispatch (`environment_changed`), and its
-  Replacement takes the new image only with the operator's
-  `replace-attempt --update-environment`, which the successor records.
+  prepared for the old image is replaced onto the new one only with the
+  operator's `replace-attempt --update-environment`
+  ([environment selection](../implementation/zeroshot-native-integration.md#environment-selection)).
 
 ## Contract for homelab-iac
 

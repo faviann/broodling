@@ -548,10 +548,10 @@ To change a target's image, its catalog entry's `image`, the procedure needs:
   never initialize over existing state.
 - Unchanged container root with Docker's default capabilities, the
   `zeroshot-<name>` alias, `zeroshot-tls` and its root, the entry's name,
-  origin, container and mounts, and `directRootCertificate`. Correlated Attempts
-  still read, wait and stop at their retained origin. An Attempt prepared for
-  the old image refuses dispatch and replay (`environment_changed`): retire it
-  and replace it with `replace-attempt --update-environment`.
+  origin, container and mounts, and `directRootCertificate`. Retire Attempts
+  prepared for the old image and replace them with
+  `replace-attempt --update-environment`
+  ([environment selection](../docs/implementation/zeroshot-native-integration.md#environment-selection)).
 - Native UID ownership preserved: no recursive ownership change.
 - Afterwards, `check-target` with that target's inventory `imageId` updated to
   the new image.
@@ -744,9 +744,8 @@ authority only, with a default port omitted and never port 0. `container`,
 `stateMount` and `homeMount` are the target's container name and host
 directories, which each Attempt retains and every stopped-target check must
 name. An existing Attempt continues only through its retained environment and
-target: dispatch refuses `environment_changed` when its entry was removed or
-now names another image, origin, container or mounts, and reads, wait and stop
-refuse `environment_unavailable` when no entry of its name has its origin.
+target
+([environment selection](../docs/implementation/zeroshot-native-integration.md#environment-selection)).
 
 `controlTokenFile` is the required absolute path of the file holding that
 target's private control token, as the process reading the configuration sees
@@ -1250,11 +1249,10 @@ target creation.
   always connects to its retained target with the token configured for that
   origin, and a token configured for one origin is never sent to another.
 - Removing an entry, changing its image, origin, container or mounts, or giving
-  its origin to another name rebinds nothing: dispatch and replay refuse
-  `environment_changed`, contacting no target. Reads, wait and stop refuse
-  `environment_unavailable` only when the catalog no longer names the
-  environment at its retained origin. Keep an origin, its storage
-  and its catalog entry while unfinished work retains them.
+  its origin to another name rebinds nothing; the
+  [environment selection](../docs/implementation/zeroshot-native-integration.md#environment-selection)
+  checks refuse instead. Keep an origin, its storage and its catalog entry
+  while unfinished work retains them.
 - A token change never amends a Contract, Prepared submission, Native
   correlation or retained target binding, and a refused or missing token never
   selects another target, starts a new Attempt or resets storage.

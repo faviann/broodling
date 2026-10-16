@@ -72,18 +72,14 @@ adoptions, and callers, requests and Contracts cannot select an environment,
 image, origin or toolchain: `POST /submissions` refuses any member other than
 `issueUrl`.
 
-Preparation [resolves](zeroshot-native-integration.md#environment-selection)
-the repository's declaration at B1, or the default, once. Its refusals
-(`environment_declaration_invalid`, `environment_declaration_conflict`,
-`environment_requirement_unsupported`, `environment_unapproved`,
-`environment_default_missing`) are not retryable: progression stops the
-submission with the code until the repository or catalog changes and the
-submission is resumed. Dispatch and replay refuse with `environment_changed`
-unless the catalog still serves the retained resolution exactly; observation,
-wait and stop fail with the transport kind `environment_unavailable` unless the
-catalog still names the retained environment at its retained origin. With a
-configuration, the `wait` and `stop` commands refuse before contact or
-abandonment when it has no entry of the retained name at the retained origin.
+Preparation resolves the repository's declaration at B1, or the default, once.
+[Environment selection](zeroshot-native-integration.md#environment-selection)
+states the declaration, its refusal codes, the retained resolution and the
+checks that dispatch, replay, observation, wait and stop apply to it. Its
+refusals are not retryable: progression stops the submission with the code
+until the repository or catalog changes and the submission is resumed. With a
+configuration, the `stop` command refuses before abandonment when it has no
+entry of the retained name at the retained origin.
 
 Retain `status.Revision.ContractRevisionId` and the exact Attempt ID from
 `status.Attempts`; `status.Submissions` records native correlation. Status/history

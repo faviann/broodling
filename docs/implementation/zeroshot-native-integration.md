@@ -263,6 +263,23 @@ configure) and `environment_default_missing`. An adoption whose native, Codex
 or startup interface this release's binding does not support is refused when
 the catalog is loaded.
 
+The resolution is fixed for the Attempt's lifetime: adding an environment or
+changing the default affects only new Attempts. Dispatch, first send and replay
+alike, requires the current catalog to serve the retained environment exactly:
+the same name, image, adoption and manifest digests, origin, container and
+mounts. Otherwise it refuses with `environment_changed`, naming what changed and
+the Attempt's retained environment, before intent and contact. Observation, wait
+and stop require only that the catalog still names the retained environment at
+its retained origin; otherwise they fail with the transport kind
+`environment_unavailable` and send nothing, so a token never reaches an origin
+under another name. A correlated Attempt therefore still reads, waits and stops
+after an image swap. The remedy is stop, retirement under verified maintenance
+and a Replacement. A Replacement inherits its predecessor's resolution and is
+refused with `environment_changed` unless the catalog still serves it exactly;
+with `--update-environment` it resolves the predecessor's environment name
+against the current catalog instead
+([replacement](dotnet-retirement-replacement.md)).
+
 `binding.environment` keeps the requirement apart from its resolution:
 
 ```json
@@ -345,13 +362,8 @@ whole operation shares the 60-second submit budget. Credentials never enter
 SQLite, the frozen request or a diagnostic, and rotating them changes neither
 identity nor the request bytes.
 
-Before opening its client, dispatch (first send and replay alike) requires the
-current catalog to serve the retained environment exactly: the same name, image,
-adoption and manifest digests, origin, container and mounts. Otherwise it
-refuses with `environment_changed`, naming what changed and the Attempt's
-retained environment, before intent and contact; the remedy is stop, retirement
-under verified maintenance and a Replacement with an explicit environment
-update. A change of the default alone does not affect it.
+Before opening its client, dispatch (first send and replay alike) applies the
+[retained-environment check](#environment-selection), before intent and contact.
 
 The send also carries the target's private control token as its bearer (#187).
 It is read, like the root, when the operation's SDK client is created, before
@@ -558,10 +570,8 @@ After durable correlation, wait and stop receive the retained run binding
 (origin, run ID, frozen title, size and PR source) through the
 [run reader and stopper](#directtarget-run-reader-and-stopper). They need no
 workspace or dispatch credentials, only the current control token for the
-retained origin. Observation, wait and stop first require the catalog to still
-name the retained environment at that origin; otherwise they fail with the fixed
-transport kind `environment_unavailable` and send nothing, so a token never
-reaches an origin under another name. Cancelling or killing a waiter detaches that
+retained origin. Observation, wait and stop first apply the
+[retained-environment check](#environment-selection). Cancelling or killing a waiter detaches that
 caller rather than stopping native execution. Completed receipt replay needs no
 target and no token.
 
