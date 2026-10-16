@@ -458,7 +458,7 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 
 ### Current adoption record
 
-- Tested code revision: `0e8bb17669cdf893b2ac0c71fc836e3b2064d64a` (#246). Later commits that only
+- Tested code revision: `ed4cb5e01ae73cf701bb2332a67c3c30a7cefd64` (#246). Later commits that only
   edit this record or other documentation leave it valid; a code change
   requires a new run. #246 moves the SDK, native, adopted image and asset
   together.
@@ -478,32 +478,29 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
   `7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693`, from
   `ghcr.io/the-open-engine/zeroshot-target:10.12.0@sha256:9eca152ead38e6589b76b13cca802ce2e7538579b851566a891ed470b069bd51`;
   Claude Code 2.1.276 with the managed settings
-  `cbedfec6d9c688288255c084f95269b4198d86435dbb48953ca4e71dac961b0b`. Target:
-  `dotnet-r4`,
-  `ghcr.io/faviann/zeroshot-environments/dotnet@sha256:6536a8b9c3e7b80b5396b36e0f40e5dc9eda2ed9743eba6821a1b40bc56bb156`.
+  `a9e2560ae3194f6bcc4068b1595b981e0f86a69087c2e0fb9cbe75a3053a809f`. Target:
+  `dotnet-r5`,
+  `ghcr.io/faviann/zeroshot-environments/dotnet@sha256:0a8829f14fbc3a1442877ebfada5ffea8af2d176efc995bb98d8a0f39ee6a81e`.
 - Fresh store, from `initialize-store` at that revision: format
   `broodling.application`, schema version 1, definition SHA-256
   `39c30308ebb867f0f8283b4bd7d2bb3b9298dfc2ca78b54a5c1b2b0876b28ab8`, upgrading
   from nothing, unchanged from the #235 record; it is not yet frozen.
 - Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.9.1, with no
   Python environment and every image test on the pulled adopted image, on a
-  16-core host whose load average from other work was 5 to 10: the full suite
-  passed 773 of 774, none skipped, and the lane passed 293 of 294 on its
-  second run. In both, the one failure was
+  16-core host whose load average from other work was 6 to 7: the full suite
+  passed 776 of 777, none skipped, and the lane passed 293 of 294, each on its
+  first run. In both, the one failure was
   `ApprovalDecisionIsAPublicCommentOnTheRepository`, which fails by design
-  while the approval decision is pending. The lane's first run also failed
-  `ObservationDetachesOnceItsAttemptLosesAuthority` with `fatal: bad config
-  line 1 in file .git/config` in fixture setup
-  ([#251](https://github.com/faviann/broodling/issues/251)). The Release build succeeded
+  while the approval decision is pending. The Release build succeeded
   with no warnings, and the [image demonstration](#image-demonstration) passed
   on the Broodling image built from that revision with the adopted image,
-  where `check-target` reported `dotnet-r4`. That Broodling image restored the
+  where `check-target` reported `dotnet-r5`. That Broodling image restored the
   `.nupkg` in locked mode from GitHub Packages; the suite's restore used the
   same package from the host's NuGet global packages folder.
 - Baseline: the transition check ran as a restart of the adopted image over its
   own state, which is also the explicit control-token rotation (#187). No
-  transition source is listed: `dotnet-r4` is the first adopted environment
-  with native 10.12.0.
+  transition source is listed: no deployment runs an earlier native 10.12.0
+  environment, so `dotnet-r5` needs none.
 
 ## Evidence limits and history
 
