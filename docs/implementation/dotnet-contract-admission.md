@@ -117,8 +117,13 @@ same admission with the one built-in proposer
 ([#112](https://github.com/faviann/broodling/issues/112)). It is not
 caller-selectable and has producer `model_extraction`. It calls the supported
 model `claude-opus-5-5` through the OpenAI-compatible Chat Completions API
-(`POST /v1/chat/completions`, JSON-object response format) of the sub2api
-gateway at exactly `https://gateway.ai.faviann.com`. The
+(`POST /v1/chat/completions`) of the sub2api gateway at exactly
+`https://gateway.ai.faviann.com`. Each call requests at most 32,000 output
+tokens. Without that limit the gateway caps a call at 8,192 tokens, adaptive
+thinking included. Each call also asks for the `json_object` response format,
+but on this gateway the format is advisory: sub2api drops `response_format` on
+its Claude Chat Completions path. The strict parse of the final reply, below,
+is what enforces the JSON object. The
 [operations guide](../../deployment/README.md#bundled-contract-proposer)
 describes its configuration.
 
