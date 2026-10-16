@@ -70,7 +70,7 @@ origin or noncanonical spelling is accepted. Targets bound to a loopback origin
 are not adopted.
 
 Success returns `{"targets": [...]}`, with one element per target:
-`environment`, the adopted `release` (such as `dotnet-r3`), `containerName`,
+`environment`, the adopted `release` (such as `dotnet-r4`), `containerName`,
 `containerId`, `imageId`, `directOrigin`, the live `os` and the checked
 `versions`.
 Version facts are the checked pins, not raw process output. Refusal returns
@@ -89,7 +89,8 @@ that is malformed, of a schema other than `zeroshot-environment.manifest/v2` or
 a platform other than `linux/amd64`, or that does not name the
 [DirectTarget binding](zeroshot-native-integration.md#pinned-dependencies)'s
 native release, source revision and `zeroshot` and `restic` paths and SHA-256,
-the approved Claude Code version, the startup interface
+the approved Claude Code version and managed settings path and SHA-256, the
+startup interface
 `zeroshot-environment.direct-target-startup/v1` with the command
 `/usr/local/bin/broodling-target`
 ([entrypoint boundary](../../deployment/README.md#entrypoint-boundary)) and
@@ -149,9 +150,9 @@ name. One shell exec per target runs a probe for the live OS identity and every
 component its manifest states, and reports each missing or differing component
 by name; a manifest stating a component with no probe below is refused when the
 adoption set loads; one target's mismatch makes the whole installation
-not ready. The native version, the Claude Code version and the `zeroshot` and
-`restic` hashes are the binding's, which the manifest names; the other
-observations are the manifest's:
+not ready. The native version, the Claude Code version and the `zeroshot`,
+`restic` and managed settings hashes are the binding's, which the manifest
+names; the other observations are the manifest's:
 
 | Probe | Required observation |
 | --- | --- |
@@ -166,6 +167,7 @@ observations are the manifest's:
 | `sha256sum /usr/local/bin/zeroshot` | `7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693` |
 | `sha256sum /usr/local/bin/restic` | `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, the `restic` that native run allocation requires |
 | `sha256sum /usr/local/bin/broodling-target` | The manifest's `integration.broodling-entrypoint.sha256` |
+| `sha256sum /etc/claude-code/managed-settings.json` | `cbedfec6d9c688288255c084f95269b4198d86435dbb48953ca4e71dac961b0b`; a missing file fails the exec |
 | `/usr/bin/gh api graphql --paginate --slurp --help` | Declares the `--slurp` flag |
 | Short Python exec | `setgroups([10002])`, `setgid(10002)`, `setuid(10002)` and assertions of the resulting UID/GID succeed |
 

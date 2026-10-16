@@ -39,8 +39,8 @@ completion/current-authority loss atomically for the exact Attempt.
 
 The [`DirectTargetBinding`](../../src/Broodling/DirectTargetBinding.cs) pins the
 native release, source revision, Linux x86-64 `zeroshot` and `restic`
-executables, the Claude Code release, and the approved execution
-asset, recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json).
+executables, the Claude Code release and its managed settings, and the
+approved execution asset, recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json).
 Asset loading, each prepared submission's retained binding and its
 reopen/dispatch check, target readiness,
 [`generate.sh`](../../src/Broodling/execution-assets/generate.sh) and the release
@@ -122,7 +122,9 @@ native digest. The [approval manifest](../../src/Broodling/execution-assets/appr
   the Linux x86-64 executable `7b3c74db…52693` and the `restic` executable
   (`90ab22a5…8a8cf`), with upstream's target image that carries both
   (`native.image`).
-- Claude Code `2.1.276` (`claude`), the harness the asset's runtime runs on.
+- Claude Code `2.1.276` (`claude`), the harness the asset's runtime runs on,
+  with the managed settings `/etc/claude-code/managed-settings.json`
+  (`cbedfec6…61b0b`) that the adopted environment installs.
   Codex and Copilot CLI are not approved.
 - The policy: Claude Code / `gateway` / `claude-opus-5-5` / medium / small / execution
   sessions, the symbolic `gateway` connection on every agent node, native's
@@ -268,9 +270,9 @@ no numeric version, or a name that is not a DNS label),
 `environment_declaration_conflict` (a repeated member),
 `environment_requirement_unsupported` (a version other than 1 or any other
 member, such as `sdk`), `environment_unapproved` (a name the catalog does not
-configure) and `environment_default_missing`. An adoption whose native, Claude Code
-or startup interface this release's binding does not support is refused when
-the catalog is loaded.
+configure) and `environment_default_missing`. An adoption whose native, Claude
+Code, Claude Code managed settings or startup interface this release's binding
+does not support is refused when the catalog is loaded.
 
 The resolution is fixed for the Attempt's lifetime: adding an environment or
 changing the default affects only new Attempts. Dispatch, first send and replay
@@ -297,7 +299,7 @@ predecessor's environment name against the current catalog instead
 ```json
 {"requirement": {"name": "dotnet",
    "declaration": {"path": ".broodling/environment.json", "commit": "<B1>", "blob": "<oid>", "sha256": "<hex>"}},
- "resolution": {"adoption": {"kind": "broodling.target-environment-adoption/v1", "release": "dotnet-r3", "sha256": "<record>"},
+ "resolution": {"adoption": {"kind": "broodling.target-environment-adoption/v1", "release": "dotnet-r4", "sha256": "<record>"},
    "manifest": {"schema": "zeroshot-environment.manifest/v2", "sha256": "<manifest>"},
    "image": "ghcr.io/…@sha256:…", "platform": "linux/amd64", "os": "Debian GNU/Linux 13 (trixie)",
    "components": {"native": ["10.12.0"], "claude": ["2.1.276"], "…": ["…"]},

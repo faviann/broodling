@@ -111,7 +111,7 @@ builds and publishes ([adopted target environment](#adopted-target-environment))
 | Service | Source | Image | User |
 | --- | --- | --- | --- |
 | `broodling` | [`Broodling.Dockerfile`](Broodling.Dockerfile), repository root | `ghcr.io/faviann/broodling` | `1654:1654` |
-| `zeroshot-<name>`, such as `zeroshot-dotnet` | the adoption record, such as [`dotnet-r3.adoption.json`](../src/Broodling/environments/dotnet-r3.adoption.json) | the record's `image` by digest (`dotnet-r3`) | container root |
+| `zeroshot-<name>`, such as `zeroshot-dotnet` | the adoption record, such as [`dotnet-r4.adoption.json`](../src/Broodling/environments/dotnet-r4.adoption.json) | the record's `image` by digest (`dotnet-r4`) | container root |
 | `zeroshot-tls` | not built | `caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b` | `10443:10443` |
 
 To build and check them locally from the repository root:
@@ -120,7 +120,7 @@ To build and check them locally from the repository root:
 export NuGetPackageSourceCredentials_github="Username=YOUR_GITHUB_USER;Password=READ_PACKAGES_TOKEN"
 docker build -f deployment/Broodling.Dockerfile \
   --secret id=nuget-github,env=NuGetPackageSourceCredentials_github -t broodling:REVIEWED_REVISION .
-target="$(jq -r .image src/Broodling/environments/dotnet-r3.adoption.json)"
+target="$(jq -r .image src/Broodling/environments/dotnet-r4.adoption.json)"
 docker pull "$target"
 tests/images/demonstrate.sh broodling:REVIEWED_REVISION "$target"
 ```
@@ -271,18 +271,18 @@ Publication alone neither adopts nor deploys an image, and adoption deploys
 nothing.
 
 The adoption record bundled with the release,
-[`dotnet-r3.adoption.json`](../src/Broodling/environments/dotnet-r3.adoption.json)
+[`dotnet-r4.adoption.json`](../src/Broodling/environments/dotnet-r4.adoption.json)
 (`broodling.target-environment-adoption/v1`), names one adopted environment
 release:
 
-- `environment`: the environment release identifier, `dotnet-r3`. It is the
+- `environment`: the environment release identifier, `dotnet-r4`. It is the
   producer's `<environment>-r<N>`, separate from the native release that the
   manifest records. Several environments can carry one native release.
 - `producer`: the repository, the release and the release asset the manifest
   came from.
 - `manifest`: the retained exact bytes of that `manifest.json`
   (`zeroshot-environment.manifest/v2`), at
-  [`dotnet-r3.manifest.json`](../src/Broodling/environments/dotnet-r3.manifest.json),
+  [`dotnet-r4.manifest.json`](../src/Broodling/environments/dotnet-r4.manifest.json),
   and their SHA-256. A mutable registry or release lookup is not evidence.
 - `image`: the adopted image by digest, which the manifest also records.
 
@@ -290,11 +290,24 @@ The manifest states the image digest, the recipe revision, the platform, the
 OS and base image identity, every installed component with its exact version,
 native's identity, the harness versions and the startup interface versions.
 Each component names what fixes its bytes: its downloaded artifacts' checksums,
-or the base image digest that encloses it. `dotnet-r3` carries native 10.12.0
+or the base image digest that encloses it. `dotnet-r4` carries native 10.12.0
 (upstream's source build, executable SHA-256 `7b3c74db…`), Claude Code 2.1.276,
 Codex 0.155.0 and Copilot CLI 1.0.86 on harness Node.js v24.22.0, .NET SDK
 10.0.401, gh 2.101.0 and Debian 13. Claude Code is a native executable; the
 image's harness launcher starts it directly, without Node.js.
+
+`dotnet-r4` also installs Claude Code's managed settings,
+`/etc/claude-code/managed-settings.json`, owned by root with mode `0644` in a
+`0755` directory. The manifest records their SHA-256 under
+`harnesses.claude.managedSettings`:
+`cbedfec6d9c688288255c084f95269b4198d86435dbb48953ca4e71dac961b0b`. Claude Code
+reads them in every process, whatever environment native gives it, and they
+take precedence over user and repository settings. They set
+`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` and empty commit and PR
+attribution, and allow only managed hooks and MCP servers. The file defines
+none.
+When the file is missing, Claude Code runs without these settings and reports
+nothing. Adoption and `check-target` therefore require the file's bytes.
 
 Adoption is checked in three places:
 
@@ -304,16 +317,18 @@ Adoption is checked in three places:
   fixed by an artifact checksum or the base digest. The image embeds this
   revision's entrypoint. The pulled image is the manifest's platform and
   digest, and its executables' bytes, every component version and its full
-  Debian package list are the manifest's.
+  Debian package list are the manifest's. Native's first agent identity,
+  `20000:10002`, reads the managed settings with the approved SHA-256.
 - Loading the bundled adoption set, at every configuration read: it refuses a
   manifest that is not the record's bytes, a malformed manifest, a schema other
   than `v2`, a platform other than `linux/amd64` and a native, Claude Code,
-  startup interface or discovery other than this revision's binding,
+  Claude Code managed settings, startup interface or discovery other than this
+  revision's binding,
   and a component that readiness cannot probe.
   A catalog entry's `image` must be exactly one adopted image.
 - [`check-target`](#existing-target-readiness) requires each running target to
-  be its catalog image by digest and checks live its OS identity and every
-  component the manifest states.
+  be its catalog image by digest and checks live its OS identity, every
+  component the manifest states and the managed settings' bytes.
 - The [image demonstration](../tests/README.md#image-demonstration), the
   [stock witness](../tests/README.md#controlled-stock-directtarget-witness) and
   the [transition check](#native-state-transitions) run the pulled image.
@@ -336,7 +351,10 @@ versions are the manifest's. The image sets `DISABLE_AUTOUPDATER=1` and `COPILOT
 but native 10.12.0 clears its environment before it starts an agent process, so
 those values reach only processes that inherit the container's environment,
 such as `docker exec`. Native sets `COPILOT_AUTO_UPDATE=false` for Copilot
-itself; it sets no update control for Codex or Claude Code.
+itself; it sets no update control for Codex or Claude Code. The managed
+settings reach Claude Code anyway: Claude Code's documentation says that
+`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` also turns off its automatic update.
+No update host was contacted in the [agent traffic capture](#claude-code-agent-traffic).
 
 Limits of the verification:
 
@@ -347,9 +365,16 @@ Limits of the verification:
   by the base digest; the manifest records no per-package checksum for them.
 - `check-target` ties the container to the adopted digest through Docker's
   image metadata (`RepoDigests`) and trusts the Docker daemon. It checks live
-  only the native, restic and entrypoint bytes, the OS identity and the
-  versions of the components the manifest states. It does
-  not detect a change to other files of a running container.
+  only the native, restic, entrypoint and managed settings bytes, the OS
+  identity and the versions of the components the manifest states. It reads
+  the managed settings as container root; the image digest fixes the modes that
+  let agents read them. It does not detect a change to other files of a running
+  container.
+- The managed settings do not stop a target repository's own
+  `.claude/settings.json` `env` block or `apiKeyHelper`
+  ([#249](https://github.com/faviann/broodling/issues/249)). Such a repository
+  can raise effort or output tokens, or send the gateway key elsewhere. Run
+  Attempts only against repositories the owner controls.
 - An image inventory or an approved environment catalog does not enforce R13's
   prohibition against arbitrary unprivileged downloads: execution agents can
   still fetch and run tools in their own run home.
@@ -505,7 +530,7 @@ Transitions are established only within one native release and executable,
 the DirectTarget binding's, so a listed image must carry this revision's native
 `zeroshot 10.12.0` with its executable SHA-256 (`7b3c74db…`). A source is a
 previously adopted environment image, or another published image with that
-native. The list is empty. `dotnet-r3` is the only adopted environment with
+native. The list is empty. `dotnet-r4` is the only adopted environment with
 native 10.12.0, and its own manifest lists no `nativeStateTransitions.from`
 either. #246 moved the binding to native 10.12.0, so `dotnet-r2` and the other
 images with native 10.10.0 are not sources. Earlier, #215 replaced the initial native, asset, receipt and store definition, and
@@ -907,7 +932,8 @@ native ends runs interrupted by a restart, and no dispatch passes the pause, so
 no agent starts on a target before its check.
 
 The [adopted environment](#adopted-target-environment) supplies each target
-image: `dotnet-r3` carries native **10.12.0**, Claude Code **2.1.276** and gh
+image: `dotnet-r4` carries native **10.12.0**, Claude Code **2.1.276** with its
+managed settings, and gh
 **2.101.0**. Target provisioning is operator-owned and
 separately authorized; nothing here deploys it.
 
@@ -1234,7 +1260,7 @@ its own origin (by convention `https://zeroshot-<name>.dev.faviann.com`), with
 its own site file, state, home, bootstrap key and control token. A stable name
 such as `dotnet` is upgraded by swapping its image in drained maintenance
 ([native-state transitions](#native-state-transitions)); a release-specific
-name such as `dotnet-r3` is a separate target for testing, removed once the
+name such as `dotnet-r4` is a separate target for testing, removed once the
 stable name is promoted. There is no load balancing, failover or on-demand
 target creation.
 
@@ -1370,8 +1396,39 @@ both turns on 2026-10-16 returned a `read_reference` call and a JSON object. The
 probe ran Claude Code with `--json-schema` and a Read tool through the gateway
 and received `structured_output`. Proposal quality on real issues is still unverified.
 
+<a id="claude-code-agent-traffic"></a>The agents' Claude Code traffic was
+captured offline on 2026-10-16 (#246) in the published `dotnet-r4` image
+(`6536a8b9…`), with a dummy key behind a local TLS logger that records every
+host. Claude Code 2.1.276 ran as native's first agent identity, `20000:10002`,
+with native 10.12.0's hosted environment and arguments (`--model
+claude-opus-5-5 --effort medium --dangerously-skip-permissions`). The
+repository case had session hooks and a `.mcp.json` server that each write a
+marker. The native case ran the image's own native 10.12.0 `single-worker`
+graph through its local adapter as `20000:10002`, with only the `gateway`
+connection and a fake gateway that streamed plain-text replies. The
+`dotnet-r3` rows are the same cases on the image without managed settings:
+
+| Case | Requests per host | Model requests (effort) | Title call | Attribution reminder | Hooks or MCP ran |
+| --- | --- | --- | --- | --- | --- |
+| `dotnet-r4`, empty workspace | gateway 1 | 1 (medium) | no | no | no |
+| `dotnet-r4`, repository | gateway 1 | 1 (medium) | no | no | no |
+| `dotnet-r4`, repository, completed turn | gateway 2 | 2 (medium, medium) | no | no | no |
+| `dotnet-r4`, native run, 3 turns | gateway 6 | 6 (medium) | no | no | not tested |
+| `dotnet-r3`, repository | `api.anthropic.com` 5, gateway 2 | 2 (high title, medium) | yes | yes | yes |
+| `dotnet-r3`, native run, 3 turns | `api.anthropic.com` 30, gateway 7 | 7 (high title, 6 medium) | yes | yes | not tested |
+
+Every `dotnet-r4` request was a `POST /v1/messages` to the gateway carrying the
+key as `x-api-key`. The second request of a completed turn is Claude Code's
+structured-output correction in the same conversation, because the fake reply
+was plain text. On `dotnet-r3`, the `api.anthropic.com` requests carried the
+gateway key as well. The only Claude Code diagnostic on `dotnet-r4` was
+`unrecognized_model` for `claude-opus-5-5`. The native run used native's local
+adapter, not a hosted lane, and no real task has run through native and the
+gateway against GitHub.
+
 Supply the key through the same secret source as dispatch credentials. It is
-sent only as the gateway's bearer token. It is never written to the
+sent only to the gateway: the proposer sends it as the bearer token, and the
+agents' Claude Code sends it as `x-api-key`. It is never written to the
 RequestBundle, Contract revision, refusal findings, submission rows or error
 messages. A missing key, another base URL or a gateway refusal is a
 non-retryable `ContractProposerError`. Transport loss, timeout, HTTP

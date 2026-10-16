@@ -82,8 +82,9 @@ DirectTarget runs an adopted environment image (#234):
 owns its recipe, inventory, image and publication, and Broodling owns the
 adoption record (the exact producer manifest bytes, their digest and the image
 digest), the Execution asset and its approval, and the target entrypoint's
-startup interface. The adopted `dotnet-r3` carries native 10.12.0 as upstream's
-source build and Claude Code 2.1.276
+startup interface. The adopted `dotnet-r4` carries native 10.12.0 as upstream's
+source build and Claude Code 2.1.276 with managed settings that keep its traffic
+on the gateway and lock out repository hooks and MCP servers
 ([adopted target environment](../../deployment/README.md#adopted-target-environment)).
 Broodling submits the
 release-bundled approved execution asset (native 10.12.0's standard
@@ -222,7 +223,7 @@ the transition check, and publishes only the Broodling image, with a release
 record naming the adopted target; the binding moves to the source-built native
 executable and Codex 0.155.0 under explicit Execution asset review. #246 moves
 the binding to native 10.12.0, `Zeroshot.Client` 10.12.0.1-preview.1 and the
-adopted `dotnet-r3`, and regenerates the asset with one uniform Claude Code
+adopted `dotnet-r4`, and regenerates the asset with one uniform Claude Code
 runtime through the sub2api gateway; a run status or force reply without a
 source is refused as a foreign run. #241 makes each native submission carry its RequestBundle
 references in place of #114's agent reads from Broodling; see
