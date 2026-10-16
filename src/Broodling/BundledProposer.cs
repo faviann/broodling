@@ -39,8 +39,9 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
     internal const string Model = "claude-opus-5-5";
     internal const string ReadTool = "read_reference";
     internal const int MaxTurns = 8;
-    // The gateway otherwise caps a turn at 8192 tokens, adaptive thinking included.
-    internal const int MaxOutputTokens = 32000;
+    // The gateway otherwise caps a turn at 8192 tokens, adaptive thinking included. A larger cap than the model can
+    // generate within TurnTimeout only turns a length failure into a timeout the gateway still bills in full.
+    internal const int MaxOutputTokens = 12000;
     internal const int ReadChunkBytes = 64 * 1024;
     internal const int ReadBudgetBytes = 512 * 1024;
     private const int ResponseBytes = 4 * 1024 * 1024;
@@ -261,6 +262,7 @@ internal sealed class BundledProposer(BroodlingStore store, GatewayCredentials c
         {
             ["model"] = Model,
             ["max_tokens"] = MaxOutputTokens,
+            ["reasoning_effort"] = "medium",
             ["messages"] = messages.DeepClone(),
             ["tools"] = new JsonArray(ReadToolDefinition.DeepClone()),
             ["tool_choice"] = final ? "none" : "auto",

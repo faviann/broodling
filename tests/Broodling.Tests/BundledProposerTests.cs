@@ -34,7 +34,8 @@ public sealed class BundledProposerTests
         await Assert.That(gateway.Uris[0]).IsEqualTo(new Uri("https://gateway.ai.faviann.com/v1/chat/completions"));
         await Assert.That(gateway.Authorizations[0]).IsEqualTo("Bearer " + ApiKey);
         await Assert.That((string)first["model"]!).IsEqualTo("claude-opus-5-5");
-        await Assert.That(gateway.Requests.Select(turn => (int)turn["max_tokens"]!).Distinct()).IsEquivalentTo([32000]);
+        await Assert.That(gateway.Requests.Select(turn => (int)turn["max_tokens"]!).Distinct()).IsEquivalentTo([12000]);
+        await Assert.That(gateway.Requests.Select(turn => (string)turn["reasoning_effort"]!).Distinct()).IsEquivalentTo(["medium"]);
         await Assert.That((string)first["tools"]![0]!["function"]!["name"]!).IsEqualTo("read_reference");
         var context = JsonNode.Parse((string)first["messages"]![1]!["content"]!)!;
         var request = bundle.References.Single(reference => reference.ReferenceId == "request");

@@ -118,9 +118,14 @@ same admission with the one built-in proposer
 caller-selectable and has producer `model_extraction`. It calls the supported
 model `claude-opus-5-5` through the OpenAI-compatible Chat Completions API
 (`POST /v1/chat/completions`) of the sub2api gateway at exactly
-`https://gateway.ai.faviann.com`. Each call requests at most 32,000 output
-tokens. Without that limit the gateway caps a call at 8,192 tokens, adaptive
-thinking included. Each call also asks for the `json_object` response format,
+`https://gateway.ai.faviann.com`. Each call sends `reasoning_effort` `medium`
+and requests at most 12,000 output tokens. Without that limit the gateway caps
+a call at 8,192 tokens, adaptive thinking included. The proposer waits at most
+3 minutes for a reply, which arrives only when it is complete. A full 12,000
+tokens in 180 seconds needs about 67 tokens a second, so a reply long enough
+to use a higher limit would end in a timeout rather than a `length` finish. The
+gateway still finishes and bills a call after the proposer gives up on it. Each call also asks for the
+`json_object` response format,
 but on this gateway the format is advisory: sub2api drops `response_format` on
 its Claude Chat Completions path. The strict parse of the final reply, below,
 is what enforces the JSON object. The
