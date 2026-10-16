@@ -453,7 +453,7 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 
 ### Current adoption record
 
-- Tested code revision: `092b87431acf85d6fd7951f12f3ebc06757e503e` (#235). Later commits that only
+- Tested code revision: `6825c1fed37270d57ec0b5c78e8277821af4157c` (#235). Later commits that only
   edit this record or other documentation leave it valid; a code change
   requires a new run. #235 adds the environment catalog, per-Attempt
   environment resolution and one target per environment, with the same
@@ -476,23 +476,20 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
   `ghcr.io/faviann/zeroshot-environments/dotnet@sha256:5d36313b1d38ad06c194c53b8f08a71d4bc61527e4e06d56b96c9a835ba54a1d`.
 - Fresh store, from `initialize-store` at that revision: format
   `broodling.application`, schema version 1, definition SHA-256
-  `270eda3579365c45aa6e7c91ae86fc7e9c115b74e6ff797342a37faa1c694318`, upgrading
+  `39c30308ebb867f0f8283b4bd7d2bb3b9298dfc2ca78b54a5c1b2b0876b28ab8`, upgrading
   from nothing. #235 redefined the unreleased version in place; it is not yet
   frozen.
-- Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.9.0, with no
+- Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.9.1, with no
   Python environment and every image test on the pulled adopted image: the lane
-  passed 291 of 291; the full suite passed 762 of 762 in each of two runs, none
+  passed 289 of 289; the full suite passed 758 of 758 in each of two runs, none
   skipped; the Release build succeeded with no warnings; and the
   [image demonstration](#image-demonstration) passed on the Broodling image
   built from that revision with the adopted image. That Broodling image
   restored the same `.nupkg` (SHA-256 above, locked content hash checked) from
   GitHub Packages; the suite's restore used the same package from the host's
-  NuGet global packages folder. Of three earlier full runs on this host at
-  the preceding revision, two failed under load: one concurrent open refused
-  in `StoreLifecycleTests`, and one host-port collision between two stock
-  targets that failed two `StockPullRequestDeliveryTests` cases. One of two
-  runs of `main` failed one `AttemptCompletionTests` case. Each passed in later
-  runs.
+  NuGet global packages folder. No test failed or was rerun in this run's
+  lane and full suites, on a 16-core host whose load average from other work
+  was 9 to 16 at their starts.
 - Baseline: the transition check ran as a restart of the adopted image over its
   own state, which is also the explicit control-token rotation (#187). No
   transition source is listed. The asset bytes, native executable, Codex and
