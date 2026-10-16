@@ -54,7 +54,7 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
                 && Text(native.GetProperty("restic"), "sha256") == DirectTargetBinding.ResticExecutableSha256,
                 "The environment's native identity differs from the DirectTarget binding.");
             var tools = root.GetProperty("tools");
-            Require(Text(root.GetProperty("harnesses").GetProperty("claude"), "version") == DirectTargetBinding.ClaudeVersion,
+            Require(Text(root.GetProperty("harnesses").GetProperty(DirectTargetBinding.Harness), "version") == DirectTargetBinding.ClaudeVersion,
                 "The environment's Claude Code differs from the approved harness.");
             var startup = root.GetProperty("startupInterfaces").GetProperty("entrypoint");
             Require(Text(startup, "version") == StartupInterface

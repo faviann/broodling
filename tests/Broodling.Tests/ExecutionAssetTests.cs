@@ -85,9 +85,10 @@ public sealed class ExecutionAssetTests
         await Assert.That(JsonNode.DeepEquals(manifest["asset"], new JsonObject { ["file"] = DirectTargetBinding.AssetFile,
             ["bytes"] = ExecutionAsset.LoadBundled().Content().Length, ["sha256"] = DirectTargetBinding.AssetSha256 })).IsTrue();
         await Assert.That(JsonNode.DeepEquals(manifest["native"], DirectTargetBinding.Native())).IsTrue();
-        await Assert.That(JsonNode.DeepEquals(manifest["claude"], DirectTargetBinding.Claude())).IsTrue();
+        await Assert.That(JsonNode.DeepEquals(manifest[DirectTargetBinding.Harness], DirectTargetBinding.Claude())).IsTrue();
         var policy = manifest["policy"]!;
         await Assert.That((string)policy["gatewayBaseUrl"]!).IsEqualTo(DirectTargetBinding.GatewayBaseUrl);
+        await Assert.That((string)policy["harness"]!).IsEqualTo(DirectTargetBinding.Harness);
         var runtime = ExecutionAsset.LoadBundled().Runtime().AsObject();
         foreach (var field in new[] { "harness", "provider", "size" })
             await Assert.That((string)runtime[field]!).IsEqualTo((string)policy[field]!);

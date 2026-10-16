@@ -26,6 +26,8 @@ internal static class DirectTargetBinding
     /// <summary>Upstream's published target image for this release, which fixes both executables' bytes.</summary>
     internal const string NativeImage =
         "ghcr.io/the-open-engine/zeroshot-target:10.12.0@sha256:9eca152ead38e6589b76b13cca802ce2e7538579b851566a891ed470b069bd51";
+    /// <summary>The harness the approved asset runs, and its key in the approval and environment manifests.</summary>
+    internal const string Harness = "claude";
     /// <summary>
     /// The Claude Code release reviewed with the approved asset. It is a native executable, so no Node.js is
     /// part of the harness.
