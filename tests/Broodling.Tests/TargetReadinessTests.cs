@@ -679,11 +679,11 @@ public sealed class TargetReadinessTests
 
         await stack.RotateRoot(complete: false);
         await Refuses(Check, "unavailable or invalid");
-        await Assert.That(async () => await stack.Control(stack.Token)).Throws<HttpRequestException>();
+        await Assert.That(async () => await stack.Control(stack.First.Token)).Throws<HttpRequestException>();
 
         await stack.RotateRoot(complete: true);
         await Check();
-        await Assert.That(await stack.Control(stack.Token)).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await stack.Control(stack.First.Token)).IsEqualTo(HttpStatusCode.OK);
     }
 
     private static async Task Refuses<T>(Func<Task<T>> action, string message)

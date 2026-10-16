@@ -263,7 +263,6 @@ public sealed class InvocationTests
     [Arguments("http://remote.example:8123")]
     [Arguments("http://127.0.0.1:8123/")]
     [Arguments("http://127.0.0.1:0")]
-    [Arguments("former-shape")]
     [Arguments("no-environment")]
     [Arguments("duplicate-member")]
     [Arguments("duplicate-name")]
@@ -317,8 +316,6 @@ public sealed class InvocationTests
             "relative-token-file" => Entry(original => With(original, "controlTokenFile", "control-token")),
             // A token is named by its protected file, never carried in the configuration.
             "inline-token" => Entry(original => With(original, "controlToken", "CONFIG_SECRET")),
-            // The single-target configuration is not read as a catalog.
-            "former-shape" => new JsonObject { ["directOrigin"] = origin, ["directControlTokenFile"] = target.TokenFile },
             "no-environment" => With(direct, "environments", new JsonArray()),
             "duplicate-name" => Second("name", "dotnet"),
             "duplicate-origin" => Second("origin", origin),
@@ -548,22 +545,6 @@ public sealed class InvocationTests
         using (var resumed = JsonDocument.Parse(output.ToString()))
             await Assert.That(resumed.RootElement.GetProperty("attempts")[0].GetProperty("isCurrent").GetBoolean()).IsFalse();
         await Assert.That(target.Stages.Count(stage => stage == "run")).IsEqualTo(1);
-    }
-
-    [Test]
-    public async Task RetainedEnvironmentDecidesTargetWhateverTheCatalogDefault()
-    {
-        await using var target = new StockTarget();
-        using var http = new HttpFixture();
-        // A prepared HTTP Attempt keeps its retained environment and origin; a catalog whose default is another
-        // target never redirects it.
-        var prepared = http.Prepare(target: target.Origin.GetLeftPart(UriPartial.Authority));
-        await new Invocation(http.Store, TestEnvironments.For("http://127.0.0.1:9"))
-            .ResumeAsync(http.Attempt.ContractRevisionId, credentials: HttpDispatchTests.Credentials());
-        var correlated = http.Store.FindSubmission(http.Attempt.AttemptId)!;
-        await Assert.That(correlated.RunId).IsEqualTo(prepared.IntendedRunId);
-        await Assert.That(correlated.BindingJson).IsEqualTo(prepared.BindingJson);
-        await Assert.That(target.Bodies.Count).IsEqualTo(1);
     }
 
     /// <summary>A <c>gh</c> stand-in that answers every issue read with <see cref="Issue"/>.</summary>

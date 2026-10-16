@@ -21,16 +21,9 @@ public sealed class TwoEnvironmentTests
     /// The controlled installation: one stock target per environment, each over its own forge under
     /// <paramref name="git"/>'s root, and the catalog naming them by their actual containers and volumes.
     /// </summary>
-    private sealed class Targets(StockDirectTarget dotnet, StockDirectTarget test, EnvironmentEntry dotnetEntry, EnvironmentEntry testEntry,
-        AdoptedEnvironment testAdoption, EnvironmentCatalog catalog) : IAsyncDisposable
+    private sealed record Targets(StockDirectTarget Dotnet, StockDirectTarget Test, EnvironmentEntry DotnetEntry, EnvironmentEntry TestEntry,
+        AdoptedEnvironment TestAdoption, EnvironmentCatalog Catalog) : IAsyncDisposable
     {
-        internal StockDirectTarget Dotnet => dotnet;
-        internal StockDirectTarget Test => test;
-        internal EnvironmentEntry DotnetEntry => dotnetEntry;
-        internal EnvironmentEntry TestEntry => testEntry;
-        internal AdoptedEnvironment TestAdoption => testAdoption;
-        internal EnvironmentCatalog Catalog => catalog;
-
         internal static async Task<Targets> StartAsync(AttemptFixture git)
         {
             var adoption = await TestEnvironmentImage.Adopted;
@@ -54,8 +47,8 @@ public sealed class TwoEnvironmentTests
 
         public async ValueTask DisposeAsync()
         {
-            await test.DisposeAsync();
-            await dotnet.DisposeAsync();
+            await Test.DisposeAsync();
+            await Dotnet.DisposeAsync();
         }
     }
 

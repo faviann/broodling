@@ -57,19 +57,12 @@ internal sealed class TargetStack : IAsyncDisposable
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "broodling-tests"),
         "target-stack-" + Guid.NewGuid().ToString("N"));
     internal string Network => id;
-    internal string Zeroshot => First.Container;
     internal string Tls => id + "-tls";
     internal string Broodling => id + "-broodling";
-    internal string State => First.State;
-    internal string Home => First.Home;
     internal string RootKey => Path.Combine(Root, "tls-root-key");
     internal string RootCertificate => Path.Combine(Root, "tls-root");
     internal string RootCertificateFile => Path.Combine(RootCertificate, "root.crt");
     internal string Sites => Path.Combine(Root, "caddy-sites");
-    internal string BootstrapKeyFile => First.BootstrapKeyFile;
-    internal string OperatorBootstrapKeyFile => First.OperatorBootstrapKeyFile;
-    internal string TokenFile => First.TokenFile;
-    internal string Token => First.Token;
     internal DirectTargetAccess Access => new(origin => Targets.FirstOrDefault(target => target.Origin == origin)?.TokenFile, RootCertificateFile);
 
     /// <summary>
@@ -106,7 +99,6 @@ internal sealed class TargetStack : IAsyncDisposable
 
     internal static string[] Bind(string source, string destination, bool readOnly = false) =>
         ["--mount", $"type=bind,src={source},dst={destination}" + (readOnly ? ",readonly" : "")];
-    internal string[] TargetMounts => First.Mounts;
 
     /// <summary>Render a target's bootstrap key secret as the operator does: root-owned, mode 0400, exactly the key.</summary>
     internal Task<Result> ProvisionKey(string key, string mode = "0400", string owner = "0:0", StackTarget? target = null)
@@ -154,11 +146,11 @@ internal sealed class TargetStack : IAsyncDisposable
 
     internal Task<Result> Run(params string[] arguments) => RunWith([], arguments);
     internal Task<Result> RunWith(string[] options, string[] arguments) =>
-        DockerCommand(["run", "--rm", "--name", Zeroshot, "--network", "none", .. TargetMounts, .. options, First.Image, .. arguments]);
+        DockerCommand(["run", "--rm", "--name", First.Container, "--network", "none", .. First.Mounts, .. options, First.Image, .. arguments]);
 
     internal async Task<Result> Shell(string script, params string[] mounts)
     {
-        var result = await DockerCommand(["run", "--rm", "--network", "none", .. mounts.Length == 0 ? TargetMounts : mounts,
+        var result = await DockerCommand(["run", "--rm", "--network", "none", .. mounts.Length == 0 ? First.Mounts : mounts,
             "--entrypoint", "/bin/sh", First.Image, "-ec", script]);
         RequireSuccess(result);
         return result;
