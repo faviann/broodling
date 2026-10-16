@@ -1,5 +1,5 @@
 # Builds the Broodling image and pulls the adopted target environment image by the digest its adoption
-# record (src/Broodling/environments/dotnet-r4.adoption.json) names, checks that image against its retained manifest,
+# record (src/Broodling/environments/dotnet-r5.adoption.json) names, checks that image against its retained manifest,
 # demonstrates the two together in a disposable ADR 0002 stack, checks that the target image serves
 # native state it wrote itself across a restart and state written by each published target image listed
 # in deployment/native-state-transitions.json (all with the binding's native release), then publishes
@@ -45,7 +45,7 @@ jobs:
         env:
           NuGetPackageSourceCredentials_github: Username=${{ github.actor }};Password=${{ github.token }}
         run: |
-          target="$(jq -r .image src/Broodling/environments/dotnet-r4.adoption.json)"
+          target="$(jq -r .image src/Broodling/environments/dotnet-r5.adoption.json)"
           [[ $target =~ @sha256:[0-9a-f]{64}$ ]] || { echo "::error::The adoption record names no image digest."; exit 1; }
           docker pull --quiet "$target"
           echo "TARGET_IMAGE=$target" >>"$GITHUB_ENV"
@@ -140,7 +140,7 @@ jobs:
             | grep --max-count 1 "^$registry/broodling@sha256:")"
           jq -n --arg revision "$REVISION" --arg version "$version" --arg tag "$tag" \
             --arg broodling "$broodling" --arg target "$TARGET_IMAGE" \
-            --slurpfile adoption src/Broodling/environments/dotnet-r4.adoption.json \
+            --slurpfile adoption src/Broodling/environments/dotnet-r5.adoption.json \
             --slurpfile facts "$RUNNER_TEMP/facts.json" \
             --slurpfile approval src/Broodling/execution-assets/approval.json \
             --slurpfile transitions deployment/native-state-transitions.json \

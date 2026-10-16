@@ -7,7 +7,7 @@ using static Broodling.Tests.TargetImage;
 namespace Broodling.Tests;
 
 /// <summary>
-/// The test-only second environment T of #235's two-target verification: the adopted dotnet-r4 image with only its OS
+/// The test-only second environment T of #235's two-target verification: the adopted dotnet-r5 image with only its OS
 /// identity relabelled (<c>tests/fixtures/test-environment</c>), so native, Claude Code, the entrypoint and the DirectTarget
 /// binding are unchanged while its producer-schema manifest states an incompatible OS. The run builds it once, pushes
 /// it to a disposable loopback registry and pulls it back by digest, so it is pinned by a real image digest like a

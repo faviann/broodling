@@ -24,7 +24,7 @@ public sealed class TargetReadinessTests
         await Assert.That(facts.ContainerId).IsEqualTo(ReadinessFixture.IdFor("installation-dotnet"));
         await Assert.That(facts.ImageId).IsEqualTo("sha256:image-dotnet");
         await Assert.That(facts.DirectOrigin).IsEqualTo("https://zeroshot-dotnet.dev.faviann.com");
-        await Assert.That(facts.Release).IsEqualTo("dotnet-r4");
+        await Assert.That(facts.Release).IsEqualTo("dotnet-r5");
         await Assert.That(facts.Os).IsEqualTo("Debian GNU/Linux 13 (trixie)");
         await Assert.That(facts.Versions["git"]).IsEqualTo("git version 2.47.3");
         await Assert.That(fixture.Calls.Count).IsEqualTo(fixture.ExpectedCalls);
@@ -545,7 +545,7 @@ public sealed class TargetReadinessTests
         using var result = JsonDocument.Parse(output.ToString());
         var target = result.RootElement.GetProperty("targets").EnumerateArray().Single();
         await Assert.That(target.GetProperty("environment").GetString()).IsEqualTo("dotnet");
-        await Assert.That(target.GetProperty("release").GetString()).IsEqualTo("dotnet-r4");
+        await Assert.That(target.GetProperty("release").GetString()).IsEqualTo("dotnet-r5");
         await Assert.That(target.GetProperty("os").GetString()).IsEqualTo("Debian GNU/Linux 13 (trixie)");
         await Assert.That(fixture.Calls.Count).IsEqualTo(fixture.ExpectedCalls);
         // Discovery trusts the invocation configuration's root, as invocation itself does.
@@ -928,7 +928,7 @@ public sealed class TargetReadinessTests
                 "sha256sum /usr/local/bin/zeroshot" => ("native-hash", "7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693  /usr/local/bin/zeroshot"),
                 "sha256sum /usr/local/bin/restic" => ("restic-hash", "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf  /usr/local/bin/restic"),
                 "sha256sum /usr/local/bin/broodling-target" => ("entrypoint-hash", "76c526fe8c51be094dbc48527c40181f5b0f23069996f3c4315c456a49107b79  /usr/local/bin/broodling-target"),
-                "sha256sum /etc/claude-code/managed-settings.json" => ("managed-settings-hash", "cbedfec6d9c688288255c084f95269b4198d86435dbb48953ca4e71dac961b0b  /etc/claude-code/managed-settings.json"),
+                "sha256sum /etc/claude-code/managed-settings.json" => ("managed-settings-hash", "a9e2560ae3194f6bcc4068b1595b981e0f86a69087c2e0fb9cbe75a3053a809f  /etc/claude-code/managed-settings.json"),
                 "/usr/bin/gh api graphql --paginate --slurp --help" => ("slurp", "FLAGS\n    --slurp Wrap pages"),
                 "python3 -c import os; os.setgroups([10002]); os.setgid(10002); os.setuid(10002); assert os.getuid() == 10002 and os.getgid() == 10002" => ("uid", ""),
                 _ => throw new InvalidOperationException("Unexpected target exec")

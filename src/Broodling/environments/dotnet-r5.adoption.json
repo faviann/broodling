@@ -1,0 +1,15 @@
+{
+  "kind": "broodling.target-environment-adoption/v1",
+  "environment": "dotnet-r5",
+  "producer": {
+    "repository": "https://github.com/faviann/zeroshot-environments",
+    "release": "https://github.com/faviann/zeroshot-environments/releases/tag/dotnet-r5",
+    "asset": "manifest.json"
+  },
+  "manifest": {
+    "path": "dotnet-r5.manifest.json",
+    "sha256": "4f981bdc88b21f5fa12a92add57aa362e8e69aff3d21d778e7c2ef3a20ed2a48"
+  },
+  "image": "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:0a8829f14fbc3a1442877ebfada5ffea8af2d176efc995bb98d8a0f39ee6a81e",
+  "adoption": "https://github.com/faviann/broodling/issues/246"
+}

@@ -24,7 +24,7 @@ public sealed record TargetReadinessInventory(string Network, string TlsContaine
 public sealed record InventoryTarget(string Environment, string ImageId, string BootstrapKeyFile);
 
 /// <summary>
-/// One ready target. <c>Release</c> is the adopted environment release its image is, such as <c>dotnet-r4</c>;
+/// One ready target. <c>Release</c> is the adopted environment release its image is, such as <c>dotnet-r5</c>;
 /// <c>Os</c> and <c>Versions</c> are what the live target reported, each equal to its adopted manifest's statement.
 /// </summary>
 public sealed record TargetReadinessFacts(string Environment, string Release, string ContainerName, string ContainerId,
