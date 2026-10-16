@@ -110,6 +110,13 @@ jobs:
           git config --global --remove-section filter.lfs || :
           dotnet test --project tests/Broodling.Tests/Broodling.Tests.csproj --treenode-filter '/*/*/(TargetEnvironmentTests)|(TargetImageTransitionTests)|(ApplicationSchemaFreezeTests)/*'
 
+      # The release record copies the execution asset approval, so only a decided one publishes.
+      - name: Require a decided execution asset approval
+        run: |
+          jq -e '.approval.decision | test("^https://github\\.com/faviann/broodling/(issues|pull)/[0-9]+#issuecomment-[0-9]+$")' \
+            src/Broodling/execution-assets/approval.json >/dev/null \
+            || { echo "::error::approval.json's approval.decision is not a comment URL on faviann/broodling; nothing was published."; exit 1; }
+
       - name: Publish to GHCR
         if: github.event_name == 'push'
         env:
