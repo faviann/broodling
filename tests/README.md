@@ -455,48 +455,51 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 
 ### Current adoption record
 
-- Tested code revision: `6825c1fed37270d57ec0b5c78e8277821af4157c` (#235). Later commits that only
+- Tested code revision: `3b0b2e87f34432ae7f6a00d746cdafcb54b11f96` (#246). Later commits that only
   edit this record or other documentation leave it valid; a code change
-  requires a new run. #235 adds the environment catalog, per-Attempt
-  environment resolution and one target per environment, with the same
-  package bytes, asset and adopted image.
-- SDK: `Zeroshot.Client` `10.10.0.1-preview.1` from
+  requires a new run. #246 moves the SDK, native, adopted image and asset
+  together.
+- SDK: `Zeroshot.Client` `10.12.0.1-preview.1` from
   `https://nuget.pkg.github.com/faviann/index.json`; `.nupkg` SHA-256
-  `b6edd08c0054a057460a69b245d11e242e34737245b33ee51d7f2cd893fc7d10`, NuGet
-  content hash `m2+uSkQbhLCDDEdQ3Y397BFgwM1IKNYO3BSnMkMsje0Jr0GSTNAxXW0/HEdHTj5EkXYhxNOI5OmcbfWsmGvxXg==`.
+  `c48831938a7315a8a8aa3687cf8c77b5683e6b8bead4958862eddd47bd1e9605`, NuGet
+  content hash `K6lfhI/LvJdl5Zslp62cQlPzjQr/bzXIzETukN29mJy3pvyMxNMmxyfvt/Cdxl1u3kC418i0NxNA7gtQZmcKuA==`.
   The SHA-256 equals `expectedSha256` and `servedSha256` in the SDK's verified
-  publication record (`faviann/zeroshot-dotnet-sdk` tag `v10.10.0.1-preview.1`,
-  source `0518360411d252539ff85137eec81a795c45e0ab`, qualification run
-  `37235647508`); the SDK publishes no GitHub release for it.
+  publication record (`faviann/zeroshot-dotnet-sdk` tag `v10.12.0.1-preview.1`,
+  source `4aea7d0e35f06eec0d8f37cb8ac71bece23e9f79`, qualification run
+  `38826955544`); the SDK publishes no GitHub release for it.
 - Approved asset: SHA-256
-  `258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc`, with an
-  approval manifest that the owner approved in #234's pull request (#244). Native: `zeroshot 10.10.0`, source `3ee1192cec359a0b997f464e703a936e8b67d63c`,
+  `7e232da54ed2ca138b31fea38a6f002d08d77b584965253b18077205b2c1e5be`, with an
+  approval manifest whose decision is pending the interrogate panel under the
+  owner's delegation of 2026-10-15. Native: `zeroshot 10.12.0`, source `928de8ff918488749ca9d23e0a7349873401b7f7`,
   Linux x86-64 executable SHA-256
-  `fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5`, from
-  `ghcr.io/the-open-engine/zeroshot-target:10.10.0@sha256:9769f74865d7e1137b82c9ed2ced4cbedb56cfd5fef6c9e8c0647955ba0c438b`;
-  Codex 0.155.0 on Node.js v24.21.0. Target: `dotnet-r2`,
-  `ghcr.io/faviann/zeroshot-environments/dotnet@sha256:5d36313b1d38ad06c194c53b8f08a71d4bc61527e4e06d56b96c9a835ba54a1d`.
+  `7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693`, from
+  `ghcr.io/the-open-engine/zeroshot-target:10.12.0@sha256:9eca152ead38e6589b76b13cca802ce2e7538579b851566a891ed470b069bd51`;
+  Claude Code 2.1.276. Target: `dotnet-r3`,
+  `ghcr.io/faviann/zeroshot-environments/dotnet@sha256:ff82ae0013bf4434ea1c7650893f9fd0d6d87ab08173d036bcb2f5592f48bd01`.
 - Fresh store, from `initialize-store` at that revision: format
   `broodling.application`, schema version 1, definition SHA-256
   `39c30308ebb867f0f8283b4bd7d2bb3b9298dfc2ca78b54a5c1b2b0876b28ab8`, upgrading
-  from nothing. #235 redefined the unreleased version in place; it is not yet
-  frozen.
+  from nothing, unchanged from the #235 record; it is not yet frozen.
 - Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.9.1, with no
-  Python environment and every image test on the pulled adopted image: the lane
-  passed 289 of 289; the full suite passed 758 of 758 in each of two runs, none
-  skipped; the Release build succeeded with no warnings; and the
-  [image demonstration](#image-demonstration) passed on the Broodling image
-  built from that revision with the adopted image. That Broodling image
-  restored the same `.nupkg` (SHA-256 above, locked content hash checked) from
-  GitHub Packages; the suite's restore used the same package from the host's
-  NuGet global packages folder. No test failed or was rerun in this run's
-  lane and full suites, on a 16-core host whose load average from other work
-  was 9 to 16 at their starts.
+  Python environment and every image test on the pulled adopted image, on a
+  16-core host whose load average from other work was 8 to 18: the full suite
+  passed 762 of 762 on its second run, none skipped; the Release build
+  succeeded with no warnings; and the [image demonstration](#image-demonstration)
+  passed on the Broodling image built from that revision with the adopted
+  image. That Broodling image restored the `.nupkg` in locked mode from GitHub
+  Packages; the suite's restore used the same package from the host's NuGet
+  global packages folder. The lane passed 292 of 292 in one of four runs; each
+  other run failed two loopback stand-in tests on a real-time deadline
+  (`TimeoutError` or an unsettled wait, a different pair each time, all
+  passing when rerun alone). The first full run failed
+  `ConcurrentPreparersConvergeOnFirstCommittedIdentity` (`database is locked`)
+  and an unsettled wait in `HttpProcessingTests`, both passing when rerun
+  alone. The #235 revision's lane passed 289 of 289 twice on the same host and
+  load. This difference is not yet explained.
 - Baseline: the transition check ran as a restart of the adopted image over its
   own state, which is also the explicit control-token rotation (#187). No
-  transition source is listed. The asset bytes, native executable, Codex and
-  adopted image are unchanged from the #234 record; the fresh-store definition
-  is not.
+  transition source is listed: `dotnet-r3` is the first adopted environment
+  with native 10.12.0.
 
 ## Evidence limits and history
 
