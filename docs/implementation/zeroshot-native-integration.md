@@ -269,16 +269,19 @@ changing the default affects only new Attempts. Dispatch, first send and replay
 alike, requires the current catalog to serve the retained environment exactly:
 the same name, image, adoption and manifest digests, origin, container and
 mounts. Otherwise it refuses with `environment_changed`, naming what changed and
-the Attempt's retained environment, before intent and contact. Observation, wait
-and stop require only that the catalog still names the retained environment at
-its retained origin; otherwise they fail with the transport kind
+the Attempt's retained environment, before intent and contact. Observation and
+wait require only that the catalog still names the retained environment at its
+retained origin. Otherwise they fail with the transport kind
 `environment_unavailable` and send nothing, so a token never reaches an origin
-under another name. A correlated Attempt therefore still reads, waits and stops
-after an image swap. The remedy is stop, retirement under verified maintenance
-and a Replacement. A Replacement inherits its predecessor's resolution and is
-refused with `environment_changed` unless the catalog still serves it exactly;
-with `--update-environment` it resolves the predecessor's environment name
-against the current catalog instead
+under another name. Stop under such a catalog still abandons and quarantines the
+Attempt but sends no force (`cessation_unconfirmed`, reason
+`environment_unavailable`). The `stop` command given such a configuration
+refuses with `submission_conflict` before abandonment. A correlated Attempt
+therefore still reads, waits and stops after an image swap. The remedy is stop,
+retirement under verified maintenance and a Replacement. A Replacement inherits
+its predecessor's resolution and is refused with `environment_changed` unless
+the catalog still serves it exactly; with `--update-environment` it resolves the
+predecessor's environment name against the current catalog instead
 ([replacement](dotnet-retirement-replacement.md)).
 
 `binding.environment` keeps the requirement apart from its resolution:

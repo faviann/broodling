@@ -200,7 +200,7 @@ bounded read ([transport](zeroshot-native-integration.md#directtarget-transport-
 each response is byte-counted and parsed within one shared 10-second budget. Like every
 DirectTarget connection it relies on the deployment assumption that no proxy
 variables are defined. Commands have a
-30-second inspection timeout. Discovery expiry is a safe refusal. Caller
+60-second inspection timeout. Discovery expiry is a safe refusal. Caller
 cancellation remains cancellation and ends only the selected Docker CLI process
 or local HTTP exchange. It never stops the target or asserts cessation of an exec.
 

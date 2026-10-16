@@ -75,8 +75,8 @@ public sealed partial class BroodlingStore
     /// The retry whose predecessor's retained environment a successor's environment comes from; null for a first Attempt
     /// and for a successor of a predecessor that was never prepared, which resolves like a first Attempt.
     /// </summary>
-    private AttemptRetry? InheritsFrom(AttemptRecord attempt, SqliteTransaction? transaction = null) =>
-        attempt.Retry is { } retry && ReadSubmission(retry.PredecessorId, transaction) is not null ? retry : null;
+    private AttemptRetry? InheritsFrom(AttemptRecord attempt) =>
+        attempt.Retry is { } retry && ReadSubmission(retry.PredecessorId) is not null ? retry : null;
 
     /// <summary>
     /// A successor's environment. By default exactly its predecessor's retained resolution, refused as
