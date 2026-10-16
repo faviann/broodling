@@ -210,8 +210,8 @@ A completed Attempt cannot be replaced.
 This is safe because the pinned Zeroshot ends every non-terminal run as
 `runtime_lost` before serving anything when restarted over the same ledger,
 never reallocating it, and has no queue of accepted-but-unstarted runs
-(`zeroshot/src/native_v2_cloud.rs:146-162`, `:173-193` at
-[`3ee1192c`](https://github.com/the-open-engine/zeroshot/tree/3ee1192cec359a0b997f464e703a936e8b67d63c)).
+(`zeroshot/src/native_v2_cloud.rs:147-163`, `:174-194` at
+[`928de8ff`](https://github.com/the-open-engine/zeroshot/tree/928de8ff918488749ca9d23e0a7349873401b7f7)).
 A run still preparing its environment after acknowledgement is non-terminal and
 ends the same way.
 That holds only if the restarted target mounts the same ledger, which #356 checks.

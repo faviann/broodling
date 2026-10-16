@@ -76,23 +76,26 @@ approved environment (#235,
 [ADR 0002](../adr/0002-one-directtarget-per-environment-behind-one-tls-proxy.md)).
 It talks HTTP/OECP, through the pinned
 `Zeroshot.Client` SDK, to the stock `zeroshot target serve` of an
-operator-managed DirectTarget running native Zeroshot 10.10.0 (#215, #226). Each
+operator-managed DirectTarget running native Zeroshot 10.12.0 (#215, #226, #246). Each
 DirectTarget runs an adopted environment image (#234):
 [`zeroshot-environments`](https://github.com/faviann/zeroshot-environments)
 owns its recipe, inventory, image and publication, and Broodling owns the
 adoption record (the exact producer manifest bytes, their digest and the image
 digest), the Execution asset and its approval, and the target entrypoint's
-startup interface. The adopted `dotnet-r2` carries native 10.10.0 as upstream's
-source build and Codex 0.155.0
+startup interface. The adopted `dotnet-r3` carries native 10.12.0 as upstream's
+source build and Claude Code 2.1.276
 ([adopted target environment](../../deployment/README.md#adopted-target-environment)).
 Broodling submits the
-release-bundled approved execution asset (native 10.10.0's standard
-`software-change` PR workflow with one uniform Codex / `gateway` /
-`gpt-5.6-sol` / medium-effort runtime and native's default `consider` PR
-feedback) and uses exactly `https://cliproxy.local.faviann.com/v1`. Native
+release-bundled approved execution asset (native 10.12.0's standard
+`software-change` PR workflow with one uniform Claude Code / `gateway` /
+`claude-opus-5-5` / medium-effort runtime and native's default `consider` PR
+feedback) and uses exactly the sub2api gateway `https://gateway.ai.faviann.com`.
+Native's gateway provider gives the agents that base URL and key as their
+Anthropic endpoint; the bundled proposer calls its Chat Completions path with the
+same key. Native
 materializes the run from that asset's graph and runtime; Broodling passes both
 through unchanged and builds no preset or runtime of its own. Broodling needs no
-Python, SDK client state, workspace root, Codex installation or launcher. The
+Python, SDK client state, workspace root, harness installation or launcher. The
 operator's environment catalog maps each approved environment name to its
 target's origin, the file holding that target's private control token, an
 adopted image digest, and the target's container and host state and home
@@ -217,7 +220,11 @@ DirectTarget image with the adopted `dotnet-r2` environment image: the images
 workflow pulls it by digest for the demonstration, the image qualification and
 the transition check, and publishes only the Broodling image, with a release
 record naming the adopted target; the binding moves to the source-built native
-executable and Codex 0.155.0 under explicit Execution asset review. #241 makes each native submission carry its RequestBundle
+executable and Codex 0.155.0 under explicit Execution asset review. #246 moves
+the binding to native 10.12.0, `Zeroshot.Client` 10.12.0.1-preview.1 and the
+adopted `dotnet-r3`, and regenerates the asset with one uniform Claude Code
+runtime through the sub2api gateway; a run status or force reply without a
+source is refused as a foreign run. #241 makes each native submission carry its RequestBundle
 references in place of #114's agent reads from Broodling; see
 [frozen references](../implementation/zeroshot-native-integration.md#frozen-references). #112 adds the callable bundled proposer: the supported model
 behind the pinned gateway prepares that bundle-bound Contract from the Executable

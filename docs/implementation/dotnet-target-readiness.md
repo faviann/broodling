@@ -70,7 +70,7 @@ origin or noncanonical spelling is accepted. Targets bound to a loopback origin
 are not adopted.
 
 Success returns `{"targets": [...]}`, with one element per target:
-`environment`, the adopted `release` (such as `dotnet-r2`), `containerName`,
+`environment`, the adopted `release` (such as `dotnet-r3`), `containerName`,
 `containerId`, `imageId`, `directOrigin`, the live `os` and the checked
 `versions`.
 Version facts are the checked pins, not raw process output. Refusal returns
@@ -89,7 +89,7 @@ that is malformed, of a schema other than `zeroshot-environment.manifest/v2` or
 a platform other than `linux/amd64`, or that does not name the
 [DirectTarget binding](zeroshot-native-integration.md#pinned-dependencies)'s
 native release, source revision and `zeroshot` and `restic` paths and SHA-256,
-the approved Codex version and its harness Node.js, the startup interface
+the approved Claude Code version, the startup interface
 `zeroshot-environment.direct-target-startup/v1` with the command
 `/usr/local/bin/broodling-target`
 ([entrypoint boundary](../../deployment/README.md#entrypoint-boundary)) and
@@ -148,21 +148,21 @@ name. One shell exec per target runs a probe for the live OS identity and every
 component its manifest states, and reports each missing or differing component
 by name; a manifest stating a component with no probe below is refused when the
 adoption set loads; one target's mismatch makes the whole installation
-not ready. The native version, the Codex version and the `zeroshot` and
+not ready. The native version, the Claude Code version and the `zeroshot` and
 `restic` hashes are the binding's, which the manifest names; the other
 observations are the manifest's:
 
 | Probe | Required observation |
 | --- | --- |
 | `grep '^PRETTY_NAME=' /etc/os-release` | The manifest's `os` (`Debian GNU/Linux 13 (trixie)`) |
-| `/usr/local/bin/zeroshot --version` | `zeroshot 10.10.0` |
-| `codex --version` | `codex-cli 0.155.0` |
-| `/opt/zeroshot/bin/node --version` | The manifest's harness Node.js (`v24.21.0`) |
+| `/usr/local/bin/zeroshot --version` | `zeroshot 10.12.0` |
+| `claude --version` | `2.1.276 (Claude Code)` |
+| `/opt/zeroshot/bin/node --version` | The manifest's harness Node.js (`v24.22.0`) |
 | `node`, `npm`, `yarn`, `corepack`, `python3`, `rustc`, `rustup`, `git`, `docker --version`; `gh --version` (first line); `pip --version` (first two fields); `gcc -dumpfullversion` | The manifest's versions of `node`, `npm`, `yarn`, `corepack`, `python`, `rust`, `rustup`, `git`, `docker-cli`, `gh`, `pip` and `gcc` |
 | `rustup show active-toolchain` and `rustup component list --installed`, as `<toolchain>: <components>` | The manifest's `rust-components` |
-| `claude --version`, `copilot --version` (first line) | The manifest's versions, when it lists them; checking a version approves nothing |
+| `codex --version`, `copilot --version` (first line) | The manifest's versions, when it lists them; checking a version approves nothing |
 | `dotnet --list-sdks`, `dotnet --list-runtimes` | Exactly the manifest's SDKs and runtimes, when it lists them |
-| `sha256sum /usr/local/bin/zeroshot` | `fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5` |
+| `sha256sum /usr/local/bin/zeroshot` | `7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693` |
 | `sha256sum /usr/local/bin/restic` | `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, the `restic` that native run allocation requires |
 | `sha256sum /usr/local/bin/broodling-target` | The manifest's `integration.broodling-entrypoint.sha256` |
 | `/usr/bin/gh api graphql --paginate --slurp --help` | Declares the `--slurp` flag |
@@ -228,7 +228,7 @@ token, refuse overlapping storage or a shared token across targets and a name
 answered by more than one container, and make the whole installation not ready
 when one target's live OS or a tool is missing or differs. Image refusal cases
 (another digest, no digest, another architecture or OS) refuse before any exec.
-Manifest refusals (other bytes, malformed, schema, platform, native, Codex,
+Manifest refusals (other bytes, malformed, schema, platform, native, Claude Code,
 startup interface or discovery) belong to adoption loading, in
 `TargetEnvironmentTests`. Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check
 (including the bootstrap key mount and its absence from other services),

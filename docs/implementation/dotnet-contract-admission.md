@@ -116,9 +116,9 @@ runs.
 same admission with the one built-in proposer
 ([#112](https://github.com/faviann/broodling/issues/112)). It is not
 caller-selectable and has producer `model_extraction`. It calls the supported
-model `gpt-5.6-sol` through the OpenAI-compatible Chat Completions API
-(`POST /chat/completions`, JSON-object response format) at exactly
-`https://cliproxy.local.faviann.com/v1`. The
+model `claude-opus-5-5` through the OpenAI-compatible Chat Completions API
+(`POST /v1/chat/completions`, JSON-object response format) of the sub2api
+gateway at exactly `https://gateway.ai.faviann.com`. The
 [operations guide](../../deployment/README.md#bundled-contract-proposer)
 describes its configuration.
 

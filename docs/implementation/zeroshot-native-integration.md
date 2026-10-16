@@ -39,7 +39,7 @@ completion/current-authority loss atomically for the exact Attempt.
 
 The [`DirectTargetBinding`](../../src/Broodling/DirectTargetBinding.cs) pins the
 native release, source revision, Linux x86-64 `zeroshot` and `restic`
-executables, the Codex release with its Node.js, and the approved execution
+executables, the Claude Code release, and the approved execution
 asset, recorded in the [approval manifest](../../src/Broodling/execution-assets/approval.json).
 Asset loading, each prepared submission's retained binding and its
 reopen/dispatch check, target readiness,
@@ -53,7 +53,7 @@ adopts it only when that manifest names exactly this binding. Target readiness
 refuses another manifest and checks the running image's executables and
 versions against it. The binding's native is upstream's source build in its
 published target image for the release,
-`ghcr.io/the-open-engine/zeroshot-target:10.10.0@sha256:9769f74865d7e1137b82c9ed2ced4cbedb56cfd5fef6c9e8c0647955ba0c438b`,
+`ghcr.io/the-open-engine/zeroshot-target:10.12.0@sha256:9eca152ead38e6589b76b13cca802ce2e7538579b851566a891ed470b069bd51`,
 which the adopted environment is built on. The Broodling image recipe copies the
 executable out of that image to verify the asset.
 
@@ -63,7 +63,7 @@ constant: the bundled proposer calls it, and DirectTarget dispatch credentials
 and the approved asset policy require it. An Attempt's runtime is the asset's.
 
 Submission (#216), the run reader and the stopper (#217) go through the pinned
-[Zeroshot.Client](https://github.com/faviann/zeroshot-dotnet-sdk) `10.10.0.1-preview.1`
+[Zeroshot.Client](https://github.com/faviann/zeroshot-dotnet-sdk) `10.12.0.1-preview.1`
 SDK, an exact version whose package bytes `packages.lock.json` fixes; the
 [adoption record](../../tests/README.md#sdk-adoption) identifies it and the
 Broodling-owned evidence that accepted it (#220).
@@ -84,7 +84,7 @@ lowercase forms), because a proxy would otherwise receive DirectTarget
 connections, including dispatch credentials in the submission body.
 
 The DirectTarget runs native from the
-[v10.10.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.10.0)'s
+[v10.12.0 release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.12.0)'s
 source revision as upstream's target image builds it, not the release archive's
 musl executable. The approval manifest's `native.image` pins that image.
 
@@ -93,34 +93,38 @@ Target readiness runs a short inline `python3` UID probe inside the target, and
 the asset recipe runs [`describe.py`](../../src/Broodling/execution-assets/describe.py)
 at build time; neither is a Broodling runtime dependency.
 
-The fixed PR runtime is uniform Codex / `gateway` / `gpt-5.6-sol` / medium /
-small / execution-scoped sessions through exactly
-`https://cliproxy.local.faviann.com/v1`, carried by the approved asset below.
-The binding approves Codex **0.155.0** on Node.js **v24.21.0**, which the
-adopted environment carries; Broodling installs no Codex.
+The fixed PR runtime is uniform Claude Code / `gateway` / `claude-opus-5-5` /
+medium / small / execution-scoped sessions through exactly the sub2api gateway
+`https://gateway.ai.faviann.com`, carried by the approved asset below. The
+gateway URL has no version path: native's `gateway` provider passes
+`GATEWAY_BASE_URL` and `GATEWAY_API_KEY` to Claude Code as `ANTHROPIC_BASE_URL`
+and `ANTHROPIC_API_KEY`, and the bundled proposer appends
+`/v1/chat/completions`. One Claude-group sub2api key serves both. The binding
+approves Claude Code **2.1.276**, a native executable that needs no Node.js,
+which the adopted environment carries; Broodling installs no harness.
 Per-node runtime, model/harness selection, node-local OAuth PR delivery and
 fleet placement remain unsupported.
 
 ## Approved DirectTarget execution asset
 
 The HTTP DirectTarget path (#163) submits one release-bundled graph/runtime,
-[`execution-assets/software-change-pr-codex-gateway.json`](../../src/Broodling/execution-assets/software-change-pr-codex-gateway.json):
-native 10.10.0's stock `software-change` template with `pull_request` delivery
-(#214; #226 regenerated the same bytes with 10.10.0, and #234 with its source build). Its identity is the
+[`execution-assets/software-change-pr-claude-gateway.json`](../../src/Broodling/execution-assets/software-change-pr-claude-gateway.json):
+native 10.12.0's stock `software-change` template with `pull_request` delivery,
+generated with the uniform Claude Code runtime (#246). Its identity is the
 SHA-256 of the exact file bytes, formatting included:
-`258dc0ab46f30f05d6c95f7be493ede2ad0963160b9247f5ccdb699e4dcc20fc` (79,660
+`7e232da54ed2ca138b31fea38a6f002d08d77b584965253b18077205b2c1e5be` (101,314
 bytes). This identity is Broodling's approval. It is not a stock `profileId` or a
 native digest. The [approval manifest](../../src/Broodling/execution-assets/approval.json)
 (#215) records the review that approved it and binds:
 
 - The asset's bytes and SHA-256.
-- Native `zeroshot 10.10.0` from source `3ee1192cec359a0b997f464e703a936e8b67d63c`,
-  the Linux x86-64 executable `fd5ffef2…aeff5` and the `restic` executable
+- Native `zeroshot 10.12.0` from source `928de8ff918488749ca9d23e0a7349873401b7f7`,
+  the Linux x86-64 executable `7b3c74db…52693` and the `restic` executable
   (`90ab22a5…8a8cf`), with upstream's target image that carries both
   (`native.image`).
-- Codex `0.155.0` with Node.js `v24.21.0` (`codex`), the harness the asset's
-  runtime runs on. Claude Code and Copilot CLI are not approved.
-- The policy: Codex / `gateway` / `gpt-5.6-sol` / medium / small / execution
+- Claude Code `2.1.276` (`claude`), the harness the asset's runtime runs on.
+  Codex and Copilot CLI are not approved.
+- The policy: Claude Code / `gateway` / `claude-opus-5-5` / medium / small / execution
   sessions, the symbolic `gateway` connection on every agent node, native's
   `github` delivery connection, native's default `consider` PR feedback and the
   gateway URL. Native serializes both defaults by omitting `sessionScope` and
@@ -129,11 +133,15 @@ native digest. The [approval manifest](../../src/Broodling/execution-assets/appr
   `04daec4b65cfb16228426979126105cf7c2bb389`, with its command, uniform runtime
   and output format.
 - The asset structure that
-  [`describe.py`](../../src/Broodling/execution-assets/describe.py) reads: six
-  executable nodes, the `builtin.git-delivery.pr@2` `v2`/`pr` receipt with
-  outcomes `ready`, `ci_failed`, `conflict` and `repair_required`, the three
-  non-ready outcomes routing to `delivery_repair`, the ten-iteration
-  `change_loop` and no node `timeoutMs`.
+  [`describe.py`](../../src/Broodling/execution-assets/describe.py) reads: four
+  executable nodes (`worker`, `acceptance`, `code` and `deliver`), the
+  `builtin.git-delivery.pr@2` `v2`/`pr` receipt with outcomes `ready`,
+  `ci_failed`, `conflict` and `repair_required`, the three non-ready outcomes
+  routing to `delivery_retry`, the ten-iteration `change_loop` and no node
+  `timeoutMs`. Native 10.12.0 has no separate repair nodes: a rejected review
+  (through `review_retry`) or a non-ready delivery (through `delivery_retry`)
+  ends the iteration, and the next one runs `worker` with that phase and its
+  feedback, then both reviews and delivery again.
 
 The asset and manifest hold no credential values. The asset also omits the
 gateway URL, which `DispatchCredentials` enforces separately.
@@ -142,9 +150,9 @@ gateway URL, which `DispatchCredentials` enforces separately.
 packaged files against the SHA-256 of the asset and of the whole reviewed
 approval manifest compiled into `DirectTargetBinding`. It refuses a missing,
 changed or unapproved asset, including the superseded 10.3.0 asset, and any
-other manifest, such as one naming another native, Codex, policy or recipe
+other manifest, such as one naming another native, harness, policy or recipe
 revision. `ExecutionAssetTests` checks that the manifest's asset, native and
-Codex blocks are the binding's and that its policy is the asset's own runtime. C# passes the graph and runtime through opaquely. It never expands,
+`claude` blocks are the binding's and that its policy is the asset's own runtime. C# passes the graph and runtime through opaquely. It never expands,
 edits or regenerates them. Changing the asset requires a reviewed release with
 a new approved identity.
 
@@ -260,7 +268,7 @@ no numeric version, or a name that is not a DNS label),
 `environment_declaration_conflict` (a repeated member),
 `environment_requirement_unsupported` (a version other than 1 or any other
 member, such as `sdk`), `environment_unapproved` (a name the catalog does not
-configure) and `environment_default_missing`. An adoption whose native, Codex
+configure) and `environment_default_missing`. An adoption whose native, Claude Code
 or startup interface this release's binding does not support is refused when
 the catalog is loaded.
 
@@ -289,10 +297,10 @@ predecessor's environment name against the current catalog instead
 ```json
 {"requirement": {"name": "dotnet",
    "declaration": {"path": ".broodling/environment.json", "commit": "<B1>", "blob": "<oid>", "sha256": "<hex>"}},
- "resolution": {"adoption": {"kind": "broodling.target-environment-adoption/v1", "release": "dotnet-r2", "sha256": "<record>"},
+ "resolution": {"adoption": {"kind": "broodling.target-environment-adoption/v1", "release": "dotnet-r3", "sha256": "<record>"},
    "manifest": {"schema": "zeroshot-environment.manifest/v2", "sha256": "<manifest>"},
    "image": "ghcr.io/…@sha256:…", "platform": "linux/amd64", "os": "Debian GNU/Linux 13 (trixie)",
-   "components": {"native": ["10.10.0"], "codex": ["0.155.0"], "…": ["…"]},
+   "components": {"native": ["10.12.0"], "claude": ["2.1.276"], "…": ["…"]},
    "target": {"environment": "dotnet", "origin": "https://zeroshot-dotnet.dev.faviann.com",
      "container": "…", "stateMount": "…", "homeMount": "…"}}}
 ```
@@ -322,10 +330,10 @@ the target needs no route to Broodling. An acknowledgement-loss replay sends the
 same bytes, references included.
 
 Native puts the whole task into every agent node's input. A node input is one
-ledger event of at most 1 MiB, and Codex refuses a turn over 1 Mi characters, so
-preparation refuses a task over Broodling's 512 KiB budget, measured as
-JSON-escaped UTF-8, an upper bound on what native writes. That leaves the rest
-for node instructions, the response contract and repair feedback. The refusal,
+ledger event of at most 1 MiB, so preparation refuses a task over Broodling's
+512 KiB budget, measured as JSON-escaped UTF-8, an upper bound on what native
+writes. That leaves the rest for node instructions, the response contract and
+repair feedback. The refusal,
 `task_too_large`, states the task's size and the limit, happens before any
 prepared record exists and is never resolved by retrying; nothing is truncated.
 The model's context window behind the gateway is a provider-side limit that this
@@ -389,7 +397,7 @@ conflict; it carries no run ID and nothing is adopted from it. Other valid
 problems are `TargetError`; a malformed reply is `invalid_response`. Timeouts, cancellation,
 caller death and every refusal preserve the existing facts, so the intent stays
 unresolved and exact replay remains available while the Attempt is current.
-Native 10.10.0 acknowledges once it has recorded the run and prepares the
+Native 10.12.0 acknowledges once it has recorded the run and prepares the
 execution environment, including the checkout of exact B1, afterwards; a
 missing B1 fails that correlated run. A lost reply or a target error after the
 run was recorded leaves the intent unresolved, and an exact replay returns the
@@ -527,7 +535,7 @@ then creates the ledger and records the canonical origin without any network or
 client. Rotation replaces the key and certificate together and removes Caddy's
 stored intermediate and leaf.
 
-Since #187 the target serves only native 10.10.0's private mode: the
+Since #187 the target serves only native's private mode: the
 entrypoint always starts `zeroshot target serve` with a private copy of its
 root-only bootstrap key, and refuses to start without one. Native then refuses
 every control route (submission, OECP session and WebSocket, operator
@@ -742,8 +750,8 @@ stopped-target and mount verification belong to the host procedure
 The [TUnit suite](../../tests/README.md) covers Broodling authority, Git/SQLite
 durability and the SDK client against a loopback stock-target stand-in. The
 [stock DirectTarget witness](../../tests/README.md#controlled-stock-directtarget-witness)
-runs the unmodified native 10.10.0 HTTP/OECP target and the approved asset with a
-controlled Codex provider and forge. Its PR receipt is controlled, not a real
+runs the unmodified native 10.12.0 HTTP/OECP target and the approved asset with a
+controlled Claude Code provider and forge. Its PR receipt is controlled, not a real
 GitHub PR. None of these establishes provider quality, hostile sandbox resistance
 or physical cessation. [P5 remains scoped FAIL](../../evaluation/p5/README.md),
 requiring human review of each exact accepted revision.
