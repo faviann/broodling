@@ -91,7 +91,7 @@ public sealed class TargetEnvironmentTests
     /// change here is a new adoption decision, not a refactoring.
     /// </summary>
     [Test]
-    public async Task ReleaseBundlesExactlyTheDotnetR4Adoption()
+    public async Task ReleaseBundlesExactlyTheAdoptedEnvironment()
     {
         var bundled = AdoptedEnvironments.LoadBundled();
         await Assert.That(bundled.Select(environment => environment.Release)).IsEquivalentTo(["dotnet-r5"]);
