@@ -130,7 +130,8 @@ native digest. The [approval manifest](../../src/Broodling/execution-assets/appr
   sessions, the symbolic `gateway` connection on every agent node, native's
   `github` delivery connection, native's default `consider` PR feedback and the
   gateway URL. Native serializes both defaults by omitting `sessionScope` and
-  `pullRequestFeedback`.
+  `pullRequestFeedback`. The adopted image's managed effort overrides the
+  asset's per-node effort, so changing effort needs a new environment release.
 - The recipe: `generate.sh` and `describe.py` by SHA-256, from revision
   `04daec4b65cfb16228426979126105cf7c2bb389`, with its command, uniform runtime
   and output format.

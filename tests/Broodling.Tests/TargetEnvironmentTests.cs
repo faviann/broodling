@@ -270,7 +270,7 @@ public sealed class TargetEnvironmentTests
 
     /// <summary>
     /// The managed settings deny WebFetch and WebSearch, whose side calls would leave the uniform medium effort. A
-    /// session started as native's hosted lane starts it, as native's first agent identity with permissions bypassed,
+    /// session started as native's first agent identity, with the permission flag native's hosted lane always passes,
     /// offers neither and still offers the tools that edit the workspace.
     /// </summary>
     [Test]

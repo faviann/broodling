@@ -307,8 +307,10 @@ take precedence over user and repository settings. They set
 `medium` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to `32000`, set
 `skipWebFetchPreflight`, deny the `WebFetch` and `WebSearch` tools, set empty
 commit and PR attribution, and allow only managed hooks and MCP servers, of
-which the file defines none. The deny holds under native's hosted lane, which
-always passes `--dangerously-skip-permissions`.
+which the file defines none. The image's managed effort overrides the
+Execution asset's per-node effort, so changing effort needs a new environment
+release. The deny holds under native's hosted lane, which always passes
+`--dangerously-skip-permissions`.
 When the file is missing, Claude Code runs without these settings and reports
 nothing. Adoption and `check-target` therefore require the file's bytes.
 
@@ -323,7 +325,9 @@ Adoption is checked in three places:
   Debian package list are the manifest's. Native's first agent identity,
   `20000:10002`, reads the managed settings with the approved SHA-256, and
   they are the only entry in `/etc/claude-code`, a regular file owned by root
-  with mode `0644` in a root-owned `0755` directory.
+  with mode `0644` in a root-owned `0755` directory. Started as that identity
+  with the permission flag native's hosted lane always passes, the adopted
+  Claude Code offers neither WebFetch nor WebSearch.
 - Loading the bundled adoption set, at every configuration read: it refuses a
   manifest that is not the record's bytes, a malformed manifest, a schema other
   than `v2`, a platform other than `linux/amd64` and a native, Claude Code,
