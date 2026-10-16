@@ -405,7 +405,10 @@ The lane runs the compact suites that prove the adapter's consumer contract,
 the stock-native witnesses and the [native-state transition check](#native-state-transition-check)
 as the restart/replay baseline, plus the asset, schema-freeze and fresh-store
 checks that identify the recorded contract. It needs the full [run](#run)
-environment, including Docker. Run it, then the full suite and the Release build:
+environment, including Docker. The test project's server garbage collection and
+256 minimum thread-pool threads mitigate the lane's real-time deadline failures
+([#247](https://github.com/faviann/broodling/issues/247)). Run it, then the full
+suite and the Release build:
 
 ```bash
 dotnet test --project tests/Broodling.Tests/Broodling.Tests.csproj --treenode-filter '/*/*/(HttpSubmissionTests)|(HttpDispatchTests)|(DispatchProcessTests)|(NativeObservationTests)|(AttemptCompletionTests)|(CompletionPersistenceTests)|(CompletionObserverTests)|(RetirementTests)|(RetirementProcessTests)|(DirectTargetRunTests)|(DirectTargetTrustTests)|(DirectTargetAccessTests)|(InvocationTests)|(NativeTargetStartupTests)|(StockDirectTargetTests)|(StockPullRequestDeliveryTests)|(TargetImageTransitionTests)|(ExecutionAssetTests)|(ApplicationSchemaFreezeTests)|(StoreLifecycleTests)/*'

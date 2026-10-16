@@ -26,6 +26,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+    <!-- #247: parallel tests block pool threads on synchronous git; real-time test bounds need the pool and short GC pauses. -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ThreadPoolMinThreads>256</ThreadPoolMinThreads>
   </PropertyGroup>
 
 </Project>
