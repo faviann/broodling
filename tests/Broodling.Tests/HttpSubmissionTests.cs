@@ -369,7 +369,7 @@ public sealed class HttpSubmissionTests
         fixture.Store.Dispose();
 
         var installed = Path.Combine(fixture.Assets, DirectTargetBinding.AssetFile);
-        File.WriteAllText(installed, File.ReadAllText(installed).Replace("gpt-5.6-sol", "gpt-5.7-sol"));
+        File.WriteAllText(installed, File.ReadAllText(installed).Replace("claude-opus-5-5", "claude-opus-5-6"));
         using (var reopened = fixture.Git.State.Open())
         {
             await Assert.That(reopened.FindSubmission(attempt.AttemptId)).IsEqualTo(prepared);

@@ -5,17 +5,21 @@ DirectTarget environment image. The pinned native binary, its HTTP/OECP server a
 approved execution asset are unchanged. The layer replaces only the hosted
 target's fixed dependency paths:
 
-- `codex` replaces only the image's `codex` link to its shared harness
-  launcher and answers each node from its response schema. Its worker writes known
-  candidate bytes to `README.md`, verifiers accept, and a corrected reply
-  resumes the requested thread. When the task lists a RequestBundle, the worker
+- `claude` replaces only the image's `claude` link to its shared harness
+  launcher and answers each node from the response schema native passes in
+  `--json-schema`, as Claude Code's `stream-json` session start and `result`
+  event with `structured_output`. Its worker writes known candidate bytes to
+  `README.md`, verifiers accept, and a resumed turn reports the session ID native
+  passed in `--resume`. When the task lists a RequestBundle, the worker
   also writes each listed reference's bytes, decoded from the task, to
   `references/<index>`. While the forge holds a
   `hold` file, the worker waits, so the image demonstration's run stays active
-  until it is stopped. The delivery repair node appends its input's `outcome`
-  and `deliveryFeedback` as one line of `delivery-repairs.jsonl`, rewrites
-  `README.md` and stages everything. Each repair is therefore a new commit that
-  records what delivery reported, and a materialized conflict is resolved.
+  until it is stopped. When the worker's input phase is a non-ready delivery
+  outcome (`ci_failed`, `conflict` or `repair_required`), it repairs instead: it
+  appends that outcome and its input's `deliveryFeedback` as one line of
+  `delivery-repairs.jsonl`, rewrites `README.md` and stages everything. Each
+  repair is therefore a new commit that records what delivery reported, and a
+  materialized conflict is resolved.
   When the forge holds a `report-os` file, the worker also writes the target's
   `PRETTY_NAME` line from `/etc/os-release` to `observed-os` in its candidate,
   so a test can see which environment ran the work.

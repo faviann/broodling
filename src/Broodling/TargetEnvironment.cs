@@ -6,7 +6,7 @@ namespace Broodling;
 /// <summary>
 /// An adopted Zeroshot environment release, read from the exact bytes of its producer manifest. The producer
 /// states what its image carries; Broodling adopts it only when the manifest names the DirectTarget binding's
-/// native, the approved Codex, the startup interface Broodling's entrypoint implements and the native discovery
+/// native, the approved Claude Code, the startup interface Broodling's entrypoint implements and the native discovery
 /// the SDK binding speaks, on the supported platform. Readiness then requires the running target to be that image
 /// and checks the identities it relies on. <c>Components</c> maps each component the manifest states, by its
 /// manifest name and in manifest order, to the versions it states: native, each harness and tool, and .NET's SDKs and
@@ -30,7 +30,7 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
 
     /// <summary>
     /// Refuses bytes other than the adopted <paramref name="sha256"/>, another schema or platform, and a manifest
-    /// whose native, Codex, startup interface or native discovery differs from what this revision supports.
+    /// whose native, Claude Code, startup interface or native discovery differs from what this revision supports.
     /// </summary>
     internal static TargetEnvironment Read(byte[] manifest, string sha256)
     {
@@ -54,9 +54,8 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
                 && Text(native.GetProperty("restic"), "sha256") == DirectTargetBinding.ResticExecutableSha256,
                 "The environment's native identity differs from the DirectTarget binding.");
             var tools = root.GetProperty("tools");
-            Require(Text(root.GetProperty("harnesses").GetProperty("codex"), "version") == DirectTargetBinding.CodexVersion
-                && Text(tools.GetProperty("harness-node"), "version") == DirectTargetBinding.CodexNodeVersion,
-                "The environment's Codex differs from the approved harness.");
+            Require(Text(root.GetProperty("harnesses").GetProperty("claude"), "version") == DirectTargetBinding.ClaudeVersion,
+                "The environment's Claude Code differs from the approved harness.");
             var startup = root.GetProperty("startupInterfaces").GetProperty("entrypoint");
             Require(Text(startup, "version") == StartupInterface
                 && startup.GetProperty("command").EnumerateArray().Select(part => part.GetString()).SequenceEqual([Entrypoint]),

@@ -8,7 +8,7 @@ using static Broodling.Tests.TargetImage;
 namespace Broodling.Tests;
 
 /// <summary>
-/// The adoption record, <c>src/Broodling/environments/dotnet-r2.adoption.json</c>, and the producer manifest bytes
+/// The adoption record, <c>src/Broodling/environments/dotnet-r3.adoption.json</c>, and the producer manifest bytes
 /// it retains: the release bundles exactly that adoption, the record's digest and image are the manifest's, the
 /// manifest is one this revision supports, every component is fixed by an artifact checksum or the base image
 /// digest, and the adopted image actually carries what the manifest states. The test-only environment T
@@ -28,12 +28,12 @@ public sealed class TargetEnvironmentTests
         internal JsonNode Manifest => JsonNode.Parse(ManifestBytes)!;
     }
 
-    /// <summary>The committed dotnet-r2 adoption, or T's, generated for this run.</summary>
+    /// <summary>The committed dotnet-r3 adoption, or T's, generated for this run.</summary>
     private static async Task<Adoption> Subject(string release) => release == TestEnvironmentImage.Release
         ? new(release, await TestEnvironmentImage.DirectoryAsync()) : new(release, Adopted.Directory);
 
     [Test]
-    [Arguments("dotnet-r2")]
+    [Arguments("dotnet-r3")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptionRecordRetainsTheSupportedProducerManifest(string release)
     {
@@ -53,7 +53,7 @@ public sealed class TargetEnvironmentTests
     }
 
     /// <summary>
-    /// T differs from dotnet-r2 only in its identity and its stated OS: the same native, Codex, startup interfaces,
+    /// T differs from dotnet-r3 only in its identity and its stated OS: the same native, Claude Code, startup interfaces,
     /// components and packages, so the DirectTarget binding it is adopted under is the bundled one.
     /// </summary>
     [Test]
@@ -72,31 +72,32 @@ public sealed class TargetEnvironmentTests
     }
 
     /// <summary>
-    /// The release carries exactly the dotnet-r2 adoption, as its committed bytes; nothing else is adopted. A
+    /// The release carries exactly the dotnet-r3 adoption, as its committed bytes; nothing else is adopted. A
     /// change here is a new adoption decision, not a refactoring.
     /// </summary>
     [Test]
-    public async Task ReleaseBundlesExactlyTheDotnetR2Adoption()
+    public async Task ReleaseBundlesExactlyTheDotnetR3Adoption()
     {
         var bundled = AdoptedEnvironments.LoadBundled();
-        await Assert.That(bundled.Select(environment => environment.Release)).IsEquivalentTo(["dotnet-r2"]);
+        await Assert.That(bundled.Select(environment => environment.Release)).IsEquivalentTo(["dotnet-r3"]);
         var adopted = bundled.Single();
-        await Assert.That(adopted.RecordSha256).IsEqualTo("abdd75035c7503d7e53819c64d02e204822dec4e6882dc54d399866d04acdb63");
-        await Assert.That(adopted.ManifestSha256).IsEqualTo("8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e");
+        await Assert.That(adopted.RecordSha256).IsEqualTo("7079d61e48d1ef7ed073e030770c2feadc7a331eb3bf03a4113ad6c071beb568");
+        await Assert.That(adopted.ManifestSha256).IsEqualTo("a939a82262b6d46898f598c90358fe12a23cbc14cf38b1d076206df90a1cec7b");
         await Assert.That(adopted.Record.SequenceEqual(File.ReadAllBytes(Adopted.RecordFile))).IsTrue();
         await Assert.That(adopted.Manifest.SequenceEqual(File.ReadAllBytes(Adopted.Manifest))).IsTrue();
         await Assert.That(adopted.Image).IsEqualTo(Adopted.Image);
         await Assert.That(Directory.GetFiles(Adopted.Directory).Select(file => Path.GetFileName(file)))
-            .IsEquivalentTo(["dotnet-r2.adoption.json", "dotnet-r2.manifest.json"]);
+            .IsEquivalentTo(["dotnet-r3.adoption.json", "dotnet-r3.manifest.json"]);
     }
 
     /// <summary>
-    /// An adoption whose manifest names another native or states a component readiness cannot probe, a record that
+    /// An adoption whose manifest names another native or Claude Code or states a component readiness cannot probe, a record that
     /// names another image than its manifest, a manifest that is not the retained bytes and a repeated release are
     /// refused when the set is loaded.
     /// </summary>
     [Test]
     [Arguments("native")]
+    [Arguments("claude")]
     [Arguments("discovery")]
     [Arguments("unprobed")]
     [Arguments("image")]
@@ -112,18 +113,20 @@ public sealed class TargetEnvironmentTests
             switch (defect)
             {
                 case "native": manifest["native"]!["version"] = "10.9.0"; break;
+                case "claude": manifest["harnesses"]!["claude"]!["version"] = "2.1.237"; break;
                 case "discovery": manifest["startupInterfaces"]!["native"]!["discovery"]!["authentication"] = "none"; break;
                 case "unprobed": manifest["tools"]!["go"] = new JsonObject { ["version"] = "go1.25.0", ["fixedBy"] = "base" }; break;
                 case "image": record["image"] = "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:" + new string('0', 64); break;
             }
-            byte[] bytes = defect == "digest" ? [.. File.ReadAllBytes(Adopted.Manifest), (byte)'\n'] : defect is "native" or "discovery" or "unprobed"
+            byte[] bytes = defect == "digest" ? [.. File.ReadAllBytes(Adopted.Manifest), (byte)'\n'] : defect is "native" or "claude" or "discovery" or "unprobed"
                 ? System.Text.Encoding.UTF8.GetBytes(manifest.ToJsonString()) : File.ReadAllBytes(Adopted.Manifest);
-            if (defect is "native" or "discovery" or "unprobed") record["manifest"]!["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
-            File.WriteAllBytes(Path.Combine(directory, "dotnet-r2.manifest.json"), bytes);
-            File.WriteAllText(Path.Combine(directory, "dotnet-r2.adoption.json"), record.ToJsonString());
+            if (defect is "native" or "claude" or "discovery" or "unprobed") record["manifest"]!["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            File.WriteAllBytes(Path.Combine(directory, "dotnet-r3.manifest.json"), bytes);
+            File.WriteAllText(Path.Combine(directory, "dotnet-r3.adoption.json"), record.ToJsonString());
             if (defect == "repeated") File.WriteAllText(Path.Combine(directory, "again.adoption.json"), record.ToJsonString());
             var refused = await Assert.That(() => AdoptedEnvironments.Load(directory)).Throws<UnsupportedRuntime>();
             if (defect == "unprobed") await Assert.That(refused!.Message).Contains("states go, which readiness cannot probe");
+            if (defect == "claude") await Assert.That(refused!.Message).Contains("Claude Code differs from the approved harness");
         }
         finally { Directory.Delete(directory, recursive: true); }
     }
@@ -133,7 +136,7 @@ public sealed class TargetEnvironmentTests
     /// checksums of its downloaded artifacts or the base image digest: nothing is installed at run time.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r2")]
+    [Arguments("dotnet-r3")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task EveryComponentIsFixedByAnArtifactChecksumOrTheBaseDigest(string release)
     {
@@ -176,7 +179,7 @@ public sealed class TargetEnvironmentTests
     /// exact Broodling commit; an entrypoint change is adopted only with an environment release that carries it.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r2")]
+    [Arguments("dotnet-r3")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptedImageEmbedsThisRevisionsEntrypoint(string release)
     {
@@ -195,7 +198,7 @@ public sealed class TargetEnvironmentTests
     /// the manifest states.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r2")]
+    [Arguments("dotnet-r3")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptedImageCarriesWhatItsManifestStates(string release)
     {

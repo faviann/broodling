@@ -164,12 +164,12 @@ public sealed class StockPullRequestDeliveryTests
         });
         var abandonment = await delivery.FailsAsync();
         await Assert.That(abandonment).IsEqualTo("Zeroshot run failed: native_failed");
-        // The stock loop's limit, not a deadline, ended the run: ten deliveries, each followed by a repair.
+        // The stock loop's limit, not a deadline, ended the run: ten iterations, each one worker run (the change,
+        // then nine repairs) and one delivery.
         var ledger = await delivery.Target.LedgerAsync(delivery.RunId);
         await Assert.That(ledger.Failure).IsEqualTo("change_attempts_exhausted");
-        await Assert.That((ledger.Executions["deliver"], ledger.Executions["delivery_repair"])).IsEqualTo((10, 10));
-        // Each delivery assessed a new repaired head whose required check failed; the next delivery published
-        // each repair but the last.
+        await Assert.That((ledger.Executions["worker"], ledger.Executions["deliver"])).IsEqualTo((10, 10));
+        // Each delivery published and assessed a new head whose required check failed: the change, then each repair.
         var readiness = delivery.Readiness();
         await Assert.That(readiness).Count().IsEqualTo(10);
         await Assert.That(readiness.Select(request => (string?)request.Observed!["head"]).Distinct()).Count().IsEqualTo(10);
@@ -244,7 +244,7 @@ public sealed class StockPullRequestDeliveryTests
         // A refusal, not a repair: the one delivery ended the run.
         var ledger = await delivery.Target.LedgerAsync(delivery.RunId);
         await Assert.That(ledger.Failure).IsEqualTo("delivery_failed");
-        await Assert.That((ledger.Executions["deliver"], ledger.Executions.ContainsKey("delivery_repair"))).IsEqualTo((1, false));
+        await Assert.That((ledger.Executions["worker"], ledger.Executions["deliver"])).IsEqualTo((1, 1));
         var trace = delivery.Target.Trace();
         await Assert.That(trace.Count(request => request.Argv.Contains("POST"))).IsEqualTo(1);
         // Native neither assessed readiness nor read feedback for a PR it could not bind exactly.

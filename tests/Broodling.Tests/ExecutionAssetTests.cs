@@ -24,7 +24,7 @@ public sealed class ExecutionAssetTests
     [Arguments("changed-asset")]
     [Arguments("wrong-hash")]
     [Arguments("rebound-native")]
-    [Arguments("rebound-codex")]
+    [Arguments("rebound-harness")]
     [Arguments("rebound-policy")]
     [Arguments("rebound-recipe")]
     [Arguments("10.3-approval")]
@@ -50,7 +50,7 @@ public sealed class ExecutionAssetTests
                     break;
                 case "wrong-hash": approval["asset"]!["sha256"] = new string('0', 64); break;
                 case "rebound-native": approval["native"]!["resticLinuxX64ExecutableSha256"] = new string('0', 64); break;
-                case "rebound-codex": approval["codex"]!["version"] = "0.153.4"; break;
+                case "rebound-harness": approval["claude"]!["version"] = "2.1.237"; break;
                 case "rebound-policy": approval["policy"]!["pullRequestFeedback"] = "ignore"; break;
                 case "rebound-recipe": approval["generation"]!["recipeRevision"] = new string('0', 40); break;
                 case "10.3-approval":
@@ -85,7 +85,7 @@ public sealed class ExecutionAssetTests
         await Assert.That(JsonNode.DeepEquals(manifest["asset"], new JsonObject { ["file"] = DirectTargetBinding.AssetFile,
             ["bytes"] = ExecutionAsset.LoadBundled().Content().Length, ["sha256"] = DirectTargetBinding.AssetSha256 })).IsTrue();
         await Assert.That(JsonNode.DeepEquals(manifest["native"], DirectTargetBinding.Native())).IsTrue();
-        await Assert.That(JsonNode.DeepEquals(manifest["codex"], DirectTargetBinding.Codex())).IsTrue();
+        await Assert.That(JsonNode.DeepEquals(manifest["claude"], DirectTargetBinding.Claude())).IsTrue();
         var policy = manifest["policy"]!;
         await Assert.That((string)policy["gatewayBaseUrl"]!).IsEqualTo(DirectTargetBinding.GatewayBaseUrl);
         var runtime = ExecutionAsset.LoadBundled().Runtime().AsObject();
