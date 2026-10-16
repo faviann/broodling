@@ -219,6 +219,7 @@ public sealed class TargetEnvironmentTests
     /// digest, and its native, restic and entrypoint bytes, the Claude Code managed settings as native's first agent
     /// identity reads them, every component version and every Debian package are those the manifest states. The
     /// managed settings directory holds only that file, because Claude Code also applies drop-ins and a CLAUDE.md there.
+    /// Root owns the directory and the regular file, at modes 0755 and 0644, so no agent can rewrite the settings.
     /// </summary>
     [Test]
     [Arguments("dotnet-r5")]
@@ -249,14 +250,15 @@ public sealed class TargetEnvironmentTests
             (string)manifest["native"]!["restic"]!["sha256"]! + "  /usr/local/bin/restic",
             (string)manifest["integration"]!["broodling-entrypoint"]!["sha256"]! + "  /usr/local/bin/broodling-target",
             (string)manifest["harnesses"]!["claude"]!["managedSettings"]!["sha256"]! + "  /etc/claude-code/managed-settings.json",
-            "/etc/claude-code/managed-settings.json",
+            "d 0:0 755 /etc/claude-code",
+            "f 0:0 644 /etc/claude-code/managed-settings.json",
             .. manifest["osPackages"]!.AsArray().Select(package =>
                 $"{(string)package!["name"]!} {(string)package["version"]!} {(string)package["architecture"]!}")
         ];
         var observed = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", image, "-ec", """
             sha256sum /usr/local/bin/zeroshot /usr/local/bin/restic /usr/local/bin/broodling-target
             setpriv --reuid 20000 --regid 10002 --clear-groups sha256sum /etc/claude-code/managed-settings.json
-            find /etc/claude-code -mindepth 1
+            find /etc/claude-code -printf '%y %U:%G %m %p\n'
             dpkg-query --show --showformat '${Package} ${Version} ${Architecture}\n'
             """);
         RequireSuccess(observed);

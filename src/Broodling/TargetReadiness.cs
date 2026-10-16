@@ -277,8 +277,8 @@ public sealed class TargetReadiness
 
     /// <summary>
     /// The live checks of one target: its OS identity and every component its adopted manifest states,
-    /// the Claude Code managed settings directory holding only its one file, the native, restic, entrypoint and
-    /// managed settings bytes, the GitHub CLI feature Broodling uses,
+    /// the Claude Code managed settings directory holding only its one root-owned file at fixed modes, the native, restic,
+    /// entrypoint and managed settings bytes, the GitHub CLI feature Broodling uses,
     /// and the hosted identity transition.
     /// </summary>
     private async Task<TargetReadinessFacts> RequireLiveEnvironment(Selected target, JsonElement actual, CancellationToken cancellationToken)
@@ -291,9 +291,12 @@ public sealed class TargetReadiness
         Require(!mismatched.Contains("os"), target, "The live OS identity differs from the one the adopted environment manifest states.");
         Require(mismatched.Count == 0, target,
             $"The live {string.Join(", ", mismatched)} {(mismatched.Count == 1 ? "is missing or differs" : "are missing or differ")} from what the adopted environment manifest states.");
-        // Claude Code also applies managed-settings.d drop-ins and a CLAUDE.md from this directory.
-        Require(await Execute("/bin/sh", "-c", "find /etc/claude-code -mindepth 1 || :") == DirectTargetBinding.ClaudeManagedSettings,
-            target, "Target /etc/claude-code must contain exactly managed-settings.json, the approved Claude Code managed settings.");
+        // Claude Code also applies managed-settings.d drop-ins and a CLAUDE.md from this directory, and an agent that can
+        // write the file, or the target of a symbolic link, can rewrite the policy before the next node starts.
+        Require(await Execute("/bin/sh", "-c", @"find /etc/claude-code -printf '%y %U:%G %m %p\n' || :")
+                == "d 0:0 755 /etc/claude-code\nf 0:0 644 " + DirectTargetBinding.ClaudeManagedSettings,
+            target, "Target /etc/claude-code must contain exactly managed-settings.json, the approved Claude Code managed settings, "
+                + "as a root-owned 0755 directory and a root-owned 0644 regular file.");
         foreach (var (path, expected) in new[] {
             (TargetEnvironment.NativeExecutable, DirectTargetBinding.NativeExecutableSha256),
             (TargetEnvironment.ResticExecutable, DirectTargetBinding.ResticExecutableSha256),

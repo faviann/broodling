@@ -399,6 +399,8 @@ public sealed class TargetReadinessTests
     [Arguments("managed-settings-missing", "target /etc/claude-code must contain exactly managed-settings.json")]
     [Arguments("managed-settings-drop-in", "target /etc/claude-code must contain exactly managed-settings.json")]
     [Arguments("managed-settings-claude-md", "target /etc/claude-code must contain exactly managed-settings.json")]
+    [Arguments("managed-settings-symlink", "target /etc/claude-code must contain exactly managed-settings.json")]
+    [Arguments("managed-settings-writable", "target /etc/claude-code must contain exactly managed-settings.json")]
     [Arguments("slurp", "lacks api")]
     [Arguments("uid", "invalid")]
     public async Task ActualRuntimeDriftAndHostedIdentityFailureRefuse(string change, string message)
@@ -407,7 +409,7 @@ public sealed class TargetReadinessTests
         await Refuses(fixture.Check, message);
         await Assert.That(fixture.DiscoveryCalls).IsEqualTo(0);
         if (change.StartsWith("managed-settings-") && change != "managed-settings-hash")
-            await Assert.That(string.Join(' ', fixture.Calls[^1].Skip(2))).IsEqualTo("/bin/sh -c find /etc/claude-code -mindepth 1 || :");
+            await Assert.That(string.Join(' ', fixture.Calls[^1].Skip(2))).IsEqualTo("/bin/sh -c find /etc/claude-code -printf '%y %U:%G %m %p\\n' || :");
     }
 
     [Test]
@@ -917,13 +919,16 @@ public sealed class TargetReadinessTests
                     : probe.Expected).Prepend(EnvironmentProbe.Marker + probe.Component))));
             var (label, output) = string.Join(' ', args) switch
             {
-                "/bin/sh -c find /etc/claude-code -mindepth 1 || :" => ("managed-settings-directory", failure switch
+                "/bin/sh -c find /etc/claude-code -printf '%y %U:%G %m %p\\n' || :" => ("managed-settings-directory", failure switch
                 {
                     "managed-settings-missing" => "",
-                    "managed-settings-drop-in" => "/etc/claude-code/managed-settings.json\n/etc/claude-code/managed-settings.d\n"
-                        + "/etc/claude-code/managed-settings.d/50-hooks.json",
-                    "managed-settings-claude-md" => "/etc/claude-code/CLAUDE.md\n/etc/claude-code/managed-settings.json",
-                    _ => "/etc/claude-code/managed-settings.json"
+                    "managed-settings-drop-in" => "d 0:0 755 /etc/claude-code\nf 0:0 644 /etc/claude-code/managed-settings.json\n"
+                        + "d 0:0 755 /etc/claude-code/managed-settings.d\nf 0:0 644 /etc/claude-code/managed-settings.d/50-hooks.json",
+                    "managed-settings-claude-md" => "d 0:0 755 /etc/claude-code\nf 0:0 644 /etc/claude-code/CLAUDE.md\n"
+                        + "f 0:0 644 /etc/claude-code/managed-settings.json",
+                    "managed-settings-symlink" => "d 0:0 755 /etc/claude-code\nl 0:0 777 /etc/claude-code/managed-settings.json",
+                    "managed-settings-writable" => "d 0:0 755 /etc/claude-code\nf 0:0 666 /etc/claude-code/managed-settings.json",
+                    _ => "d 0:0 755 /etc/claude-code\nf 0:0 644 /etc/claude-code/managed-settings.json"
                 }),
                 "sha256sum /usr/local/bin/zeroshot" => ("native-hash", "7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693  /usr/local/bin/zeroshot"),
                 "sha256sum /usr/local/bin/restic" => ("restic-hash", "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf  /usr/local/bin/restic"),
