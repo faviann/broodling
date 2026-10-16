@@ -167,7 +167,8 @@ names; the other observations are the manifest's:
 | `sha256sum /usr/local/bin/zeroshot` | `7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693` |
 | `sha256sum /usr/local/bin/restic` | `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, the `restic` that native run allocation requires |
 | `sha256sum /usr/local/bin/broodling-target` | The manifest's `integration.broodling-entrypoint.sha256` |
-| `sha256sum /etc/claude-code/managed-settings.json` | `cbedfec6d9c688288255c084f95269b4198d86435dbb48953ca4e71dac961b0b`; a missing file fails the exec |
+| `find /etc/claude-code -mindepth 1 \|\| :` | Exactly `/etc/claude-code/managed-settings.json`. Claude Code also applies `managed-settings.d/*.json` drop-ins and a `CLAUDE.md` in that directory, so any other entry, or a missing file or directory, refuses with the target named |
+| `sha256sum /etc/claude-code/managed-settings.json` | `cbedfec6d9c688288255c084f95269b4198d86435dbb48953ca4e71dac961b0b` |
 | `/usr/bin/gh api graphql --paginate --slurp --help` | Declares the `--slurp` flag |
 | Short Python exec | `setgroups([10002])`, `setgid(10002)`, `setuid(10002)` and assertions of the resulting UID/GID succeed |
 
@@ -232,11 +233,12 @@ answered by more than one container, and make the whole installation not ready
 when one target's live OS or a tool is missing or differs. Image refusal cases
 (another digest, no digest, another architecture or OS) refuse before any exec.
 Manifest refusals (other bytes, malformed, schema, platform, native, Claude Code,
-startup interface or discovery) belong to adoption loading, in
-`TargetEnvironmentTests`. Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check
+Claude Code managed settings, startup interface or discovery) belong to adoption
+loading, in `TargetEnvironmentTests`. Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check
 (including the bootstrap key mount and its absence from other services),
 inventory validity, credential, version/hash/help, UID and stock-discovery schema
-checks, and private control: unauthenticated control accepted or answered otherwise than
+checks, the managed settings directory (a missing file, a `managed-settings.d`
+drop-in or a `CLAUDE.md`) and the managed settings bytes, and private control: unauthenticated control accepted or answered otherwise than
 `401`, and a refused or missing token, plus a
 controlled-clock discovery stall that expires as refusal and
 cancels as cancellation. Invalid configuration and origin witnesses require zero

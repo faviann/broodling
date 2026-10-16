@@ -318,7 +318,8 @@ Adoption is checked in three places:
   revision's entrypoint. The pulled image is the manifest's platform and
   digest, and its executables' bytes, every component version and its full
   Debian package list are the manifest's. Native's first agent identity,
-  `20000:10002`, reads the managed settings with the approved SHA-256.
+  `20000:10002`, reads the managed settings with the approved SHA-256, and
+  they are the only entry in `/etc/claude-code`.
 - Loading the bundled adoption set, at every configuration read: it refuses a
   manifest that is not the record's bytes, a malformed manifest, a schema other
   than `v2`, a platform other than `linux/amd64` and a native, Claude Code,
@@ -328,7 +329,9 @@ Adoption is checked in three places:
   A catalog entry's `image` must be exactly one adopted image.
 - [`check-target`](#existing-target-readiness) requires each running target to
   be its catalog image by digest and checks live its OS identity, every
-  component the manifest states and the managed settings' bytes.
+  component the manifest states, the managed settings' bytes, and that they
+  are the only entry in `/etc/claude-code`. Claude Code also applies
+  `managed-settings.d` drop-ins and a `CLAUDE.md` there.
 - The [image demonstration](../tests/README.md#image-demonstration), the
   [stock witness](../tests/README.md#controlled-stock-directtarget-witness) and
   the [transition check](#native-state-transitions) run the pulled image.
@@ -365,8 +368,9 @@ Limits of the verification:
   by the base digest; the manifest records no per-package checksum for them.
 - `check-target` ties the container to the adopted digest through Docker's
   image metadata (`RepoDigests`) and trusts the Docker daemon. It checks live
-  only the native, restic, entrypoint and managed settings bytes, the OS
-  identity and the versions of the components the manifest states. It reads
+  only the native, restic, entrypoint and managed settings bytes, the entries
+  of `/etc/claude-code`, the OS identity and the versions of the components the
+  manifest states. It reads
   the managed settings as container root; the image digest fixes the modes that
   let agents read them. It does not detect a change to other files of a running
   container.

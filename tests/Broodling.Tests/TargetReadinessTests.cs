@@ -396,7 +396,9 @@ public sealed class TargetReadinessTests
     [Arguments("restic-hash", "target /usr/local/bin/restic bytes differ")]
     [Arguments("entrypoint-hash", "target /usr/local/bin/broodling-target bytes differ")]
     [Arguments("managed-settings-hash", "target /etc/claude-code/managed-settings.json bytes differ")]
-    [Arguments("managed-settings-missing", "unavailable or invalid")]
+    [Arguments("managed-settings-missing", "target /etc/claude-code must contain exactly managed-settings.json")]
+    [Arguments("managed-settings-drop-in", "target /etc/claude-code must contain exactly managed-settings.json")]
+    [Arguments("managed-settings-claude-md", "target /etc/claude-code must contain exactly managed-settings.json")]
     [Arguments("slurp", "lacks api")]
     [Arguments("uid", "invalid")]
     public async Task ActualRuntimeDriftAndHostedIdentityFailureRefuse(string change, string message)
@@ -404,8 +406,8 @@ public sealed class TargetReadinessTests
         using var fixture = new ReadinessFixture { RuntimeFailure = change };
         await Refuses(fixture.Check, message);
         await Assert.That(fixture.DiscoveryCalls).IsEqualTo(0);
-        if (change == "managed-settings-missing")
-            await Assert.That(string.Join(' ', fixture.Calls[^1].Skip(2))).IsEqualTo("sha256sum /etc/claude-code/managed-settings.json");
+        if (change.StartsWith("managed-settings-") && change != "managed-settings-hash")
+            await Assert.That(string.Join(' ', fixture.Calls[^1].Skip(2))).IsEqualTo("/bin/sh -c find /etc/claude-code -mindepth 1 || :");
     }
 
     [Test]
@@ -772,8 +774,8 @@ public sealed class TargetReadinessTests
         internal TaskCompletionSource DiscoveryStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal FakeTimeProvider Clock { get; } = new();
         internal string[] Arguments => ["check-target", Path.Combine(Root, "target.json"), Path.Combine(Root, "config.json")];
-        /// <summary>Container inspection, each image, the network and its members, then seven execs per target.</summary>
-        internal int ExpectedCalls => 1 + Names.Count + 2 + 7 * Names.Count;
+        /// <summary>Container inspection, each image, the network and its members, then eight execs per target.</summary>
+        internal int ExpectedCalls => 1 + Names.Count + 2 + 8 * Names.Count;
 
         internal static string IdFor(string name) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(name)));
 
@@ -915,6 +917,14 @@ public sealed class TargetReadinessTests
                     : probe.Expected).Prepend(EnvironmentProbe.Marker + probe.Component))));
             var (label, output) = string.Join(' ', args) switch
             {
+                "/bin/sh -c find /etc/claude-code -mindepth 1 || :" => ("managed-settings-directory", failure switch
+                {
+                    "managed-settings-missing" => "",
+                    "managed-settings-drop-in" => "/etc/claude-code/managed-settings.json\n/etc/claude-code/managed-settings.d\n"
+                        + "/etc/claude-code/managed-settings.d/50-hooks.json",
+                    "managed-settings-claude-md" => "/etc/claude-code/CLAUDE.md\n/etc/claude-code/managed-settings.json",
+                    _ => "/etc/claude-code/managed-settings.json"
+                }),
                 "sha256sum /usr/local/bin/zeroshot" => ("native-hash", "7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693  /usr/local/bin/zeroshot"),
                 "sha256sum /usr/local/bin/restic" => ("restic-hash", "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf  /usr/local/bin/restic"),
                 "sha256sum /usr/local/bin/broodling-target" => ("entrypoint-hash", "76c526fe8c51be094dbc48527c40181f5b0f23069996f3c4315c456a49107b79  /usr/local/bin/broodling-target"),
@@ -923,7 +933,7 @@ public sealed class TargetReadinessTests
                 "python3 -c import os; os.setgroups([10002]); os.setgid(10002); os.setuid(10002); assert os.getuid() == 10002 and os.getgid() == 10002" => ("uid", ""),
                 _ => throw new InvalidOperationException("Unexpected target exec")
             };
-            if ((failure == label && label == "uid") || (failure == "managed-settings-missing" && label == "managed-settings-hash"))
+            if (failure == label && label == "uid")
                 throw new InvalidOperationException(Secret);
             return Task.FromResult(failure == label ? Secret : output);
         }

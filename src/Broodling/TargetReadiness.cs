@@ -277,7 +277,8 @@ public sealed class TargetReadiness
 
     /// <summary>
     /// The live checks of one target: its OS identity and every component its adopted manifest states,
-    /// the native, restic, entrypoint and Claude Code managed settings bytes, the GitHub CLI feature Broodling uses,
+    /// the Claude Code managed settings directory holding only its one file, the native, restic, entrypoint and
+    /// managed settings bytes, the GitHub CLI feature Broodling uses,
     /// and the hosted identity transition.
     /// </summary>
     private async Task<TargetReadinessFacts> RequireLiveEnvironment(Selected target, JsonElement actual, CancellationToken cancellationToken)
@@ -290,6 +291,9 @@ public sealed class TargetReadiness
         Require(!mismatched.Contains("os"), target, "The live OS identity differs from the one the adopted environment manifest states.");
         Require(mismatched.Count == 0, target,
             $"The live {string.Join(", ", mismatched)} {(mismatched.Count == 1 ? "is missing or differs" : "are missing or differ")} from what the adopted environment manifest states.");
+        // Claude Code also applies managed-settings.d drop-ins and a CLAUDE.md from this directory.
+        Require(await Execute("/bin/sh", "-c", "find /etc/claude-code -mindepth 1 || :") == DirectTargetBinding.ClaudeManagedSettings,
+            target, "Target /etc/claude-code must contain exactly managed-settings.json, the approved Claude Code managed settings.");
         foreach (var (path, expected) in new[] {
             (TargetEnvironment.NativeExecutable, DirectTargetBinding.NativeExecutableSha256),
             (TargetEnvironment.ResticExecutable, DirectTargetBinding.ResticExecutableSha256),
