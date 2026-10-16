@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using TUnit.Assertions;
 using TUnit.Core;
 
@@ -87,8 +88,8 @@ public sealed class ExecutionAssetTests
         await Assert.That(JsonNode.DeepEquals(manifest["native"], DirectTargetBinding.Native())).IsTrue();
         await Assert.That(JsonNode.DeepEquals(manifest[DirectTargetBinding.Harness], DirectTargetBinding.Claude())).IsTrue();
         var policy = manifest["policy"]!;
-        await Assert.That((string)policy["gatewayBaseUrl"]!).IsEqualTo(DirectTargetBinding.GatewayBaseUrl);
         await Assert.That((string)policy["harness"]!).IsEqualTo(DirectTargetBinding.Harness);
+        await Assert.That((string)policy["gatewayBaseUrl"]!).IsEqualTo(DirectTargetBinding.GatewayBaseUrl);
         var runtime = ExecutionAsset.LoadBundled().Runtime().AsObject();
         foreach (var field in new[] { "harness", "provider", "size" })
             await Assert.That((string)runtime[field]!).IsEqualTo((string)policy[field]!);
@@ -114,6 +115,14 @@ public sealed class ExecutionAssetTests
         foreach (var (field, value) in uniform)
             await Assert.That(JsonNode.DeepEquals(value, field == "connections" ? new JsonObject { ["gateway"] = policy["connections"]!["gateway"]!.DeepClone() } : policy[field]))
                 .IsTrue().Because(field);
+    }
+
+    [Test]
+    public async Task ApprovalDecisionIsAPublicCommentOnTheRepository()
+    {
+        var decision = (string)JsonNode.Parse(File.ReadAllText(Path.Combine(Source, "approval.json")))!["approval"]!["decision"]!;
+        await Assert.That(Regex.IsMatch(decision, @"^https://github\.com/faviann/broodling/(issues|pull)/\d+#issuecomment-\d+$")).IsTrue()
+            .Because(decision);
     }
 
     [Test]
