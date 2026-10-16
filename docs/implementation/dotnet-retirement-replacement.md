@@ -16,8 +16,10 @@ var retirement = store.RetireAttempt(attemptId);
 var maintained = store.RetireStoppedTargetAttempt(attemptId, stoppedTargetCheck);
 // The successor is admitted from original B1 and owns no local directory.
 var successor = store.AdmitRetry(attemptId, retryKey);
-// Admit and prepare it at the predecessor's retained origin; never dispatches.
-var prepared = store.PrepareRetry(attemptId, retryKey);
+// Admit and prepare it with the predecessor's retained environment; never dispatches.
+var prepared = store.PrepareRetry(attemptId, retryKey, environments);
+// Or with the operator's recorded environment update.
+var updated = store.PrepareRetry(attemptId, retryKey, environments, updateEnvironment: true);
 ```
 
 These are explicit operations, not an automatically executed sequence. Each
@@ -105,8 +107,9 @@ There is no execution supervisor or native cleanup mechanism.
 [#122](https://github.com/faviann/broodling/issues/122) adds the only path that
 retires dispatched work, for HTTP DirectTarget Attempts during host maintenance.
 The host procedure ([homelab-iac#356](https://github.com/faviann/homelab-iac/issues/356))
-pauses the installation, drains and quiesces Broodling, stops the target, verifies
-the correct target and its state mounts are stopped and keeps them stopped. It then
+pauses the installation, drains and quiesces Broodling, stops the targets, verifies
+each Attempt's retained target and its state and home mounts are stopped and keeps
+them stopped. It then
 runs the command once per Attempt with a check it made during this pause. A CLI
 Attempt uses the release artifact's command
 (`dotnet /RELEASE/host/Broodling.Host.dll retire-attempt …`), which reaches the
@@ -116,15 +119,17 @@ application's store:
 
 ```bash
 docker compose run --rm --no-deps broodling retire-attempt /var/lib/broodling/state.sqlite3 ATTEMPT_ID \
-  '{"directOrigin":"https://zeroshot.dev.faviann.com","containerName":"broodling-zeroshot-1","stateMount":"/NEW/target-state","homeMount":"/NEW/target-home","verifiedAt":"2026-09-25T12:00:00Z"}'
+  '{"environment":"dotnet","directOrigin":"https://zeroshot-dotnet.dev.faviann.com","containerName":"broodling-zeroshot-dotnet-1","stateMount":"/NEW/targets/dotnet/state","homeMount":"/NEW/targets/dotnet/home","verifiedAt":"2026-09-25T12:00:00Z"}'
 ```
 
 `RetireStoppedTargetAttempt(attemptId, StoppedTargetCheck)` records every member
 as supplied and refuses a blank one; like `check-target`, the command parser
 requires every member, refuses nulls and accepts nothing else. Under one SQLite writer it
 requires the persisted pause, `verifiedAt` no earlier than the latest pause call
-and no later than now (host and application share a clock), the check's origin
-equal to the Attempt's retained binding origin, a drained initiation lock, a
+and no later than now (host and application share a clock), the check's
+`environment`, `directOrigin`, `containerName`, `stateMount` and `homeMount` each
+equal to the Attempt's retained target (a check naming another target or other
+mounts is `maintenance_unverified`), a drained initiation lock, a
 non-current HTTP Attempt (abandoned or completed) with dispatch intent, and its
 B1 pin and any accepted pin, read from Git while the writer is held. Drainage is an additional condition, never authorization: a sender that
 committed intent before the stop holds that lock until its send returns.
@@ -155,14 +160,23 @@ An abandoned Attempt retired this way can then be replaced (#123), still within
 the maintenance pause, with the same image or release command:
 
 ```bash
-docker compose run --rm --no-deps broodling replace-attempt /var/lib/broodling/state.sqlite3 PREDECESSOR_ATTEMPT_ID RETRY_KEY
+docker compose run --rm --no-deps broodling replace-attempt /var/lib/broodling/state.sqlite3 PREDECESSOR_ATTEMPT_ID RETRY_KEY /etc/broodling/invocation.json [--update-environment]
 ```
 
-It calls `PrepareRetry(predecessorId, retryKey)`, which admits the successor and
-prepares its submission at the predecessor's retained origin, here the one the
-check named, and prints that prepared submission (`attemptId`, `intendedRunId`,
-`state`). Repeating it with the same key prints the successor's existing
-submission. A predecessor without a retained origin is refused before anything is
+It calls `PrepareRetry(predecessorId, retryKey, environments, updateEnvironment)`,
+which admits the successor and prepares its submission, and prints that prepared
+submission (`attemptId`, `intendedRunId`, `state`). The configuration is the
+catalog; no token is read. By default the successor inherits its predecessor's
+retained environment resolution byte for byte, at the target the check named,
+and is refused with `environment_changed` when the catalog no longer serves it
+exactly, for example after an image swap. `--update-environment` is the
+operator's sign-off: it resolves the predecessor's environment name against the
+current catalog (`environment_unapproved` if that name is gone), so the update
+still satisfies the original requirement, and the successor's retry records
+`environment_update`. Either refusal admits
+nothing. Repeating the command with the same key prints the successor's existing
+submission; the same key with the other choice is an `attempt_conflict`. A
+predecessor without a retained environment is refused before anything is
 admitted. The command also replaces an HTTP predecessor retired with
 `no_dispatch_intent`, which needs no pause. For a `stopped_target` predecessor,
 both the successor's admission and its first preparation require the
@@ -179,7 +193,8 @@ docker compose run --rm --no-deps broodling resume /var/lib/broodling/state.sqli
 ```
 
 Resume takes the Contract revision's latest Attempt, the successor, returns its
-retained preparation at the configured origin (refusing a different one), checks
+retained preparation (refusing with `environment_changed` unless the catalog still
+serves its resolution exactly), checks
 its retained B1 custody at the recorded container path and sends the prepared request with the service's current credentials,
 under the same pause check and initiation lock as any dispatch. Nothing else
 dispatches it: automatic progression never selects a Replacement Attempt or its
@@ -265,7 +280,11 @@ replacement of an unresolved DirectTarget predecessor after `stopped_target`
 retirement: admission and first preparation refused outside the pause, the same
 bundle-bound task, origin and B1, same-key handback, dispatch refused until release
 and then through Resume, unchanged predecessor history, and the `replace-attempt`
-command.
+command; inherited versus explicitly updated environment resolution, a swapped
+image refused without the update, an update refused when the name is gone, and
+SQL refusal of a successor whose environment contradicts the recorded choice.
+`RetirementTests` also refuses checks naming another environment, origin,
+container or mounts than the Attempt's retained target.
 The [image demonstration](../../tests/README.md#image-demonstration) runs both
 commands from the Broodling image on an abandoned, correlated Attempt that the
 image's own processing server created, with a check the host made of the

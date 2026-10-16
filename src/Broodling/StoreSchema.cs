@@ -449,6 +449,7 @@ internal static class StoreSchema
             predecessor_id TEXT NOT NULL UNIQUE REFERENCES attempt_retirements(attempt_id),
             attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(attempt_id) DEFERRABLE INITIALLY DEFERRED,
             requested_at TEXT NOT NULL,
+            environment_update INTEGER NOT NULL CHECK (environment_update IN (0, 1)),
             CHECK (predecessor_id <> attempt_id)
         ) STRICT;
         CREATE TRIGGER retry_requires_retirement BEFORE INSERT ON attempt_retries
@@ -469,6 +470,22 @@ internal static class StoreSchema
         BEGIN SELECT RAISE(ABORT, 'retry identity and parameters are immutable'); END;
         CREATE TRIGGER retries_no_delete BEFORE DELETE ON attempt_retries
         BEGIN SELECT RAISE(ABORT, 'retry lineage is immutable'); END;
+        -- A successor's environment is exactly its predecessor's, unless its retry records the operator's update,
+        -- which still keeps the predecessor's environment name and requirement. One whose predecessor was never
+        -- prepared resolves like a first Attempt.
+        CREATE TRIGGER replacement_environment BEFORE INSERT ON native_submissions
+        WHEN EXISTS (SELECT 1 FROM attempt_retries AS r JOIN native_submissions AS p ON p.attempt_id = r.predecessor_id
+                WHERE r.attempt_id = NEW.attempt_id)
+          AND NOT EXISTS (
+              SELECT 1 FROM attempt_retries AS r JOIN native_submissions AS p ON p.attempt_id = r.predecessor_id
+              WHERE r.attempt_id = NEW.attempt_id
+                AND json_extract(NEW.binding_json, '$.environment.requirement')
+                  = json_extract(p.binding_json, '$.environment.requirement')
+                AND json_extract(NEW.binding_json, '$.environment.resolution.target.environment')
+                  = json_extract(p.binding_json, '$.environment.resolution.target.environment')
+                AND (r.environment_update = 1 OR json_extract(NEW.binding_json, '$.environment.resolution')
+                  = json_extract(p.binding_json, '$.environment.resolution')))
+        BEGIN SELECT RAISE(ABORT, 'replacement must inherit its predecessor environment or record its update'); END;
 
         DROP TRIGGER attempts_no_abandoned_work;
         CREATE TRIGGER attempts_no_abandoned_work BEFORE INSERT ON attempts
@@ -502,7 +519,8 @@ internal static class StoreSchema
     // One row per Attempt is the single source of dispatch-intent truth: `state <> 'prepared'` means
     // intent was committed. The intended identity is reserved at preparation; `run_id` is set only by
     // correlation and only to that identity, so `UNIQUE (intended_run_id)` alone keeps every run
-    // identity to one Attempt. The replay block is monotonic.
+    // identity to one Attempt. The replay block is monotonic. The environment resolution is chosen once with
+    // the preparation and never changes; the documents it names by digest are content-addressed and immutable.
     internal const string DispatchSql = """
         CREATE TABLE execution_assets (
             asset_sha256 TEXT PRIMARY KEY CHECK (length(asset_sha256) = 64 AND asset_sha256 NOT GLOB '*[^0-9a-f]*'),
@@ -512,6 +530,15 @@ internal static class StoreSchema
         BEGIN SELECT RAISE(ABORT, 'execution asset content is immutable'); END;
         CREATE TRIGGER execution_assets_no_delete BEFORE DELETE ON execution_assets
         BEGIN SELECT RAISE(ABORT, 'execution asset content is durable'); END;
+
+        CREATE TABLE environment_documents (
+            sha256 TEXT PRIMARY KEY CHECK (length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'),
+            content BLOB NOT NULL
+        ) STRICT;
+        CREATE TRIGGER environment_documents_no_update BEFORE UPDATE ON environment_documents
+        BEGIN SELECT RAISE(ABORT, 'environment documents are immutable'); END;
+        CREATE TRIGGER environment_documents_no_delete BEFORE DELETE ON environment_documents
+        BEGIN SELECT RAISE(ABORT, 'environment documents are durable'); END;
 
         CREATE TABLE native_submissions (
             attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
@@ -538,6 +565,9 @@ internal static class StoreSchema
               AND json_extract(NEW.request_json, '$.submission.submissionKey') = NEW.submission_key
               AND json_extract(NEW.request_json, '$.submission.source.revision') = a.b1_commit_oid
               AND json_extract(NEW.binding_json, '$.repository') = a.b1_repository
+              AND json_extract(NEW.binding_json, '$.environment.requirement.declaration.commit') IS
+                  CASE WHEN json_extract(NEW.binding_json, '$.environment.requirement.declaration') IS NULL THEN NULL
+                  ELSE a.b1_commit_oid END
         )
         BEGIN SELECT RAISE(ABORT, 'preparation requires current authority'); END;
         CREATE TRIGGER submission_binding_stable BEFORE UPDATE ON native_submissions

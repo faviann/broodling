@@ -8,111 +8,113 @@ target published on loopback; the image, pin, credential-exclusion and UID
 checks are unchanged. Since #187 the target serves only native's private mode,
 and readiness also requires actual authenticated control with the configured
 token. Since #234 the target is an adopted environment image, and readiness
-checks it against that environment's retained manifest. The pre-cutover #130 repair and its dated validation are
+checks it against that environment's retained manifest. Since #235 it checks
+every catalog target of the
+[ADR 0002](../adr/0002-one-directtarget-per-environment-behind-one-tls-proxy.md)
+installation at once. The pre-cutover #130 repair and its dated validation are
 recorded below. The
 [release guide](../../deployment/README.md#existing-target-readiness) supplies
 current operator use; controlled validation is not a live .NET deployment claim.
 
 ## Operation and input
 
-`TargetReadiness.CheckAsync(inventory, selectedDirectOrigin, access, cancellationToken)`
-is callable without a store, application initialization or HTTP host.
-The selected origin and the `DirectTargetAccess` (that origin's control token
-file and the root certificate) are the ones used for invocation. The thin host
-command reads the existing invocation configuration
-using its shared strict parser and checks origin equality with the inventory
-before accessing the target:
+`TargetReadiness.CheckAsync(inventory, environments, cancellationToken)` is
+callable without a store, application initialization or HTTP host.
+`environments` is the invocation configuration's
+[environment catalog](invocation.md#configuration): for each target its origin,
+control token file, adopted image, container and state and home mounts, plus
+the root certificate. The thin host command reads it with the shared strict
+parser:
 
 ```text
 check-target <target-inventory.json> <config.json>
 ```
 
-Since #186 the inventory describes the existing
-[ADR 0001](../adr/0001-directtarget-https-origin-and-compose-topology.md) stack:
+The inventory adds the host facts the catalog does not carry:
 
 ```json
 {
-  "containerName": "broodling-zeroshot-1",
-  "imageId": "sha256:EXACT_EXISTING_IMAGE_ID",
-  "directOrigin": "https://zeroshot.dev.faviann.com",
-  "stateMount": "/srv/broodling/target-state",
-  "homeMount": "/srv/broodling/target-home",
   "network": "broodling_default",
   "tlsContainerName": "broodling-zeroshot-tls-1",
   "rootKeyMount": "/srv/broodling/zeroshot-tls/key",
   "rootCertificateMount": "/srv/broodling/zeroshot-tls/root",
   "broodlingContainerName": "broodling-broodling-1",
-  "bootstrapKeyFile": "/srv/broodling/secrets/zeroshot/zeroshot-bootstrap-key",
-  "environmentManifest": "/srv/broodling/release/deployment/environments/dotnet-r2.manifest.json",
-  "environmentManifestSha256": "8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e"
+  "targets": [
+    {"environment": "dotnet", "imageId": "sha256:EXACT_EXISTING_IMAGE_ID",
+     "bootstrapKeyFile": "/srv/broodling/secrets/zeroshot-dotnet/zeroshot-bootstrap-key"}
+  ]
 }
 ```
 
-`containerName` is the `zeroshot` target. The three container names must differ.
-`network` is the Compose project network. Mount sources are canonical absolute
-host paths, and the root key and certificate locations must not contain each
-other. `bootstrapKeyFile` is the host file the target mounts as its bootstrap
-key. `environmentManifest` is a host copy of the adopted environment's manifest
-bytes, also a canonical absolute path, and `environmentManifestSha256` the
-digest its [adoption record](../../deployment/README.md#adopted-target-environment)
-retains. Their container
-destinations are fixed. The operator records the exact existing stack, and
-readiness creates no directories or files. The separate `config.json` is the
-existing [invocation configuration](zeroshot-native-integration.md#thin-operator-commands):
-`{"directOrigin": ..., "directControlTokenFile": ..., "directRootCertificate": ...}`.
-Its root must be exactly `root.crt` in the recorded `rootCertificateMount`, so
-discovery trusts the root the stack mounts rather than system trust or another
-copy, and its token file must be readable by the account running the check.
-An unknown field or a secret value is refused in both files; the files name
-secrets only by path.
+`targets` must name exactly the catalog's environments, once each: maintenance
+is whole-installation. `network` is the Compose project network. Container
+names (each target's catalog `container`, `zeroshot-tls` and `broodling`) must
+differ. Mount sources are canonical absolute host paths; the root key and
+certificate locations must not contain each other; and no target's state, home
+or bootstrap key path may overlap another target's or a root location.
+`bootstrapKeyFile` is the host file that target mounts as its bootstrap key.
+The operator records the exact existing stack, and readiness creates no
+directories or files. The catalog's root must be exactly `root.crt` in the
+recorded `rootCertificateMount`, so discovery trusts the root the stack mounts
+rather than system trust or another copy. Every target's token file must be
+readable by the account running the check, and no two targets may hold the
+same token value, so one target's token never works at another. An unknown,
+missing or repeated field is refused in both files; the files name secrets only
+by path.
 
-The origin must be a canonical HTTPS origin with a DNS host name and the default
-port, such as `https://zeroshot.dev.faviann.com`. In-project clients reach
-`zeroshot-tls` through the alias on that port. No explicit port, user info,
-path, query, fragment, IP literal, loopback HTTP origin or noncanonical spelling
-is accepted. Targets bound to a loopback origin are not adopted.
+Each origin must be a canonical HTTPS origin with a DNS host name and the
+default port, such as `https://zeroshot-dotnet.dev.faviann.com`. In-project
+clients reach `zeroshot-tls` through the origin's alias on that port. No
+explicit port, user info, path, query, fragment, IP literal, loopback HTTP
+origin or noncanonical spelling is accepted. Targets bound to a loopback origin
+are not adopted.
 
-Success returns JSON with `ready`, selected `containerName`, `containerId`,
-`imageId`, `directOrigin`, the adopted `environment` release (such as
-`dotnet-r2`), checked `versions`, `apiPaginateSlurp`,
-`hostedUidTransition` and `providerTasks: 0`.
+Success returns `{"targets": [...]}`, with one element per target:
+`environment`, the adopted `release` (such as `dotnet-r2`), `containerName`,
+`containerId`, `imageId`, `directOrigin`, the live `os` and the checked
+`versions`.
 Version facts are the checked pins, not raw process output. Refusal returns
-`ready: false` and a fixed safe `error` with exit 1. Usage exits 2; caller
-cancellation exits 130. No exception text, process stdout/stderr, configuration
-dump, token or discovery or session response is printed.
-The callable refusal is `TargetNotReady`; caller cancellation remains cancellation.
+`ready: false` and a fixed safe `error`, prefixed `Environment <name>:` when it
+concerns one target, with exit 1. Usage exits 2; caller cancellation exits 130.
+No exception text, process stdout/stderr, configuration dump, token or
+discovery or session response is printed. The callable refusal is
+`TargetNotReady`; caller cancellation remains cancellation.
 
 ## Checks and authority boundary
 
-Before any target access, readiness reads the adopted manifest. It refuses
-bytes whose SHA-256 is not `environmentManifestSha256`, a malformed manifest, a
-schema other than `zeroshot-environment.manifest/v2` and a platform other than
-`linux/amd64`. The manifest must name the
+The adopted manifest is the producer's statement, not evidence about a running
+container. Its bytes are retained with the release, and the bundled adoption
+set refuses, when it loads, a manifest whose digest differs from its record,
+that is malformed, of a schema other than `zeroshot-environment.manifest/v2` or
+a platform other than `linux/amd64`, or that does not name the
 [DirectTarget binding](zeroshot-native-integration.md#pinned-dependencies)'s
 native release, source revision and `zeroshot` and `restic` paths and SHA-256,
-the approved Codex version and its harness Node.js, and the startup interface
+the approved Codex version and its harness Node.js, the startup interface
 `zeroshot-environment.direct-target-startup/v1` with the command
 `/usr/local/bin/broodling-target`
-([entrypoint boundary](../../deployment/README.md#entrypoint-boundary)).
+([entrypoint boundary](../../deployment/README.md#entrypoint-boundary)) and
+native's private discovery. Readiness verifies the live targets against it.
 
-One `docker inspect --type container` then selects exactly the three recorded
-containers, and one `docker image inspect` of the recorded image requires
-`linux`/`amd64` and the manifest's `repository@digest` among its `RepoDigests`.
+One `docker inspect --type container` selects exactly every recorded target,
+`zeroshot-tls` and `broodling`. For each target, one `docker image inspect` of
+its recorded image requires `linux`/`amd64` and the catalog entry's adopted
+`repository@digest` among its `RepoDigests`.
 
-The `zeroshot` target must have the exact recorded image, be running, run as
+Each target must have its recorded image, be running, run as
 container root (`""`, `0`, `0:0`, or `root`), use ordinary isolation (not
 privileged or host networking), drop no capabilities and use restart policy
 `no`. It rejects installed `GH_TOKEN`, `GITHUB_TOKEN`, `GATEWAY_API_KEY`,
 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and `CODEX_API_KEY`, including empty
-values. Its mounts must be exactly the recorded read/write state and home binds
-at `/state` and `/home/node`, the public root directory bound read-only at
-`/tls-root` and the recorded bootstrap key file bound read-only at
+values. Its mounts must be exactly its catalog state and home as read/write
+binds at `/state` and `/home/node`, the public root directory bound read-only at
+`/tls-root` and its recorded bootstrap key file bound read-only at
 `/run/secrets/zeroshot-bootstrap-key`, beside only the volumes Docker creates
 for the image's declared volumes (the base's unused `/var/lib/zeroshot`). It
 publishes no port, including through publish-all, and carries
-the `zeroshot` alias on the recorded network, where `zeroshot-tls` forwards. Entrypoint is exactly `/usr/local/bin/broodling-target`;
+its `zeroshot-<name>` alias on the recorded network, where `zeroshot-tls`
+forwards its origin. Entrypoint is exactly `/usr/local/bin/broodling-target`;
 arguments must be exactly
-`--listen 0.0.0.0:18770 --public-origin <origin> --storage /state`, the fixed
+`--listen 0.0.0.0:18770 --public-origin <its origin> --storage /state`, the fixed
 inner port. See the
 [initialization/startup procedure](../../deployment/README.md#explicit-initialization-and-guarded-startup)
 for the package-owned state checks; readiness itself initializes nothing.
@@ -121,40 +123,54 @@ for the package-owned state checks; readiness itself initializes nothing.
 `caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b`,
 be running and run as the package-defined user `10443:10443`. It must use
 ordinary isolation, drop `ALL` capabilities and add only `NET_BIND_SERVICE`,
-publish only `443/tcp` and carry the origin's host name as an alias on the
+publish only `443/tcp` and carry every origin's host name as an alias on the
 recorded network. Its mounts at `/tls-root-key` and `/tls-root` must be exactly
 the recorded key and public root directories, both read-only binds. No other
 `zeroshot-tls` mount may equal, contain or lie within the public root directory,
 so Caddy's data, with its intermediate key, stays out of what `broodling` and
-`zeroshot` mount.
+the targets mount. Readiness does not read the site files; a site that forwards
+an origin elsewhere fails that origin's discovery or control checks.
 
 `broodling` must mount the public root directory, only as a read-only bind, and
 no other mount of it may equal, contain or lie within any other `zeroshot-tls`
 mount source: the root key directory or Caddy's data, which holds the
-intermediate key. Neither `broodling` nor `zeroshot-tls` may mount the bootstrap
-key file or a directory containing it: only the target and the one-off
-bootstrap operation receive it.
+intermediate key. Neither `broodling` nor `zeroshot-tls` may mount any target's
+bootstrap key file or a directory containing it: only that target and the
+one-off bootstrap operation receive it.
 
-Subsequent execs use the inspected target container ID, never a newly selected
-name. The native version, the Codex version and the `zeroshot` and `restic`
-hashes are the binding's, which the manifest names; the other observations are
-the manifest's:
+A `docker network inspect` of the recorded network, followed by an inspection of
+every attached container, requires each `zeroshot-<name>` alias and each origin
+host to be answered by exactly one container (its name, aliases and DNS names
+count). No second target, and no load balancing, sits behind one name.
+
+Subsequent execs use each inspected target container ID, never a newly selected
+name. One shell exec per target runs a probe for the live OS identity and every
+component its manifest states, and reports each missing or differing component
+by name; a manifest stating a component with no probe below is refused when the
+adoption set loads; one target's mismatch makes the whole installation
+not ready. The native version, the Codex version and the `zeroshot` and
+`restic` hashes are the binding's, which the manifest names; the other
+observations are the manifest's:
 
 | Probe | Required observation |
 | --- | --- |
+| `grep '^PRETTY_NAME=' /etc/os-release` | The manifest's `os` (`Debian GNU/Linux 13 (trixie)`) |
 | `/usr/local/bin/zeroshot --version` | `zeroshot 10.10.0` |
-| `/usr/local/bin/codex --version` | `codex-cli 0.155.0` |
-| `/usr/local/bin/node --version` | The manifest's `tools.node.version` (`v24.21.0`) |
-| `/usr/bin/gh --version` | First line is the manifest's `tools.gh.version` (`gh version 2.101.0 (2026-09-15)`) |
+| `codex --version` | `codex-cli 0.155.0` |
+| `/opt/zeroshot/bin/node --version` | The manifest's harness Node.js (`v24.21.0`) |
+| `node`, `npm`, `yarn`, `corepack`, `python3`, `rustc`, `rustup`, `git`, `docker --version`; `gh --version` (first line); `pip --version` (first two fields); `gcc -dumpfullversion` | The manifest's versions of `node`, `npm`, `yarn`, `corepack`, `python`, `rust`, `rustup`, `git`, `docker-cli`, `gh`, `pip` and `gcc` |
+| `rustup show active-toolchain` and `rustup component list --installed`, as `<toolchain>: <components>` | The manifest's `rust-components` |
+| `claude --version`, `copilot --version` (first line) | The manifest's versions, when it lists them; checking a version approves nothing |
+| `dotnet --list-sdks`, `dotnet --list-runtimes` | Exactly the manifest's SDKs and runtimes, when it lists them |
 | `sha256sum /usr/local/bin/zeroshot` | `fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5` |
 | `sha256sum /usr/local/bin/restic` | `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, the `restic` that native run allocation requires |
 | `sha256sum /usr/local/bin/broodling-target` | The manifest's `integration.broodling-entrypoint.sha256` |
 | `/usr/bin/gh api graphql --paginate --slurp --help` | Declares the `--slurp` flag |
 | Short Python exec | `setgroups([10002])`, `setgid(10002)`, `setuid(10002)` and assertions of the resulting UID/GID succeed |
 
-The configuration's control token for the origin must then be readable (exactly
-64 lowercase hexadecimal characters); otherwise readiness refuses before any
-target request. A GET of `<origin>/.well-known/zeroshot-native-v2` must return
+Each target's control token was read (exactly 64 lowercase hexadecimal
+characters) before any Docker command; an unreadable one refuses then. For each
+origin, a GET of `<origin>/.well-known/zeroshot-native-v2` must return
 HTTP 200 and the exact stock private-mode discovery document: kind
 `zeroshot.native-v2-target/v2`, authentication `private_capability`, audience
 `controller`, the stock run, session and OECP routes and `privateBootstrapPath`
@@ -184,7 +200,7 @@ bounded read ([transport](zeroshot-native-integration.md#directtarget-transport-
 each response is byte-counted and parsed within one shared 10-second budget. Like every
 DirectTarget connection it relies on the deployment assumption that no proxy
 variables are defined. Commands have a
-30-second inspection timeout. Discovery expiry is a safe refusal. Caller
+60-second inspection timeout. Discovery expiry is a safe refusal. Caller
 cancellation remains cancellation and ends only the selected Docker CLI process
 or local HTTP exchange. It never stops the target or asserts cessation of an exec.
 
@@ -202,16 +218,19 @@ human/operator review of exact accepted revisions remain in force.
 ## Owning witnesses
 
 `tests/Broodling.Tests/TargetReadinessTests.cs` owns controlled command and HTTP
-boundaries. Its success witness asserts the exact three-container inspection and
+boundaries. Its success witness asserts the exact container inspection and
 exec selection, the complete UID probe, discovery URL/method, no authentication
 header on discovery, an unauthenticated then a token-bearing session request,
 the published endpoint and trusted root handed to discovery, checked facts and
 exclusion of the token and of a synthetic secret appended to otherwise valid gh output.
-Manifest refusal cases (other bytes, unavailable or relative path, malformed,
-schema, platform, native version, revision and hashes, Codex and its Node.js,
-startup interface version and command) all refuse before any Docker command, and
-image refusal cases (another digest, no digest, another architecture or OS)
-refuse before any exec. Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check
+Two-target cases check every catalog target at its own origin with its own
+token, refuse overlapping storage or a shared token across targets and a name
+answered by more than one container, and make the whole installation not ready
+when one target's live OS or a tool is missing or differs. Image refusal cases
+(another digest, no digest, another architecture or OS) refuse before any exec.
+Manifest refusals (other bytes, malformed, schema, platform, native, Codex,
+startup interface or discovery) belong to adoption loading, in
+`TargetEnvironmentTests`. Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check
 (including the bootstrap key mount and its absence from other services),
 inventory validity, credential, version/hash/help, UID and stock-discovery schema
 checks, and private control: unauthenticated control accepted or answered otherwise than
@@ -223,9 +242,9 @@ composed command case uses an invocation configuration, passes its root and crea
 store. The Program usage witness checks routing
 without Docker or HTTP access.
 
-One case uses the actual images on host Docker (see `TargetStack`): the ADR stack
-with a started but unbootstrapped target is not ready, and ready once
-bootstrapped; after a rotation that replaced the root but kept Caddy's stored
+One case uses the actual images on host Docker (see `TargetStack`): the ADR 0002
+stack with one `dotnet` target, started but unbootstrapped, is not ready, and
+ready once bootstrapped, with the live OS equal to the manifest's; after a rotation that replaced the root but kept Caddy's stored
 intermediate, discovery and a control client both refuse; after the
 documented TLS rotation, both succeed again without restarting the target.
 

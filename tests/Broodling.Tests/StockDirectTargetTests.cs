@@ -28,7 +28,7 @@ public sealed class StockDirectTargetTests
         await target.PushAsync(git.Repository, "main");
         var local = git.LocalResources();
 
-        var status = await new Invocation(store, new InvocationTarget(target.Origin)).ResumeAsync(revision, git.Repository, b1, Credentials);
+        var status = await new Invocation(store, TestEnvironments.For(target.Origin)).ResumeAsync(revision, git.Repository, b1, Credentials);
         var attempt = status.Attempts.Single();
         var submission = status.Submissions.Single();
         await Assert.That(submission.State).IsEqualTo("correlated");
@@ -75,7 +75,7 @@ public sealed class StockDirectTargetTests
         await target.PushAsync(git.Repository, "main");
         // B1 exists in local custody but was never published to the forge.
         var b1 = git.Commit("never published\n");
-        var invocation = new Invocation(store, new InvocationTarget(target.Origin));
+        var invocation = new Invocation(store, TestEnvironments.For(target.Origin));
         var unresolved = await LoseAcknowledgementAsync(store, git, invocation, revision, b1, target);
 
         // Exact replay with rotated credentials converges on the same key and run.
@@ -116,14 +116,16 @@ public sealed class StockDirectTargetTests
     public async Task NativeAgentReadsBundleReferencesFromItsSubmissionWithNoBroodlingToReach()
     {
         using var fixture = await BundleHttpFixture.CreateAsync();
-        var (store, bundle, attempt) = (fixture.Store, fixture.Bundle, fixture.Attempt);
+        var (bundle, attempt) = (fixture.Bundle, fixture.Attempt);
         // No Broodling reader runs anywhere, and the target is given no name or route for one.
         await using var target = await StockDirectTarget.StartAsync(fixture.Git.State.Root);
+        fixture.Git.State.Environments = TestEnvironments.For(target.Origin);
+        using var store = fixture.Git.State.Open();
         var repository = attempt.B1.Repository;
         AttemptFixture.RunGit(repository, "config", "url." + target.Forge + ".insteadOf", "https://github.com/acme/widget.git");
         await target.PushAsync(repository, attempt.B1.CommitOid + ":refs/heads/main");
 
-        await new Invocation(store, new InvocationTarget(target.Origin)).ResumeAsync(attempt.ContractRevisionId, credentials: Credentials);
+        await new Invocation(store, TestEnvironments.For(target.Origin)).ResumeAsync(attempt.ContractRevisionId, credentials: Credentials);
         var completion = await store.WaitAsync(attempt.AttemptId);
 
         // The controlled agent committed each listed reference as its task carried it: bytes matching the manifest digest.
@@ -135,11 +137,15 @@ public sealed class StockDirectTargetTests
                 .IsEqualTo(reference.ContentSha256);
     }
 
-    /// <summary>An authorized-PR revision whose result fetch resolves only to the controlled forge.</summary>
+    /// <summary>
+    /// An authorized-PR revision whose result fetch resolves only to the controlled forge, in a store configured with
+    /// <paramref name="target"/>'s environment.
+    /// </summary>
     internal static (BroodlingStore Store, string Revision) Admit(AttemptFixture git, StockDirectTarget target)
     {
         git.Git("remote", "add", "origin", "https://github.com/acme/widget.git");
         git.Git("config", "url." + target.Forge + ".insteadOf", "https://github.com/acme/widget.git");
+        git.State.Environments = TestEnvironments.For(target.Origin);
         var store = git.State.Open();
         return (store, AttemptFixture.PullRequestRevision(store));
     }

@@ -56,7 +56,7 @@ public sealed class ReplacementCompletionTests
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "INSERT INTO attempt_retries VALUES ('sql-retry', $predecessor, 'sql-successor', 'now')";
+            command.CommandText = "INSERT INTO attempt_retries VALUES ('sql-retry', $predecessor, 'sql-successor', 'now', 0)";
             command.Parameters.AddWithValue("$predecessor", original.AttemptId);
             command.ExecuteNonQuery(); // Valid safe lineage: the abandoned-work exception applies.
             command.CommandText = """
@@ -91,7 +91,7 @@ public sealed class ReplacementCompletionTests
         var historical = reopened.AdmitRetry(original.AttemptId, "completed-key");
         await Assert.That(historical.AttemptId).IsEqualTo(successor.AttemptId);
         await Assert.That(historical.IsCurrent).IsFalse();
-        await Assert.That(() => reopened.PrepareHttpSubmission(successor.AttemptId, fixture.Origin)).Throws<StaleAttempt>();
+        await Assert.That(() => reopened.PrepareHttpSubmission(successor.AttemptId, TestEnvironments.For(fixture.Origin))).Throws<StaleAttempt>();
         // A correlated record is handed back as a retained fact; nothing is sent.
         await Assert.That((await reopened.DispatchHttpAsync(successor.AttemptId, null)).State).IsEqualTo("correlated");
         await Assert.That(async () => await reopened.StopAsync(successor.AttemptId, "too late")).Throws<StaleAttempt>();

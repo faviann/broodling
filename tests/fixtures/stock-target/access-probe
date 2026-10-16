@@ -80,7 +80,7 @@ run_id = str(uuid.uuid7()) if hasattr(uuid, "uuid7") else "01890000-0000-7000-80
 wrong = "Bearer " + "0" * 64
 endpoints = {
     "loopback": lambda: http.client.HTTPConnection("127.0.0.1", 18770, timeout=10),
-    "origin": lambda: http.client.HTTPSConnection("zeroshot.dev.faviann.com", 443, timeout=10,
+    "origin": lambda: http.client.HTTPSConnection("zeroshot-dotnet.dev.faviann.com", 443, timeout=10,
                                                   context=ssl.create_default_context(cafile="/tls-root/root.crt")),
 }
 requests = {

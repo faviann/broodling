@@ -174,12 +174,14 @@ src/Broodling/execution-assets/generate.sh --image
 
 ## HTTP submission preparation
 
-`PrepareHttpSubmission(attemptId, directOrigin)` freezes one HTTP Attempt's
-complete request without target contact or dispatch credentials. The
+`PrepareHttpSubmission(attemptId, environments)` freezes one HTTP Attempt's
+complete request and its [environment resolution](#environment-selection)
+without target contact or dispatch credentials. The
 [prepared record](../../src/Broodling/HttpSubmission.cs) is the preparation fact.
-It implies neither dispatch intent nor native acceptance. The origin must be
-canonical HTTPS or HTTP to exactly `127.0.0.1` or `[::1]`, as the SDK also
-requires; the status reader uses the same check.
+It implies neither dispatch intent nor native acceptance. The target origin is
+the resolved environment's, which the catalog requires to be canonical HTTPS or
+HTTP to exactly `127.0.0.1` or `[::1]`, as the SDK also requires; the status
+reader uses the same check.
 
 Preparation first establishes exact B1 custody: the direct
 `refs/broodling/starting/<B1>` pin in the Attempt's common Git directory. It then
@@ -187,8 +189,9 @@ captures the result-fetch origin from that directory's `remote.origin.url`. The
 origin must name the admitted GitHub repository and carry no credentials: a URL
 has no user information except the `git` user of an `ssh://` URL. A
 crash after pinning but before the SQLite commit leaves only the pin, which grants
-nothing. A bundle-bound Attempt's references are read next, also outside any
-SQLite writer. Preparation then rechecks current authority and pause in one immediate
+nothing. The environment declaration is then read from exact B1 and resolved
+against the catalog, and a bundle-bound Attempt's references are read, all
+outside any SQLite writer; a refusal leaves no record. Preparation then rechecks current authority and pause in one immediate
 transaction, including the explicit-replacement exception. That transaction
 commits all of the following together:
 
@@ -208,24 +211,98 @@ commits all of the following together:
   and the key `broodling:http:v1:<attempt-id>`.
 - The exact asset bytes in the content-addressed `execution_assets` row.
 - A Broodling-only binding that is never sent: protocol
-  `zeroshot.native-v2-target/v2`, the target origin, the common Git directory,
-  the frozen result-fetch origin and the DirectTarget binding's native
-  release, source and executable.
+  `zeroshot.native-v2-target/v2`, the common Git directory,
+  the frozen result-fetch origin, the DirectTarget binding's native
+  release, source and executable, and the `environment` resolution, whose
+  target names the origin.
+- The adoption record, manifest and declaration bytes in the content-addressed
+  `environment_documents` rows.
 
-Concurrent preparers converge on the first committed record; a loser never
-generates or compares another identity. Repeating preparation does not read the
+Concurrent preparers converge on the first committed record, its environment
+included; a loser never generates or compares another identity or resolution,
+whatever catalog it holds. Repeating preparation does not read the
 installed asset. It validates the retained record against the retained asset
 bytes, the approved identity and native binding, and a rebuild of the request
 from admitted authority. That rebuild takes the reference bytes from the retained
 task itself and checks each against the admitted manifest digest, so it reads no
 Git. A missing or corrupt asset, a request whose graph, runtime or task differs,
-reference bytes that differ from their digest, an unsupported binding or a
-different target origin refuses. Nothing is regenerated or rebound.
+reference bytes that differ from their digest, missing or differing environment
+documents, or an unsupported binding refuses. A retained manifest that this
+release's native binding no longer accepts refuses with a reason to retire and
+replace the Attempt. The repository, the catalog and the default are not read
+again. Nothing is regenerated or rebound.
 
 The record's retained binding is a `NativeRunBinding`: the target origin, the
 frozen title and runtime size, and the frozen repository, authorized branch and
 B1 source. It carries no credentials or adapter settings. Read and stop add the
 run ID.
+
+### Environment selection
+
+The operator's catalog ([invocation configuration](invocation.md#configuration))
+names each approved environment and its target. An Attempt's requirement comes
+from `.broodling/environment.json` at the repository root of its original B1,
+read through the B1 pin and never from a later revision or the working tree.
+The declaration is exactly `{"version": 1, "environment": "<name>"}`: strict
+UTF-8 without a byte order mark, at most 1024 bytes, a regular file (mode
+`100644` or `100755`). The name is a lowercase DNS label of at most 54
+characters and selects that catalog entry exactly. There are no ranges,
+families, toolchain or SDK matching, or nearest-version fallback, and
+`global.json`, `.tool-versions` and similar files are never interpreted. No
+declaration means the configured default. The declaration is execution context:
+it never enters the Contract or the native request and grants no authority. A
+per-invocation override is deferred.
+
+Refusals happen before any record or target contact, and progression stops
+with the code: `environment_declaration_invalid` (not JSON or UTF-8, a byte
+order mark, over 1024 bytes, not a regular file, `.broodling` not a directory,
+no numeric version, or a name that is not a DNS label),
+`environment_declaration_conflict` (a repeated member),
+`environment_requirement_unsupported` (a version other than 1 or any other
+member, such as `sdk`), `environment_unapproved` (a name the catalog does not
+configure) and `environment_default_missing`. An adoption whose native, Codex
+or startup interface this release's binding does not support is refused when
+the catalog is loaded.
+
+The resolution is fixed for the Attempt's lifetime: adding an environment or
+changing the default affects only new Attempts. Dispatch, first send and replay
+alike, requires the current catalog to serve the retained environment exactly:
+the same name, image, adoption and manifest digests, origin, container and
+mounts. Otherwise it refuses with `environment_changed`, naming what changed and
+the Attempt's retained environment, before intent and contact. Observation and
+wait require only that the catalog still names the retained environment at its
+retained origin. Otherwise they fail with the transport kind
+`environment_unavailable` and send nothing, so a token never reaches an origin
+under another name. Stop under such a catalog still abandons and quarantines the
+Attempt but sends no force (`cessation_unconfirmed`, reason
+`environment_unavailable`). The `stop` command given such a configuration
+refuses with `submission_conflict` before abandonment. A correlated Attempt
+therefore still reads, waits and stops after an image swap. The remedy is stop,
+retirement under verified maintenance and a Replacement. A Replacement inherits
+its predecessor's resolution and is refused with `environment_changed` unless
+the catalog still serves it exactly; with `--update-environment` it resolves the
+predecessor's environment name against the current catalog instead
+([replacement](dotnet-retirement-replacement.md)).
+
+`binding.environment` keeps the requirement apart from its resolution:
+
+```json
+{"requirement": {"name": "dotnet",
+   "declaration": {"path": ".broodling/environment.json", "commit": "<B1>", "blob": "<oid>", "sha256": "<hex>"}},
+ "resolution": {"adoption": {"kind": "broodling.target-environment-adoption/v1", "release": "dotnet-r2", "sha256": "<record>"},
+   "manifest": {"schema": "zeroshot-environment.manifest/v2", "sha256": "<manifest>"},
+   "image": "ghcr.io/…@sha256:…", "platform": "linux/amd64", "os": "Debian GNU/Linux 13 (trixie)",
+   "components": {"native": ["10.10.0"], "codex": ["0.155.0"], "…": ["…"]},
+   "target": {"environment": "dotnet", "origin": "https://zeroshot-dotnet.dev.faviann.com",
+     "container": "…", "stateMount": "…", "homeMount": "…"}}}
+```
+
+An undeclared requirement has `name` and `declaration` null. A Replacement
+records where its environment came from on its retry row: its predecessor and
+`environment_update`. A trigger freezes the binding, and the documents it names
+cannot be changed or deleted. No token value or token path is retained. Status
+and Attempt reads report `environment`: name, image, adoption and manifest
+digests and the target.
 
 ### Frozen references
 
@@ -288,6 +365,9 @@ whole operation shares the 60-second submit budget. Credentials never enter
 SQLite, the frozen request or a diagnostic, and rotating them changes neither
 identity nor the request bytes.
 
+Before opening its client, dispatch (first send and replay alike) applies the
+[retained-environment check](#environment-selection), before intent and contact.
+
 The send also carries the target's private control token as its bearer (#187).
 It is read, like the root, when the operation's SDK client is created, before
 the intent commits, from the token file the session's `DirectTargetAccess`
@@ -341,9 +421,9 @@ discover its run.
 ## Composed invocation
 
 ```csharp
-var access = DirectTargetAccess.For(directTargetOrigin, controlTokenFile, rootCertificate);
-using var store = new BroodlingApplication().OpenStore(databasePath, access);
-var invocation = new Invocation(store, new InvocationTarget(directTargetOrigin));
+// The catalog, as InvocationConfiguration reads it over the adoption set bundled with the release.
+using var store = new BroodlingApplication().OpenStore(databasePath, environments);
+var invocation = new Invocation(store, environments);
 var credentials = new DispatchCredentials(githubToken, gatewayBaseUrl, gatewayApiKey);
 var status = await invocation.SubmitAsync(reference, propose,
     [new RequiredEffect("pr", "Deliver a PR to main.", "pull_request", "main")],
@@ -353,15 +433,16 @@ var resumed = await invocation.ResumeAsync(status.Revision.ContractRevisionId,
     credentials: credentials);
 ```
 
-`Invocation` takes one `InvocationTarget`, the DirectTarget origin. It admits an
-HTTP Attempt, prepares or reopens its submission at that origin and dispatches it
-with the caller's current `DispatchCredentials`. It needs no Python, SDK client
-state, workspace root or launcher. `InvocationTarget` refuses an origin that is
-not canonical HTTPS or HTTP to exactly `127.0.0.1` or `[::1]`.
+`Invocation` takes the `EnvironmentCatalog`. It admits an HTTP Attempt,
+prepares or reopens its submission at the target its
+[environment resolution](#environment-selection) selects and dispatches it with
+the caller's current `DispatchCredentials`. It needs no Python, SDK client
+state, workspace root or launcher.
 `ResumeSubmissionAsync(submissionId, credentials)` takes the same path for one
 Issue submission's bundle-bound Contract; its first Attempt starts from the
-RequestBundle's retained B1. An existing Attempt whose retained binding names a
-different origin refuses before any preparation or target contact. A correlated,
+RequestBundle's retained B1. An existing Attempt keeps its retained resolution,
+and dispatch refuses before target contact when the catalog no longer serves it
+exactly. A correlated,
 completed or ended Attempt is handed back from retained state without
 configuration, credentials or target contact.
 
@@ -391,7 +472,7 @@ resume <store> <contract-revision-id> [config.json [checkout [revision]]]
 wait <store> <attempt-id> [config.json]
 stop <store> <attempt-id> <reason> [config.json]
 check-target <target-inventory.json> <config.json>
-bootstrap-target <config.json> <bootstrap-key-file>
+bootstrap-target <config.json> <environment> <bootstrap-key-file>
 ```
 
 `submit` authorizes exactly one `pull_request` effect to `<target-branch>`; `-`
@@ -402,26 +483,22 @@ names the source repository whose exact revision becomes B1; it is not an
 execution checkout. The operator command obtains current PR credentials from
 its environment and passes them explicitly to the application.
 
-The configuration is `{"directOrigin": ..., "directControlTokenFile": ...}` with
-an optional absolute `directRootCertificate`. It contains no secrets: the
-required absolute `directControlTokenFile` names the file holding the target's
-private control token, which is read again by each operation and sent only to
-`directOrigin`. Any other member, including a `target` member, an inline token
-or another credential field, is refused. The origin must pass the
-`InvocationTarget` rule above, without user information, path, query or
-fragment, and never port 0. `wait` and `stop` take the same optional
-configuration and use only its connection material (token file and root). The
-retained binding decides where they connect, and a configuration naming a
-different origin refuses before target contact or abandonment. Without a
+The configuration is the secret-free environment catalog
+([invocation](invocation.md#configuration)): each entry's control token file is
+read again by each operation and its token sent only to that entry's origin.
+`wait` and `stop` take the same optional configuration and use only its
+connection material (token file and root). The retained binding decides where
+they connect, and a configuration with no entry of the retained environment
+name at the retained origin refuses before target contact or abandonment. Without a
 configuration, `wait` returns only a retained completion and otherwise fails as
 `credentials_unavailable` without contacting the target, and `stop` still
 commits abandonment but reports its native stop as not sent. CLI error records
 carry a native transport failure's fixed `kind`. See the
 [release guide](../../deployment/README.md#invocation-configuration).
 
-`bootstrap-target` installs the configuration's control token in the target
-process now serving its origin, and `check-target` verifies the stack, private
-discovery and authenticated control; see
+`bootstrap-target` installs the named environment's control token in the
+target process now serving its origin, and `check-target` verifies every
+catalog target, private discovery and authenticated control; see
 [private control access](../../deployment/README.md#private-control-access).
 
 The submit, resume and stop handbacks report each submission only as its status
@@ -434,13 +511,15 @@ Contract inputs.
 
 ### DirectTarget origin, initialization and readiness
 
-The homelab DirectTarget origin is `https://zeroshot.dev.faviann.com`
-([ADR 0001](../adr/0001-directtarget-https-origin-and-compose-topology.md)).
-The `zeroshot-tls` Caddy container serves it on port 443, signing with the
-stack's own root, and forwards to native at the fixed inner port 18770 on the
-Compose project network. Native itself is never published. The configuration
-names that origin, its control token file and, as `directRootCertificate`, the
-public `root.crt`, which Broodling rereads for each TLS connection. Explicit
+Each catalog environment has its own DirectTarget and origin, by convention
+`https://zeroshot-<name>.dev.faviann.com`
+([ADR 0002](../adr/0002-one-directtarget-per-environment-behind-one-tls-proxy.md)).
+The one `zeroshot-tls` Caddy container serves every origin on port 443, signing
+with the stack's own root, and forwards each through its own site file to
+`zeroshot-<name>` at the fixed inner port 18770 on the Compose project network.
+Native itself is never published. The configuration names each origin and its
+control token file and, as `directRootCertificate`, the one public `root.crt`,
+which Broodling rereads for each TLS connection. Explicit
 first initialization creates the root once with the target image's
 `initialize-tls` helper: the key is readable only by `zeroshot-tls`'s user, and
 the certificate is the only file in a public directory. Native initialization
@@ -494,7 +573,8 @@ After durable correlation, wait and stop receive the retained run binding
 (origin, run ID, frozen title, size and PR source) through the
 [run reader and stopper](#directtarget-run-reader-and-stopper). They need no
 workspace or dispatch credentials, only the current control token for the
-retained origin. Cancelling or killing a waiter detaches that
+retained origin. Observation, wait and stop first apply the
+[retained-environment check](#environment-selection). Cancelling or killing a waiter detaches that
 caller rather than stopping native execution. Completed receipt replay needs no
 target and no token.
 
@@ -544,8 +624,8 @@ cancellation. Expiry becomes the fixed `TimeoutError` kind. The budgets limit
 only client operations, never native execution.
 
 TLS is always verified, including the host name. By default it uses system
-trust. A store session opened with `OpenStore(path, directTarget)` passes the
-`DirectTargetAccess`'s PEM root to the SDK, which trusts exactly it for every HTTPS and WSS
+trust. A store session opened with `OpenStore(path, environments)` passes the
+catalog's `DirectTargetAccess` PEM root to the SDK, which trusts exactly it for every HTTPS and WSS
 connection, ignoring the system store, and rereads it for each TLS handshake.
 For a loopback HTTP origin the SDK ignores the root. The file is never read when
 the store opens. Each operation creates its own SDK client, which reads the root
@@ -564,9 +644,9 @@ WebSocket. Its failures are the fixed kinds `credentials_unavailable` and
 effect without restarting Broodling. A token configured for one origin is never
 sent to another, and a configuration change never redirects an Attempt: its
 retained origin still decides where it connects, and with no token for that
-origin it contacts nothing. `DirectTargetAccess` takes an origin-to-file lookup,
-so one session can serve several separately configured origins, each with its
-own token (the contract for environment selection, #235).
+origin it contacts nothing. The catalog's `DirectTargetAccess` maps each
+entry's origin to its own token file, so one session serves every configured
+target and each token reaches only its own origin.
 
 ### DirectTarget run reader and stopper
 
@@ -647,7 +727,8 @@ after which an abandoned Attempt can be explicitly replaced.
 - The submission: phase (`prepared`, `dispatched`, `correlated`), intended and
   confirmed run IDs, `replay_blocked_reason`, the retained asset identity and the
   binding (target origin, protocol, native release pins, frozen result-fetch
-  origin).
+  origin) with its retained environment target: environment name, origin,
+  container, state mount and home mount, which a stopped-target check must equal.
 - Dispatch uncertainty: any phase after `prepared` is dispatch intent and keeps
   the Attempt quarantined until verified maintenance retirement. Correlation
   resolves acceptance uncertainty only; retirement resolves neither.

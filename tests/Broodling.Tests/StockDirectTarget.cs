@@ -116,6 +116,30 @@ internal sealed class StockDirectTarget : IAsyncDisposable
         return int.Parse(count.Output.Trim(), System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// The catalog entry for this target as environment <paramref name="name"/> on the adopted <paramref name="image"/>:
+    /// its origin, its control token file, its container and the host paths of its state and home volumes.
+    /// </summary>
+    internal async Task<EnvironmentEntry> EntryAsync(string name, string image)
+    {
+        var paths = await DockerCommand("volume", "inspect", "--format", "{{.Mountpoint}}", id + "-state", id + "-home");
+        RequireSuccess(paths);
+        var mountpoints = paths.Output.Trim().Split('\n');
+        return new(name, Origin, tokenFile!, image, id, mountpoints[0], mountpoints[1]);
+    }
+
+    /// <summary>Every run in the native ledger, read-only inside the target like <see cref="RunCountAsync"/>.</summary>
+    internal async Task<IReadOnlyList<string>> RunIdsAsync()
+    {
+        var runs = await DockerCommand("exec", id, "python3", "-c", "import sqlite3; [print(row[0]) for row in sqlite3.connect("
+            + "'file:/state/runs.sqlite3?mode=ro', uri=True).execute('SELECT run_id FROM v2_runs ORDER BY run_id')]");
+        RequireSuccess(runs);
+        return runs.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    /// <summary>Ask the controlled worker to record the OS identity it observes in its candidate, as <c>observed-os</c>.</summary>
+    internal void ReportOs() => File.WriteAllText(Path.Combine(root, "report-os"), "");
+
     /// <summary>Replace the controlled forge's scenario (tests/fixtures/stock-target/gh), which it reads on every call.</summary>
     internal void Script(JsonObject scenario)
     {

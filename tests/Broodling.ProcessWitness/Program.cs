@@ -6,14 +6,16 @@ try
     if (args[0] == "http-dispatch")
     {
         // The parent's controlled target decides where this caller is killed.
-        // The parent's target origin and its control token file, as the operator configuration names them.
-        using var httpStore = new BroodlingApplication().OpenStore(args[1], DirectTargetAccess.For(args[3], args[4]));
+        // The parent's target origin, its control token file and the environment name it was prepared for, as the
+        // operator's catalog names them.
+        using var httpStore = new BroodlingApplication().OpenStore(args[1], Catalog(args[5], args[3], args[4]));
         await httpStore.DispatchHttpAsync(args[2], new DispatchCredentials("witness-github-token", DirectTargetBinding.GatewayBaseUrl, "witness-gateway-key"));
         return 99;
     }
     if (args[0] == "replacement-crash")
     {
-        // The parent kills this caller at the printed boundary of one HTTP replacement.
+        // The parent kills this caller at the printed boundary of one HTTP replacement. Its predecessor was prepared
+        // for the environment args[5] at the origin args[4].
         using var replacementStore = new BroodlingApplication().OpenStore(args[1]);
         var mode = args[3];
         if (mode is "allocation-write" or "prepare-write")
@@ -28,7 +30,7 @@ try
             command.ExecuteNonQuery();
         }
         if (mode is "allocation-write" or "allocated") replacementStore.AdmitRetry(args[2], "process-retry");
-        else replacementStore.PrepareRetry(args[2], "process-retry");
+        else replacementStore.PrepareRetry(args[2], "process-retry", Catalog(args[5], args[4], "/srv/broodling-test/unused-token"));
         CrashGate.Hold(mode);
         return 99;
     }
@@ -48,6 +50,13 @@ catch (Exception error)
     Console.Error.WriteLine(error.GetType().Name + ": " + error.Message);
     return 1;
 }
+
+// One environment as the test suite's catalogs name it: the given name, origin and token file, the bundled adoption
+// and synthetic container and mounts.
+static EnvironmentCatalog Catalog(string name, string origin, string controlTokenFile) =>
+    EnvironmentCatalog.Create([new(name, origin, controlTokenFile, AdoptedEnvironments.LoadBundled().Single().Image,
+        "broodling-test-" + name, $"/srv/broodling-test/{name}/state", $"/srv/broodling-test/{name}/home")], name, null,
+        AdoptedEnvironments.LoadBundled());
 
 internal static class CrashGate
 {

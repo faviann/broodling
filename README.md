@@ -62,8 +62,9 @@ automation remain separately scoped work.
 
 ## Native boundary and limitations
 
-Broodling has one execution target, the HTTP DirectTarget, reached through the
-pinned `Zeroshot.Client` SDK. C# owns authority, policy, recovery, persistence
+Broodling has one execution target kind, the HTTP DirectTarget, reached through
+the pinned `Zeroshot.Client` SDK, with one configured target per approved
+environment (#235). C# owns authority, policy, recovery, persistence
 and receipt validation, and there is no production Python source.
 
 Exactly one authorized GitHub `pull_request` effect naming a target branch

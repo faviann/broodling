@@ -356,7 +356,10 @@ internal static class TestAccess
     private static readonly ConcurrentDictionary<string, string> files = new();
     private static readonly string Directory = System.IO.Directory.CreateTempSubdirectory("broodling-control-").FullName;
 
-    internal static DirectTargetAccess Live { get; } = new(origin => files.TryGetValue(origin, out var file) ? file : null);
+    internal static DirectTargetAccess Live { get; } = new(TokenFile);
+
+    /// <summary>The token file of the stand-in now serving <paramref name="origin"/>, if any.</summary>
+    internal static string? TokenFile(string origin) => files.TryGetValue(origin, out var file) ? file : null;
 
     internal static DirectTargetAccess Trusting(string? rootCertificate) => Live with { RootCertificate = rootCertificate };
 

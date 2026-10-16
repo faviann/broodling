@@ -13,21 +13,43 @@ internal sealed class HttpFixture : IDisposable
     internal const string Target = "http://127.0.0.1:9";
     internal AttemptFixture Git { get; } = new();
     internal string Assets => Path.Combine(Git.State.Root, "installed-assets");
-    internal BroodlingStore Store { get; }
+    internal BroodlingStore Store { get; private set; }
     internal AttemptRecord Attempt { get; }
 
-    internal HttpFixture(string? origin = "https://github.com/acme/widget.git")
+    /// <param name="source">Changes committed to the repository before the Attempt is admitted at its new head.</param>
+    internal HttpFixture(string? origin = "https://github.com/acme/widget.git", Action<AttemptFixture>? source = null)
     {
         if (origin is not null) Git.Git("remote", "add", "origin", origin);
         Directory.CreateDirectory(Assets);
         foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "execution-assets")))
             File.Copy(file, Path.Combine(Assets, Path.GetFileName(file)));
+        source?.Invoke(Git);
+        Git.State.Environments = TestEnvironments.For(Target);
         Store = Git.State.Open();
-        Attempt = Git.Admit(Store);
+        Attempt = Git.Admit(Store, Git.Git("rev-parse", "HEAD").Trim());
     }
 
-    internal NativeSubmission Prepare(BroodlingStore? store = null, string? attemptId = null, string target = Target) =>
-        (store ?? Store).PrepareHttpSubmission(attemptId ?? Attempt.AttemptId, target, () => ExecutionAsset.Load(Assets));
+    /// <summary>
+    /// Prepare against <paramref name="target"/>'s environment, which <see cref="Store"/> and every later session are
+    /// then configured with.
+    /// </summary>
+    internal NativeSubmission Prepare(BroodlingStore? store = null, string? attemptId = null, string target = Target)
+    {
+        Configure(target);
+        return (store ?? Store).PrepareHttpSubmission(attemptId ?? Attempt.AttemptId, Git.State.Environments!, () => ExecutionAsset.Load(Assets));
+    }
+
+    /// <summary>
+    /// Configure <see cref="Store"/>, a new session, and every later one with <paramref name="target"/>'s environment,
+    /// unless they already are.
+    /// </summary>
+    internal void Configure(string target)
+    {
+        if (Git.State.Environments?.Entries.Single().Origin == target) return;
+        Git.State.Environments = TestEnvironments.For(target);
+        sessions.Add(Store);
+        Store = Git.State.Open();
+    }
 
     /// <summary>Prepare against a loopback target, then take only the phase steps the SQL guards allow; no submission is sent.</summary>
     internal NativeSubmission PrepareAt(Uri target, string state = "prepared")
@@ -46,7 +68,13 @@ internal sealed class HttpFixture : IDisposable
         return Convert.ToString(command.ExecuteScalar())!;
     }
 
-    public void Dispose() { Store.Dispose(); Git.Dispose(); }
+    private readonly List<BroodlingStore> sessions = [];
+
+    public void Dispose()
+    {
+        foreach (var session in sessions.Append(Store)) session.Dispose();
+        Git.Dispose();
+    }
 }
 
 /// <summary>
@@ -63,7 +91,8 @@ internal sealed class BundleHttpFixture : IDisposable
     /// <summary>Captured bytes that are not UTF-8, so the task carries them as base64.</summary>
     private static readonly byte[] Logo = [0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe, 0x0a];
 
-    internal static async Task<BundleHttpFixture> CreateAsync(string schema = "Schema canary — café <a&b>\n")
+    /// <param name="target">The origin of the one environment every session is configured with.</param>
+    internal static async Task<BundleHttpFixture> CreateAsync(string schema = "Schema canary — café <a&b>\n", string target = HttpFixture.Target)
     {
         var fixture = new BundleHttpFixture();
         try
@@ -74,6 +103,7 @@ internal sealed class BundleHttpFixture : IDisposable
             git.SetIssue(12, "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n\n### Available references\n"
                 + "- schema: repo:docs/schema.md\n- logo: repo:docs/logo.png\n- design: https://github.com/acme/widget/issues/7\n");
             git.SetIssue(7, "Supporting design canary.");
+            git.State.Environments = TestEnvironments.For(target);
             var store = fixture.Store = git.State.Initialize();
             var submissionId = store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
             fixture.Bundle = await store.CaptureRequestBundleAsync(submissionId, git.RepositoryRoot,
@@ -135,9 +165,14 @@ public sealed class HttpSubmissionTests
             await Assert.That(((byte[])command.ExecuteScalar()!).SequenceEqual(
                 File.ReadAllBytes(Path.Combine(fixture.Assets, DirectTargetBinding.AssetFile)))).IsTrue();
         }
-        await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(prepared.BindingJson!), new JsonObject
+        // The environment the Attempt resolved to is retained with the binding (EnvironmentSelectionTests).
+        var binding = JsonNode.Parse(prepared.BindingJson!)!.AsObject();
+        var environment = binding["environment"]!;
+        binding.Remove("environment");
+        await Assert.That((string)environment["resolution"]!["target"]!["origin"]!).IsEqualTo(HttpFixture.Target);
+        await Assert.That(JsonNode.DeepEquals(binding, new JsonObject
         {
-            ["protocol"] = "zeroshot.native-v2-target/v2", ["origin"] = HttpFixture.Target, ["repository"] = attempt.B1.Repository,
+            ["protocol"] = "zeroshot.native-v2-target/v2", ["repository"] = attempt.B1.Repository,
             ["resultOrigin"] = "https://github.com/acme/widget.git",
             ["native"] = DirectTargetBinding.Native()
         })).IsTrue();
@@ -200,7 +235,7 @@ public sealed class HttpSubmissionTests
     public async Task BundleBoundTaskCarriesEveryReferenceAsItsExactCapturedBytes()
     {
         using var fixture = await BundleHttpFixture.CreateAsync();
-        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target);
+        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, TestEnvironments.For(HttpFixture.Target));
 
         var task = (string)JsonNode.Parse(prepared.RequestJson)!["submission"]!["initialInput"]!["task"]!;
         var authority = JsonNode.Parse(task[(task.IndexOf("\n\n", StringComparison.Ordinal) + 2)..])!;
@@ -243,7 +278,7 @@ public sealed class HttpSubmissionTests
         // 600 KiB of one captured file: within the capture limits, beyond what native execution accepts in its task.
         using var fixture = await BundleHttpFixture.CreateAsync(schema: new string('s', 600 * 1024));
 
-        var refused = await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+        var refused = await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, TestEnvironments.For(HttpFixture.Target)))
             .Throws<NativeTaskTooLarge>();
         await Assert.That(refused!.Code).IsEqualTo("task_too_large");
         await Assert.That(refused.Message).Contains($"the supported limit is {BroodlingStore.NativeTaskBytes} bytes");
@@ -257,7 +292,7 @@ public sealed class HttpSubmissionTests
         // under the budget as raw text and exceeds it as native writes it.
         using var fixture = await BundleHttpFixture.CreateAsync(schema: new string('"', 200 * 1024));
 
-        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, TestEnvironments.For(HttpFixture.Target)))
             .Throws<NativeTaskTooLarge>();
         await Assert.That(fixture.Store.FindSubmission(fixture.Attempt.AttemptId)).IsNull();
     }
@@ -266,11 +301,11 @@ public sealed class HttpSubmissionTests
     public async Task RetainedReferenceBytesMustMatchTheManifestDigest()
     {
         using var fixture = await BundleHttpFixture.CreateAsync();
-        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target);
+        var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, TestEnvironments.For(HttpFixture.Target));
         fixture.Git.State.Execute("DROP TRIGGER submission_binding_stable; "
             + "UPDATE native_submissions SET request_json = replace(request_json, 'Schema canary', 'Schema canarx')");
 
-        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, HttpFixture.Target))
+        await Assert.That(() => fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, TestEnvironments.For(HttpFixture.Target)))
             .Throws<SubmissionConflict>();
         await Assert.That(fixture.Store.FindSubmission(prepared.AttemptId)!.RequestJson).Contains("Schema canarx");
     }
@@ -341,8 +376,8 @@ public sealed class HttpSubmissionTests
             await Assert.That(fixture.Prepare(reopened)).IsEqualTo(prepared);
             Directory.Delete(fixture.Assets, recursive: true);
             await Assert.That(fixture.Prepare(reopened)).IsEqualTo(prepared);
-            // The retained target binding is never replaced.
-            await Assert.That(() => fixture.Prepare(reopened, target: "http://127.0.0.1:10")).Throws<SubmissionConflict>();
+            // The retained environment and target are never replaced, whatever the catalog now says.
+            await Assert.That(fixture.Prepare(reopened, target: "http://127.0.0.1:10")).IsEqualTo(prepared);
         }
         using var again = fixture.Git.State.Open();
         await Assert.That(again.FindSubmission(attempt.AttemptId)).IsEqualTo(prepared);
@@ -501,12 +536,14 @@ public sealed class HttpSubmissionTests
                         ["source"] = new JsonObject { ["revision"] = attempt.B1.CommitOid }
                     }
                 }.ToJsonString());
-                command.Parameters.AddWithValue("$binding", new JsonObject { ["repository"] = attempt.B1.Repository }.ToJsonString());
                 command.ExecuteNonQuery();
             }
+            // The other Attempt's environment and binding, so only the run identities differ from a valid record.
             var insert = $"""
                 INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256, binding_json)
-                VALUES ('{attempt.AttemptId}', 'broodling:http:v1:{attempt.AttemptId}', $request, 'prepared', $intended, '{sent.AssetSha256}', $binding)
+                SELECT '{attempt.AttemptId}', 'broodling:http:v1:{attempt.AttemptId}', $request, 'prepared', $intended, asset_sha256,
+                    binding_json
+                FROM native_submissions WHERE attempt_id = '{other.AttemptId}'
                 """;
             // Another Attempt's intended identity, confirmed or not, is never reserved twice.
             await Assert.That(() => Run(insert, sent.IntendedRunId)).Throws<SqliteException>();

@@ -353,6 +353,42 @@ public sealed class SubmissionProgressorTests
         await Assert.That(fixture.ReadGhPaths()).IsEmpty();
     }
 
+    /// <summary>
+    /// An environment refusal stops the submission for attention with its code, before anything is prepared or
+    /// sent; once the operator fixes the catalog, the restarted service prepares and dispatches it.
+    /// </summary>
+    [Test]
+    public async Task AnEnvironmentRefusalStopsForAttentionAndProgressionResumesOnceTheCatalogIsFixed()
+    {
+        await using var target = new StockTarget();
+        using var fixture = new PreparationFixture();
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
+        var submissionId = Submit(fixture, 12).Single();
+        var gateway = Proposing();
+        var origin = target.Origin.GetLeftPart(UriPartial.Authority);
+
+        await using (var service = new Service(fixture, target, gateway,
+            environments: TestEnvironments.Catalog([TestEnvironments.EntryFor(origin)], null)))
+        {
+            await service.ScanUntil(() => !service.Stops.IsEmpty);
+            var (stopped, failure) = service.Stops.Single();
+            await Assert.That((stopped.State, stopped.Stage, stopped.Code, stopped.Retryable))
+                .IsEqualTo((SubmissionProgress.Stopped, SubmissionProgress.Continuation, "environment_default_missing", false));
+            await Assert.That(failure).IsNull();
+            // Stopped work is not retried by later scans.
+            for (var scan = 0; scan < 3; scan++) await service.Scan();
+            await Assert.That(service.Progressor.Progress().Single()).IsEqualTo(stopped);
+        }
+        using (var store = fixture.State.Open())
+            await Assert.That(store.FindSubmission(store.GetIssueSubmission(submissionId).AttemptIds.Single())).IsNull();
+        await Assert.That(target.Connections).IsEqualTo(0);
+
+        await using var restarted = new Service(fixture, target, gateway);
+        await restarted.ScanUntil(() => Correlated(fixture, submissionId));
+        await Assert.That(target.Bodies.Count).IsEqualTo(1);
+        await Assert.That(gateway.Contexts.Count).IsEqualTo(1);
+    }
+
     private static string[] Submit(PreparationFixture fixture, params long[] issues)
     {
         using var store = fixture.State.Initialize();
@@ -391,8 +427,10 @@ public sealed class SubmissionProgressorTests
         internal ConcurrentQueue<(SubmissionProgress Progress, Exception? Failure)> Stops { get; } = new();
         internal int CredentialReads => Volatile.Read(ref credentialReads);
 
+        /// <param name="environments">The operator's catalog; by default one environment at <paramref name="target"/>.</param>
         internal Service(PreparationFixture fixture, StockTarget target, HttpMessageHandler gateway, string credentials = "current",
-            CancellationToken? lifetime = null, FakeTimeProvider? clock = null, Func<ProgressionCredentials>? provider = null)
+            CancellationToken? lifetime = null, FakeTimeProvider? clock = null, Func<ProgressionCredentials>? provider = null,
+            EnvironmentCatalog? environments = null)
         {
             this.clock = clock ?? new FakeTimeProvider();
             var preparer = new IssueSubmissionPreparer(fixture.State.Application, fixture.State.Path, fixture.RepositoryRoot,
@@ -400,8 +438,8 @@ public sealed class SubmissionProgressorTests
             {
                 IssueSource = new GitHubIssueSource(fixture.Gh), RepositorySource = fixture.Source, Gateway = gateway
             };
-            Progressor = new SubmissionProgressor(fixture.State.Application, fixture.State.Path, TestAccess.Live,
-                new InvocationTarget(target.Origin.GetLeftPart(UriPartial.Authority)), preparer, () =>
+            Progressor = new SubmissionProgressor(fixture.State.Application, fixture.State.Path,
+                environments ?? TestEnvironments.For(target.Origin.GetLeftPart(UriPartial.Authority)), preparer, () =>
                 {
                     Interlocked.Increment(ref credentialReads);
                     return provider?.Invoke() ?? new(GitHub, new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, "gateway-key"),

@@ -101,8 +101,9 @@ release for replay.
 
 ## Images
 
-This repository builds, checks and publishes the `broodling` image. The
-`zeroshot` service runs an adopted Zeroshot environment image, which
+This repository builds, checks and publishes the `broodling` image. Each
+`zeroshot-<name>` target service runs an adopted Zeroshot environment image,
+one per catalog environment ([several targets](#several-targets-235)), which
 [`faviann/zeroshot-environments`](https://github.com/faviann/zeroshot-environments)
 builds and publishes ([adopted target environment](#adopted-target-environment)).
 `zeroshot-tls` runs the upstream pinned Caddy image unchanged.
@@ -110,7 +111,7 @@ builds and publishes ([adopted target environment](#adopted-target-environment))
 | Service | Source | Image | User |
 | --- | --- | --- | --- |
 | `broodling` | [`Broodling.Dockerfile`](Broodling.Dockerfile), repository root | `ghcr.io/faviann/broodling` | `1654:1654` |
-| `zeroshot` | the adoption record, [`target-environment.json`](target-environment.json) | the record's `image` by digest (`dotnet-r2`) | container root |
+| `zeroshot-<name>`, such as `zeroshot-dotnet` | the adoption record, such as [`dotnet-r2.adoption.json`](../src/Broodling/environments/dotnet-r2.adoption.json) | the record's `image` by digest (`dotnet-r2`) | container root |
 | `zeroshot-tls` | not built | `caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b` | `10443:10443` |
 
 To build and check them locally from the repository root:
@@ -119,7 +120,7 @@ To build and check them locally from the repository root:
 export NuGetPackageSourceCredentials_github="Username=YOUR_GITHUB_USER;Password=READ_PACKAGES_TOKEN"
 docker build -f deployment/Broodling.Dockerfile \
   --secret id=nuget-github,env=NuGetPackageSourceCredentials_github -t broodling:REVIEWED_REVISION .
-target="$(jq -r .image deployment/target-environment.json)"
+target="$(jq -r .image src/Broodling/environments/dotnet-r2.adoption.json)"
 docker pull "$target"
 tests/images/demonstrate.sh broodling:REVIEWED_REVISION "$target"
 ```
@@ -149,12 +150,13 @@ child processes.
   `Broodling__Store=/var/lib/broodling/state.sqlite3`: the read-only reader, or
   the [processing server](#processing-server) when the service also sets
   `Broodling__Invocation` and `Broodling__RepositoryRoot` and supplies
-  credentials. For the ADR 0001 stack, mount the invocation `config.json` read-only
-  (for example at `/etc/broodling/invocation.json`) naming
-  `https://zeroshot.dev.faviann.com`, the control token file
-  `/run/secrets/zeroshot-control-token` and `/tls-root/root.crt`, give the
-  service that token file as its own secret (owned by `1654:1654`, mode `0400`;
-  see [private control access](#private-control-access)), and use
+  credentials. For the ADR 0002 stack, mount the invocation `config.json` read-only
+  (for example at `/etc/broodling/invocation.json`): the
+  [environment catalog](#invocation-configuration) naming, for `dotnet`,
+  `https://zeroshot-dotnet.dev.faviann.com`, the control token file
+  `/run/secrets/zeroshot-dotnet-control-token`, and `/tls-root/root.crt`. Give
+  the service each target's token file as its own secret (owned by `1654:1654`,
+  mode `0400`; see [private control access](#private-control-access)), and use
   `Broodling__RepositoryRoot=/var/lib/broodling/repositories`, a directory the
   operator creates in the state directory, owned by `1654:1654`.
 - Arguments select a store, inspection or maintenance command instead. For
@@ -168,7 +170,9 @@ child processes.
   for example
   `docker compose run --rm --no-deps broodling retire-attempt /var/lib/broodling/state.sqlite3 ATTEMPT_ID CHECK_JSON`
   and then, still paused,
-  `docker compose run --rm --no-deps broodling replace-attempt /var/lib/broodling/state.sqlite3 ATTEMPT_ID RETRY_KEY`.
+  `docker compose run --rm --no-deps broodling replace-attempt /var/lib/broodling/state.sqlite3 ATTEMPT_ID RETRY_KEY /etc/broodling/invocation.json`,
+  adding `--update-environment` only to sign off on what the catalog now names
+  for the predecessor's environment.
   Such an Attempt's B1 and accepted-revision pins are in its service-owned bare
   repository under `Broodling:RepositoryRoot`, recorded as the container path.
   With that root in the state directory (`/var/lib/broodling/repositories`), the
@@ -187,8 +191,8 @@ child processes.
   and mounts; do not add credentials with `-e`. `CONTRACT_REVISION_ID` is the replaced Attempt's `contractRevisionId`, from
   `GET /attempts/{id}` or `history`. The command needs what the server has: the
   state mount, whose repository root holds the successor's B1 custody at its
-  recorded container path; the invocation `config.json`, whose origin must be the
-  successor's retained one and whose root it trusts; `GH_TOKEN`,
+  recorded container path; the invocation `config.json`, which must still serve
+  the successor's retained environment exactly and whose root it trusts; `GH_TOKEN`,
   `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` from the service's own environment;
   and the project network to the origin. It refuses while the installation is
   paused. It sends the prepared request with its intended run ID and prints the
@@ -229,11 +233,11 @@ child processes.
   host, so run it there: from the release artifact, or from the image's own
   output copied out with `docker cp` and a host .NET 10 ASP.NET runtime, with a
   configuration that names the host paths of `root.crt` and of the operator's
-  copy of the control token.
-- `bootstrap-target` installs the control token in a newly started target. Run
-  it as a one-off `broodling` container on the project network, the only one
-  given the bootstrap key:
-  `docker compose run --rm --no-deps -v /NEW/secrets/bootstrap/zeroshot-bootstrap-key:/run/secrets/zeroshot-bootstrap-key:ro broodling bootstrap-target /etc/broodling/invocation.json /run/secrets/zeroshot-bootstrap-key`.
+  copies of the control tokens.
+- `bootstrap-target` installs one environment's control token in its newly
+  started target. Run it as a one-off `broodling` container on the project
+  network, the only one given that target's bootstrap key:
+  `docker compose run --rm --no-deps -v /NEW/secrets/bootstrap/zeroshot-dotnet-bootstrap-key:/run/secrets/zeroshot-bootstrap-key:ro broodling bootstrap-target /etc/broodling/invocation.json dotnet /run/secrets/zeroshot-bootstrap-key`.
   See [private control access](#private-control-access).
 
 The image contains no Python, native executable or Codex CLI; its only
@@ -266,7 +270,8 @@ its startup interface ([entrypoint boundary](#entrypoint-boundary)).
 Publication alone neither adopts nor deploys an image, and adoption deploys
 nothing.
 
-The adoption record, [`target-environment.json`](target-environment.json)
+The adoption record bundled with the release,
+[`dotnet-r2.adoption.json`](../src/Broodling/environments/dotnet-r2.adoption.json)
 (`broodling.target-environment-adoption/v1`), names one adopted environment
 release:
 
@@ -277,7 +282,7 @@ release:
   came from.
 - `manifest`: the retained exact bytes of that `manifest.json`
   (`zeroshot-environment.manifest/v2`), at
-  [`environments/dotnet-r2.manifest.json`](environments/dotnet-r2.manifest.json),
+  [`dotnet-r2.manifest.json`](../src/Broodling/environments/dotnet-r2.manifest.json),
   and their SHA-256. A mutable registry or release lookup is not evidence.
 - `image`: the adopted image by digest, which the manifest also records.
 
@@ -297,14 +302,17 @@ Adoption is checked in three places:
   manifest's. The manifest is one this revision supports. Every component is
   fixed by an artifact checksum or the base digest. The image embeds this
   revision's entrypoint. The pulled image is the manifest's platform and
-  digest, and its executables' bytes, harness, Node.js, gh, Git, Python and .NET
-  versions and its full Debian package list are the manifest's.
-- [`check-target`](#existing-target-readiness) reads the adopted manifest from
-  the inventory, with the record's digest. It refuses other bytes, a malformed
-  manifest, a schema other than `v2`, a platform other than `linux/amd64` and a
-  native, Codex (with its Node.js) or startup interface other than this
-  revision's binding. It then requires the running target to be that image by
-  digest and checks the identities Broodling relies on live.
+  digest, and its executables' bytes, every component version and its full
+  Debian package list are the manifest's.
+- Loading the bundled adoption set, at every configuration read: it refuses a
+  manifest that is not the record's bytes, a malformed manifest, a schema other
+  than `v2`, a platform other than `linux/amd64` and a native, Codex (with its
+  Node.js), startup interface or discovery other than this revision's binding,
+  and a component that readiness cannot probe.
+  A catalog entry's `image` must be exactly one adopted image.
+- [`check-target`](#existing-target-readiness) requires each running target to
+  be its catalog image by digest and checks live its OS identity and every
+  component the manifest states.
 - The [image demonstration](../tests/README.md#image-demonstration), the
   [stock witness](../tests/README.md#controlled-stock-directtarget-witness) and
   the [transition check](#native-state-transitions) run the pulled image.
@@ -312,17 +320,18 @@ Adoption is checked in three places:
 To adopt another release, retain its manifest as published
 (`gh release download RELEASE -R faviann/zeroshot-environments -p manifest.json`),
 compare its SHA-256 with the release asset's digest, and commit the bytes and a
-new record. That change's workflow run qualifies it. Deploying it is a separate
-pin of the image digest and the inventory's manifest. A release that changes only
-.NET or OS packages, with the same native, Codex, Node.js and startup interface,
-changes no application code: the published Broodling image's `check-target`
-accepts it from the inventory. A native, Codex or harness Node.js change also
+new record. That change's workflow run qualifies it, and a Broodling release
+bundles it. Deploying it is a separate step: a catalog entry's `image` names it
+([several targets](#several-targets-235)). A release that changes only .NET or
+OS packages, with the same native, Codex, Node.js and startup interface, changes
+no application code, but it is adopted only through a Broodling release that
+bundles its record. A native, Codex or harness Node.js change also
 changes the [binding and its approval](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset),
 and needs explicit Execution asset review and a Broodling release.
 
 The approved asset runs only Codex. Claude Code and Copilot CLI are installed
-but unapproved: they authorize nothing, and check-target does not check them
-live. The image sets `DISABLE_AUTOUPDATER=1` and `COPILOT_AUTO_UPDATE=false`,
+but unapproved: they authorize nothing; check-target checks only that their
+versions are the manifest's. The image sets `DISABLE_AUTOUPDATER=1` and `COPILOT_AUTO_UPDATE=false`,
 but native 10.10.0 clears its environment before it starts an agent process, so
 those values reach only processes that inherit the container's environment,
 such as `docker exec`. Native sets `COPILOT_AUTO_UPDATE=false` for Copilot
@@ -337,20 +346,24 @@ Limits of the verification:
   by the base digest; the manifest records no per-package checksum for them.
 - `check-target` ties the container to the adopted digest through Docker's
   image metadata (`RepoDigests`) and trusts the Docker daemon. It checks live
-  only native, restic and entrypoint bytes and the native, Codex, Node.js and gh
-  versions. It does not detect a change to other files of a running container.
-- An image inventory does not enforce R13's prohibition against arbitrary
-  unprivileged downloads: execution agents can still fetch and run tools in
-  their own run home. [Private control access](#private-control-access) (#187)
-  settles target control only; whether the approved-tool policy forbids such
-  downloads remains open with environment selection (#235).
+  only the native, restic and entrypoint bytes, the OS identity and the
+  versions of the components the manifest states. It does
+  not detect a change to other files of a running container.
+- An image inventory or an approved environment catalog does not enforce R13's
+  prohibition against arbitrary unprivileged downloads: execution agents can
+  still fetch and run tools in their own run home.
+  [Private control access](#private-control-access) (#187) settles target
+  control only; whether the approved-tool policy forbids such downloads stays
+  open after environment selection (#235), as do O4 (the package-read
+  credential's node scope, #236) and O7 (management access and its trust
+  assumption).
 
 The entrypoint requires explicitly initialized state and a root-only bootstrap
 key and serves only native's private mode: every control and OECP request needs
 the bearer token that the operator's bootstrap installs in each new target
 process ([private control access](#private-control-access)). The image contains
 no control secret. Zeroshot materializes its own execution checkout, separate
-from Broodling's source and Git custody; the `zeroshot` and `broodling` services
+from Broodling's source and Git custody; the target and `broodling` services
 share only the read-only public root.
 
 - Evidence: the [controlled stock DirectTarget witness](../tests/README.md#controlled-stock-directtarget-witness)
@@ -428,7 +441,7 @@ too; that tag has no record and is not a release. Publish again from a new
 commit or a new version tag.
 
 Each publishing run uploads a `release-record` artifact, `release-record.json`
-(kind `broodling.image-release/v2`). For a `sha-` candidate that workflow
+(kind `broodling.image-release/v3`). For a `sha-` candidate that workflow
 artifact is the only copy, and it expires under the repository's artifact
 retention; a `v*` version keeps its record on the GitHub release. The record
 contains:
@@ -439,7 +452,10 @@ contains:
   the pinned Caddy reference;
 - `targetEnvironment`: the adoption record of that target image (environment
   release, producer release, manifest path and SHA-256, and image);
-- `zeroshotTls`: the user and the Caddyfile to mount (path, SHA-256 and content);
+- `zeroshotTls`: the user, the Caddyfile to mount (path, SHA-256 and content)
+  and `sites`, the per-origin site files the demonstration mounted in
+  `/etc/caddy/sites` (path, SHA-256 and content). An installation renders its
+  own site file for each catalog origin in the same form;
 - `application`: the exact application schema the Broodling image initializes
   and opens, taken from its own `initialize-store` output: `storeFormat`,
   `storeSchemaVersion` and `storeDefinitionSha256`, the SHA-256 of the schema
@@ -453,15 +469,15 @@ contains:
   [`native-state-transitions.json`](native-state-transitions.json) at that
   revision, each with its source revision and native version and executable
   SHA-256 (see [native-state transitions](#native-state-transitions));
-- `demonstration`: the adopted environment release, the native, Codex, Node and
-  gh versions and the other dependency facts that `check-target` observed in
-  the demonstration.
+- `demonstration`: for each target `check-target` reported, its environment,
+  adopted release, live OS and checked component versions.
 
 A record states that these two images passed the demonstration together at that
 revision, and that its target image passed the transition check from each listed
 source. It is not a compatibility registry, and the two images need not share a
 version. The `v1` records of earlier runs, whose `images.zeroshot` names a
-Broodling-built `broodling-target` image, stay as published and describe only
+Broodling-built `broodling-target` image, and the `v2` records, whose
+`demonstration` describes a single target, stay as published and describe only
 their own revisions. It does not establish supported-profile readiness (#126). An operator
 records a deployed target's image ID from `docker inspect` of the running
 container in the readiness inventory.
@@ -475,7 +491,7 @@ they are; nothing publishes there now.
 
 ### Native-state transitions
 
-An update may change the `zeroshot` image only by an established transition. A
+An update may change a target's image only by an established transition. A
 release establishes exactly these:
 
 - from each published target image listed in its revision's
@@ -510,18 +526,18 @@ the adopted target image over native state it wrote itself, and an update from
 every listed source to it; if one fails, nothing is published.
 The host update procedure owns refusing any other selection.
 
-Keeping the deployed target image needs no swap: the `zeroshot` container,
+Keeping the deployed target image needs no swap: the target container,
 its mounts and native state stay as they are. The new record's demonstration
 covers its own two images together, not that older target image with the new
 Broodling image. `check-target` still applies after the update, with the
 inventory's `imageId` unchanged, because it also inspects the replaced
 `broodling` container.
 
-To change the `zeroshot` image, the procedure needs:
+To change a target's image, its catalog entry's `image`, the procedure needs:
 
-- The deployed `zeroshot` image, selected by digest, to be a listed source.
+- The deployed target image, selected by digest, to be a listed source.
 - The installation pause, drained execution with its results captured, and
-  `zeroshot` stopped for the swap. The check covers finished runs and a
+  the target stopped for the swap. The check covers finished runs and a
   submission that the source image recorded without acknowledging; a run still
   active at the swap may become `RuntimeLost`, as on any restart.
 - The same host directories, unchanged, at `/state` and `/home/node`, and the
@@ -530,13 +546,15 @@ To change the `zeroshot` image, the procedure needs:
   --public-origin` with the recorded origin, and `--storage /state`. Ordinary
   startup of the new image refuses unrecognized state or a different origin;
   never initialize over existing state.
-- Unchanged container root with Docker's default capabilities, the `zeroshot`
-  alias, `zeroshot-tls` and its root, and Broodling's `directOrigin` and
-  `directRootCertificate`: retained Attempts reconnect to their retained origin.
+- Unchanged container root with Docker's default capabilities, the
+  `zeroshot-<name>` alias, `zeroshot-tls` and its root, the entry's name,
+  origin, container and mounts, and `directRootCertificate`. Retire Attempts
+  prepared for the old image and replace them with
+  `replace-attempt --update-environment`
+  ([environment selection](../docs/implementation/zeroshot-native-integration.md#environment-selection)).
 - Native UID ownership preserved: no recursive ownership change.
-- Afterwards, `check-target` with the inventory's `imageId`, `environmentManifest`
-  and `environmentManifestSha256` updated to the new image and its adoption
-  record.
+- Afterwards, `check-target` with that target's inventory `imageId` updated to
+  the new image.
 
 Rollback is not a reverse transition: restore the pre-update snapshot with the
 prior image. Running a prior image over state that a newer image served is not
@@ -553,14 +571,16 @@ state:
 1. Set the installation pause and let local initiation drain.
 2. Let every dispatched Attempt finish with its result captured, or request its
    stop.
-3. Stop the old `zeroshot` container and keep it stopped. Retire each dispatched
+3. Stop the old target container and keep it stopped. Retire each dispatched
    Attempt on the verified `stopped_target` maintenance path
    ([lifecycle](../docs/implementation/dotnet-retirement-replacement.md)).
 4. Keep the old target state and home directories unchanged. Nothing here
    authorizes deleting them.
 5. Provision new empty state and home directories, initialize the adopted image
    over them ([explicit initialization](#explicit-initialization-and-guarded-startup)),
-   start and bootstrap it, and run `check-target`.
+   start and bootstrap it, and run `check-target`. A catalog entry that keeps
+   its name but names new mounts or another container is a new target: retained
+   Attempts' stopped-target checks name the old ones.
 6. Release the pause. Retired Attempts never reconnect. New work, and an explicit
    Replacement Attempt of an abandoned one, are fresh executions on the new
    target.
@@ -650,8 +670,8 @@ they do not stop native execution or prove container cessation. During verified
 stopped-target maintenance the host procedure passes its current check to
 `retire-attempt <path> <attempt-id> <stopped-target-check-json>`, then, still
 paused, may replace an abandoned retired Attempt with
-`replace-attempt <path> <predecessor-attempt-id> <retry-key>`, which prepares but
-never dispatches the successor; after `release-installation`, `resume` of its
+`replace-attempt <path> <predecessor-attempt-id> <retry-key> <config.json> [--update-environment]`,
+which prepares but never dispatches the successor; after `release-installation`, `resume` of its
 Contract revision dispatches it; see
 [verified maintenance retirement](../docs/implementation/dotnet-retirement-replacement.md#verified-maintenance-retirement).
 See [state lifecycle](../docs/implementation/dotnet-identity-custody.md).
@@ -687,31 +707,51 @@ and the retained facts still answer.
 
 ### Invocation configuration
 
-A secret-free `config.json` names the DirectTarget and where its control token
-is kept:
+A secret-free `config.json` is the operator's environment catalog: each approved
+environment, the DirectTarget serving it and where its control token is kept
+([several targets](#several-targets-235)):
 
 ```json
 {
-  "directOrigin": "https://zeroshot.dev.faviann.com",
-  "directControlTokenFile": "/NEW/secrets/broodling/zeroshot-control-token",
-  "directRootCertificate": "/NEW/zeroshot-tls/root/root.crt"
+  "directRootCertificate": "/NEW/zeroshot-tls/root/root.crt",
+  "defaultEnvironment": "dotnet",
+  "environments": [
+    {
+      "name": "dotnet",
+      "origin": "https://zeroshot-dotnet.dev.faviann.com",
+      "controlTokenFile": "/NEW/secrets/broodling/zeroshot-dotnet-control-token",
+      "image": "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:ADOPTED_DIGEST",
+      "container": "broodling-zeroshot-dotnet-1",
+      "stateMount": "/NEW/targets/dotnet/state",
+      "homeMount": "/NEW/targets/dotnet/home"
+    }
+  ]
 }
 ```
 
 It needs no Python executable, SDK client state, workspace root or launcher. Any
-other member, including a `target` member, an inline token or another
-credential field, refuses. The
-origin follows the native and SDK rule: canonical HTTPS, or HTTP to exactly `127.0.0.1` or `[::1]` such as
-`http://127.0.0.1:18770`, spelled as scheme and authority only, with a default
-port omitted and never port 0. Anything else refuses. An existing Attempt
-continues only through its retained origin, and a configuration naming a
-different origin refuses before any target contact.
+other member, a repeated member, an inline token or another credential field
+refuses, and so does a catalog that breaks the
+[catalog rules](../docs/implementation/invocation.md#configuration): names are
+lowercase DNS labels of at most 54 characters; names, origins and containers
+are unique; token files and mounts are normalized absolute paths, and no
+state, home or token paths overlap; `image` is exactly one adopted image bundled
+with the release; and `defaultEnvironment`, when set, names an entry. Without a
+default, a repository without an environment declaration is refused. Each
+origin follows the native and SDK rule: canonical HTTPS, or HTTP to exactly
+`127.0.0.1` or `[::1]` such as `http://127.0.0.1:18770`, spelled as scheme and
+authority only, with a default port omitted and never port 0. `container`,
+`stateMount` and `homeMount` are the target's container name and host
+directories, which each Attempt retains and every stopped-target check must
+name. An existing Attempt continues only through its retained environment and
+target
+([environment selection](../docs/implementation/zeroshot-native-integration.md#environment-selection)).
 
-`directControlTokenFile` is the required absolute path of the file holding the
+`controlTokenFile` is the required absolute path of the file holding that
 target's private control token, as the process reading the configuration sees
 it (inside the `broodling` container, for example
-`/run/secrets/zeroshot-control-token`). Each operation that contacts the target
-reads it again and sends it only to `directOrigin`; it is never retained,
+`/run/secrets/zeroshot-dotnet-control-token`). Each operation that contacts the
+target reads it again and sends it only to that entry's origin; it is never retained,
 printed or logged. A missing or unreadable file fails only operations that
 contact the target, as `credentials_unavailable`, before anything is sent, and
 never prevents startup or retained reads. See
@@ -741,9 +781,11 @@ The server accepts, resumes and stops exact work and processes accepted work
 unattended when it is configured with both:
 
 - `Broodling:Invocation` (`Broodling__Invocation`): the path of the
-  [`config.json`](#invocation-configuration). Its origin is where new Attempts
-  are sent, its control token file is read for every operation on that origin
-  and its root certificate is trusted for every target connection.
+  [`config.json`](#invocation-configuration), the environment catalog. Each
+  new Attempt goes to the target its environment resolution selects, each
+  entry's control token file is read for every operation on that entry's origin,
+  and its root certificate is trusted for every target connection. An invalid
+  catalog refuses startup before listening.
 - `Broodling:RepositoryRoot` (`Broodling__RepositoryRoot`): an existing absolute,
   durable directory writable by the service, where it keeps the service-owned
   bare repositories that hold each submission's B1 and accepted commits. It is
@@ -770,7 +812,7 @@ trusted callers.
 
 | Route | Maps to | Answers |
 | --- | --- | --- |
-| `POST /submissions` with `{"issueUrl": "…"}` | `SubmitIssue` | `202` with `{submission}` and `Location: /submissions/{id}` once the submission is committed, with no GitHub, model or target contact. Repeating an issue URL returns its latest existing submission. `400 invalid_work_reference` before anything is written. |
+| `POST /submissions` with `{"issueUrl": "…"}` | `SubmitIssue` | `202` with `{submission}` and `Location: /submissions/{id}` once the submission is committed, with no GitHub, model or target contact. Repeating an issue URL returns its latest existing submission. `400 invalid_work_reference` before anything is written; `400 invalid_request` for any other member, so callers cannot select an environment, image or target. |
 | `POST /submissions/{id}/revisions` | [`ReviseIssueSubmission`](../docs/implementation/invocation.md#revised-work) | `202` with `{submission}` and `Location: /submissions/{id}` of the successor once it is committed, and the same successor on replay. `409 issue_submission_conflict` while the predecessor is unfinished or not the latest, an Attempt is current, or a dispatched Attempt is not yet retired under verified maintenance. An `unchanged` successor's read carries its explanation and the linked submission and Contract. |
 | `POST /submissions/{id}/resume` | [`SubmissionProgressor.Resume`](../docs/implementation/invocation.md#automatic-progression) | `202` with `Location` when that unfinished submission is continued at the next scan, forgetting an in-process stop or wait. `200` with `resumed: false` when its end or native correlation is retained. Never a Replacement Attempt. |
 | `POST /submissions/{id}/stop` with `{"reason": "…"}` | `CancelIssueSubmissionAsync` | `200` with `{submission, attempt, error}` once the cancellation is committed: `attempt` is the stop report of the Attempt it abandoned, if any. `409` for completed work. |
@@ -798,83 +840,110 @@ rather than it accepting work it would not process.
 ## Existing-target readiness
 
 `TargetReadiness.CheckAsync` and the thin command check an existing
-[ADR 0001](../docs/adr/0001-directtarget-https-origin-and-compose-topology.md)
-stack's configuration and dependencies without an installer. Run it on the
-Docker host as the account with Docker access:
+[ADR 0002](../docs/adr/0002-one-directtarget-per-environment-behind-one-tls-proxy.md)
+installation's configuration and dependencies, every catalog target at once,
+without an installer. Run it on the Docker host as the account with Docker
+access:
 
 ```bash
 dotnet /RELEASE/host/Broodling.Host.dll check-target /NEW/target-inventory.json /NEW/config.json
 ```
 
-An operator records the **existing stack's** containers, the exact `zeroshot`
-image, the Compose project network, canonical host mount paths and a host copy
-of the adopted environment's manifest with the digest from its
-[adoption record](#adopted-target-environment) in `target-inventory.json`:
+`config.json` is the [environment catalog](#invocation-configuration), with
+the host paths of `root.crt` and of the operator's copies of the control
+tokens. It supplies each target's origin, container, adopted image and mounts.
+`target-inventory.json` records the **existing stack's** other host facts: the
+Compose project network, the `zeroshot-tls` and `broodling` containers, the
+canonical root mount paths and, for exactly each catalog environment, the
+running image ID and the host bootstrap key file:
 
 ```json
 {
-  "containerName": "broodling-zeroshot-1",
-  "imageId": "sha256:EXACT_EXISTING_IMAGE_ID",
-  "directOrigin": "https://zeroshot.dev.faviann.com",
-  "stateMount": "/NEW/target-state",
-  "homeMount": "/NEW/target-home",
   "network": "broodling_default",
   "tlsContainerName": "broodling-zeroshot-tls-1",
   "rootKeyMount": "/NEW/zeroshot-tls/key",
   "rootCertificateMount": "/NEW/zeroshot-tls/root",
   "broodlingContainerName": "broodling-broodling-1",
-  "bootstrapKeyFile": "/NEW/secrets/zeroshot/zeroshot-bootstrap-key",
-  "environmentManifest": "/RELEASE/deployment/environments/dotnet-r2.manifest.json",
-  "environmentManifestSha256": "8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e"
+  "targets": [
+    {
+      "environment": "dotnet",
+      "imageId": "sha256:EXACT_EXISTING_IMAGE_ID",
+      "bootstrapKeyFile": "/NEW/secrets/zeroshot-dotnet/zeroshot-bootstrap-key"
+    }
+  ]
 }
 ```
 
 The [readiness reference](../docs/implementation/dotnet-target-readiness.md)
-lists every check: the adopted manifest's bytes and its native, Codex and
-startup interface; the `zeroshot` image as the adopted image by digest on
-`linux/amd64`; running/root/isolation/restart settings, exact mounts (beside
-the image's declared, unused `/var/lib/zeroshot` volume), no published port, fixed launch arguments and the `zeroshot` alias
-on the project network; `zeroshot-tls`'s pinned image, non-root user,
-`NET_BIND_SERVICE`-only capabilities, 443 publication, origin alias and separate
-root mounts; a read-only public root mount and no key mount in `broodling`;
-credential exclusion, the native, Codex, Node and gh versions and the native,
-`restic` and entrypoint bytes against the manifest,
-`gh api graphql --paginate --slurp`, the hosted UID/GID transition, the target's
-read-only bootstrap key mount (which no other service may mount), and, through
-`zeroshot-tls` using the configuration's root, native's private-mode discovery,
-an unauthenticated control request refused and a control request with the
-configuration's token accepted. Both files must
-select the same origin, and the configuration's `directRootCertificate` must be
-`root.crt` in the recorded `rootCertificateMount`; its token file must be
-readable by the account running the check. A target started but not yet
-bootstrapped, or bootstrapped with another token, is not ready. It creates no
-target/state, never bootstraps and dispatches zero provider tasks.
+lists every check. For each target: its image as the catalog's adopted image
+by digest on `linux/amd64`; running/root/isolation/restart settings, exact
+mounts (its catalog state and home, the public root, its bootstrap key, beside
+the image's declared, unused `/var/lib/zeroshot` volume), no published port,
+launch arguments with its origin and its `zeroshot-<name>` alias on the project
+network; credential exclusion; the live OS identity and every component version
+the manifest states, and the native, `restic` and entrypoint bytes;
+`gh api graphql --paginate --slurp` and the hosted UID/GID transition. Across
+targets: no shared storage or bootstrap key, no shared token value, and exactly
+one container answering each target alias and each origin alias. Then
+`zeroshot-tls`'s pinned image, non-root user, `NET_BIND_SERVICE`-only
+capabilities, 443 publication, every origin alias and separate root mounts; a
+read-only public root mount and no key mount in `broodling`; and, per origin
+through `zeroshot-tls` using the configuration's root, native's private-mode
+discovery, an unauthenticated control request refused and a control request
+with that target's token accepted. The configuration's `directRootCertificate`
+must be `root.crt` in the recorded `rootCertificateMount`, and every token file
+must be readable by the account running the check. A target started but not yet
+bootstrapped, or bootstrapped with another token, is not ready, and one target
+not ready makes the installation not ready. It creates no target/state, never
+bootstraps and dispatches zero provider tasks.
 
-The [adopted environment](#adopted-target-environment) supplies the target
+The adopted manifest is the producer's statement; the live checks are what
+readiness verifies. Broodling has no Docker access and cannot run them itself,
+so the operator's order is what keeps agents off an unchecked target: set the
+installation pause, start or swap the targets, run `bootstrap-target` for each
+environment, run `check-target`, and only then release the pause. Pinned
+native ends runs interrupted by a restart, and no dispatch passes the pause, so
+no agent starts on a target before its check.
+
+The [adopted environment](#adopted-target-environment) supplies each target
 image: `dotnet-r2` carries native **10.10.0**, Codex **0.155.0** on Node.js
 **v24.21.0** and gh **2.101.0**. Target provisioning is operator-owned and
 separately authorized; nothing here deploys it.
 
-The supported topology is ADR 0001's single Compose project on rootful Docker on
+The supported topology is ADR 0002's single Compose project on rootful Docker on
 one trusted host:
 
-- `zeroshot` runs the adopted image as container root with Docker's default
-  capabilities. It has four bind mounts: state at `/state`, home at
-  `/home/node`, the public root directory read-only at `/tls-root` and its
-  bootstrap key file read-only at `/run/secrets/zeroshot-bootstrap-key` (a
-  Compose file secret). Native listens on the project network at the fixed
-  inner port **18770**, which is never published.
+- Each `zeroshot-<name>` target runs its adopted image as container root with
+  Docker's default capabilities. It has four bind mounts: its own state at
+  `/state` and home at `/home/node` (by convention
+  `<root>/targets/<name>/{state,home}`), the public root directory read-only at
+  `/tls-root` and its own bootstrap key file read-only at
+  `/run/secrets/zeroshot-bootstrap-key` (a Compose file secret). Native listens
+  on the project network at the fixed inner port **18770**, which is never
+  published, and the target carries the alias `zeroshot-<name>`.
 - `zeroshot-tls` runs
   `caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b`
   as the package-defined user **`10443:10443`**, with `cap_drop: [ALL]` and
   `cap_add: [NET_BIND_SERVICE]`. It mounts the root key directory read-only at
   `/tls-root-key`, the public root directory read-only at `/tls-root`,
   [`zeroshot-tls.Caddyfile`](zeroshot-tls.Caddyfile) read-only at
-  `/etc/caddy/Caddyfile`, and a named volume at `/data`. It listens on 443,
-  publishes that port on the LXC and carries `zeroshot.dev.faviann.com` as its
-  alias on the project network.
-- `broodling` mounts the public root directory, read-only, and its control
-  token file, and never the TLS key directory, Caddy's data or the bootstrap key.
+  `/etc/caddy/Caddyfile`, a directory of site files read-only at
+  `/etc/caddy/sites`, and a named volume at `/data`. The Caddyfile holds the
+  global block and `import /etc/caddy/sites/*.caddy`; the installation renders
+  one site file per catalog origin:
+
+  ```caddyfile
+  zeroshot-dotnet.dev.faviann.com {
+  	tls internal
+  	reverse_proxy zeroshot-dotnet:18770
+  }
+  ```
+
+  It listens on 443, publishes that port on the LXC and carries each origin's
+  host name as an alias on the project network.
+- `broodling` mounts the public root directory, read-only, and each target's
+  control token file, and never the TLS key directory, Caddy's data or a
+  bootstrap key.
 
 Native control is authenticated (#187): Traefik and the published port still
 admit callers to the origin as in ADR 0001, but every control and OECP request,
@@ -892,11 +961,13 @@ listener `0.0.0.0:18770` fixed. `ZEROSHOT_CONFIG_DIR` and `XDG_CONFIG_HOME`
 overrides are refused. Select the adopted image by the digest in its
 [adoption record](#adopted-target-environment), shown below as `TARGET_IMAGE`.
 
-For an authorized **new installation only**, first provision four empty durable
-host directories: target state and home, with explicit root ownership and
-private permissions, and the root key and public root directories. Provision the
-target's control material and its recipient copies as described in
-[private control access](#private-control-access). Then, in this order:
+For an authorized **new installation only**, first provision empty durable
+host directories: each target's state and home, with explicit root ownership and
+private permissions, and the root key and public root directories. Provision
+each target's control material and its recipient copies as described in
+[private control access](#private-control-access), and its site file. Then, in
+this order, with the initialization and start steps once per target (shown for
+`dotnet`):
 
 1. **Create the TLS root once**, before `zeroshot-tls` first starts. The target
    image's one-off root helper runs as container root:
@@ -924,8 +995,8 @@ target's control material and its recipient copies as described in
 3. **Initialize native state**:
 
    ```bash
-   docker compose run --rm --no-deps zeroshot initialize \
-     --listen 0.0.0.0:18770 --public-origin https://zeroshot.dev.faviann.com --storage /state
+   docker compose run --rm --no-deps zeroshot-dotnet initialize \
+     --listen 0.0.0.0:18770 --public-origin https://zeroshot-dotnet.dev.faviann.com --storage /state
    ```
 
    Initialization refuses nonempty state or home, including partially
@@ -940,17 +1011,17 @@ target's control material and its recipient copies as described in
    inspection; it never deletes it or silently retries over it. To retry,
    deliberately clear the partial state and home first: initialization refuses
    nonempty state.
-4. **Start the target** (`docker compose up -d zeroshot`) with the same
+4. **Start the target** (`docker compose up -d zeroshot-dotnet`) with the same
    arguments without `initialize`, then **bootstrap its control token** with
    `bootstrap-target` ([private control access](#private-control-access)).
-   Until then the target refuses all control.
+   Until then the target refuses all control. Then run `check-target`.
 
 Pinned native, not the entrypoint, decides which public origins are valid and
 their canonical spelling: initialization refuses, before writing any state, an
 origin that native rejects or serves under another spelling. Configure exactly
-`https://zeroshot.dev.faviann.com`. `target serve` provides no TLS;
-`zeroshot-tls` terminates it, and the Caddyfile names that host. Changing the
-origin later requires a stopped-target transition of native state.
+the catalog entry's origin. `target serve` provides no TLS; `zeroshot-tls`
+terminates it, and the target's site file names that host. Changing the origin
+later requires a stopped-target transition of native state.
 
 Ordinary startup uses the same arguments **without `initialize`**, the same
 mounts and the recorded origin. Before executing `zeroshot target serve`, the
@@ -1058,20 +1129,24 @@ host file's owner and mode.
 
 | Material | Recipient and path | Owner and mode |
 | --- | --- | --- |
-| Control token, one per target | `broodling` service: `/run/secrets/zeroshot-control-token`, named by its configuration's `directControlTokenFile` | `1654:1654`, `0400` |
+| Control token, one per target | `broodling` service: `/run/secrets/zeroshot-<name>-control-token`, named by its catalog entry's `controlTokenFile` | `1654:1654`, `0400` |
 | Same control token | Operator account running `check-target` on the Docker host: its own file, named by its host configuration | that account, `0400` |
-| Bootstrap key, one per target, different from the token | `zeroshot` service: `/run/secrets/zeroshot-bootstrap-key` | `0:0`, `0400` |
+| Bootstrap key, one per target, different from the token | That `zeroshot-<name>` service: `/run/secrets/zeroshot-bootstrap-key` | `0:0`, `0400` |
 | Same bootstrap key | One-off `bootstrap-target` container only: its own file | `1654:1654`, `0400` |
+
+No two targets share a token value or a bootstrap key file; `check-target`
+refuses either.
 
 ```yaml
 services:
   broodling:
-    secrets: [zeroshot-control-token]
-  zeroshot:
-    secrets: [zeroshot-bootstrap-key]
+    secrets: [zeroshot-dotnet-control-token]
+  zeroshot-dotnet:
+    secrets:
+      - { source: zeroshot-dotnet-bootstrap-key, target: zeroshot-bootstrap-key }
 secrets:
-  zeroshot-control-token: { file: /NEW/secrets/broodling/zeroshot-control-token }
-  zeroshot-bootstrap-key: { file: /NEW/secrets/zeroshot/zeroshot-bootstrap-key }
+  zeroshot-dotnet-control-token: { file: /NEW/secrets/broodling/zeroshot-dotnet-control-token }
+  zeroshot-dotnet-bootstrap-key: { file: /NEW/secrets/zeroshot-dotnet/zeroshot-bootstrap-key }
 ```
 
 The target refuses to start unless its key is a root-owned regular file with no
@@ -1092,19 +1167,20 @@ homelab-iac#353 and #354.
 
 Native keeps the token only in process memory, so every new target process,
 whether the first start, an ordinary restart, an image update or a rotation,
-refuses all control until it is bootstrapped. Run `bootstrap-target` after the
-target starts, as a one-off `broodling` container on the project network that
-alone receives the bootstrap key:
+refuses all control until it is bootstrapped. Run `bootstrap-target` for that
+target's environment after it starts, as a one-off `broodling` container on the
+project network that alone receives the target's bootstrap key:
 
 ```bash
 docker compose run --rm --no-deps \
-  -v /NEW/secrets/bootstrap/zeroshot-bootstrap-key:/run/secrets/zeroshot-bootstrap-key:ro \
-  broodling bootstrap-target /etc/broodling/invocation.json /run/secrets/zeroshot-bootstrap-key
+  -v /NEW/secrets/bootstrap/zeroshot-dotnet-bootstrap-key:/run/secrets/zeroshot-bootstrap-key:ro \
+  broodling bootstrap-target /etc/broodling/invocation.json dotnet /run/secrets/zeroshot-bootstrap-key
 ```
 
-It prints `{"bootstrapped":true,"origin":…,"result":"installed"}`, or
-`"already_installed"` when the running target already accepts the configured
-token, in which case it sends nothing. It requires private discovery, sends at
+It prints `{"bootstrapped":true,"environment":"dotnet","origin":…,"result":"installed"}`,
+or `"already_installed"` when the running target already accepts the configured
+token, in which case it sends nothing. An environment the catalog does not name
+refuses. It requires private discovery, sends at
 most one envelope through the SDK's `NativeClient.Private.BootstrapAsync`, and
 confirms the result with an authenticated control request. It never restarts the
 target, touches native state or replaces an installed token, and never resends
@@ -1130,7 +1206,7 @@ Rotation is explicit operator maintenance, never scheduled:
 1. `pause-installation`, then wait until `status` reports dispatch initiation
    drained. Active native runs are interrupted by the restart: apply the usual
    host containment and stopped-target rules to them.
-2. Stop the target (`docker compose stop zeroshot`).
+2. Stop the target (`docker compose stop zeroshot-dotnet`).
 3. Render a new random token into every token copy: `broodling`'s and the
    operator's. To replace the bootstrap key too, render it to the target's and
    the bootstrap operation's copies now.
@@ -1149,24 +1225,40 @@ another token.
 
 ### Several targets (#235)
 
-Each target is its own canonical origin with its own token and bootstrap key.
-Broodling resolves control credentials by exact origin for each operation
-(`DirectTargetAccess`, an origin-to-token-file lookup):
+[ADR 0002](../docs/adr/0002-one-directtarget-per-environment-behind-one-tls-proxy.md)
+runs one DirectTarget per catalog environment, all behind the one
+`zeroshot-tls` and root. Each environment name is a lowercase DNS label of at
+most 54 characters; its target is the service and alias `zeroshot-<name>`, at
+its own origin (by convention `https://zeroshot-<name>.dev.faviann.com`), with
+its own site file, state, home, bootstrap key and control token. A stable name
+such as `dotnet` is upgraded by swapping its image in drained maintenance
+([native-state transitions](#native-state-transitions)); a release-specific
+name such as `dotnet-r3` is a separate target for testing, removed once the
+stable name is promoted. There is no load balancing, failover or on-demand
+target creation.
 
-- New Attempts go to the configured origin. An existing Attempt always connects to
-  its retained origin, with the token configured for that origin.
-- A token configured for one origin is never sent to another, and one target's
-  token does not control another.
-- A configuration that no longer names an Attempt's origin redirects nothing: the
-  Attempt contacts no target (`credentials_unavailable`) until its own origin is
-  configured again.
+- A repository selects an environment by exact name in
+  `.broodling/environment.json` at its Attempt's original B1
+  (`{"version": 1, "environment": "dotnet"}`); without one, the catalog's
+  `defaultEnvironment` serves it. Nothing else in the repository, such as
+  `global.json`, is interpreted
+  ([environment selection](../docs/implementation/zeroshot-native-integration.md#environment-selection)).
+  A per-invocation override is deferred.
+- The resolution is retained once with the Prepared submission. Adding an
+  environment or changing the default affects only new Attempts. An Attempt
+  always connects to its retained target with the token configured for that
+  origin, and a token configured for one origin is never sent to another.
+- Removing an entry, changing its image, origin, container or mounts, or giving
+  its origin to another name rebinds nothing; the
+  [environment selection](../docs/implementation/zeroshot-native-integration.md#environment-selection)
+  checks refuse instead. Keep an origin, its storage and its catalog entry
+  while unfinished work retains them.
 - A token change never amends a Contract, Prepared submission, Native
   correlation or retained target binding, and a refused or missing token never
   selects another target, starts a new Attempt or resets storage.
-
-Today's invocation configuration names one origin and its token file. The
-environment catalog and its selection (#235) own how several are
-configured.
+- Maintenance is whole-installation: one pause, every target stopped and
+  verified, each Attempt's retirement given a check naming exactly its
+  retained target, then bootstrap per target, `check-target` and release.
 
 ## Invocation and recovery
 
@@ -1221,11 +1313,13 @@ base64; inspect the exact retained material. Errors can follow committed facts:
 use history/status to find handles before choosing recovery.
 
 Resume the same revision after interruption; repeating submit reacquires bytes.
-Uncorrelated replay needs the same target configuration and current credentials.
-Correlated resume and retained status/history need neither. `wait` and `stop`
-take the same optional `config.json` and use only its root certificate: the
-record connects to its retained origin, and a configuration naming a different
-origin refuses before any target contact or abandonment. For an HTTPS target
+Uncorrelated replay needs a catalog that still serves the Attempt's retained
+environment exactly, and current credentials. Correlated resume and retained
+status/history need neither. `wait` and `stop` take the same optional
+`config.json` and use only its token files and root certificate: the record
+connects to its retained target, and a configuration with no entry of the
+retained environment name at the retained origin refuses before any target
+contact or abandonment. For an HTTPS target
 with a private root, pass the `config.json` to `wait` and `stop`. Without it,
 system trust applies and the connection fails. `stop` then records the
 abandonment and reports native stop as not sent (`transport_failed`); running
@@ -1240,8 +1334,9 @@ stop. Unknown correlation is never redispatched to discover a run. Explicit
 never-dispatched retirement and replacement remain
 [callable operations](../docs/implementation/dotnet-retirement-replacement.md),
 not an automatic CLI recovery sequence. `replace-attempt` replaces an abandoned,
-retired predecessor at its retained origin; only a `stopped_target`
-predecessor requires the pause.
+retired predecessor with its retained environment, or with what the catalog now
+names for that environment under `--update-environment`; only a
+`stopped_target` predecessor requires the pause.
 
 ### Bundled Contract proposer
 

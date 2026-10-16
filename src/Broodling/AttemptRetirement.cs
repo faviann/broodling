@@ -9,11 +9,12 @@ public sealed record AttemptRetirement(string AttemptId, string Basis, string Ce
     StoppedTargetCheck? StoppedTarget = null);
 
 /// <summary>
-/// The host procedure's current stopped-target facts, recorded as supplied: the app can verify none
-/// of them except that the origin is this Attempt's retained target and the check follows the pause.
+/// The host procedure's current stopped-target facts, recorded as supplied: the app cannot observe the target, so
+/// it verifies only that they name exactly this Attempt's retained target (environment, origin, container and host
+/// state and home mounts) and that the check follows the pause. Physical cessation stays the host's proof.
 /// </summary>
-public sealed record StoppedTargetCheck(string DirectOrigin, string ContainerName, string StateMount, string HomeMount,
-    DateTimeOffset VerifiedAt);
+public sealed record StoppedTargetCheck(string Environment, string DirectOrigin, string ContainerName, string StateMount,
+    string HomeMount, DateTimeOffset VerifiedAt);
 
 public sealed partial class BroodlingStore
 {
@@ -63,7 +64,10 @@ public sealed partial class BroodlingStore
         var (run, identity) = submitted.Run is { } confirmed
             ? (confirmed, NativeRunIdentity.Confirmed)
             : (submitted.Frozen.Run(submitted.IntendedRunId), NativeRunIdentity.Intended);
-        var stop = await DirectTargetRun.StopAsync(run, identity, directTarget, DirectTargetClock, cancellationToken);
+        // The control token goes only to the retained origin while the catalog still names it for this environment.
+        var stop = environments?.Serves(submitted.Environment) == false
+            ? new DirectTargetStop(DirectTargetForce.NotSent, "environment_unavailable")
+            : await DirectTargetRun.StopAsync(run, identity, directTarget, DirectTargetClock, cancellationToken);
         throw stop.Force switch
         {
             DirectTargetForce.Terminal => new CessationUnconfirmed(
@@ -89,7 +93,7 @@ public sealed partial class BroodlingStore
     /// Retire a dispatched Attempt during verified maintenance. Each host maintenance invocation
     /// pauses, stops and verifies the target, then supplies its check; this records it with the retirement
     /// and deletes nothing. It requires the pause, a complete check made no earlier than the latest pause
-    /// call and no later than now, naming this Attempt's target, no local dispatch still initiating, a non-current (abandoned or completed) Attempt with dispatch
+    /// call and no later than now, naming exactly this Attempt's retained target and mounts, no local dispatch still initiating, a non-current (abandoned or completed) Attempt with dispatch
     /// intent, and its retained B1 and accepted pins. Drainage is required, never authority by itself.
     /// A submission without correlation stays <c>dispatched</c>. Replacement remains a separate operation.
     /// An already acknowledged retirement is returned unchanged, whatever its basis; an unacknowledged
@@ -98,7 +102,8 @@ public sealed partial class BroodlingStore
     public AttemptRetirement RetireStoppedTargetAttempt(string attemptId, StoppedTargetCheck check)
     {
         if (FindRetirement(attemptId) is { RetiredAt: not null } retired) return retired;
-        if (new[] { check.DirectOrigin, check.ContainerName, check.StateMount, check.HomeMount }.Any(string.IsNullOrWhiteSpace))
+        if (new[] { check.Environment, check.DirectOrigin, check.ContainerName, check.StateMount, check.HomeMount }
+            .Any(string.IsNullOrWhiteSpace))
             throw new MaintenanceUnverified("The stopped-target check is incomplete.");
         using var transaction = connection.BeginTransaction(deferred: false);
         if (ReadRetirement(attemptId, transaction) is { RetiredAt: not null } retained) { transaction.Commit(); return retained; }
@@ -116,8 +121,10 @@ public sealed partial class BroodlingStore
         var attempt = ReadAttempt(attemptId, transaction);
         if (attempt.IsCurrent || ReadSubmission(attemptId, transaction) is not { State: not "prepared" } submission)
             throw new CessationUnconfirmed("Maintenance retirement requires a non-current DirectTarget Attempt with dispatch intent.");
-        if (check.DirectOrigin != submission.Origin)
-            throw new MaintenanceUnverified("The stopped-target check names another target.");
+        if (new TargetIdentity(check.Environment, check.DirectOrigin, check.ContainerName, check.StateMount, check.HomeMount)
+            != submission.Environment.Target)
+            throw new MaintenanceUnverified(
+                "The stopped-target check names another target or other mounts than this Attempt's retained target.");
         // Short local ref reads under the writer, against the Attempt and completion read here.
         GitCustody.RequireRetained(attempt.B1.Repository, attempt.B1.CommitOid);
         if (ReadCompletion(attemptId, transaction) is { } completion)

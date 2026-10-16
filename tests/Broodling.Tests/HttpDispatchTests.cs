@@ -433,6 +433,7 @@ public sealed class HttpDispatchTests
         await using var target = new StockTarget();
         using var fixture = new HttpFixture();
         var id = fixture.Attempt.AttemptId;
+        fixture.Configure(target.Origin.GetLeftPart(UriPartial.Authority));
         fixture.Git.State.Execute("CREATE TRIGGER preparation_failure BEFORE INSERT ON native_submissions BEGIN SELECT RAISE(ABORT, 'preparation failure'); END;");
         await Assert.That(() => fixture.PrepareAt(target.Origin)).Throws<SqliteException>();
         await Assert.That(fixture.Store.FindSubmission(id)).IsNull();

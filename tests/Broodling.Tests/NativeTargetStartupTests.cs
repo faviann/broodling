@@ -103,7 +103,7 @@ public sealed class NativeTargetStartupTests
         RequireSuccess(initialized);
         await Assert.That(initialized.Output).Contains("no provider work submitted");
         await Assert.That((await stack.Shell("cat /home/node/.config/broodling/origin")).Output).IsEqualTo(TargetStack.Origin + "\n");
-        await Assert.That((await DockerCommand("ps", "--all", "--quiet", "--filter", "name=" + stack.Zeroshot)).Output).IsEqualTo("");
+        await Assert.That((await DockerCommand("ps", "--all", "--quiet", "--filter", "name=" + stack.First.Container)).Output).IsEqualTo("");
 
         await stack.Shell("touch /state/runs/owned /home/node/owned; chown 10002:10002 /state/runs/owned; chown 20000:20000 /home/node/owned; chmod 700 /state/runs/owned; chmod 600 /home/node/owned");
         var before = await Snapshot(stack);
@@ -113,8 +113,8 @@ public sealed class NativeTargetStartupTests
         using (var discovery = JsonDocument.Parse(await http.GetStringAsync(TargetStack.Origin + "/.well-known/zeroshot-native-v2")))
             await Assert.That(discovery.RootElement.GetProperty("authentication").GetString()).IsEqualTo("private_capability");
         // Native read and unlinked its private copy of the key before serving.
-        await Assert.That((await DockerCommand("exec", stack.Zeroshot, "ls", "-A", "/run/broodling-target")).Output).IsEqualTo("");
-        var token = stack.Token;
+        await Assert.That((await DockerCommand("exec", stack.First.Container, "ls", "-A", "/run/broodling-target")).Output).IsEqualTo("");
+        var token = stack.First.Token;
         var other = TestAccess.NewSecret();
         foreach (var bearer in new[] { null, token, other })
             await Assert.That(await stack.Control(bearer)).IsEqualTo(HttpStatusCode.Unauthorized);
@@ -130,12 +130,12 @@ public sealed class NativeTargetStartupTests
         await Assert.That(await stack.Control(null)).IsEqualTo(HttpStatusCode.Unauthorized);
         await Assert.That(await stack.Control(other)).IsEqualTo(HttpStatusCode.Unauthorized);
         // Another token cannot take over the running target.
-        File.WriteAllText(stack.TokenFile, other);
+        File.WriteAllText(stack.First.TokenFile, other);
         await Fails(() => stack.Bootstrap(), "holds another one");
-        File.WriteAllText(stack.TokenFile, token);
+        File.WriteAllText(stack.First.TokenFile, token);
         await Assert.That(await stack.Control(token)).IsEqualTo(HttpStatusCode.OK);
         await Assert.That(await stack.Control(other)).IsEqualTo(HttpStatusCode.Unauthorized);
-        var published = await DockerCommand("inspect", "--format", "{{json .HostConfig.PortBindings}}", stack.Zeroshot);
+        var published = await DockerCommand("inspect", "--format", "{{json .HostConfig.PortBindings}}", stack.First.Container);
         await Assert.That(published.Output.Trim()).IsEqualTo("{}");
 
         // An ordinary restart over the same state: the new process accepts nothing until bootstrapped again.
@@ -149,7 +149,7 @@ public sealed class NativeTargetStartupTests
 
         // Explicit rotation: a restart bootstrapped with the replacement token, which alone is then accepted.
         await stack.StopTarget();
-        File.WriteAllText(stack.TokenFile, other);
+        File.WriteAllText(stack.First.TokenFile, other);
         await stack.StartTarget();
         await stack.Serving();
         await Assert.That(await stack.Bootstrap()).IsEqualTo(DirectTargetBootstrapResult.Installed);
@@ -175,11 +175,11 @@ public sealed class NativeTargetStartupTests
     {
         await using var stack = await TargetStack.CreateAsync();
         RequireSuccess(await stack.Initialize());
-        var key = File.ReadAllText(stack.OperatorBootstrapKeyFile);
-        string[] mounts = stack.TargetMounts;
+        var key = File.ReadAllText(stack.First.OperatorBootstrapKeyFile);
+        string[] mounts = stack.First.Mounts;
         switch (change)
         {
-            case "missing": mounts = [.. TargetStack.Bind(stack.State, "/state"), .. TargetStack.Bind(stack.Home, "/home/node")]; break;
+            case "missing": mounts = [.. TargetStack.Bind(stack.First.State, "/state"), .. TargetStack.Bind(stack.First.Home, "/home/node")]; break;
             case "other-readable": RequireSuccess(await stack.ProvisionKey(key, mode: "0404")); break;
             case "agent-owned": RequireSuccess(await stack.ProvisionKey(key, owner: "10002:10002")); break;
         }

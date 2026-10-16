@@ -36,18 +36,25 @@ The asset check and the image tests require rootful Docker access. The asset
 check copies the DirectTarget binding's native executable out of upstream's
 native 10.10.0 target image, pulled by its pinned digest when absent. The image
 tests run the adopted target environment image, pulled by the digest in
-[`deployment/target-environment.json`](../deployment/target-environment.json)
+[`src/Broodling/environments/dotnet-r2.adoption.json`](../src/Broodling/environments/dotnet-r2.adoption.json)
 when absent, so an uncached run needs access to GHCR. The
 [transition check](#native-state-transition-check) also pulls the
 listed published target images by digest when absent. They also use the pinned
-`zeroshot-tls` Caddy image. The run removes an image it pulled afterwards unless
+`zeroshot-tls` Caddy image. The two-environment tests also use the pinned
+`registry:3` image from Docker Hub as a disposable loopback registry for the
+test-only second environment image, so an uncached run also needs access to
+Docker Hub. The two-environment tests run only in the full suite, not in the
+[adoption lane](#adoption-lane). The run removes an image it pulled afterwards unless
 another concurrent run still uses it. Each run owns and removes
 its uniquely tagged test images, its containers, networks and disposable volumes,
-named with unique `broodling-186-` (ADR stack) or `broodling-180-` (stock target)
-prefixes, and its host directories, unique `target-stack-*` and
-`target-readiness-*` children of `~/.cache/broodling-tests`. The ADR stack tests (`TargetStack`)
-give each case its own Docker network with the origin's alias; only `zeroshot-tls`
-publishes, on a host-loopback port Docker chooses. Refusal cases use `--network none`.
+named with unique `broodling-186-` (ADR stack), `broodling-180-` (stock target)
+or `broodling-235-` (second environment and its registry) prefixes, and its host
+directories, unique `target-stack-*` and `target-readiness-*` children of
+`~/.cache/broodling-tests`, plus the second environment's adoption record and
+manifest in a unique `broodling-235-adoption-*` child of the system temporary
+directory. The ADR stack tests (`TargetStack`) give each case
+its own Docker network with each origin's alias and one site file per origin;
+only `zeroshot-tls` publishes, on a host-loopback port Docker chooses. Refusal cases use `--network none`.
 The [stock target](fixtures/README.md#controlled-stock-directtarget)
 serves on a bridge network because Docker cannot publish a port otherwise; it publishes
 only on host loopback. Its fixtures make no outbound call. No existing target is
@@ -66,28 +73,30 @@ production state.
 | Bundle-bound admission: request-only attribution, retained PR authority, preserved rejection findings, guarded decision and no re-proposal | `RequestAdmissionTests`: [bundle-bound admission](../docs/implementation/dotnet-contract-admission.md#bundle-bound-admission) |
 | Bundled proposer over real capture, Git and SQLite with a controlled in-process gateway: request/manifest-only initial context, on-demand frozen reads, bundle-bound admission of typed output, retained final refusal of malformed or authority-changing output, preserved unsupported requirements, unretained operational failures with a later successful proposal, and no gateway key in retained state | `BundledProposerTests`: [bundled proposer](../docs/implementation/dotnet-contract-admission.md#bundled-proposer) |
 | Exact-submission preparation over real capture, Git and SQLite with controlled GitHub and gateway peers: one owner per submission with independent submissions, a caller's cancellation ending only its own wait, a proposal interrupted after capture repeated against the frozen bundle, a Contract committed before its decision decided without proposing again, retained findings, cancellation or a retryable failure as results, a `gh` that cannot start needing attention without rejecting the submission, and the store-failure classification mapping | `IssueSubmissionPreparationTests`: [Issue submission preparation](../docs/implementation/dotnet-contract-admission.md#issue-submission-preparation) |
-| Automatic progression over real capture, Git and SQLite with controlled GitHub, gateway and stock-target stand-in peers: startup and running discovery, continuation from retained B1 to correlation with no client workspace, a submission progressing past another blocked on its model call, a preparer lifetime ending before the service's token only detaching, reads and a writer available in the host process during a send, shutdown leaving the dispatch unresolved and the Attempt current, exact replay with rotated credentials after the pause is released, a doubling retry delay to the limit with the pause not counted, a temporary target failure retried with the same frozen request, a conflict stopping at once with its own stage's count while ended work is neither progressed nor replaced, an Attempt abandoned during its send leaving without a stop, and a failing credential provider stopping for attention | `SubmissionProgressorTests`: [automatic progression](../docs/implementation/invocation.md#automatic-progression) |
+| Automatic progression over real capture, Git and SQLite with controlled GitHub, gateway and stock-target stand-in peers: startup and running discovery, continuation from retained B1 to correlation with no client workspace, a submission progressing past another blocked on its model call, a preparer lifetime ending before the service's token only detaching, reads and a writer available in the host process during a send, shutdown leaving the dispatch unresolved and the Attempt current, exact replay with rotated credentials after the pause is released, a doubling retry delay to the limit with the pause not counted, a temporary target failure retried with the same frozen request, an environment refusal stopping with its code until the catalog is fixed, a conflict stopping at once with its own stage's count while ended work is neither progressed nor replaced, an Attempt abandoned during its send leaving without a stop, and a failing credential provider stopping for attention | `SubmissionProgressorTests`: [automatic progression](../docs/implementation/invocation.md#automatic-progression) |
 | Explicit fresh initialization, reopen while another session writes and checkpoints, the exact schema identity reported to the release record, unchanged refusal of pre-transition state, of a store an earlier build initialized under schema 1, and of a released earlier identity with its documented reason | `StoreLifecycleTests`, authentic [pre-transition .NET fixtures](Broodling.Tests/Fixtures/README.md): [state](../docs/implementation/dotnet-identity-custody.md) |
 | Frozen application schemas against this revision's code, also run by the images workflow on every push: a frozen definition never edited, the current version never below a frozen one, and every older frozen version with an `upgrade-store` disposition | `ApplicationSchemaFreezeTests`: [application schema compatibility](../deployment/README.md#application-schema-compatibility) |
 | Persisted installation pause, transition ordering and dispatch drain | `InstallationPauseTests`: [installation pause](../docs/implementation/dotnet-installation-pause.md) |
 | Interrupted first capture, growing reference checkpoints, immutable RequestBundle completion and scoped source/Git reads | `RequestBundleTests`: [state](../docs/implementation/dotnet-identity-custody.md) |
 | Original B1 custody (dirty or transformed starting material, pin conflicts, missing objects, GC survival, hook suppression and injected Git configuration); Attempt admission convergence and races, interrupted admission, abandonment rollback and immutable bindings, with no local directory | `AttemptAdmissionTests`, `GitCustodyTests`: [allocation](../docs/implementation/dotnet-attempt-allocation.md) |
 | Controlled GitHub issue and service-owned repository acquisition; v1 request grammar, bounded reference closure and retained capture refusals; a stalled metadata read ending retryable with its process killed | `GitHubAdmissionTests`, `RepositoryPreparationTests`, `RequestCaptureTests`, [retained issue fixtures](fixtures/ingress/README.md): [ingress](../docs/implementation/dotnet-github-ingress.md) |
+| Environment selection over real Git and SQLite with loopback stand-ins: the declaration read from exact B1 after the branch moved, its bytes and source retained; a missing declaration using the default; each declaration, default and catalog refusal with its code before any record or contact; `global.json` never interpreted; the declaration absent from the Contract and request; a complete, credential-free retained resolution; reopen ignoring today's repository, catalog and default; concurrent first preparations under different catalogs persisting one choice; compatible work sharing a target; SQL immutability of the resolution and its documents; restart after removal, image, origin or default changes never rebinding; lost-acknowledgement replay and a correlated wait or stop reaching only the retained target | `EnvironmentSelectionTests`: [environment selection](../docs/implementation/zeroshot-native-integration.md#environment-selection) |
+| Two environments whose manifests state incompatible OS identities: the adopted `dotnet-r2` and a test-only image relabelling only its OS, pinned by digest through a loopback registry and adopted through the same record rules, each in its own container with its own state and home; each Attempt retaining its own environment and running only in its own native ledger; a lost acknowledgement replaying only to the retained target; both actual targets ready behind one `zeroshot-tls` with their own OS, refused once their state mounts are swapped | `TwoEnvironmentTests` and the test-only image's cases of `TargetEnvironmentTests`: [several targets](../deployment/README.md#several-targets-235) |
 | Offline HTTP preparation, exact text and binary source bytes in the frozen task, retained asset/request reopen, a bundle-bound task's manifest with every reference's exact bytes, the native task-size refusal, corrupt-content refusal, the GitHub origin rule and HTTP submission SQL guards | `HttpSubmissionTests`: [HTTP preparation](../docs/implementation/zeroshot-native-integration.md#http-submission-preparation) |
 | HTTP send gates, intent before contact, one SDK attempt of the exact retained bytes, exact acknowledgement with a foreign one reported, retained conflict, concurrent replies, late acknowledgement stop, killed HTTP callers and a buffered request accepted after caller death | `HttpDispatchTests`, `DispatchProcessTests`: loopback stock-target stand-in, [HTTP dispatch](../docs/implementation/zeroshot-native-integration.md#http-dispatch-and-acknowledgement) |
 | Approved execution asset: build-output inclusion; loader refusal of a missing, changed or differently hashed asset, any manifest other than the reviewed one (a changed native, Codex, policy or recipe binding, the superseded 10.3.0 approval); the manifest policy read from the asset's own runtime; reproduction, structure and native admission with the executable from the binding's pinned native image | `ExecutionAssetTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset), [recipe](../docs/implementation/zeroshot-native-integration.md#approved-directtarget-execution-asset) |
 | Bounded native progress observation, unavailable/timeout mapping and unchanged retained facts | `NativeObservationTests`: [native integration](../docs/implementation/zeroshot-native-integration.md#dispatch-recovery-and-completion) |
 | Receipt validation, with one table of refused receipts (non-object, missing, extra or non-string fields, `v1`/`opened`, non-ready outcomes, wrong repository or branch, unchanged or malformed head, malformed PR ID) driven through both the application and SQL's `completion_bound`; atomic exact-Attempt completion, offline reads and late results (correlated HTTP Attempts over the loopback stand-in) | `AttemptCompletionTests`, `CompletionPersistenceTests`: [completion](../docs/implementation/dotnet-receipt-completion.md) |
 | Automatic completion without a reader: startup/running discovery that never dispatches, per-scan retry of temporary failures, retained receipt and accepted-pin refusal, detachment after authority loss, shutdown and restart, no rediscovery of retained results | `CompletionObserverTests`: [automatic observation](../docs/implementation/dotnet-receipt-completion.md#automatic-completion-observation) |
-| Stop/quarantine, safe undispatched retirement, verified stopped-target maintenance retirement, original-B1 replacement, including after that maintenance retirement, and a replacement killed during admission or preparation | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
+| Stop/quarantine, safe undispatched retirement, verified stopped-target maintenance retirement and refusal of a check naming another target or other mounts, original-B1 replacement, including after that maintenance retirement, a successor inheriting its predecessor's environment or recording an explicit update, and a replacement killed during admission or preparation | `RetirementTests`, `RetirementProcessTests`, `ReplacementTests`, `ReplacementCompletionTests`: [lifecycle](../docs/implementation/dotnet-retirement-replacement.md) |
 | Predecessor-linked revisions over real capture, Git and SQLite with controlled GitHub and gateway peers and the stock-target stand-in: refusal of active work, a current Attempt and unretired dispatched work; concurrent requests converging on one successor, exact replay after later history and ordinary submission creating nothing; material without a committed Contract, or whose admitted Contract was cancelled before any Attempt, seeking admission; an unchanged successor ending with its retained link without proposal or execution although the issue, a referenced issue and a referenced comment gained GitHub bookkeeping, while a moved starting commit, or a changed issue body with the same Executable Request, proceeds; an ordinary first Attempt after maintenance retirement with predecessor stop replay unable to reach it; and two revisions retaining each result, with the later revision's failed Attempt still replaceable | `RevisionTests`: [revised work](../docs/implementation/invocation.md#revised-work) |
 | HTTP reader: existing-state startup refusal and session release, retained reads mapped to application operations without external services or writes, reads while another session holds the writer | `HttpReadTests` |
-| Processing server over real capture, Git and SQLite with controlled GitHub and gateway peers and the stock-target stand-in, through the host's own composition: acknowledgement with handle and `Location` after durable acceptance and before acquisition, refusal of an unsupported reference before any write, processing and result retention with no client connected, a stopped submission's visible reason and exact resume, retained facts apart from available and unavailable native observations, shutdown detaching in-flight dispatch; stops with a required reason that outlive a disconnected caller and report abandonment apart from cessation, submission cancellation and hand-back; a revision accepted once with its `Location` and replay, refused for active work, and its unchanged end readable; startup refusal of configurations that cannot process and a reader refusing submission; a failed service stopping the server | `HttpProcessingTests`: [HTTP service](../docs/implementation/invocation.md#http-service) |
-| Composed application/operator recovery and handback; operator configuration refusals (including a missing, relative or inline control token) and retained-origin mismatch refusal; a configuration-less wait contacting nothing; PR operations over loopback HTTP and over HTTPS with a configured root | `InvocationTests`: [invocation](../docs/implementation/invocation.md) |
+| Processing server over real capture, Git and SQLite with controlled GitHub and gateway peers and the stock-target stand-in, through the host's own composition: acknowledgement with handle and `Location` after durable acceptance and before acquisition, refusal of an unsupported reference, or of a submission naming any other member such as an environment, before any write, processing and result retention with no client connected, a stopped submission's visible reason and exact resume, retained facts apart from available and unavailable native observations, shutdown detaching in-flight dispatch; stops with a required reason that outlive a disconnected caller and report abandonment apart from cessation, submission cancellation and hand-back; a revision accepted once with its `Location` and replay, refused for active work, and its unchanged end readable; startup refusal of configurations that cannot process and a reader refusing submission; a failed service stopping the server | `HttpProcessingTests`: [HTTP service](../docs/implementation/invocation.md#http-service) |
+| Composed application/operator recovery and handback; environment catalog refusals (including a missing, relative or inline control token, repeated names, origins or containers, overlapping paths, an unadopted image and an unknown default), each target receiving only its own token, and the retained environment deciding the target whatever the default; a configuration-less wait contacting nothing; PR operations over loopback HTTP and over HTTPS with a configured root | `InvocationTests`: [invocation](../docs/implementation/invocation.md) |
 | Private control tokens at the application seams: none, another origin's, a missing or malformed file refusing dispatch before intent or contact; a refused token leaving dispatch unresolved and the exact replay with the current token converging on the intended run with an unchanged frozen request and no token in the store; observation, wait and stop failing with fixed kinds while authority holds and retained reads, including a retained completion, need neither token nor target; two origins each receiving only their own token, one target's token not controlling the other, and a configuration change redirecting no Attempt; the bootstrap resolving a lost acknowledgement only by authenticating, failing an uncertain one that installed nothing until the explicit rerun, and failing without replacing anything for a public target or a key equal to the token; the `bootstrap-target` command's usage and fixed failure record without secret material | `DirectTargetAccessTests`: the loopback stand-in in native's private mode and a raw private-bootstrap stand-in, [private control access](../deployment/README.md#private-control-access) |
 | TLS root created once with a private key and public certificate; `zeroshot-tls` refusing to start without its provided root; network-free native initialization recording the binding and refusing an origin native rejects or respells; private startup behind the origin with control refused before bootstrap and to any other token; a bootstrap under another key refused without consuming the key; an idempotent bootstrap; a closed bootstrap never replacing the installed token; restart needing a new bootstrap and rotation retiring the former token over unchanged state; startup refusing a missing or unprotected bootstrap key without serving; the fixed unpublished inner port, refusal before serving and mixed UID preservation | `NativeTargetStartupTests`: actual target and pinned Caddy images with disposable state and synthetic secrets, [initialization](../deployment/README.md#explicit-initialization-and-guarded-startup) |
-| Selected ADR stack configuration, dependency, private discovery and authenticated-control decisions; refusal of other manifest bytes, a malformed or unsupported manifest, another platform and another native, Codex or startup interface before any target access; refusal of an image other than the adopted digest; a started but unbootstrapped target not ready; a stale Caddy intermediate after incomplete root rotation | `TargetReadinessTests`: controlled inspection, discovery and session requests, plus one actual-image stack, [readiness](../docs/implementation/dotnet-target-readiness.md) |
-| The adoption record and its retained manifest bytes: record digest and image equal to the manifest's, a manifest this revision supports, every component fixed by an artifact checksum or the base digest, this revision's entrypoint embedded, and the pulled image's platform, digest, executable bytes, harness, tool and .NET versions and Debian packages equal to the manifest's | `TargetEnvironmentTests`: the adopted image, [adopted target environment](../deployment/README.md#adopted-target-environment) |
+| Every catalog target's configuration, dependency, live OS and tool, private discovery and authenticated-control decisions, each at its own origin with its own token; an inventory that is not exactly the catalog, overlapping storage or a shared token across targets, and a name answered by more than one container refused; one target's live drift making the installation not ready; refusal of an image other than the adopted digest; a started but unbootstrapped target not ready; a stale Caddy intermediate after incomplete root rotation | `TargetReadinessTests`: controlled inspection, discovery and session requests, plus one actual-image stack, [readiness](../docs/implementation/dotnet-target-readiness.md) |
+| The adoption set bundled with the release, exactly `dotnet-r2` with its record and manifest SHA-256s, refusing a manifest that is not its record's bytes, another or repeated release or image, an unsupported native or discovery, and a component readiness cannot probe; the adoption record and its retained manifest bytes: record digest and image equal to the manifest's, a manifest this revision supports, every component fixed by an artifact checksum or the base digest, this revision's entrypoint embedded, and the pulled image's platform, digest, executable bytes, harness, tool and .NET versions and Debian packages equal to the manifest's; the test-only second environment held to the same checks and differing from `dotnet-r2` only in identity and OS | `TargetEnvironmentTests`: the adopted image and the test-only image, [adopted target environment](../deployment/README.md#adopted-target-environment) |
 | Readiness discovery's bounded read and budget | `DirectTargetExchangeTests`: [transport](../docs/implementation/zeroshot-native-integration.md#directtarget-transport-and-budgets) |
 | The configured root reaching the SDK's HTTPS and WSS connections: exactly that root, refusal of another root or system trust, a missing root failing only its operation with no dispatch intent, a new root read by each dispatch, and an HTTPS completion wait through the SDK's watch | `DirectTargetTrustTests`: the loopback stand-in serving TLS from an in-process private authority, [transport](../docs/implementation/zeroshot-native-integration.md#directtarget-transport-and-budgets) |
 | SDK run reader and stopper: reconnection by the retained binding, unsupported bindings refused before contact, identity (`foreign_run`) and fixed failure kinds, read budgets, a finished first status as the result, wait through the SDK's watch without polling, a failed watch detaching with a fixed kind, cancellation detaching without stop; stop precheck, single force, a force that cannot connect as not sent, a foreign force reply as uncertain, waiting after a nonterminal force and the shared deadline | `DirectTargetRunTests`: the loopback stock-target stand-in with a controlled clock, [run reader and stopper](../docs/implementation/zeroshot-native-integration.md#directtarget-run-reader-and-stopper) |
@@ -262,22 +271,25 @@ tests/images/demonstrate.sh BROODLING_IMAGE TARGET_IMAGE [FACTS_JSON]
 ```
 
 It needs rootful Docker with Compose, curl, jq and a .NET 10 ASP.NET runtime on
-the host. It brings up a disposable instance of ADR 0001's single Compose
-project ([compose.yaml](images/compose.yaml): `broodling`, `zeroshot` and the
-pinned Caddy `zeroshot-tls` with the package Caddyfile, publishing only on host
-loopback) over bind mounts under a unique `image-demo-broodling-121-*` child of
+the host. It brings up a disposable instance of ADR 0002's single Compose
+project with one environment, `dotnet` ([compose.yaml](images/compose.yaml):
+`broodling`, the `zeroshot-dotnet` target and the pinned Caddy `zeroshot-tls`
+with the package Caddyfile and one rendered site file for the `dotnet` origin,
+publishing only on host loopback) over bind mounts under a unique `image-demo-broodling-121-*` child of
 the test workspace root. A root helper generates a synthetic control token and
 bootstrap key for the run, never printed, and writes one copy per recipient as
 Compose file secrets: the target's root-owned `0400` bootstrap key, the
 bootstrap operation's `1654:1654` copy, `broodling`'s `1654:1654` token and the
-host operator's token. It then follows the documented order: `initialize-tls`,
-`zeroshot-tls`, native `initialize`, `zeroshot`, `bootstrap-target`, and
+host operator's token. It writes the catalog configuration, naming the target's
+container and mounts. It then follows the documented order: `initialize-tls`,
+`zeroshot-tls`, native `initialize`, `zeroshot-dotnet`, `bootstrap-target` for
+`dotnet`, and
 `initialize-store` as the Broodling image user before `broodling` starts. It
 checks two kinds of fact separately:
 
 - Network application checks, on the project network only: the image health
   check reports `broodling` healthy; `broodling` discovers
-  the target through `https://zeroshot.dev.faviann.com`, trusting only the
+  the target through `https://zeroshot-dotnet.dev.faviann.com`, trusting only the
   mounted public root, sees `private_capability` and gets an OECP session with
   its own token file (`200`).
 - Host-only checks, made by the host's Docker client: no service mounts a Docker
@@ -286,8 +298,8 @@ checks two kinds of fact separately:
   and its token read-only; `zeroshot-tls` mounts no secret; the state directory
   and the store it created are owned by that user; and the image's own
   `check-target`, copied out of the Broodling image and run on the host, reports
-  the stack ready against the adopted manifest, including the target's mounts,
-  authenticated control and its dependency versions and bytes.
+  the `dotnet` target ready, including its mounts, authenticated control and
+  its live OS, dependency versions and bytes against the adopted manifest.
 
 Before and around the first bootstrap, it checks the private-control boundary
 with the actual image, network and users:
@@ -318,7 +330,7 @@ Attempt (#205, #210):
 - Processing, with [processing.yaml](images/processing.yaml) layered over the
   project: `broodling` restarts from the same image and state directory as the
   processing server with `Broodling__RepositoryRoot=/var/lib/broodling/repositories`,
-  and `zeroshot` serves the same native state from the
+  and `zeroshot-dotnet` serves the same native state from the
   [controlled stock-target layer](fixtures/README.md#controlled-stock-directtarget)
   over the target image. Only peers are controlled: `gh` and `git` shims,
   mounted ahead of the image's own on `PATH`, answer GitHub's API from files and
@@ -332,16 +344,18 @@ Attempt (#205, #210):
   server's stop route then abandons the Attempt.
 - Maintenance, from [compose.yaml](images/compose.yaml) alone, so the unchanged
   image as `1654:1654` with only its state and the public root mounted and no
-  credentials or peers: `pause-installation`; `broodling` and `zeroshot` stop,
-  and the host builds the stopped-target check from `docker inspect` of the
-  stopped target. `retire-attempt` then records the `stopped_target` retirement,
-  and `replace-attempt` prepares the successor without dispatching it.
+  credentials or peers: `pause-installation`; `broodling` and `zeroshot-dotnet`
+  stop, and the host builds the stopped-target check, naming the `dotnet`
+  environment, from `docker inspect` of the stopped target. `retire-attempt`
+  then records the `stopped_target` retirement, and `replace-attempt`, given the
+  catalog configuration, prepares the successor with the inherited environment
+  without dispatching it.
 - Token rotation while stopped and paused: a new token replaces every token
   copy, the restarted target is bootstrapped (`installed`), and through the
   origin the former token gets `401` and the new one `200`, from the host and
   from `broodling`.
 - Dispatch of the Replacement Attempt (#210): `release-installation`, then
-  `broodling`, `zeroshot` and `gateway` restart with the processing overlay, and
+  `broodling`, `zeroshot-dotnet` and `gateway` restart with the processing overlay, and
   the image's `resume`, run beside the server as the processing service with its
   invocation configuration, fake credentials and network, dispatches the
   successor, which the restarted server left `prepared`. Resume passes the
@@ -364,7 +378,8 @@ It removes its containers, network, volumes, directory and controlled target
 image, and the pinned Caddy image if it pulled it. The optional `FACTS_JSON` receives the
 store format, schema version and definition SHA-256 and the identities that
 `upgrade-store` upgrades, all from the image's `initialize-store` output, the
-Caddy reference and the readiness facts for the release record.
+Caddy reference, the site file it mounted, and `check-target`'s readiness facts
+(each target's environment, release, OS and versions) for the release record.
 
 ## SDK adoption
 
@@ -438,11 +453,11 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 
 ### Current adoption record
 
-- Tested code revision: `0ce8c655752a0b555c0d8aca99579d96cd571bc8` (#234). Later commits that only
+- Tested code revision: `6825c1fed37270d57ec0b5c78e8277821af4157c` (#235). Later commits that only
   edit this record or other documentation leave it valid; a code change
-  requires a new run. #234 moves the target to the adopted `dotnet-r2`
-  environment image and the binding to its source-built native executable and
-  Codex 0.155.0, with the same package bytes.
+  requires a new run. #235 adds the environment catalog, per-Attempt
+  environment resolution and one target per environment, with the same
+  package bytes, asset and adopted image.
 - SDK: `Zeroshot.Client` `10.10.0.1-preview.1` from
   `https://nuget.pkg.github.com/faviann/index.json`; `.nupkg` SHA-256
   `b6edd08c0054a057460a69b245d11e242e34737245b33ee51d7f2cd893fc7d10`, NuGet
@@ -461,23 +476,25 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
   `ghcr.io/faviann/zeroshot-environments/dotnet@sha256:5d36313b1d38ad06c194c53b8f08a71d4bc61527e4e06d56b96c9a835ba54a1d`.
 - Fresh store, from `initialize-store` at that revision: format
   `broodling.application`, schema version 1, definition SHA-256
-  `5db82936e167e9dd7c68b4f392d1ff7e350dce3e239ed9ce214c39ce34ac2075`, upgrading
-  from nothing. #233 redefined the unreleased version in place; it is not yet
+  `39c30308ebb867f0f8283b4bd7d2bb3b9298dfc2ca78b54a5c1b2b0876b28ab8`, upgrading
+  from nothing. #235 redefined the unreleased version in place; it is not yet
   frozen.
-- Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.9.0, with no
+- Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.9.1, with no
   Python environment and every image test on the pulled adopted image: the lane
-  passed 268 of 268; the full suite passed 655 of 655, none skipped; the Release
-  build succeeded with no warnings; and the
+  passed 289 of 289; the full suite passed 758 of 758 in each of two runs, none
+  skipped; the Release build succeeded with no warnings; and the
   [image demonstration](#image-demonstration) passed on the Broodling image
-  built from that revision with the adopted image. That Broodling image, and
-  the suite's restore, used the same `.nupkg` (SHA-256 above, locked content
-  hash checked) from a local folder source, taken from the SDK qualification
-  run's `candidate` artifact, because the host's GitHub token could not read
-  GitHub Packages.
+  built from that revision with the adopted image. That Broodling image
+  restored the same `.nupkg` (SHA-256 above, locked content hash checked) from
+  GitHub Packages; the suite's restore used the same package from the host's
+  NuGet global packages folder. No test failed or was rerun in this run's
+  lane and full suites, on a 16-core host whose load average from other work
+  was 9 to 16 at their starts.
 - Baseline: the transition check ran as a restart of the adopted image over its
   own state, which is also the explicit control-token rotation (#187). No
-  transition source is listed. The asset bytes and fresh-store definition are
-  unchanged from the #187 record; the native executable and Codex are not.
+  transition source is listed. The asset bytes, native executable, Codex and
+  adopted image are unchanged from the #234 record; the fresh-store definition
+  is not.
 
 ## Evidence limits and history
 

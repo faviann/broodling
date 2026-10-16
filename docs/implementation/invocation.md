@@ -1,8 +1,8 @@
 # Caller invocation and recovery
 
 The .NET `Invocation` composes explicit source admission, Attempt admission and
-native dispatch to the one configured DirectTarget, whose origin
-`InvocationTarget` names. An Attempt needs no Python, SDK client state,
+native dispatch to the DirectTarget serving the Attempt's resolved environment
+in the operator's [environment catalog](#configuration). An Attempt needs no Python, SDK client state,
 workspace root or launcher. It is a callable
 API; the [HTTP service](#http-service) maps submission, resume and stop onto these
 operations. The [current authority](../governing/current.md) governs scope; the
@@ -36,9 +36,50 @@ Use one disposable store session per caller. Keep the database and source Git
 at their durable recorded paths. Ordinary open never creates or upgrades state.
 
 Every Attempt is a DirectTarget Attempt for exactly one authorized PR. An
-existing Attempt continues only through its retained origin; a configured origin
-that differs from the retained binding refuses before preparation or target
-contact.
+existing Attempt continues only through its retained environment and target;
+no configuration change rebinds it.
+
+## Configuration
+
+`InvocationConfiguration.Read(path)` reads the secret-free operator catalog over
+the adoption set bundled with the release and returns an `EnvironmentCatalog`:
+
+```json
+{
+  "directRootCertificate": "/srv/broodling/zeroshot-tls/root/root.crt",
+  "defaultEnvironment": "dotnet",
+  "environments": [
+    {"name": "dotnet", "origin": "https://zeroshot-dotnet.dev.faviann.com",
+     "controlTokenFile": "/run/secrets/zeroshot-dotnet-control-token",
+     "image": "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:…",
+     "container": "broodling-zeroshot-dotnet-1",
+     "stateMount": "/srv/broodling/targets/dotnet/state",
+     "homeMount": "/srv/broodling/targets/dotnet/home"}
+  ]
+}
+```
+
+At least one environment is required; `defaultEnvironment` and
+`directRootCertificate` are optional. Unknown or repeated members are refused.
+The catalog refuses a name that is not a lowercase DNS label of at most 54
+characters; a repeated name, origin or container; an origin that is not
+canonical HTTPS or HTTP to exactly `127.0.0.1` or `[::1]`; a token file or mount
+that is not a normalized absolute path; state, home or token paths that overlap,
+within or across entries; an `image` that is not exactly one bundled adoption's
+image; and a default that names no entry. An adoption this release's native
+binding cannot use is refused when the bundle loads. Configuration cannot add
+adoptions, and callers, requests and Contracts cannot select an environment,
+image, origin or toolchain: `POST /submissions` refuses any member other than
+`issueUrl`.
+
+Preparation resolves the repository's declaration at B1, or the default, once.
+[Environment selection](zeroshot-native-integration.md#environment-selection)
+states the declaration, its refusal codes, the retained resolution and the
+checks that dispatch, replay, observation, wait and stop apply to it. Its
+refusals are not retryable: progression stops the submission with the code
+until the repository or catalog changes and the submission is resumed. With a
+configuration, the `stop` command refuses before abandonment when it has no
+entry of the retained name at the retained origin.
 
 Retain `status.Revision.ContractRevisionId` and the exact Attempt ID from
 `status.Attempts`; `status.Submissions` records native correlation. Status/history
@@ -67,8 +108,8 @@ still create a run.
 
 After durable correlation, resume needs no dispatch configuration or credentials.
 Wait and stop reconnect using the retained run binding. Every target contact
-needs a store session opened with `OpenStore(path, directTarget)`, whose
-`DirectTargetAccess` names the control token file for the retained origin and,
+needs a store session opened with `OpenStore(path, environments)`, whose
+catalog names the control token file for the retained origin and,
 for an HTTPS target whose certificate chains to a private root, that root
 ([private control access](../../deployment/README.md#private-control-access)).
 Both are operator configuration, reread by each operation and never retained, and
@@ -91,8 +132,8 @@ retirement; stop does not prove physical cessation. See the owning seams for det
 caller connected:
 
 ```csharp
-await new SubmissionProgressor(application, databasePath, directTargetRootCertificate,
-    new InvocationTarget(directOrigin), preparer, () => currentCredentials(),
+await new SubmissionProgressor(application, databasePath, environments,
+    preparer, () => currentCredentials(),
     (progress, failure) => report(progress, failure)).RunAsync(processLifetime);
 ```
 
@@ -110,10 +151,10 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   each in its own store session on the thread pool.
 - **Operation.** It calls `IssueSubmissionPreparer.PrepareAsync` on the
   process's shared preparer. For an admitted decision it then calls
-  `Invocation.ResumeSubmissionAsync` with the configured target. That call admits the
+  `Invocation.ResumeSubmissionAsync` with the catalog. That call admits the
   first HTTP Attempt from the RequestBundle's retained repository preparation
-  (original B1), reopens the retained prepared submission (a different
-  configured origin refuses) and sends or exactly replays it through
+  (original B1), prepares it at its resolved environment or reopens the retained
+  prepared submission, and sends or exactly replays it through
   `DispatchHttpAsync`. A correlated Attempt returns without credentials or target
   contact; the [completion observer](dotnet-receipt-completion.md#automatic-completion-observation)
   owns it from there. The service never initiates a stop, abandonment or
@@ -137,8 +178,8 @@ await new SubmissionProgressor(application, databasePath, directTargetRootCertif
   proposals never use up the dispatch's retries. The installation pause is a
   wait for release, checked again at the first scan at least 15 seconds after
   the paused attempt, and does not count. Any other
-  failure stops at once: a refusal or conflict such as a replay block, a
-  retained binding to another origin or missing credentials. A failure caused
+  failure stops at once: a refusal or conflict such as a replay block, an
+  environment refusal or missing credentials. A failure caused
   by an end committed meanwhile elsewhere, such as a cancellation or
   abandonment, is not reported; the submission just leaves. Nothing is ever
   replaced.

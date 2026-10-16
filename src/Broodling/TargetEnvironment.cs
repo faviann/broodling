@@ -6,13 +6,18 @@ namespace Broodling;
 /// <summary>
 /// An adopted Zeroshot environment release, read from the exact bytes of its producer manifest. The producer
 /// states what its image carries; Broodling adopts it only when the manifest names the DirectTarget binding's
-/// native, the approved Codex and the startup interface Broodling's entrypoint implements, on the supported
-/// platform. Readiness then requires the running target to be that image and checks the identities it relies on.
+/// native, the approved Codex, the startup interface Broodling's entrypoint implements and the native discovery
+/// the SDK binding speaks, on the supported platform. Readiness then requires the running target to be that image
+/// and checks the identities it relies on. <c>Components</c> maps each component the manifest states, by its
+/// manifest name and in manifest order, to the versions it states: native, each harness and tool, and .NET's SDKs and
+/// runtimes as <c>dotnet-sdks</c> and <c>dotnet-runtimes</c>. <c>Os</c> and <c>Components</c> are the producer's
+/// statement, which only a live probe (<see cref="EnvironmentProbe"/>) verifies.
 /// </summary>
-internal sealed record TargetEnvironment(string Release, string Image, string NodeVersion, string GhVersion, string EntrypointSha256)
+internal sealed record TargetEnvironment(string Release, string Image, string Os,
+    IReadOnlyDictionary<string, IReadOnlyList<string>> Components, string EntrypointSha256)
 {
     internal const string Schema = "zeroshot-environment.manifest/v2";
-    internal const string Platform = "linux/amd64";
+    internal const string SupportedPlatform = "linux/amd64";
     /// <summary>
     /// The version of the container interface that <c>deployment/direct-target-entrypoint.sh</c> implements.
     /// Broodling owns the entrypoint and this value; an environment manifest records the version its embedded
@@ -25,7 +30,7 @@ internal sealed record TargetEnvironment(string Release, string Image, string No
 
     /// <summary>
     /// Refuses bytes other than the adopted <paramref name="sha256"/>, another schema or platform, and a manifest
-    /// whose native, Codex or startup interface differs from what this revision supports.
+    /// whose native, Codex, startup interface or native discovery differs from what this revision supports.
     /// </summary>
     internal static TargetEnvironment Read(byte[] manifest, string sha256)
     {
@@ -35,7 +40,7 @@ internal sealed record TargetEnvironment(string Release, string Image, string No
             using var document = JsonDocument.Parse(manifest);
             var root = document.RootElement;
             Require(Text(root, "schema") == Schema, "The environment manifest schema is not supported.");
-            Require(Text(root, "platform") == Platform, "The environment platform is not supported; only linux/amd64 is.");
+            Require(Text(root, "platform") == SupportedPlatform, "The environment platform is not supported; only linux/amd64 is.");
             var image = root.GetProperty("image");
             var (repository, digest) = (Text(image, "repository"), Text(image, "digest"));
             Require(repository.Length > 0 && Regex.IsMatch(digest, "^sha256:[0-9a-f]{64}$"), "The environment manifest is malformed.");
@@ -59,9 +64,21 @@ internal sealed record TargetEnvironment(string Release, string Image, string No
             var entrypoint = root.GetProperty("integration").GetProperty("broodling-entrypoint");
             Require(Text(entrypoint, "path") == Entrypoint && Regex.IsMatch(Text(entrypoint, "sha256"), "^[0-9a-f]{64}$"),
                 "The environment manifest is malformed.");
+            var discovery = root.GetProperty("startupInterfaces").GetProperty("native").GetProperty("discovery");
+            Require(DirectTargetDiscovery.Required.All(field => Text(discovery, field.Key) == field.Value),
+                "The environment's native discovery differs from the SDK binding's DirectTarget protocol.");
+            var os = Text(root, "os");
+            Require(os.Length > 0, "The environment manifest is malformed.");
+            var components = new OrderedDictionary<string, IReadOnlyList<string>> { ["native"] = [Text(native, "version")] };
+            foreach (var component in root.GetProperty("harnesses").EnumerateObject().Concat(tools.EnumerateObject()))
+                Require(components.TryAdd(component.Name, [Text(component.Value, "version")]), "The environment manifest is malformed.");
+            if (root.TryGetProperty("dotnet", out var dotnet))
+                foreach (var list in new[] { "sdks", "runtimes" })
+                    Require(components.TryAdd("dotnet-" + list, [.. dotnet.GetProperty(list).EnumerateArray()
+                        .Select(item => item.GetString() ?? throw new InvalidOperationException())]), "The environment manifest is malformed.");
             var environment = root.GetProperty("environment");
-            return new(Text(environment, "name") + "-" + Text(environment, "release"), repository + "@" + digest,
-                Text(tools.GetProperty("node"), "version"), Text(tools.GetProperty("gh"), "version"), Text(entrypoint, "sha256"));
+            return new(Text(environment, "name") + "-" + Text(environment, "release"), repository + "@" + digest, os,
+                components, Text(entrypoint, "sha256"));
         }
         catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException)
         {

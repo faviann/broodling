@@ -149,7 +149,7 @@ public sealed class InstallationPauseTests
         var paused = fixture.Store.PauseInstallation();
         await Assert.That(paused.IsPaused).IsTrue();
 
-        var invocation = new Invocation(fixture.Store, new InvocationTarget(fixture.Origin));
+        var invocation = new Invocation(fixture.Store, TestEnvironments.For(fixture.Origin));
         var resumed = await invocation.ResumeAsync(fixture.Attempt.ContractRevisionId);
         await Assert.That(resumed.Submissions.Single().RunId).IsEqualTo(submitted.RunId);
         await Assert.That(fixture.Target.Connections).IsEqualTo(0);
@@ -187,7 +187,7 @@ public sealed class InstallationPauseTests
         store.PauseInstallation();
 
         var successor = store.AdmitRetry(original.AttemptId, "paused-replacement");
-        var prepared = store.PrepareRetry(original.AttemptId, "paused-replacement");
+        var prepared = store.PrepareRetry(original.AttemptId, "paused-replacement", fixture.Git.State.Environments!);
         await Assert.That(prepared.AttemptId).IsEqualTo(successor.AttemptId);
         await Assert.That(prepared.State).IsEqualTo("prepared");
         await Assert.That(async () => await store.DispatchHttpAsync(successor.AttemptId, HttpDispatchTests.Credentials()))

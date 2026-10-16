@@ -24,7 +24,8 @@ public sealed partial class BroodlingStore
     /// <summary>
     /// Read the run's progress through retained facts, without credentials or writes. Null means no
     /// run can be addressed, so nothing is contacted. A record with dispatch intent but no
-    /// acknowledgement is read by its intended ID; that read never establishes correlation.
+    /// acknowledgement is read by its intended ID; that read never establishes correlation. A catalog that no
+    /// longer names the retained environment at its retained origin makes it unavailable, uncontacted.
     /// </summary>
     public Task<NativeObservation?> ObserveAsync(string attemptId, CancellationToken cancellationToken = default) =>
         ObserveAsync(attemptId, DirectTargetLimits.Progress, cancellationToken);
@@ -32,15 +33,17 @@ public sealed partial class BroodlingStore
     internal async Task<NativeObservation?> ObserveAsync(string attemptId, TimeSpan bound, CancellationToken cancellationToken)
     {
         GetAttempt(attemptId);
-        var (run, identity) = FindSubmission(attemptId) switch
+        var submission = FindSubmission(attemptId);
+        var (run, identity) = submission switch
         {
             { Run: { } confirmed } => (confirmed, NativeRunIdentity.Confirmed),
-            { State: "dispatched" } submission => (submission.Frozen.Run(submission.IntendedRunId), NativeRunIdentity.Intended),
+            { State: "dispatched" } => (submission.Frozen.Run(submission.IntendedRunId), NativeRunIdentity.Intended),
             _ => (null, NativeRunIdentity.Confirmed)
         };
         if (run is null) return null;
         try
         {
+            if (environments?.Serves(submission!.Environment) == false) throw new NativeTransportError("environment_unavailable");
             var progress = await DirectTargetRun.ProgressAsync(run, directTarget, bound, DirectTargetClock, cancellationToken);
             return new NativeObservation.Available(DateTimeOffset.UtcNow, identity, progress);
         }

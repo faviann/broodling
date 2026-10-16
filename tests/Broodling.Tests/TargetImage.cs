@@ -5,16 +5,18 @@ using TUnit.Core;
 namespace Broodling.Tests;
 
 /// <summary>
-/// The adopted target environment as its adoption record, <c>deployment/target-environment.json</c>, names it:
-/// the image by digest and the retained manifest bytes with their digest.
+/// The adopted target environment as its committed adoption record,
+/// <c>src/Broodling/environments/dotnet-r2.adoption.json</c>, names it: the image by digest and the retained
+/// manifest bytes with their digest.
 /// </summary>
 internal static class Adopted
 {
-    private static readonly string deployment = Path.Combine(TestRepository.Root, "deployment");
-    internal static JsonNode Record { get; } = JsonNode.Parse(File.ReadAllText(Path.Combine(deployment, "target-environment.json")))!;
+    internal static readonly string Directory = Path.Combine(TestRepository.Root, "src", "Broodling", "environments");
+    internal static string RecordFile => Path.Combine(Directory, "dotnet-r2.adoption.json");
+    internal static JsonNode Record { get; } = JsonNode.Parse(File.ReadAllText(RecordFile))!;
     internal static string Release => (string)Record["environment"]!;
     internal static string Image => (string)Record["image"]!;
-    internal static string Manifest => Path.Combine(deployment, (string)Record["manifest"]!["path"]!);
+    internal static string Manifest => Path.Combine(Directory, (string)Record["manifest"]!["path"]!);
     internal static string ManifestSha256 => (string)Record["manifest"]!["sha256"]!;
 }
 
@@ -58,6 +60,12 @@ internal static class TargetImage
         }
         return reference;
     });
+
+    /// <summary>An image this run made some other way, removed afterwards in reverse order with the images it built.</summary>
+    internal static void Owned(string image)
+    {
+        lock (built) built.Add(image);
+    }
 
     private static Task<string> Once(string key, Func<Task<string>> make)
     {

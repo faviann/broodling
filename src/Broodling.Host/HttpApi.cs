@@ -1,5 +1,6 @@
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Data.Sqlite;
 
 namespace Broodling.Host;
@@ -14,18 +15,27 @@ internal static class HttpApi
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    /// <summary>
+    /// A submission names its issue and nothing else: a caller cannot select an environment, image, endpoint,
+    /// setup command or toolchain, so any other member is refused rather than ignored.
+    /// </summary>
     internal sealed record SubmitRequest(string? IssueUrl);
     internal sealed record StopRequest(string? Reason);
 
+    private static readonly JsonSerializerOptions StrictJson = new(JsonSerializerDefaults.Web)
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, AllowDuplicateProperties = false
+    };
+
     internal static void Map(WebApplication app, BroodlingApplication application, string storePath,
-        DirectTargetAccess? directTarget, Processing? processing)
+        EnvironmentCatalog? environments, Processing? processing)
     {
         // Reads observe with the configured connection material; the retained binding still decides where they connect.
         async Task<IResult> Respond(Func<BroodlingStore, Task<IResult>> operation)
         {
             try
             {
-                using var store = application.OpenStore(storePath, directTarget);
+                using var store = application.OpenStore(storePath, environments);
                 return await operation(store);
             }
             catch (Exception exception)
@@ -100,11 +110,18 @@ internal static class HttpApi
         // Durable acceptance only, answered from the committed record with no GitHub, model or target contact:
         // preparation, admission and dispatch belong to the progressor, which discovers the submission at its
         // next scan. Ordinary repetition returns the latest existing submission.
-        app.MapPost("/submissions", (SubmitRequest request) => Operate((store, _) =>
+        app.MapPost("/submissions", async (HttpRequest http) =>
         {
-            var submission = store.SubmitIssue(request.IssueUrl ?? "");
-            return Task.FromResult<IResult>(Results.Accepted($"/submissions/{submission.SubmissionId}", new { submission }));
-        }));
+            SubmitRequest? request;
+            try { request = await JsonSerializer.DeserializeAsync<SubmitRequest>(http.Body, StrictJson, http.HttpContext.RequestAborted); }
+            catch (JsonException) { request = null; }
+            if (request is null) return InvalidRequest();
+            return await Operate((store, _) =>
+            {
+                var submission = store.SubmitIssue(request.IssueUrl ?? "");
+                return Task.FromResult<IResult>(Results.Accepted($"/submissions/{submission.SubmissionId}", new { submission }));
+            });
+        });
         // Revised work for one named, ended predecessor, answered once committed like a submission; the
         // progressor captures and prepares it afresh. A replay returns the predecessor's exact successor.
         app.MapPost("/submissions/{id}/revisions", (string id) => Operate((store, _) =>
@@ -192,6 +209,12 @@ internal static class HttpApi
             _ => null
         };
     }
+
+    private static IResult InvalidRequest() => Results.Json(new
+    {
+        error = "invalid_request",
+        message = "A submission is a JSON object naming only its issueUrl. Nothing was changed."
+    }, Json, statusCode: 400);
 
     private static IResult ReasonRequired() => Results.Json(new
     {

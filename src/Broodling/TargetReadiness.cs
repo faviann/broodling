@@ -8,33 +8,47 @@ using Zeroshot.Native;
 namespace Broodling;
 
 /// <summary>
-/// Operator inventory of the existing ADR 0001 stack: the <c>zeroshot</c> target, <c>zeroshot-tls</c> and
-/// <c>broodling</c> containers, their project network and canonical host mount paths. Neither
-/// installation nor lifecycle authority. <c>BootstrapKeyFile</c> is the host file the target reads its
-/// bootstrap key from, which only the target and the bootstrap operation receive.
-/// <c>EnvironmentManifest</c> is a host copy of the adopted environment's manifest and
-/// <c>EnvironmentManifestSha256</c> the digest its adoption record retains.
+/// Operator inventory of the existing stack's host facts that the environment catalog does not hold: the project
+/// network, the one <c>zeroshot-tls</c> container with the TLS root's key and certificate locations, the
+/// <c>broodling</c> container, and per environment the target's local image and bootstrap key file. Neither
+/// installation nor lifecycle authority. The catalog states each target's origin, container, adopted image and
+/// state and home mounts.
 /// </summary>
-public sealed record TargetReadinessInventory(string ContainerName, string ImageId, string DirectOrigin,
-    string StateMount, string HomeMount, string Network, string TlsContainerName, string RootKeyMount,
-    string RootCertificateMount, string BroodlingContainerName, string BootstrapKeyFile, string EnvironmentManifest,
-    string EnvironmentManifestSha256);
+public sealed record TargetReadinessInventory(string Network, string TlsContainerName, string RootKeyMount,
+    string RootCertificateMount, string BroodlingContainerName, IReadOnlyList<InventoryTarget> Targets);
 
-/// <summary><c>Environment</c> is the adopted environment release the target image is, such as <c>dotnet-r2</c>.</summary>
-public sealed record TargetReadinessFacts(string ContainerName, string ContainerId, string ImageId, string DirectOrigin,
-    string Environment, IReadOnlyDictionary<string, string> Versions, bool ApiPaginateSlurp = true, bool HostedUidTransition = true,
-    bool Ready = true, int ProviderTasks = 0);
+/// <summary>
+/// One target's host facts: its catalog environment, the local image identity its container runs, and the host file
+/// it reads its bootstrap key from, which only that target and the bootstrap operation receive.
+/// </summary>
+public sealed record InventoryTarget(string Environment, string ImageId, string BootstrapKeyFile);
+
+/// <summary>
+/// One ready target. <c>Release</c> is the adopted environment release its image is, such as <c>dotnet-r2</c>;
+/// <c>Os</c> and <c>Versions</c> are what the live target reported, each equal to its adopted manifest's statement.
+/// </summary>
+public sealed record TargetReadinessFacts(string Environment, string Release, string ContainerName, string ContainerId,
+    string ImageId, string DirectOrigin, string Os, IReadOnlyDictionary<string, string> Versions);
+
+/// <summary>Every configured target ready, with no provider work submitted.</summary>
+public sealed record TargetReadinessReport(IReadOnlyList<TargetReadinessFacts> Targets);
 
 public sealed class TargetNotReady(string message) : Exception(message);
 
 /// <summary>
-/// Inspect the selected stack, its target against the adopted environment manifest, and discovery through its
-/// origin without submitting work or changing its lifecycle.
+/// Inspect the whole installation: every catalog target against its adopted environment, the one
+/// <c>zeroshot-tls</c> in front of them, and discovery and private control through each origin, without
+/// submitting work or changing any lifecycle.
 /// </summary>
 public sealed class TargetReadiness
 {
     /// <summary>The pinned <c>zeroshot-tls</c> image, exactly as the container must be created from it.</summary>
     internal const string TlsImage = "caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b";
+    /// <summary>
+    /// The project-network alias of the target serving <paramref name="environment"/>, where <c>zeroshot-tls</c>'s
+    /// site for its origin forwards.
+    /// </summary>
+    internal static string Alias(string environment) => "zeroshot-" + environment;
     /// <summary><c>zeroshot-tls</c>'s non-root user, which alone owns the root key (the target entrypoint's <c>tls_user</c>).</summary>
     internal const string TlsUser = "10443:10443";
     /// <summary>Native's fixed inner listener on the project network, where <c>zeroshot-tls</c> forwards; never published.</summary>
@@ -43,6 +57,7 @@ public sealed class TargetReadiness
     internal const string BootstrapKeySecret = "/run/secrets/zeroshot-bootstrap-key";
     private static readonly string[] CredentialNames = ["GH_TOKEN", "GITHUB_TOKEN", "GATEWAY_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY"];
     private static readonly TimeSpan DiscoveryBudget = TimeSpan.FromSeconds(10);
+    private static readonly Regex ContainerId = new("^[0-9a-f]{12,64}$", RegexOptions.CultureInvariant);
     private readonly Func<IReadOnlyList<string>, CancellationToken, Task<string>> command;
     private readonly Func<Uri, string?, IPEndPoint, HttpClient> discoveryClient;
     private readonly TimeProvider clock;
@@ -57,89 +72,72 @@ public sealed class TargetReadiness
         this.clock = clock ?? TimeProvider.System;
     }
 
-    /// <summary>
-    /// <paramref name="selectedDirectOrigin"/> and <paramref name="access"/> are the invocation configuration's
-    /// origin and its connection material. The root must be the stack's public <c>root.crt</c>, which every
-    /// request trusts exactly as invocation does, and the origin's control token must be readable: readiness
-    /// requires private discovery, an unauthenticated control request refused and an authenticated one
-    /// accepted, without submitting work.
-    /// </summary>
-    public async Task<TargetReadinessFacts> CheckAsync(TargetReadinessInventory inventory, string selectedDirectOrigin,
-        DirectTargetAccess access, CancellationToken cancellationToken = default)
+    /// <summary>One catalog environment and the inventory's host facts for its target.</summary>
+    private sealed record Selected(ConfiguredEnvironment Entry, InventoryTarget Host)
     {
+        internal string Name => Entry.Name;
+        internal Uri Origin { get; } = new(Entry.Origin);
+        internal TargetEnvironment Environment => Entry.Adoption.Environment;
+    }
+
+    /// <summary>
+    /// <paramref name="environments"/> is the invocation configuration's catalog, and the inventory must name exactly
+    /// its environments. Its root must be the stack's public <c>root.crt</c>, which every request trusts exactly as
+    /// invocation does, and every origin's control token must be readable and its own: readiness requires private
+    /// discovery, an unauthenticated control request refused and an authenticated one accepted at each origin,
+    /// without submitting work. An adopted manifest is only its producer's statement; each target is ready only when
+    /// its live OS identity and every component the manifest states match that statement.
+    /// </summary>
+    public async Task<TargetReadinessReport> CheckAsync(TargetReadinessInventory inventory, EnvironmentCatalog environments,
+        CancellationToken cancellationToken = default)
+    {
+        var access = environments.Access;
         var rootCertificate = access.RootCertificate;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string[] names = [inventory.ContainerName, inventory.TlsContainerName, inventory.BroodlingContainerName];
-            Require(names.All(name => !string.IsNullOrWhiteSpace(name) && !name.StartsWith('-')) && names.Distinct().Count() == 3
-                && !string.IsNullOrWhiteSpace(inventory.ImageId) && !inventory.ImageId.StartsWith('-')
+            var hosts = inventory.Targets ?? [];
+            Require(hosts.Count > 0 && hosts.All(host => host is not null)
+                    && hosts.Select(host => host.Environment).Distinct(StringComparer.Ordinal).Count() == hosts.Count
+                    && hosts.Select(host => host.Environment).ToHashSet(StringComparer.Ordinal).SetEquals(environments.Entries.Select(entry => entry.Name)),
+                "Target inventory must name exactly the environments the invocation configuration's catalog configures.");
+            var targets = environments.Entries.Select(entry => new Selected(entry, hosts.Single(host => host.Environment == entry.Name))).ToArray();
+            string[] names = [.. targets.Select(target => target.Entry.Target.Container), inventory.TlsContainerName, inventory.BroodlingContainerName];
+            Require(names.All(name => !string.IsNullOrWhiteSpace(name) && !name.StartsWith('-')) && names.Distinct().Count() == names.Length
+                && targets.All(target => !string.IsNullOrWhiteSpace(target.Host.ImageId) && !target.Host.ImageId.StartsWith('-'))
                 && !string.IsNullOrWhiteSpace(inventory.Network),
                 "Target inventory is invalid.");
-            // In-project clients reach zeroshot-tls through the alias on the origin's port, where Caddy listens.
-            Require(DirectTargetExchange.CanonicalOrigin(inventory.DirectOrigin) is { Scheme: "https", IsDefaultPort: true,
-                HostNameType: UriHostNameType.Dns }, "DirectTarget origin must be the canonical HTTPS origin, on port 443, that zeroshot-tls serves.");
-            var origin = new Uri(inventory.DirectOrigin);
-            Require(selectedDirectOrigin == inventory.DirectOrigin,
-                "Invocation configuration differs from the recorded DirectTarget.");
-            string[] paths = [inventory.StateMount, inventory.HomeMount, inventory.RootKeyMount, inventory.RootCertificateMount,
-                inventory.BootstrapKeyFile, inventory.EnvironmentManifest];
-            Require(paths.All(path => !string.IsNullOrEmpty(path) && Path.IsPathFullyQualified(path) && PhysicalPaths.Resolve(path) == path),
+            // In-project clients reach zeroshot-tls through each origin's alias on the origin's port, where Caddy listens.
+            foreach (var target in targets)
+                Require(DirectTargetExchange.CanonicalOrigin(target.Entry.Origin) is { Scheme: "https", IsDefaultPort: true,
+                    HostNameType: UriHostNameType.Dns }, target, "DirectTarget origin must be the canonical HTTPS origin, on port 443, that zeroshot-tls serves.");
+            var owned = targets.SelectMany(target => new[] { target.Entry.Target.StateMount, target.Entry.Target.HomeMount, target.Host.BootstrapKeyFile })
+                .ToArray();
+            string[] roots = [inventory.RootKeyMount, inventory.RootCertificateMount];
+            Require(owned.Concat(roots).All(path => !string.IsNullOrEmpty(path) && Path.IsPathFullyQualified(path) && PhysicalPaths.Resolve(path) == path),
                 "Target mount inventory must use canonical absolute paths.");
             Require(!Overlap(inventory.RootKeyMount, inventory.RootCertificateMount),
                 "The root key and certificate must be recorded in separate locations.");
+            // Each target's state, home and bootstrap key are its own: no other target, and neither root location, shares them.
+            Require(owned.Select((path, index) => owned.Skip(index + 1).Concat(roots).All(other => !Overlap(path, other))).All(separate => separate),
+                "Target state, home and bootstrap key paths must not overlap one another or the root locations, within or across targets.");
             Require(rootCertificate == Path.Combine(inventory.RootCertificateMount, "root.crt"),
                 "Invocation configuration must trust the stack's public root, root.crt in the recorded root certificate mount.");
-            byte[] manifest;
-            try { manifest = await File.ReadAllBytesAsync(inventory.EnvironmentManifest, cancellationToken); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            { throw new TargetNotReady("The adopted environment manifest is unavailable."); }
-            var environment = TargetEnvironment.Read(manifest, inventory.EnvironmentManifestSha256 ?? "");
+            var tokens = new Dictionary<Selected, string>();
+            foreach (var target in targets)
+            {
+                try { tokens[target] = access.Token(target.Origin); }
+                catch (NativeTransportError) { throw new TargetNotReady($"Invocation configuration names no readable control token for the {target.Name} origin."); }
+            }
+            // A token one target accepts must not work at another.
+            Require(tokens.Values.Distinct(StringComparer.Ordinal).Count() == tokens.Count, "Each target must have its own control token; two targets share one.");
 
             using var inspection = JsonDocument.Parse(await command(["inspect", "--type", "container", .. names], cancellationToken));
             var records = inspection.RootElement;
-            Require(records.GetArrayLength() == 3, "Expected exactly the recorded zeroshot, zeroshot-tls and broodling containers.");
-            var (actual, tls, broodling) = (records[0], records[1], records[2]);
-
-            // The image the target was created from must be the adopted image, pulled by its digest.
-            using var imageInspection = JsonDocument.Parse(await command(["image", "inspect", inventory.ImageId], cancellationToken));
-            Require(imageInspection.RootElement.GetArrayLength() == 1, "Target image inspection is invalid.");
-            var image = imageInspection.RootElement[0];
-            Require(image.GetProperty("Os").GetString() == "linux" && image.GetProperty("Architecture").GetString() == "amd64",
-                "Target image platform is not supported; only linux/amd64 is.");
-            Require(Strings(image, "RepoDigests").Contains(environment.Image, StringComparer.Ordinal),
-                "Target image is not the adopted environment image.");
-            // Docker gives every container a volume for each one the image declares (the base's unused
-            // /var/lib/zeroshot); only those volumes may accompany the inventory's mounts.
-            var declared = image.GetProperty("Config").TryGetProperty("Volumes", out var volumes) && volumes.ValueKind == JsonValueKind.Object
-                ? volumes.EnumerateObject().Select(volume => volume.Name).ToHashSet(StringComparer.Ordinal) : [];
-
-            Require(actual.GetProperty("Image").GetString() == inventory.ImageId, "Target image differs from inventory.");
-            Require(actual.GetProperty("State").GetProperty("Running").GetBoolean(), "Target is stopped; start its existing container.");
-            var config = actual.GetProperty("Config");
-            var host = actual.GetProperty("HostConfig");
-            Require(!config.TryGetProperty("User", out var user) || user.GetString() is "" or "0" or "0:0" or "root",
-                "Native target must run as container root for its isolated process identities.");
-            Require(OrdinaryIsolation(host), "Target must use ordinary Docker isolation.");
-            Require(Strings(host, "CapDrop").Length == 0, "Target requires Docker's default Linux capabilities.");
-            Require(host.GetProperty("RestartPolicy").GetProperty("Name").GetString() == "no",
-                "Target restart must remain operator controlled.");
-            Require(Strings(config.GetProperty("Entrypoint")).SequenceEqual([TargetEnvironment.Entrypoint]),
-                "Target entrypoint differs from the supported profile.");
-            Require(!Strings(config.GetProperty("Env")).Any(value => CredentialNames.Contains(value.Split('=', 2)[0])),
-                "Dispatch credentials must not be installed in target configuration.");
-            var mounts = Mounts(actual.GetProperty("Mounts").EnumerateArray().Where(mount => mount.GetProperty("Type").GetString() != "volume"
-                || !declared.Contains(mount.GetProperty("Destination").GetString() ?? "")));
-            Require(mounts.Length == 4 && mounts.ToHashSet().SetEquals([
-                    new Mount(inventory.StateMount, "/state", true, true), new Mount(inventory.HomeMount, "/home/node", true, true),
-                    new Mount(inventory.RootCertificateMount, "/tls-root", false, true),
-                    new Mount(inventory.BootstrapKeyFile, BootstrapKeySecret, false, true)]),
-                "Target persistent mounts differ from inventory.");
-            Require(Published(host).Length == 0, "Target must publish no port; zeroshot-tls serves its origin.");
-            Require(Strings(config.GetProperty("Cmd")).SequenceEqual(["--listen", NativeListen,
-                "--public-origin", inventory.DirectOrigin, "--storage", "/state"]), "Target launch arguments differ from inventory.");
-            // zeroshot-tls forwards to zeroshot:18770, so the inspected target must be the one answering there.
-            Require(HasAlias(actual, inventory.Network, "zeroshot"), "Target must carry the zeroshot alias on the recorded project network.");
+            Require(records.GetArrayLength() == names.Length, "Expected exactly the recorded target, zeroshot-tls and broodling containers.");
+            var (tls, broodling) = (records[targets.Length], records[targets.Length + 1]);
+            for (var index = 0; index < targets.Length; index++)
+                await RequireTargetContainer(targets[index], records[index], inventory, cancellationToken);
 
             var tlsHost = tls.GetProperty("HostConfig");
             Require(tls.GetProperty("Config").GetProperty("Image").GetString() == TlsImage, "zeroshot-tls must run the pinned image.");
@@ -153,13 +151,15 @@ public sealed class TargetReadiness
                     .GetProperty("443/tcp") is { ValueKind: JsonValueKind.Array } bindings && bindings.GetArrayLength() > 0,
                 "zeroshot-tls must publish only its 443 port.");
             var published = PublishedEndpoint(tls.GetProperty("NetworkSettings").GetProperty("Ports").GetProperty("443/tcp")[0]);
-            Require(HasAlias(tls, inventory.Network, origin.Host), "zeroshot-tls must carry the origin's alias on the recorded project network.");
+            foreach (var target in targets)
+                Require(HasAlias(tls, inventory.Network, target.Origin.Host), target,
+                    "zeroshot-tls must carry the origin's alias on the recorded project network.");
             var tlsMounts = Mounts(tls);
             Require(tlsMounts.Where(m => m.Destination is "/tls-root-key" or "/tls-root").ToHashSet().SetEquals([
                     new Mount(inventory.RootKeyMount, "/tls-root-key", false, true),
                     new Mount(inventory.RootCertificateMount, "/tls-root", false, true)]),
                 "zeroshot-tls root key and certificate mounts differ from inventory.");
-            // broodling and zeroshot see the public directory, so Caddy's data (its intermediate key) must stay outside it.
+            // broodling and the targets see the public directory, so Caddy's data (its intermediate key) must stay outside it.
             Require(tlsMounts.All(mount => mount.Destination == "/tls-root" || !Overlap(mount.Source, inventory.RootCertificateMount)),
                 "zeroshot-tls storage must not be inside the public root directory.");
             var broodlingMounts = Mounts(broodling);
@@ -170,57 +170,32 @@ public sealed class TargetReadiness
             Require(broodlingMounts.All(mount => mount.Source == inventory.RootCertificateMount
                     || tlsMounts.All(storage => !Overlap(mount.Source, storage.Source))),
                 "broodling must not mount the root key or other zeroshot-tls storage.");
-            // Only the target and the one-off bootstrap operation receive the bootstrap key.
-            Require(broodlingMounts.Concat(tlsMounts).All(mount => !Overlap(mount.Source, inventory.BootstrapKeyFile)),
+            // Only each target and the one-off bootstrap operation receive its bootstrap key.
+            Require(broodlingMounts.Concat(tlsMounts).All(mount => targets.All(target => !Overlap(mount.Source, target.Host.BootstrapKeyFile))),
                 "Only the target may mount the bootstrap key; run the bootstrap as a one-off operation.");
+            await RequireOneHolderPerName(targets, inventory.Network, cancellationToken);
 
-            var containerId = actual.GetProperty("Id").GetString();
-            Require(!string.IsNullOrWhiteSpace(containerId) && !containerId.StartsWith('-'), "Target container identity is invalid.");
+            var facts = new List<TargetReadinessFacts>();
+            for (var index = 0; index < targets.Length; index++)
+                facts.Add(await RequireLiveEnvironment(targets[index], records[index], cancellationToken));
 
-
-            Task<string> Execute(params string[] arguments) => command(["exec", containerId!, .. arguments], cancellationToken);
-            var versions = new Dictionary<string, string>();
-            foreach (var (label, program, expected) in new[] {
-                ("native", TargetEnvironment.NativeExecutable, DirectTargetBinding.NativeVersion),
-                ("codex", "/usr/local/bin/codex", "codex-cli " + DirectTargetBinding.CodexVersion),
-                ("node", "/usr/local/bin/node", environment.NodeVersion) })
+            for (var index = 0; index < targets.Length; index++)
             {
-                Require((await Execute(program, "--version")).Trim() == expected, $"Target {label} version differs from the adopted environment.");
-                versions[label] = expected;
+                var origin = targets[index].Origin;
+                // Through zeroshot-tls itself, so the chain it serves now (including a stored intermediate) must reach the root.
+                using var http = discoveryClient(origin, rootCertificate, published);
+                using var discovery = DirectTargetBudget.Start(DiscoveryBudget, clock, cancellationToken);
+                await DirectTargetDiscovery.RequireAsync(http, origin, discovery);
+                // Public discovery only claims private access: an unauthenticated control request must actually be refused.
+                Require(await Session(http, origin, null, discovery) == HttpStatusCode.Unauthorized, targets[index],
+                    "Target accepts unauthenticated control; it must serve native private access.");
+                // Actual authenticated access, without submitting work: the target issues an OECP session for this token.
+                var accepted = await Session(http, origin, tokens[targets[index]], discovery);
+                Require(accepted != HttpStatusCode.Unauthorized, targets[index],
+                    "Target refuses the configured control token; bootstrap the running target (bootstrap-target) or correct the token.");
+                Require(accepted == HttpStatusCode.OK, targets[index], "Target authenticated control differs from the supported private DirectTarget.");
             }
-            // Only the first line: do not compare or return trailing process output.
-            Require((await Execute("/usr/bin/gh", "--version")).Trim().Split('\n')[0] == environment.GhVersion,
-                "Target GitHub CLI version differs from the adopted environment.");
-            versions["gh"] = environment.GhVersion;
-            foreach (var (program, expected) in new[] {
-                (TargetEnvironment.NativeExecutable, DirectTargetBinding.NativeExecutableSha256),
-                (TargetEnvironment.ResticExecutable, DirectTargetBinding.ResticExecutableSha256),
-                (TargetEnvironment.Entrypoint, environment.EntrypointSha256) })
-                Require((await Execute("sha256sum", program)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() == expected,
-                    "Target executable bytes differ from the adopted environment.");
-            var help = await Execute("/usr/bin/gh", "api", "graphql", "--paginate", "--slurp", "--help");
-            Require(Regex.IsMatch(help, @"^\s+--slurp(?:\s|$)", RegexOptions.Multiline), "Actual target GitHub CLI lacks api --paginate --slurp.");
-            // The baseline's one short controlled target exec, not a provider task or lifecycle operation.
-            await Execute("python3", "-c", "import os; os.setgroups([10002]); os.setgid(10002); "
-                + "os.setuid(10002); assert os.getuid() == 10002 and os.getgid() == 10002");
-
-            string token;
-            try { token = access.Token(origin); }
-            catch (NativeTransportError) { throw new TargetNotReady("Invocation configuration names no readable control token for the DirectTarget origin."); }
-
-            // Through zeroshot-tls itself, so the chain it serves now (including a stored intermediate) must reach the root.
-            using var http = discoveryClient(origin, rootCertificate, published);
-            using var discovery = DirectTargetBudget.Start(DiscoveryBudget, clock, cancellationToken);
-            await DirectTargetDiscovery.RequireAsync(http, origin, discovery);
-            // Public discovery only claims private access: an unauthenticated control request must actually be refused.
-            Require(await Session(http, origin, null, discovery) == HttpStatusCode.Unauthorized,
-                "Target accepts unauthenticated control; it must serve native private access.");
-            // Actual authenticated access, without submitting work: the target issues an OECP session for this token.
-            var accepted = await Session(http, origin, token, discovery);
-            Require(accepted != HttpStatusCode.Unauthorized,
-                "Target refuses the configured control token; bootstrap the running target (bootstrap-target) or correct the token.");
-            Require(accepted == HttpStatusCode.OK, "Target authenticated control differs from the supported private DirectTarget.");
-            return new(inventory.ContainerName, containerId!, inventory.ImageId, inventory.DirectOrigin, environment.Release, versions);
+            return new(facts);
         }
         catch (TargetNotReady) { throw; }
         catch (UnsupportedRuntime) { throw new TargetNotReady("Target discovery differs from supported DirectTarget."); }
@@ -228,6 +203,105 @@ public sealed class TargetReadiness
         { throw new OperationCanceledException("Target inspection cancelled.", cancellationToken); }
         catch (Exception)
         { throw new TargetNotReady("Target inventory, inspection or discovery is unavailable or invalid."); }
+    }
+
+    /// <summary>
+    /// The target container of <paramref name="target"/>, before any exec: created from its adopted image pulled by
+    /// digest, running with the supported profile, exactly its own mounts, its origin, and its own alias.
+    /// </summary>
+    private async Task RequireTargetContainer(Selected target, JsonElement actual, TargetReadinessInventory inventory,
+        CancellationToken cancellationToken)
+    {
+        using var imageInspection = JsonDocument.Parse(await command(["image", "inspect", target.Host.ImageId], cancellationToken));
+        Require(imageInspection.RootElement.GetArrayLength() == 1, target, "Target image inspection is invalid.");
+        var image = imageInspection.RootElement[0];
+        Require(image.GetProperty("Os").GetString() == "linux" && image.GetProperty("Architecture").GetString() == "amd64", target,
+            "Target image platform is not supported; only linux/amd64 is.");
+        Require(Strings(image, "RepoDigests").Contains(target.Entry.Adoption.Image, StringComparer.Ordinal), target,
+            "Target image is not the adopted environment image.");
+        // Docker gives every container a volume for each one the image declares (the base's unused
+        // /var/lib/zeroshot); only those volumes may accompany the inventory's mounts.
+        var declared = image.GetProperty("Config").TryGetProperty("Volumes", out var volumes) && volumes.ValueKind == JsonValueKind.Object
+            ? volumes.EnumerateObject().Select(volume => volume.Name).ToHashSet(StringComparer.Ordinal) : [];
+
+        Require(actual.GetProperty("Image").GetString() == target.Host.ImageId, target, "Target image differs from inventory.");
+        Require(actual.GetProperty("State").GetProperty("Running").GetBoolean(), target, "Target is stopped; start its existing container.");
+        var config = actual.GetProperty("Config");
+        var host = actual.GetProperty("HostConfig");
+        Require(!config.TryGetProperty("User", out var user) || user.GetString() is "" or "0" or "0:0" or "root", target,
+            "Native target must run as container root for its isolated process identities.");
+        Require(OrdinaryIsolation(host), target, "Target must use ordinary Docker isolation.");
+        Require(Strings(host, "CapDrop").Length == 0, target, "Target requires Docker's default Linux capabilities.");
+        Require(host.GetProperty("RestartPolicy").GetProperty("Name").GetString() == "no", target,
+            "Target restart must remain operator controlled.");
+        Require(Strings(config.GetProperty("Entrypoint")).SequenceEqual([TargetEnvironment.Entrypoint]), target,
+            "Target entrypoint differs from the supported profile.");
+        Require(!Strings(config.GetProperty("Env")).Any(value => CredentialNames.Contains(value.Split('=', 2)[0])), target,
+            "Dispatch credentials must not be installed in target configuration.");
+        var mounts = Mounts(actual.GetProperty("Mounts").EnumerateArray().Where(mount => mount.GetProperty("Type").GetString() != "volume"
+            || !declared.Contains(mount.GetProperty("Destination").GetString() ?? "")));
+        Require(mounts.Length == 4 && mounts.ToHashSet().SetEquals([
+                new Mount(target.Entry.Target.StateMount, "/state", true, true), new Mount(target.Entry.Target.HomeMount, "/home/node", true, true),
+                new Mount(inventory.RootCertificateMount, "/tls-root", false, true),
+                new Mount(target.Host.BootstrapKeyFile, BootstrapKeySecret, false, true)]), target,
+            "Target persistent mounts differ from the catalog and inventory.");
+        Require(Published(host).Length == 0, target, "Target must publish no port; zeroshot-tls serves its origin.");
+        Require(Strings(config.GetProperty("Cmd")).SequenceEqual(["--listen", NativeListen,
+            "--public-origin", target.Entry.Origin, "--storage", "/state"]), target, "Target launch arguments differ from the catalog.");
+        // zeroshot-tls forwards the origin to zeroshot-<name>:18770, so the inspected target must be the one answering there.
+        Require(HasAlias(actual, inventory.Network, Alias(target.Name)), target,
+            $"Target must carry its {Alias(target.Name)} alias on the recorded project network.");
+        var containerId = actual.GetProperty("Id").GetString();
+        Require(!string.IsNullOrWhiteSpace(containerId) && !containerId.StartsWith('-'), target, "Target container identity is invalid.");
+    }
+
+    /// <summary>
+    /// Every container attached to the project network, so that each target alias and each origin alias resolves to
+    /// exactly one container: no second target, and no load balancing, behind one name.
+    /// </summary>
+    private async Task RequireOneHolderPerName(IReadOnlyList<Selected> targets, string network, CancellationToken cancellationToken)
+    {
+        using var networkInspection = JsonDocument.Parse(await command(["network", "inspect", network], cancellationToken));
+        Require(networkInspection.RootElement.GetArrayLength() == 1, "Project network inspection is invalid.");
+        var attached = networkInspection.RootElement[0].GetProperty("Containers") is { ValueKind: JsonValueKind.Object } containers
+            ? containers.EnumerateObject().Select(container => container.Name).ToArray() : [];
+        Require(attached.Length > 0 && attached.All(ContainerId.IsMatch), "Project network inspection is invalid.");
+        using var members = JsonDocument.Parse(await command(["inspect", "--type", "container", .. attached], cancellationToken));
+        Require(members.RootElement.GetArrayLength() == attached.Length, "Project network inspection is invalid.");
+        var held = members.RootElement.EnumerateArray().Select(member => NetworkNames(member, network)).ToArray();
+        foreach (var name in targets.SelectMany(target => new[] { Alias(target.Name), target.Origin.Host }))
+            Require(held.Count(names => names.Contains(name)) == 1,
+                $"Exactly one container on the recorded project network may answer as {name}.");
+    }
+
+    /// <summary>
+    /// The live checks of one target: its OS identity and every component its adopted manifest states,
+    /// the native, restic and entrypoint bytes, the GitHub CLI feature Broodling uses, and the hosted identity transition.
+    /// </summary>
+    private async Task<TargetReadinessFacts> RequireLiveEnvironment(Selected target, JsonElement actual, CancellationToken cancellationToken)
+    {
+        var containerId = actual.GetProperty("Id").GetString()!;
+        Task<string> Execute(params string[] arguments) => command(["exec", containerId, .. arguments], cancellationToken);
+        var environment = target.Environment;
+        var probes = EnvironmentProbe.For(environment);
+        var mismatched = EnvironmentProbe.Mismatches(probes, await Execute("/bin/sh", "-c", EnvironmentProbe.Sections(probes)));
+        Require(!mismatched.Contains("os"), target, "The live OS identity differs from the one the adopted environment manifest states.");
+        Require(mismatched.Count == 0, target,
+            $"The live {string.Join(", ", mismatched)} {(mismatched.Count == 1 ? "is missing or differs" : "are missing or differ")} from what the adopted environment manifest states.");
+        foreach (var (program, expected) in new[] {
+            (TargetEnvironment.NativeExecutable, DirectTargetBinding.NativeExecutableSha256),
+            (TargetEnvironment.ResticExecutable, DirectTargetBinding.ResticExecutableSha256),
+            (TargetEnvironment.Entrypoint, environment.EntrypointSha256) })
+            Require((await Execute("sha256sum", program)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() == expected,
+                target, "Target executable bytes differ from the adopted environment.");
+        var help = await Execute("/usr/bin/gh", "api", "graphql", "--paginate", "--slurp", "--help");
+        Require(Regex.IsMatch(help, @"^\s+--slurp(?:\s|$)", RegexOptions.Multiline), target, "Actual target GitHub CLI lacks api --paginate --slurp.");
+        // The baseline's one short controlled target exec, not a provider task or lifecycle operation.
+        await Execute("python3", "-c", "import os; os.setgroups([10002]); os.setgid(10002); "
+            + "os.setuid(10002); assert os.getuid() == 10002 and os.getgid() == 10002");
+        return new(target.Name, environment.Release, target.Entry.Target.Container, containerId, target.Host.ImageId, target.Entry.Origin,
+            environment.Os, probes.Where(probe => probe.Component != "os")
+                .ToDictionary(probe => probe.Component, probe => string.Join(", ", probe.Expected)));
     }
 
     /// <summary>The status of one OECP session request, with <paramref name="token"/> as its bearer when given.</summary>
@@ -266,6 +340,15 @@ public sealed class TargetReadiness
         container.GetProperty("NetworkSettings").GetProperty("Networks").TryGetProperty(network, out var attached)
         && attached.TryGetProperty("Aliases", out var aliases) && aliases.ValueKind == JsonValueKind.Array
         && Strings(aliases).Contains(alias, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Every name Docker's DNS answers for <paramref name="container"/> on <paramref name="network"/>.</summary>
+    private static HashSet<string> NetworkNames(JsonElement container, string network)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { (container.GetProperty("Name").GetString() ?? "").TrimStart('/') };
+        if (container.GetProperty("NetworkSettings").GetProperty("Networks").TryGetProperty(network, out var attached))
+            names.UnionWith(Strings(attached, "Aliases").Concat(Strings(attached, "DNSNames")));
+        return names;
+    }
 
     private static string[] Capabilities(JsonElement host, string name) => Strings(host, name)
         .Select(capability => capability.ToUpperInvariant() is var upper && upper.StartsWith("CAP_", StringComparison.Ordinal) ? upper[4..] : upper)
@@ -322,12 +405,15 @@ public sealed class TargetReadiness
         if (!condition) throw new TargetNotReady(message);
     }
 
+    private static void Require(bool condition, Selected target, string message) =>
+        Require(condition, $"Environment {target.Name}: {message}");
+
     internal static async Task<string> RunCommandAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
             var start = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
             foreach (var argument in arguments) start.ArgumentList.Add(argument);
             using var process = Process.Start(start)!;

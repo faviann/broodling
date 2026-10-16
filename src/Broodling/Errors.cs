@@ -23,8 +23,18 @@ public class SubmissionConflict(string message, string? existingRunId = null) : 
 public sealed class ReceiptRefused(string message) : SubmissionConflict(message);
 public sealed class UnsupportedRuntime(string message) : BroodlingException("unsupported_runtime", message);
 /// <summary>
+/// An Attempt's environment cannot be chosen or used, refused before any target contact:
+/// <c>environment_declaration_invalid</c>, <c>environment_declaration_conflict</c>,
+/// <c>environment_requirement_unsupported</c>, <c>environment_unapproved</c>, <c>environment_default_missing</c>
+/// at first preparation, and <c>environment_changed</c> when the operator's catalog no longer serves a retained
+/// resolution exactly. Retrying cannot resolve any of them; the repository or the catalog must change.
+/// </summary>
+public sealed class EnvironmentRefused(string code, string message) : BroodlingException(code, message);
+/// <summary>
 /// A fixed transport outcome. <c>credentials_unavailable</c> sent nothing: no readable control token is configured
 /// for the target's exact origin. <c>unauthorized</c> is the target refusing the token it was sent.
+/// <c>environment_unavailable</c> sent nothing: the operator's catalog no longer names the Attempt's retained
+/// environment at its retained origin.
 /// </summary>
 public sealed class NativeTransportError(string kind = "transport_failed", string? acknowledgedRunId = null)
     : BroodlingException("native_transport_error", acknowledgedRunId is not null
@@ -33,6 +43,7 @@ public sealed class NativeTransportError(string kind = "transport_failed", strin
         {
             "credentials_unavailable" => "No readable DirectTarget control token is configured for this target's origin; nothing was sent.",
             "unauthorized" => "The DirectTarget refused the configured control token.",
+            "environment_unavailable" => "The environment catalog no longer names this Attempt's environment at its retained origin; nothing was sent.",
             _ => "Native transport did not return a usable response."
         })
 {

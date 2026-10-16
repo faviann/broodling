@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Demonstrates the Broodling and DirectTarget images in a disposable instance of ADR 0001's topology
+# Demonstrates the Broodling and DirectTarget images in a disposable instance of the environment-target topology
 # (compose.yaml): explicit initialization, service startup as the production users, real mount
 # ownership, credential-free health, in-project network discovery, then host-only
 # readiness of the containers, mounts and pinned dependencies. No service gets a Docker socket.
@@ -22,7 +22,7 @@ broodling_image=${1:?$usage}
 target_image=${2:?$usage}
 facts=${3:-}
 here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-origin=https://zeroshot.dev.faviann.com
+origin=https://zeroshot-dotnet.dev.faviann.com
 host=${origin#https://}
 broodling_user=1654:1654
 project="broodling-121-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
@@ -71,7 +71,7 @@ bootstrap() {
     for _ in $(seq 1 100); do
         result="$(compose run --rm --no-deps -T \
             --volume "$root/secrets/broodling-bootstrap-key:/run/secrets/zeroshot-bootstrap-key:ro" \
-            broodling bootstrap-target /etc/broodling/invocation.json /run/secrets/zeroshot-bootstrap-key || :)"
+            broodling bootstrap-target /etc/broodling/invocation.json dotnet /run/secrets/zeroshot-bootstrap-key || :)"
         [[ $result == *native_transport_error* ]] || break
         sleep 0.2
     done
@@ -118,6 +118,19 @@ docker run --rm --network none --mount "$(bind "$root" /owned)" --workdir /owned
 exec > >(tee -a "$root/transcript.log") 2>&1
 secrets new
 echo 'synthetic secrets generated: bootstrap key for the target and the bootstrap operation, token for broodling and the host'
+# The environment catalog: one environment, dotnet, served by the zeroshot-dotnet target with its state and home. broodling's
+# copy names its control token secret; the host operator's copy, for check-target, names the host's token copy.
+catalog() {
+    jq -n --arg origin "$origin" --arg token "$1" --arg image "$target_image" --arg container "$project-zeroshot-dotnet-1" \
+        --arg root "$root" --arg certificate "$2" \
+        '{directRootCertificate: $certificate, defaultEnvironment: "dotnet",
+          environments: [{name: "dotnet", origin: $origin, controlTokenFile: $token, image: $image, container: $container,
+            stateMount: "\($root)/target-state", homeMount: "\($root)/target-home"}]}'
+}
+catalog /run/secrets/zeroshot-control-token /tls-root/root.crt >"$root/invocation.json"
+# zeroshot-tls's site for the dotnet origin, as the installation renders one per environment.
+mkdir -- "$root/caddy-sites"
+printf '%s {\n\ttls internal\n\treverse_proxy zeroshot-dotnet:18770\n}\n' "$host" >"$root/caddy-sites/zeroshot-dotnet.caddy"
 
 step 'Create the TLS root once (target image, one-off root helper)'
 docker run --rm --network none --mount "$(bind "$root/tls-root-key" /tls-root-key)" \
@@ -136,11 +149,11 @@ for _ in $(seq 1 100); do
 done
 [[ $code != 000 ]] || fail 'zeroshot-tls never served with the root'
 
-step 'Initialize native state, then start zeroshot in private mode, not yet bootstrapped'
-compose run --rm --no-deps -T zeroshot initialize --listen 0.0.0.0:18770 --public-origin "$origin" --storage /state
-compose up --detach zeroshot
+step 'Initialize native state, then start zeroshot-dotnet in private mode, not yet bootstrapped'
+compose run --rm --no-deps -T zeroshot-dotnet initialize --listen 0.0.0.0:18770 --public-origin "$origin" --storage /state
+compose up --detach zeroshot-dotnet
 # As the hosted identity the target's agents use (readiness's UID probe), inside the target, over loopback.
-as_agent() { compose exec -T --user 10002:10002 zeroshot "$@"; }
+as_agent() { compose exec -T --user 10002:10002 zeroshot-dotnet "$@"; }
 request_js='const [method, path, body, bearer] = process.argv.slice(1);
 fetch("http://127.0.0.1:18770" + path, { method, body: body || undefined,
     headers: bearer ? { authorization: "Bearer " + bearer } : {} })
@@ -194,7 +207,7 @@ echo "broodling -> $origin: discovery authentication $authentication, OECP sessi
 
 step 'Host-only checks (Docker host, never a service)'
 container() { compose ps --all --format '{{.Name}}' "$1"; }
-for service in broodling zeroshot zeroshot-tls; do
+for service in broodling zeroshot-dotnet zeroshot-tls; do
     if docker inspect --format '{{range .Mounts}}{{println .Source}}{{end}}' "$(container "$service")" | grep -q 'docker\.sock'; then
         fail "$service mounts a Docker socket"
     fi
@@ -207,7 +220,7 @@ broodling_container="$(container broodling)"
 mounts="$(docker inspect --format '{{json .Mounts}}' "$broodling_container" \
     | jq -c 'map({Type, Source, Destination, RW}) | sort_by(.Destination)')"
 expected="$(jq -cn --arg root "$root" --arg here "$here" '[
-    {Type: "bind", Source: "\($here)/processing/invocation.json", Destination: "/etc/broodling/invocation.json", RW: false},
+    {Type: "bind", Source: "\($root)/invocation.json", Destination: "/etc/broodling/invocation.json", RW: false},
     {Type: "bind", Source: "\($root)/secrets/broodling-control-token", Destination: "/run/secrets/zeroshot-control-token", RW: false},
     {Type: "bind", Source: "\($root)/tls-root", Destination: "/tls-root", RW: false},
     {Type: "bind", Source: "\($root)/broodling", Destination: "/var/lib/broodling", RW: true}]')"
@@ -223,30 +236,24 @@ printf '%s\n' "$ownership"
 [[ $ownership == "/state $broodling_user 700"$'\n'"/state/state.sqlite3 $broodling_user "* ]] || fail 'broodling state ownership'
 echo "broodling runs as $broodling_user; its only writable mount is its state, where the store it created is its own"
 
-# The image's own check-target command, run on the host as the operator with Docker access, against the
-# adopted environment manifest that the adoption record retains.
-deployment="$(realpath -- "$here/../../deployment")"
-manifest="$deployment/$(jq -r .manifest.path "$deployment/target-environment.json")"
+# The image's own check-target command, run on the host as the operator with Docker access: every catalog target
+# against the adopted environment bundled with the image, live. The catalog states each target's origin, container,
+# image and mounts; the inventory the host facts it does not.
 extract="$(docker create "$broodling_image")"
 docker cp --quiet "$extract:/app" "$root/host"
 docker rm "$extract" >/dev/null
-jq -n --arg origin "$origin" --arg root "$root" --arg network "${project}_default" \
-    --arg target "$(container zeroshot)" --arg tls "$(container zeroshot-tls)" --arg broodling "$broodling_container" \
-    --arg image "$(docker inspect --format '{{.Image}}' "$(container zeroshot)")" --arg manifest "$manifest" \
-    --arg manifestSha256 "$(jq -r .manifest.sha256 "$deployment/target-environment.json")" \
-    '{containerName: $target, imageId: $image, directOrigin: $origin, stateMount: "\($root)/target-state",
-      homeMount: "\($root)/target-home", network: $network, tlsContainerName: $tls,
-      rootKeyMount: "\($root)/tls-root-key", rootCertificateMount: "\($root)/tls-root", broodlingContainerName: $broodling,
-      bootstrapKeyFile: "\($root)/secrets/target-bootstrap-key", environmentManifest: $manifest,
-      environmentManifestSha256: $manifestSha256}' \
+jq -n --arg root "$root" --arg network "${project}_default" \
+    --arg tls "$(container zeroshot-tls)" --arg broodling "$broodling_container" \
+    --arg image "$(docker inspect --format '{{.Image}}' "$(container zeroshot-dotnet)")" \
+    '{network: $network, tlsContainerName: $tls, rootKeyMount: "\($root)/tls-root-key",
+      rootCertificateMount: "\($root)/tls-root", broodlingContainerName: $broodling,
+      targets: [{environment: "dotnet", imageId: $image, bootstrapKeyFile: "\($root)/secrets/target-bootstrap-key"}]}' \
     >"$root/target-inventory.json"
-jq -n --arg origin "$origin" --arg root "$root" \
-    '{directOrigin: $origin, directControlTokenFile: "\($root)/secrets/host-control-token",
-      directRootCertificate: "\($root)/tls-root/root.crt"}' >"$root/config.json"
+catalog "$root/secrets/host-control-token" "$root/tls-root/root.crt" >"$root/config.json"
 readiness="$(dotnet "$root/host/Broodling.Host.dll" check-target "$root/target-inventory.json" "$root/config.json")" \
     || fail "check-target: $readiness"
 printf '%s\n' "$readiness"
-[[ "$(jq -r .ready <<<"$readiness")" == true ]] || fail 'check-target is not ready'
+[[ "$(jq -c '[.targets[].environment]' <<<"$readiness")" == '["dotnet"]' ]] || fail 'check-target is not ready'
 
 step 'Processing server in the Broodling image, with controlled GitHub, gateway, provider and forge'
 docker build --quiet --build-arg BASE="$target_image" --tag "$controlled_target" "$here/../fixtures/stock-target" >/dev/null
@@ -264,7 +271,7 @@ docker run --rm --network none --mount "$(bind "$root" /owned)" --entrypoint /bi
     chown -R $broodling_user /owned/forge/widget.git
     mkdir -m 1777 /owned/forge/probe && cp /owned/secrets/hashes.json /owned/forge/probe/ && chmod 0444 /owned/forge/probe/hashes.json"
 # The same native state, now served by the controlled layer; broodling restarts with processing configuration.
-processing up --detach --wait --wait-timeout 120 broodling zeroshot gateway
+processing up --detach --wait --wait-timeout 120 broodling zeroshot-dotnet gateway
 # A new target process: bootstrap it before work is submitted.
 installed="$(bootstrap)"
 echo "bootstrap-target (controlled layer): $installed"
@@ -326,12 +333,12 @@ step 'Verified stopped-target maintenance: pause, stop and check on the host, th
 # One-off commands from compose.yaml alone need not mention the processing phase's gateway.
 export COMPOSE_IGNORE_ORPHANS=true
 compose run --rm --no-deps -T broodling pause-installation /var/lib/broodling/state.sqlite3
-processing stop broodling zeroshot gateway
-target_container="$(container zeroshot)"
+processing stop broodling zeroshot-dotnet gateway
+target_container="$(container zeroshot-dotnet)"
 [[ "$(docker inspect --format '{{.State.Running}}' "$target_container")" == false ]] || fail 'the target still runs'
 check="$(docker inspect --format '{{json .Mounts}}' "$target_container" | jq -c --arg origin "$origin" \
     --arg container "$target_container" --arg now "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" \
-    '{directOrigin: $origin, containerName: $container, stateMount: (.[] | select(.Destination == "/state") | .Source),
+    '{environment: "dotnet", directOrigin: $origin, containerName: $container, stateMount: (.[] | select(.Destination == "/state") | .Source),
       homeMount: (.[] | select(.Destination == "/home/node") | .Source), verifiedAt: $now}')"
 echo "host check: $check"
 # compose.yaml alone: the image as 1654:1654 with its state, the public root and its invocation configuration and
@@ -341,7 +348,8 @@ retired="$(compose run --rm --no-deps -T broodling retire-attempt /var/lib/brood
 echo "retire-attempt: $retired"
 [[ "$(jq -r '"\(.basis) \(.retiredAt != null) \(.stoppedTarget.containerName)"' <<<"$retired")" \
     == "stopped_target true $target_container" ]] || fail 'retirement'
-successor="$(compose run --rm --no-deps -T broodling replace-attempt /var/lib/broodling/state.sqlite3 "$attempt" demonstration)"
+successor="$(compose run --rm --no-deps -T broodling replace-attempt /var/lib/broodling/state.sqlite3 "$attempt" demonstration \
+    /etc/broodling/invocation.json)"
 echo "replace-attempt: $(jq -c '{attemptId, state, intendedRunId}' <<<"$successor")"
 [[ "$(jq -r --arg predecessor "$attempt" '"\(.state) \(.attemptId != $predecessor)"' <<<"$successor")" == 'prepared true' ]] \
     || fail 'replacement'
@@ -354,7 +362,7 @@ echo 'control token rotated for broodling and the host; the probe hashes now cov
 
 step 'Release, restart, then dispatch the successor with the image resume command beside the running server'
 compose run --rm --no-deps -T broodling release-installation /var/lib/broodling/state.sqlite3
-processing up --detach --wait --wait-timeout 120 broodling zeroshot gateway
+processing up --detach --wait --wait-timeout 120 broodling zeroshot-dotnet gateway
 # The restarted target process over the retained state takes the new token only through bootstrap.
 installed="$(bootstrap)"
 echo "bootstrap-target (restart, rotated token): $installed"
@@ -390,7 +398,7 @@ check_probe 2
 
 step 'No secret value in any service log or in this demonstration output'
 mkdir "$root/scan"
-for service in broodling zeroshot zeroshot-tls gateway; do processing logs --no-color "$service" >"$root/scan/$service.log" 2>&1 || :; done
+for service in broodling zeroshot-dotnet zeroshot-tls gateway; do processing logs --no-color "$service" >"$root/scan/$service.log" 2>&1 || :; done
 cp "$root/transcript.log" "$root/scan/"
 docker run --rm --network none --mount "$(bind "$root/secrets" /s),readonly" --mount "$(bind "$root/scan" /scan),readonly" \
     --entrypoint /bin/sh "$target_image" -ec '
@@ -401,11 +409,15 @@ echo "no bootstrap key, former or current token in $(ls "$root/scan" | wc -l) se
 if [[ -n $facts ]]; then
     jq -n --argjson store "$store" --argjson readiness "$readiness" \
         --arg tls "$(docker inspect --format '{{.Config.Image}}' "$(container zeroshot-tls)")" \
+        --rawfile site "$root/caddy-sites/zeroshot-dotnet.caddy" \
+        --arg siteSha256 "$(sha256sum "$root/caddy-sites/zeroshot-dotnet.caddy" | cut -d ' ' -f 1)" \
         '{storeFormat: $store.schema.format, storeSchemaVersion: $store.schema.schemaVersion,
           storeDefinitionSha256: $store.schema.definitionSha256,
           upgradesFrom: ($store.upgradesFrom | map({storeFormat: .format, storeSchemaVersion: .schemaVersion,
             storeDefinitionSha256: .definitionSha256})),
-          zeroshotTlsImage: $tls, readiness: ($readiness | {environment, versions, apiPaginateSlurp, hostedUidTransition, providerTasks})}' \
+          zeroshotTlsImage: $tls,
+          zeroshotTlsSites: [{path: "/etc/caddy/sites/zeroshot-dotnet.caddy", sha256: $siteSha256, content: $site}],
+          readiness: ($readiness | {targets: [.targets[] | {environment, release, os, versions}]})}' \
         >"$facts"
 fi
 step 'Demonstration passed'

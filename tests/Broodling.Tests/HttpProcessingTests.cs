@@ -48,6 +48,14 @@ public sealed class HttpProcessingTests
         var invalid = await server.Client.PostAsJsonAsync("/submissions", new { issueUrl = "https://github.com/acme/widget/pull/12" });
         await Assert.That(invalid.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         await Assert.That(store.FindIssueSubmission(issue)).IsNull();
+        // A caller cannot select an environment, image, endpoint, setup or toolchain: any other member is refused.
+        foreach (var member in new[] { "environment", "image", "origin", "setup", "toolchain" })
+        {
+            var selecting = await server.Client.PostAsJsonAsync("/submissions", new JsonObject { ["issueUrl"] = issue, [member] = "dotnet" });
+            await Assert.That(selecting.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+            await Assert.That((string)(await Body(selecting))["error"]!).IsEqualTo("invalid_request");
+            await Assert.That(store.FindIssueSubmission(issue)).IsNull();
+        }
 
         // Acceptance answers from the committed record before anything is acquired; the client then leaves.
         string submissionId;
@@ -251,7 +259,7 @@ public sealed class HttpProcessingTests
         using (fixture.Initialize()) { }
         var repositories = Directory.CreateDirectory(Path.Combine(fixture.Root, "service-repositories")).FullName;
         var direct = Path.Combine(fixture.Root, "direct.json");
-        File.WriteAllText(direct, new JsonObject { ["directOrigin"] = Origin(target), ["directControlTokenFile"] = target.TokenFile }.ToJsonString());
+        File.WriteAllText(direct, TestEnvironments.Configuration(Origin(target), target.TokenFile).ToJsonString());
         ProcessingPeers Peers(Func<ProgressionCredentials> credentials) => new(credentials, new FakeTimeProvider(),
             new GitHubIssueSource("/nonexistent/gh"), new GitHubRepositorySource("/nonexistent/gh"), null);
         var store = "--Broodling:Store=" + fixture.Path;
@@ -338,7 +346,7 @@ public sealed class HttpProcessingTests
         {
             Directory.CreateDirectory(repositoryRoot);
             var configuration = Path.Combine(state.Root, "invocation.json");
-            File.WriteAllText(configuration, new JsonObject { ["directOrigin"] = Origin(target), ["directControlTokenFile"] = target.TokenFile }.ToJsonString());
+            File.WriteAllText(configuration, TestEnvironments.Configuration(Origin(target), target.TokenFile).ToJsonString());
             var app = BroodlingHost.Build(["--urls=http://127.0.0.1:0", "--Broodling:Store=" + state.Path,
                 "--Broodling:Invocation=" + configuration, "--Broodling:RepositoryRoot=" + repositoryRoot], peers);
             await app.StartAsync();

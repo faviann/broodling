@@ -71,9 +71,12 @@ Source: [admission/delivery policy](../../src/Broodling/Closability.cs),
 
 The supported source/release profile is single-host Linux x86-64, .NET 10 /
 ASP.NET Core, SQLite through Microsoft.Data.Sqlite, Git and the GitHub CLI.
-Broodling has one execution target. It talks HTTP/OECP, through the pinned
+Broodling has one execution target kind, with one configured instance per
+approved environment (#235,
+[ADR 0002](../adr/0002-one-directtarget-per-environment-behind-one-tls-proxy.md)).
+It talks HTTP/OECP, through the pinned
 `Zeroshot.Client` SDK, to the stock `zeroshot target serve` of an
-operator-managed DirectTarget running native Zeroshot 10.10.0 (#215, #226). The
+operator-managed DirectTarget running native Zeroshot 10.10.0 (#215, #226). Each
 DirectTarget runs an adopted environment image (#234):
 [`zeroshot-environments`](https://github.com/faviann/zeroshot-environments)
 owns its recipe, inventory, image and publication, and Broodling owns the
@@ -90,18 +93,27 @@ feedback) and uses exactly `https://cliproxy.local.faviann.com/v1`. Native
 materializes the run from that asset's graph and runtime; Broodling passes both
 through unchanged and builds no preset or runtime of its own. Broodling needs no
 Python, SDK client state, workspace root, Codex installation or launcher. The
-operator configuration names the DirectTarget origin and the file holding its
-private control token. The target serves only native's private mode (#187):
+operator's environment catalog maps each approved environment name to its
+target's origin, the file holding that target's private control token, an
+adopted image digest, and the target's container and host state and home
+mounts, and may name a default. A repository selects an environment by exact
+name in `.broodling/environment.json` at the Attempt's original B1; without
+that file the default serves it, and without a default it is refused. The
+resolution is retained once with the Prepared submission, and no later catalog,
+default or repository change rebinds it
+([environment selection](../implementation/zeroshot-native-integration.md#environment-selection)).
+Each target serves only native's private mode (#187):
 every control and OECP request needs that token, which the operator's
 `bootstrap-target` installs in each new target process and execution agents
 cannot obtain. Agents can still reach Broodling's own unauthenticated
 processing routes on the shared project network, so strict agent isolation
 is not established until #240 authorizes those routes after the MVP
 ([private control access](../../deployment/README.md#private-control-access)). Callable
-`TargetReadiness.CheckAsync` and the thin `check-target` command check the
-adopted manifest against the binding, then the actual target's image by digest,
-configuration, dependencies against that manifest, including GitHub CLI, and
-authenticated private control. See
+`TargetReadiness.CheckAsync` and the thin `check-target` command check every
+catalog target: its image by digest, configuration and mounts, separation from
+the other targets, its live OS identity and every tool its manifest states, and
+authenticated private control. The adopted manifest is the producer's
+statement; the live checks are what readiness verifies. See
 [readiness](../implementation/dotnet-target-readiness.md) and
 [private control access](../../deployment/README.md#private-control-access).
 
@@ -253,6 +265,21 @@ root-only bootstrap key; initialization without native's client; and explicit
 rotation by restart and bootstrap. Broodling reads the token for each operation
 from the file configured for the exact retained origin and never retains it, so
 a token change amends no Contract, Prepared submission, correlation or binding.
+#235 replaces the single configured target with the environment catalog and
+one DirectTarget per approved environment behind one `zeroshot-tls`
+([ADR 0002](../adr/0002-one-directtarget-per-environment-behind-one-tls-proxy.md)).
+Preparation reads the repository's environment declaration from exact B1 and
+retains the requirement apart from its resolution: the adoption record, the full
+manifest and its digest, the image digest, components, platform and the target
+identity. Dispatch and acknowledgement replay refuse with `environment_changed`
+when the catalog no longer serves that resolution exactly, and a Replacement
+inherits its predecessor's resolution unless the operator records
+`--update-environment`. The declaration is execution context, never Contract
+authority. A per-invocation environment override is deferred. O4 (the package
+credential's node scope) and O7 (management access and its trust assumption)
+stay open, and an approved catalog does not enforce R13's prohibition against
+arbitrary unprivileged downloads: agents can still fetch and run tools in their
+run home.
 Homelab provisioning remains homelab-iac#353 and #354.
 Remaining #100 intent includes
 Compose, maintenance and backup/restore; those remain unimplemented. The
@@ -267,8 +294,8 @@ retirement deletes anything. Its ordinary safe retirement
 requires abandonment with no committed dispatch intent. A dispatched DirectTarget
 Attempt, abandoned or completed, can be retired only on the narrow
 `stopped_target` maintenance path (#122): under the persisted pause, with drained
-local initiation and a current host check that the correct target and its state
-mounts are stopped. It records that check and leaves a completed Attempt
+local initiation and a current host check that the Attempt's retained target
+and its state and home mounts are stopped. It records that check and leaves a completed Attempt
 unabandoned. An abandoned Attempt retired this way can then be explicitly replaced
 (#123) from the same Contract, RequestBundle binding and original B1; the
 successor is admitted and prepared only under the pause and dispatches only after

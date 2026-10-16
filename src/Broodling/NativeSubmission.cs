@@ -18,6 +18,8 @@ public sealed record NativeSubmission(string AttemptId, string SubmissionKey, st
     /// <summary>The retained DirectTarget origin this submission was prepared for.</summary>
     public string Origin => Frozen.Origin;
     internal FrozenSubmission Frozen => FrozenSubmission.Read(RequestJson, BindingJson);
+    /// <summary>The retained environment and target, which the current catalog must still serve to be contacted.</summary>
+    public RetainedEnvironment Environment => RetainedEnvironment.Read(BindingJson);
     /// <summary>The retained binding for read/stop; null until correlation.</summary>
     internal NativeRunBinding? Run => RunId is null ? null : Frozen.Run(RunId);
 }
