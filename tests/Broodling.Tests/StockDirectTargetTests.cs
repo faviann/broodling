@@ -116,9 +116,11 @@ public sealed class StockDirectTargetTests
     public async Task NativeAgentReadsBundleReferencesFromItsSubmissionWithNoBroodlingToReach()
     {
         using var fixture = await BundleHttpFixture.CreateAsync();
-        var (store, bundle, attempt) = (fixture.Store, fixture.Bundle, fixture.Attempt);
+        var (bundle, attempt) = (fixture.Bundle, fixture.Attempt);
         // No Broodling reader runs anywhere, and the target is given no name or route for one.
         await using var target = await StockDirectTarget.StartAsync(fixture.Git.State.Root);
+        fixture.Git.State.Environments = TestEnvironments.For(target.Origin);
+        using var store = fixture.Git.State.Open();
         var repository = attempt.B1.Repository;
         AttemptFixture.RunGit(repository, "config", "url." + target.Forge + ".insteadOf", "https://github.com/acme/widget.git");
         await target.PushAsync(repository, attempt.B1.CommitOid + ":refs/heads/main");
@@ -135,11 +137,15 @@ public sealed class StockDirectTargetTests
                 .IsEqualTo(reference.ContentSha256);
     }
 
-    /// <summary>An authorized-PR revision whose result fetch resolves only to the controlled forge.</summary>
+    /// <summary>
+    /// An authorized-PR revision whose result fetch resolves only to the controlled forge, in a store configured with
+    /// <paramref name="target"/>'s environment.
+    /// </summary>
     internal static (BroodlingStore Store, string Revision) Admit(AttemptFixture git, StockDirectTarget target)
     {
         git.Git("remote", "add", "origin", "https://github.com/acme/widget.git");
         git.Git("config", "url." + target.Forge + ".insteadOf", "https://github.com/acme/widget.git");
+        git.State.Environments = TestEnvironments.For(target.Origin);
         var store = git.State.Open();
         return (store, AttemptFixture.PullRequestRevision(store));
     }

@@ -10,14 +10,15 @@ internal sealed class StoreFixture : IDisposable
         "dotnet-" + Guid.NewGuid().ToString("N"))).FullName;
     internal string Path => System.IO.Path.Combine(Root, "state", "broodling.sqlite3");
     internal BroodlingApplication Application { get; } = new();
-    /// <summary>A new store, reopened as a session that reaches every live test target with its own control token.</summary>
+    /// <summary>The environment catalog that <see cref="Open"/> configures each session with, once a test sets it.</summary>
+    internal EnvironmentCatalog? Environments { get; set; }
+    /// <summary>A new store, reopened as a session configured with <see cref="Environments"/>.</summary>
     internal BroodlingStore Initialize()
     {
         Application.InitializeStore(Path).Dispose();
         return Open();
     }
-    /// <summary>A session reaching every live test target with its own control token.</summary>
-    internal BroodlingStore Open() => Application.OpenStore(Path, TestEnvironments.Live);
+    internal BroodlingStore Open() => Application.OpenStore(Path, Environments);
 
     internal SqliteConnection Connect()
     {

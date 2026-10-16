@@ -14,8 +14,9 @@ public sealed class InvocationTests
         var target = new StockTarget();
         using var fixture = GitHubRepository();
         using var gh = new IssueFixture(fixture.State.Root);
+        fixture.State.Environments = TestEnvironments.For(target.Origin);
         using var store = fixture.State.Open();
-        var invocation = new Invocation(store, TestEnvironments.For(target.Origin.GetLeftPart(UriPartial.Authority)));
+        var invocation = new Invocation(store, fixture.State.Environments);
         var submitted = await invocation.SubmitAsync(ContractIngressTests.Reference, new ReviewedIssueProposal(Issue).Propose,
             ContractIngressTests.PullRequest, fixture.Repository, credentials: HttpDispatchTests.Credentials(), source: gh.Source);
         var attempt = submitted.Attempts.Single();
@@ -72,9 +73,10 @@ public sealed class InvocationTests
         Contract Propose(ContractProposalInput input) { proposals++; return new ReviewedIssueProposal(Issue).Propose(input); }
         string revision;
         AttemptCompletion completed;
+        fixture.State.Environments = TestEnvironments.For(target.Origin);
         using (var store = fixture.State.Open())
         {
-            var invocation = new Invocation(store, TestEnvironments.For(target.Origin.GetLeftPart(UriPartial.Authority)));
+            var invocation = new Invocation(store, fixture.State.Environments);
             var submitted = await invocation.SubmitAsync(ContractIngressTests.Reference, Propose, effects,
                 fixture.Repository, credentials: credentials, source: gh.Source);
             revision = submitted.Revision.ContractRevisionId;
@@ -143,9 +145,10 @@ public sealed class InvocationTests
         target.Submit = _ => Task.FromResult((503, """{"code":"target.unavailable","message":"unavailable"}"""));
         string revisionId;
         string attemptId;
+        fixture.State.Environments = TestEnvironments.For(origin);
         using (var store = fixture.State.Open())
         {
-            var invocation = new Invocation(store, TestEnvironments.For(origin));
+            var invocation = new Invocation(store, fixture.State.Environments);
             await Assert.That(async () => await invocation.SubmitAsync(ContractIngressTests.Reference, new ReviewedIssueProposal(Issue).Propose,
                 ContractIngressTests.PullRequest, fixture.Repository, credentials: HttpDispatchTests.Credentials(), source: gh.Source))
                 .Throws<NativeTransportError>();

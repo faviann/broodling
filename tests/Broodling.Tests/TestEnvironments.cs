@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -7,27 +6,17 @@ namespace Broodling.Tests;
 
 /// <summary>
 /// Environment catalogs for the suite, over the adoption set this release bundles. Each environment is one
-/// test target's origin with synthetic, non-overlapping container and mount names. Catalogs built here resolve
-/// control tokens through <see cref="TestAccess.Live"/>, so a stand-in that restarts with a rotated token file
-/// still works, exactly as a configuration naming every test target would.
+/// test target's origin with synthetic, non-overlapping container and mount names and, unless a test names another,
+/// the control token file of the stand-in now serving that origin (<see cref="TestAccess"/>).
 /// </summary>
 internal static class TestEnvironments
 {
     private static readonly Lazy<IReadOnlyList<AdoptedEnvironment>> bundled = new(AdoptedEnvironments.LoadBundled);
-    /// <summary>Every environment <see cref="For(string[])"/> has configured, by name; <see cref="Live"/> names them all.</summary>
-    private static readonly ConcurrentDictionary<string, ConfiguredEnvironment> configured = new();
 
     internal static IReadOnlyList<AdoptedEnvironment> Bundled => bundled.Value;
 
     /// <summary>The bundled dotnet-r2 adoption, which every test environment names unless it says otherwise.</summary>
     internal static AdoptedEnvironment Adopted => Bundled.Single();
-
-    /// <summary>
-    /// Every environment <see cref="For(string[])"/> has configured, unchanged, with connection material for every
-    /// live test target, and no default.
-    /// </summary>
-    internal static EnvironmentCatalog Live { get; } =
-        Catalog([], null).WithLookup(name => configured.TryGetValue(name, out var entry) ? entry : null);
 
     /// <summary>The environment name <see cref="For(string[])"/> gives <paramref name="origin"/>'s target.</summary>
     internal static string NameFor(string origin) =>
@@ -42,28 +31,22 @@ internal static class TestEnvironments
     internal static EnvironmentEntry EntryFor(Uri origin, string? controlTokenFile = null) =>
         EntryFor(origin.GetLeftPart(UriPartial.Authority), controlTokenFile);
 
-    /// <summary>Like <see cref="Live"/>, trusting <paramref name="rootCertificate"/> (null: system trust).</summary>
-    internal static EnvironmentCatalog Trusting(string? rootCertificate, params string[] origins) =>
-        For(origins).WithAccess(TestAccess.Trusting(rootCertificate));
-
     /// <summary>
-    /// One environment per origin, named for it (<see cref="NameFor(string)"/>), the first being the default; with
-    /// no origin, the same as <see cref="Live"/>. <see cref="Live"/> names each of them from then on.
+    /// One environment per origin, named for it (<see cref="NameFor(string)"/>), the first being the default, trusting
+    /// <paramref name="rootCertificate"/> (null: system trust).
     /// </summary>
-    internal static EnvironmentCatalog For(params string[] origins)
-    {
-        if (origins.Length == 0) return Live;
-        var catalog = Catalog([.. origins.Select(origin => EntryFor(origin))], NameFor(origins[0]));
-        foreach (var entry in catalog.Entries) configured[entry.Name] = entry;
-        return catalog;
-    }
+    internal static EnvironmentCatalog Trusting(string? rootCertificate, params string[] origins) =>
+        EnvironmentCatalog.Create([.. origins.Select(origin => EntryFor(origin))], NameFor(origins[0]), rootCertificate, Bundled);
+
+    /// <summary>One environment per origin, named for it (<see cref="NameFor(string)"/>), the first being the default.</summary>
+    internal static EnvironmentCatalog For(params string[] origins) => Trusting(null, origins);
 
     internal static EnvironmentCatalog For(params Uri[] origins) =>
         For([.. origins.Select(origin => origin.GetLeftPart(UriPartial.Authority))]);
 
     internal static EnvironmentCatalog Catalog(IReadOnlyList<EnvironmentEntry> entries, string? defaultEnvironment,
         IReadOnlyList<AdoptedEnvironment>? adopted = null) =>
-        EnvironmentCatalog.Create(entries, defaultEnvironment, null, adopted ?? Bundled).WithAccess(TestAccess.Live);
+        EnvironmentCatalog.Create(entries, defaultEnvironment, null, adopted ?? Bundled);
 
     /// <summary>
     /// Exactly <paramref name="entries"/>, the first being the default, with the connection material the catalog
@@ -73,11 +56,12 @@ internal static class TestEnvironments
         EnvironmentCatalog.Create(entries, entries[0].Name, null, Bundled);
 
     /// <summary>
-    /// An entry at <paramref name="origin"/> with synthetic container, mounts and, unless given, token file under
-    /// <c>/srv/broodling-test/&lt;name&gt;</c>.
+    /// An entry at <paramref name="origin"/> with synthetic container and mounts under
+    /// <c>/srv/broodling-test/&lt;name&gt;</c>. Unless given, its token file is that of the stand-in serving the origin,
+    /// or a synthetic one there when none does.
     /// </summary>
     internal static EnvironmentEntry Entry(string name, string origin, string? controlTokenFile = null, string? image = null) =>
-        new(name, origin, controlTokenFile ?? $"/srv/broodling-test/{name}/control-token", image ?? Adopted.Image,
+        new(name, origin, controlTokenFile ?? TestAccess.TokenFile(origin) ?? $"/srv/broodling-test/{name}/control-token", image ?? Adopted.Image,
             "broodling-test-" + name, $"/srv/broodling-test/{name}/state", $"/srv/broodling-test/{name}/home");
 
     /// <summary>

@@ -148,7 +148,7 @@ public sealed class ReplacementTests
             local = fixture.LocalResources();
             store.PauseInstallation(); // Explicit safe replacement allocation remains permitted while paused.
             // Without a retained origin the one-call operation refuses before admitting anything.
-            await Assert.That(() => store.PrepareRetry(original.AttemptId, "replace", TestEnvironments.Live)).Throws<SubmissionNotReady>();
+            await Assert.That(() => store.PrepareRetry(original.AttemptId, "replace", TestEnvironments.For(HttpFixture.Target))).Throws<SubmissionNotReady>();
             await Assert.That(store.FindRetry("replace")).IsNull();
             successor = Retry();
             await Assert.That(successor.AttemptId == original.AttemptId).IsFalse();
@@ -173,10 +173,10 @@ public sealed class ReplacementTests
     public async Task StoppedTargetRetiredDirectTargetWorkIsReplacedWithinThePauseFromItsFrozenAuthorityAndDispatchedOnlyAfterRelease()
     {
         await using var target = new StockTarget();
-        using var fixture = await BundleHttpFixture.CreateAsync();
+        var origin = target.Origin.GetLeftPart(UriPartial.Authority);
+        using var fixture = await BundleHttpFixture.CreateAsync(target: origin);
         var store = fixture.Store;
         var original = fixture.Attempt;
-        var origin = target.Origin.GetLeftPart(UriPartial.Authority);
         // The predecessor's send is left unresolved: the target may hold its run until maintenance stops it.
         var sent = store.PrepareHttpSubmission(original.AttemptId, TestEnvironments.For(origin));
         target.Submit = _ => Task.FromResult((503, """{"code":"target.unavailable","message":"unavailable"}"""));
@@ -191,22 +191,22 @@ public sealed class ReplacementTests
         // Replacement happens only within a maintenance pause: neither admission nor first preparation outside it.
         var resume = new Invocation(store, TestEnvironments.For(origin));
         store.ReleaseInstallation();
-        await Assert.That(() => store.PrepareRetry(original.AttemptId, "after-maintenance", TestEnvironments.Live)).Throws<MaintenanceUnverified>();
+        await Assert.That(() => store.PrepareRetry(original.AttemptId, "after-maintenance", TestEnvironments.For(origin))).Throws<MaintenanceUnverified>();
         await Assert.That(store.FindRetry("after-maintenance")).IsNull();
         store.PauseInstallation();
         var successor = store.AdmitRetry(original.AttemptId, "after-maintenance");
         store.ReleaseInstallation();
-        await Assert.That(() => store.PrepareRetry(original.AttemptId, "after-maintenance", TestEnvironments.Live)).Throws<MaintenanceUnverified>();
+        await Assert.That(() => store.PrepareRetry(original.AttemptId, "after-maintenance", TestEnvironments.For(origin))).Throws<MaintenanceUnverified>();
         await Assert.That(async () => await resume.ResumeAsync(original.ContractRevisionId, credentials: HttpDispatchTests.Credentials()))
             .Throws<MaintenanceUnverified>();
         await Assert.That(store.FindSubmission(successor.AttemptId)).IsNull();
 
         store.PauseInstallation();
-        var prepared = store.PrepareRetry(original.AttemptId, "after-maintenance", TestEnvironments.Live);
+        var prepared = store.PrepareRetry(original.AttemptId, "after-maintenance", TestEnvironments.For(origin));
         await Assert.That(prepared.AttemptId).IsEqualTo(successor.AttemptId);
         await Assert.That(successor.ContractRevisionId).IsEqualTo(original.ContractRevisionId);
         await Assert.That(successor.B1).IsEqualTo(original.B1);
-        await Assert.That(store.PrepareRetry(original.AttemptId, "after-maintenance", TestEnvironments.Live)).IsEqualTo(prepared);
+        await Assert.That(store.PrepareRetry(original.AttemptId, "after-maintenance", TestEnvironments.For(origin))).IsEqualTo(prepared);
         await Assert.That(() => store.AdmitRetry(original.AttemptId, "second")).Throws<AttemptConflict>();
         // The predecessor's verified origin, the same bundle-bound task and exact B1 source; only the Attempt's own identities differ.
         await Assert.That(prepared.Origin).IsEqualTo(origin);
@@ -224,7 +224,7 @@ public sealed class ReplacementTests
         await Assert.That(correlated.RunId).IsEqualTo(prepared.IntendedRunId);
         await Assert.That((string)target.Bodies.Last()["runId"]!).IsEqualTo(prepared.IntendedRunId);
         // Repeating the operation hands back the retained submission and prepares nothing new.
-        await Assert.That(store.PrepareRetry(original.AttemptId, "after-maintenance", TestEnvironments.Live)).IsEqualTo(correlated);
+        await Assert.That(store.PrepareRetry(original.AttemptId, "after-maintenance", TestEnvironments.For(origin))).IsEqualTo(correlated);
 
         // The predecessor's history stays exactly as retained; only the successor is quarantined now.
         await Assert.That(store.FindSubmission(original.AttemptId)).IsEqualTo(unresolved);

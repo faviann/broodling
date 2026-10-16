@@ -13,7 +13,7 @@ internal sealed class HttpFixture : IDisposable
     internal const string Target = "http://127.0.0.1:9";
     internal AttemptFixture Git { get; } = new();
     internal string Assets => Path.Combine(Git.State.Root, "installed-assets");
-    internal BroodlingStore Store { get; }
+    internal BroodlingStore Store { get; private set; }
     internal AttemptRecord Attempt { get; }
 
     /// <param name="source">Changes committed to the repository before the Attempt is admitted at its new head.</param>
@@ -24,12 +24,32 @@ internal sealed class HttpFixture : IDisposable
         foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "execution-assets")))
             File.Copy(file, Path.Combine(Assets, Path.GetFileName(file)));
         source?.Invoke(Git);
+        Git.State.Environments = TestEnvironments.For(Target);
         Store = Git.State.Open();
         Attempt = Git.Admit(Store, Git.Git("rev-parse", "HEAD").Trim());
     }
 
-    internal NativeSubmission Prepare(BroodlingStore? store = null, string? attemptId = null, string target = Target) =>
-        (store ?? Store).PrepareHttpSubmission(attemptId ?? Attempt.AttemptId, TestEnvironments.For(target), () => ExecutionAsset.Load(Assets));
+    /// <summary>
+    /// Prepare against <paramref name="target"/>'s environment, which <see cref="Store"/> and every later session are
+    /// then configured with.
+    /// </summary>
+    internal NativeSubmission Prepare(BroodlingStore? store = null, string? attemptId = null, string target = Target)
+    {
+        Configure(target);
+        return (store ?? Store).PrepareHttpSubmission(attemptId ?? Attempt.AttemptId, Git.State.Environments!, () => ExecutionAsset.Load(Assets));
+    }
+
+    /// <summary>
+    /// Configure <see cref="Store"/>, a new session, and every later one with <paramref name="target"/>'s environment,
+    /// unless they already are.
+    /// </summary>
+    internal void Configure(string target)
+    {
+        if (Git.State.Environments?.Entries.Single().Origin == target) return;
+        Git.State.Environments = TestEnvironments.For(target);
+        sessions.Add(Store);
+        Store = Git.State.Open();
+    }
 
     /// <summary>Prepare against a loopback target, then take only the phase steps the SQL guards allow; no submission is sent.</summary>
     internal NativeSubmission PrepareAt(Uri target, string state = "prepared")
@@ -48,7 +68,13 @@ internal sealed class HttpFixture : IDisposable
         return Convert.ToString(command.ExecuteScalar())!;
     }
 
-    public void Dispose() { Store.Dispose(); Git.Dispose(); }
+    private readonly List<BroodlingStore> sessions = [];
+
+    public void Dispose()
+    {
+        foreach (var session in sessions.Append(Store)) session.Dispose();
+        Git.Dispose();
+    }
 }
 
 /// <summary>
@@ -65,7 +91,8 @@ internal sealed class BundleHttpFixture : IDisposable
     /// <summary>Captured bytes that are not UTF-8, so the task carries them as base64.</summary>
     private static readonly byte[] Logo = [0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe, 0x0a];
 
-    internal static async Task<BundleHttpFixture> CreateAsync(string schema = "Schema canary — café <a&b>\n")
+    /// <param name="target">The origin of the one environment every session is configured with.</param>
+    internal static async Task<BundleHttpFixture> CreateAsync(string schema = "Schema canary — café <a&b>\n", string target = HttpFixture.Target)
     {
         var fixture = new BundleHttpFixture();
         try
@@ -76,6 +103,7 @@ internal sealed class BundleHttpFixture : IDisposable
             git.SetIssue(12, "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n\n### Available references\n"
                 + "- schema: repo:docs/schema.md\n- logo: repo:docs/logo.png\n- design: https://github.com/acme/widget/issues/7\n");
             git.SetIssue(7, "Supporting design canary.");
+            git.State.Environments = TestEnvironments.For(target);
             var store = fixture.Store = git.State.Initialize();
             var submissionId = store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
             fixture.Bundle = await store.CaptureRequestBundleAsync(submissionId, git.RepositoryRoot,

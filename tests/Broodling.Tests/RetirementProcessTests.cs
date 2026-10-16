@@ -47,8 +47,8 @@ public sealed class RetirementProcessTests
             }
         }
         fixture.Git.Commit("later source tip\n");
-        var prepared = store.PrepareRetry(predecessor.AttemptId, "process-retry", TestEnvironments.Live);
-        await Assert.That(store.PrepareRetry(predecessor.AttemptId, "process-retry", TestEnvironments.Live)).IsEqualTo(prepared);
+        var prepared = store.PrepareRetry(predecessor.AttemptId, "process-retry", fixture.Git.State.Environments!);
+        await Assert.That(store.PrepareRetry(predecessor.AttemptId, "process-retry", fixture.Git.State.Environments!)).IsEqualTo(prepared);
         await Assert.That((string)JsonNode.Parse(prepared.RequestJson)!["submission"]!["source"]!["revision"]!).IsEqualTo(predecessor.B1.CommitOid);
         await Assert.That(prepared.State).IsEqualTo("prepared");
         await Assert.That(store.Status(predecessor.ContractRevisionId).Attempts.Count).IsEqualTo(2);

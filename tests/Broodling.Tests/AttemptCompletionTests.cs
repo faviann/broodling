@@ -28,6 +28,7 @@ internal sealed class CompletionFixture : IDisposable
     internal CompletionFixture()
     {
         Accepted = Git.Deliver();
+        http.Configure(Origin);
         Result = id => Task.FromResult(new NativeResult(id, true, Receipt(head: Accepted), null));
         Target.Reply = (request, id) => (string)request["method"]! switch
         {

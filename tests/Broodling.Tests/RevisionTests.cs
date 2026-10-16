@@ -91,7 +91,7 @@ public sealed class RevisionTests
         var second = store.ReviseIssueSubmission(first).SubmissionId;
         // The revision supersedes the predecessor's Contract, whose retired Attempt is then never replaced.
         store.PauseInstallation();
-        await Assert.That(() => store.PrepareRetry(dispatched, "late", TestEnvironments.Live)).Throws<AttemptConflict>();
+        await Assert.That(() => store.PrepareRetry(dispatched, "late", revisions.Fixture.State.Environments!)).Throws<AttemptConflict>();
         store.ReleaseInstallation();
         await Assert.That(store.UnfinishedSubmissions()).IsEquivalentTo([second]);
         await revisions.Prepare(second);
@@ -211,7 +211,7 @@ public sealed class RevisionTests
         await Assert.That(async () => await store.WaitAsync(failed)).Throws<SubmissionNotReady>();
         // The earlier revision's success does not hold back replacing the later revision's own Attempt.
         revisions.Retire(failed, release: false);
-        var replacement = store.PrepareRetry(failed, "after-failure", TestEnvironments.Live).AttemptId;
+        var replacement = store.PrepareRetry(failed, "after-failure", revisions.Fixture.State.Environments!).AttemptId;
         store.ReleaseInstallation();
         await revisions.Continue(second);
         var later = await revisions.Succeed(replacement, "second result");
@@ -265,6 +265,7 @@ public sealed class RevisionTests
         {
             using (Fixture.State.Initialize()) { }
             Fixture.SetIssue(12, RequestAdmissionTests.Request());
+            Fixture.State.Environments = TestEnvironments.For(Target.Origin);
             Store = Fixture.State.Open();
             Gateway = new Gateway((_, _) => Task.FromResult(ControlledGateway.Final(Proposal)));
             preparer = new(Fixture.State.Application, Fixture.State.Path, Fixture.RepositoryRoot, lifetime.Token)
@@ -278,7 +279,7 @@ public sealed class RevisionTests
 
         /// <summary>What progression does next for an admitted submission: allocate, prepare and dispatch or replay.</summary>
         internal Task<AdmissionStatus> Continue(string submissionId) =>
-            new Invocation(Store, TestEnvironments.For(Target.Origin.GetLeftPart(UriPartial.Authority)))
+            new Invocation(Store, Fixture.State.Environments!)
                 .ResumeSubmissionAsync(submissionId, HttpDispatchTests.Credentials());
 
         internal void Finish(string attemptId, string status, object detail)
