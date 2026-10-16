@@ -381,11 +381,10 @@ Limits of the verification:
 - The managed settings do not stop a target repository's own
   `.claude/settings.json` `env` entries beyond the keys they pin, or its
   `apiKeyHelper` ([#249](https://github.com/faviann/broodling/issues/249)).
-  Such a repository cannot raise effort or output tokens, but it can set other
-  environment variables and so send the gateway key elsewhere. Native also
-  acts on pull-request feedback from anyone who can comment. Run Attempts only
-  against repositories the owner controls and whose comments are restricted to
-  collaborators.
+  Such a repository can set environment variables that send the gateway key
+  elsewhere. Native also acts on pull-request feedback from anyone who can
+  comment. Run Attempts only under the
+  [live-run preconditions](#live-run-preconditions).
 - An image inventory or an approved environment catalog does not enforce R13's
   prohibition against arbitrary unprivileged downloads: execution agents can
   still fetch and run tools in their own run home.
@@ -1306,6 +1305,26 @@ target creation.
   verified, each Attempt's retirement given a check naming exactly its
   retained target, then bootstrap per target, `check-target` and release.
 
+## Live-run preconditions
+
+Broodling does not check these preconditions. The owner establishes them before
+the first live Attempt and keeps them for every later one:
+
+- **Owner-controlled repositories limited to collaborators.** Submit only issues
+  from repositories the owner controls whose interactions are limited to
+  collaborators. Native acts on pull-request feedback from anyone who can
+  comment, and a target repository's own Claude Code settings `env` and
+  `apiKeyHelper` still apply ([#249](https://github.com/faviann/broodling/issues/249)).
+  GitHub interaction limits expire after at most six months; the limit on the
+  canary, `faviann/broodling-canary`, expires on 2027-04-16. Renew the limit
+  before it expires, or make the repository private.
+- **A dedicated gateway key.** `GATEWAY_API_KEY` is a sub2api key that only
+  Broodling uses. The owner configures it in sub2api with a model allowlist of
+  exactly `claude-opus-5-5`, a spend quota and an IP whitelist of the Broodling
+  host's and every target's egress addresses. Every command an agent runs can
+  read the key. The allowlist keeps every model call on `claude-opus-5-5`, the
+  quota bounds spend, and the whitelist limits where a leaked key works.
+
 ## Invocation and recovery
 
 The caller must review the complete exact GitHub issue response. Capture it with
@@ -1487,8 +1506,9 @@ Broodling's proposer sends it only to the gateway, as the bearer token, and the
 agents' Claude Code sends it only to the gateway, as `x-api-key`. Native also
 puts it in every agent's environment as `ANTHROPIC_API_KEY` and
 `GATEWAY_API_KEY`, so every command an agent runs can read it, including a
-repository's build and test code and its dependencies. Give Broodling its own
-gateway key with a quota, so a leaked key is bounded. It is never written to the
+repository's build and test code and its dependencies. The
+[live-run preconditions](#live-run-preconditions) say which key to use. The
+key is never written to the
 RequestBundle, Contract revision, refusal findings, submission rows or error
 messages. A missing key, another base URL or a gateway refusal is a
 non-retryable `ContractProposerError`. Transport loss, timeout, HTTP

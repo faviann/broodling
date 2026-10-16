@@ -74,7 +74,9 @@ Claude Code / `gateway` / `claude-opus-5-5` / medium-effort runtime) through
 exactly the sub2api gateway `https://gateway.ai.faviann.com`. The DirectTarget
 runs an adopted `zeroshot-environments` image (`dotnet-r5`) with Claude Code
 **2.1.276** and managed settings that send Claude Code's own model calls only to
-the gateway at medium effort and deny it WebFetch and WebSearch.
+the gateway at medium effort and deny it WebFetch and WebSearch. Run Attempts only under the
+[live-run preconditions](deployment/README.md#live-run-preconditions), which
+Broodling does not check.
 Current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` are required for
 dispatch/replay; their values are not frozen in the invocation. Durable
 correlation permits reconnection without those dispatch credentials. Every

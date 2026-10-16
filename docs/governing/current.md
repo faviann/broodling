@@ -156,8 +156,9 @@ Broodling `SUCCEEDED`, native acceptance and automated checks certify neither
 semantic correctness nor authority to merge, deploy or release. See the
 [retained outcome summary](../../evaluation/p5/README.md).
 
-Run Attempts only against repositories the owner controls and whose comments
-are restricted to collaborators. A target repository's own Claude Code settings
+Run Attempts only under the
+[live-run preconditions](../../deployment/README.md#live-run-preconditions),
+which Broodling does not check. A target repository's own Claude Code settings
 `env` and `apiKeyHelper` still apply
 ([#249](https://github.com/faviann/broodling/issues/249)), native acts on
 pull-request feedback from anyone who can comment, and every command an agent
