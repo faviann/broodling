@@ -13,7 +13,7 @@
 	}
 }
 
-cliproxy.local.faviann.com {
+gateway.ai.faviann.com {
 	tls internal
 	header Content-Type application/json
 	respond /v1/chat/completions `{"choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "{\"criteria\": [{\"criterionId\": \"export\", \"statement\": \"Export the data as JSON.\"}]}"}}]}` 200

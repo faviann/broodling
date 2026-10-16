@@ -15,7 +15,7 @@
 # The DirectTarget binding's native (src/Broodling/DirectTargetBinding.cs and
 # execution-assets/approval.json): upstream's published target image for that release, pinned by
 # digest, carries the executable the adopted environment runs.
-FROM ghcr.io/the-open-engine/zeroshot-target:10.10.0@sha256:9769f74865d7e1137b82c9ed2ced4cbedb56cfd5fef6c9e8c0647955ba0c438b AS native
+FROM ghcr.io/the-open-engine/zeroshot-target:10.12.0@sha256:9eca152ead38e6589b76b13cca802ce2e7538579b851566a891ed470b069bd51 AS native
 
 # The same Ubuntu 24.04 as the runtime stage, so libbroodling_git.so links against its libc. python3
 # serves only the asset regeneration check below (generate.sh and describe.py).
@@ -35,7 +35,7 @@ RUN --mount=type=secret,id=nuget-github,required=true \
 # bytes must equal what it produced, and the published approval must be the reviewed one.
 RUN --mount=type=bind,from=native,source=/usr/local/bin/zeroshot,target=/tmp/zeroshot \
     src/Broodling/execution-assets/generate.sh /tmp/zeroshot /tmp/execution-asset.json \
-    && cmp /tmp/execution-asset.json /app/execution-assets/software-change-pr-codex-gateway.json \
+    && cmp /tmp/execution-asset.json /app/execution-assets/software-change-pr-claude-gateway.json \
     && cmp src/Broodling/execution-assets/approval.json /app/execution-assets/approval.json \
     && rm /tmp/execution-asset.json
 
