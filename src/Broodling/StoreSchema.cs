@@ -481,8 +481,10 @@ internal static class StoreSchema
               WHERE r.attempt_id = NEW.attempt_id
                 AND json_extract(NEW.binding_json, '$.environment.requirement')
                   = json_extract(p.binding_json, '$.environment.requirement')
-                AND NEW.declaration_sha256 IS p.declaration_sha256 AND NEW.environment_name = p.environment_name
-                AND (r.environment_update = 1 OR NEW.environment_sha256 = p.environment_sha256))
+                AND json_extract(NEW.binding_json, '$.environment.resolution.target.environment')
+                  = json_extract(p.binding_json, '$.environment.resolution.target.environment')
+                AND (r.environment_update = 1 OR json_extract(NEW.binding_json, '$.environment.resolution')
+                  = json_extract(p.binding_json, '$.environment.resolution')))
         BEGIN SELECT RAISE(ABORT, 'replacement must inherit its predecessor environment or record its update'); END;
 
         DROP TRIGGER attempts_no_abandoned_work;
@@ -549,11 +551,6 @@ internal static class StoreSchema
             replay_blocked_reason TEXT CHECK (replay_blocked_reason = 'submission_conflict'),
             asset_sha256 TEXT NOT NULL REFERENCES execution_assets(asset_sha256),
             binding_json TEXT NOT NULL CHECK (json_valid(binding_json) AND json_type(binding_json) = 'object'),
-            environment_name TEXT NOT NULL,
-            environment_sha256 TEXT NOT NULL CHECK (length(environment_sha256) = 64 AND environment_sha256 NOT GLOB '*[^0-9a-f]*'),
-            adoption_sha256 TEXT NOT NULL REFERENCES environment_documents(sha256),
-            manifest_sha256 TEXT NOT NULL REFERENCES environment_documents(sha256),
-            declaration_sha256 TEXT REFERENCES environment_documents(sha256),
             CHECK ((replay_blocked_reason IS NULL OR state <> 'prepared')
                 AND ((state = 'correlated' AND run_id IS intended_run_id)
                     OR (state <> 'correlated' AND run_id IS NULL)))
@@ -568,23 +565,16 @@ internal static class StoreSchema
               AND json_extract(NEW.request_json, '$.submission.submissionKey') = NEW.submission_key
               AND json_extract(NEW.request_json, '$.submission.source.revision') = a.b1_commit_oid
               AND json_extract(NEW.binding_json, '$.repository') = a.b1_repository
-              AND json_extract(NEW.binding_json, '$.environment.resolution.name') = NEW.environment_name
-              AND json_extract(NEW.binding_json, '$.environment.resolution.target.environment') = NEW.environment_name
-              AND json_extract(NEW.binding_json, '$.environment.resolution.target.origin') = json_extract(NEW.binding_json, '$.origin')
-              AND json_extract(NEW.binding_json, '$.environment.resolution.adoption.sha256') = NEW.adoption_sha256
-              AND json_extract(NEW.binding_json, '$.environment.resolution.manifest.sha256') = NEW.manifest_sha256
-              AND json_extract(NEW.binding_json, '$.environment.requirement.declaration.sha256') IS NEW.declaration_sha256
               AND json_extract(NEW.binding_json, '$.environment.requirement.declaration.commit') IS
-                  CASE WHEN NEW.declaration_sha256 IS NULL THEN NULL ELSE a.b1_commit_oid END
+                  CASE WHEN json_extract(NEW.binding_json, '$.environment.requirement.declaration') IS NULL THEN NULL
+                  ELSE a.b1_commit_oid END
         )
         BEGIN SELECT RAISE(ABORT, 'preparation requires current authority'); END;
         CREATE TRIGGER submission_binding_stable BEFORE UPDATE ON native_submissions
         WHEN OLD.attempt_id <> NEW.attempt_id
           OR OLD.submission_key <> NEW.submission_key OR OLD.request_json <> NEW.request_json
           OR OLD.intended_run_id <> NEW.intended_run_id OR OLD.asset_sha256 <> NEW.asset_sha256
-          OR OLD.binding_json <> NEW.binding_json OR OLD.environment_name <> NEW.environment_name
-          OR OLD.environment_sha256 <> NEW.environment_sha256 OR OLD.adoption_sha256 <> NEW.adoption_sha256
-          OR OLD.manifest_sha256 <> NEW.manifest_sha256 OR OLD.declaration_sha256 IS NOT NEW.declaration_sha256
+          OR OLD.binding_json <> NEW.binding_json
           OR (OLD.replay_blocked_reason IS NOT NULL AND OLD.replay_blocked_reason IS NOT NEW.replay_blocked_reason)
           OR NOT ((OLD.state = 'prepared' AND NEW.state = 'dispatched')
             OR (OLD.state = 'dispatched' AND NEW.state = 'correlated')

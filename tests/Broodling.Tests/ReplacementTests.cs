@@ -294,9 +294,6 @@ public sealed class ReplacementTests
         string origin = HttpFixture.Target, string name = "dotnet") =>
         TestEnvironments.Catalog([TestEnvironments.Entry(name, origin, image: image ?? adopted[0].Image)], name, adopted);
 
-    private static string EnvironmentSha256(HttpFixture fixture, string attemptId) =>
-        fixture.Scalar($"SELECT environment_sha256 FROM native_submissions WHERE attempt_id = '{attemptId}'");
-
     private static JsonNode Environment(NativeSubmission record) => JsonNode.Parse(record.BindingJson)!["environment"]!;
 
     /// <summary>
@@ -331,7 +328,6 @@ public sealed class ReplacementTests
             return;
         }
         var successor = fixture.Store.PrepareRetry(id, "inherit", today);
-        await Assert.That(EnvironmentSha256(fixture, successor.AttemptId)).IsEqualTo(EnvironmentSha256(fixture, id));
         await Assert.That(JsonNode.DeepEquals(Environment(successor)["requirement"], Environment(predecessor)["requirement"])).IsTrue();
         await Assert.That(JsonNode.DeepEquals(Environment(successor)["resolution"], Environment(predecessor)["resolution"])).IsTrue();
         await Assert.That(successor.Environment).IsEqualTo(predecessor.Environment);
@@ -362,9 +358,7 @@ public sealed class ReplacementTests
         await Assert.That(successor.Environment.Name).IsEqualTo("dotnet");
         await Assert.That(successor.Environment.Image).IsEqualTo(adopted[1].Image);
         await Assert.That(predecessor.Environment.Image).IsEqualTo(adopted[0].Image);
-        await Assert.That(EnvironmentSha256(fixture, successor.AttemptId) == EnvironmentSha256(fixture, id)).IsFalse();
         await Assert.That(JsonNode.DeepEquals(Environment(successor)["requirement"], Environment(predecessor)["requirement"])).IsTrue();
-        await Assert.That((string)Environment(successor)["resolution"]!["basis"]!).IsEqualTo("declared");
         // The successor's request keeps its predecessor's exact source.
         JsonNode Source(NativeSubmission record) => JsonNode.Parse(record.RequestJson)!["submission"]!["source"]!;
         await Assert.That(JsonNode.DeepEquals(Source(successor), Source(predecessor))).IsTrue();
@@ -415,14 +409,16 @@ public sealed class ReplacementTests
         var successor = fixture.Store.AdmitRetry(id, "forged").AttemptId;
         var run = Guid.CreateVersion7().ToString();
         var key = "broodling:http:v1:" + successor;
-        var binding = forgery == "other-requirement" ? "json_set(binding_json, '$.environment.requirement.name', 'dotnet')" : "binding_json";
-        var sha256 = forgery == "other-resolution" ? $"'{new string('f', 64)}'" : "environment_sha256";
+        var binding = forgery switch
+        {
+            "other-requirement" => "json_set(binding_json, '$.environment.requirement.name', 'dotnet')",
+            "other-resolution" => "json_set(binding_json, '$.environment.resolution.image', 'other')",
+            _ => "binding_json"
+        };
         var insert = $"""
-            INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256,
-                binding_json, environment_name, environment_sha256, adoption_sha256, manifest_sha256, declaration_sha256)
+            INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256, binding_json)
             SELECT '{successor}', '{key}', json_set(request_json, '$.runId', '{run}', '$.submission.submissionKey', '{key}'),
-                'prepared', '{run}', asset_sha256, {binding}, environment_name, {sha256}, adoption_sha256, manifest_sha256,
-                declaration_sha256
+                'prepared', '{run}', asset_sha256, {binding}
             FROM native_submissions WHERE attempt_id = '{id}'
             """;
         if (forgery == "exact")

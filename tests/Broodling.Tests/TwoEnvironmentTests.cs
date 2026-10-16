@@ -129,7 +129,6 @@ public sealed class TwoEnvironmentTests
             var environment = JsonNode.Parse(submission.BindingJson)!["environment"]!;
             await Assert.That((string?)environment["requirement"]!["name"]).IsEqualTo(declared ? Name : null);
             var resolution = environment["resolution"]!;
-            await Assert.That((string)resolution["basis"]!).IsEqualTo(declared ? "declared" : "default");
             await Assert.That((string)resolution["adoption"]!["release"]!).IsEqualTo(adoption.Release);
             await Assert.That((string)resolution["manifest"]!["sha256"]!).IsEqualTo(adoption.ManifestSha256);
             await Assert.That((string)resolution["image"]!).IsEqualTo(adoption.Image);

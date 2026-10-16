@@ -34,9 +34,6 @@ public sealed class EnvironmentSelectionTests
     private static BroodlingStore Open(HttpFixture fixture, EnvironmentCatalog? environments) =>
         fixture.Git.State.Application.OpenStore(fixture.Git.State.Path, environments);
 
-    private static string Column(HttpFixture fixture, string column) =>
-        fixture.Scalar($"SELECT ifnull({column}, 'null') FROM native_submissions WHERE attempt_id = '{fixture.Attempt.AttemptId}'");
-
     private static byte[] Document(HttpFixture fixture, string sha256)
     {
         using var connection = fixture.Git.State.Connect();
@@ -69,10 +66,8 @@ public sealed class EnvironmentSelectionTests
             ["name"] = "approved-alt",
             ["declaration"] = new JsonObject { ["path"] = Declaration, ["commit"] = b1, ["blob"] = blob, ["sha256"] = sha256 }
         })).IsTrue();
-        await Assert.That((string)environment["resolution"]!["basis"]!).IsEqualTo("declared");
-        await Assert.That((string)environment["resolution"]!["name"]!).IsEqualTo("approved-alt");
+        await Assert.That((string)environment["resolution"]!["target"]!["environment"]!).IsEqualTo("approved-alt");
         await Assert.That(prepared.Origin).IsEqualTo(second.Origin.GetLeftPart(UriPartial.Authority));
-        await Assert.That(Column(fixture, "declaration_sha256")).IsEqualTo(sha256);
         await Assert.That(Document(fixture, sha256).SequenceEqual(declared)).IsTrue();
         await Assert.That(first.Connections + second.Connections).IsEqualTo(0);
     }
@@ -85,10 +80,8 @@ public sealed class EnvironmentSelectionTests
 
         var environment = JsonNode.Parse(prepared.BindingJson)!["environment"]!;
         await Assert.That(JsonNode.DeepEquals(environment["requirement"], new JsonObject { ["name"] = null, ["declaration"] = null })).IsTrue();
-        await Assert.That((string)environment["resolution"]!["basis"]!).IsEqualTo("default");
-        await Assert.That((string)environment["resolution"]!["name"]!).IsEqualTo("dotnet");
+        await Assert.That((string)environment["resolution"]!["target"]!["environment"]!).IsEqualTo("dotnet");
         await Assert.That(prepared.Origin).IsEqualTo("http://127.0.0.1:9");
-        await Assert.That(Column(fixture, "declaration_sha256")).IsEqualTo("null");
     }
 
     /// <summary>
@@ -209,7 +202,6 @@ public sealed class EnvironmentSelectionTests
         var resolution = binding["environment"]!["resolution"]!;
         await Assert.That(JsonNode.DeepEquals(resolution, new JsonObject
         {
-            ["basis"] = "default", ["name"] = "dotnet",
             ["adoption"] = new JsonObject
             {
                 ["kind"] = "broodling.target-environment-adoption/v1", ["release"] = "dotnet-r2", ["sha256"] = adopted.RecordSha256
@@ -241,13 +233,8 @@ public sealed class EnvironmentSelectionTests
         await Assert.That(JsonNode.DeepEquals(binding["native"], DirectTargetBinding.Native())).IsTrue();
         await Assert.That(prepared.AssetSha256).IsEqualTo(DirectTargetBinding.AssetSha256);
         // The full adoption record and producer manifest, by digest, exactly as bundled.
-        await Assert.That(Column(fixture, "environment_name")).IsEqualTo("dotnet");
-        await Assert.That(Column(fixture, "adoption_sha256")).IsEqualTo(adopted.RecordSha256);
-        await Assert.That(Column(fixture, "manifest_sha256")).IsEqualTo(adopted.ManifestSha256);
         await Assert.That(Document(fixture, adopted.RecordSha256).SequenceEqual(adopted.Record)).IsTrue();
         await Assert.That(Document(fixture, adopted.ManifestSha256).SequenceEqual(adopted.Manifest)).IsTrue();
-        await Assert.That(Column(fixture, "environment_sha256"))
-            .IsEqualTo(Digests.Bytes(Encoding.UTF8.GetBytes(resolution.ToJsonString())));
 
         // Neither the control token nor its file appears anywhere in the store.
         fixture.Store.Dispose();
@@ -313,7 +300,8 @@ public sealed class EnvironmentSelectionTests
         var second = fixture.Store.PrepareHttpSubmission(other.AttemptId, catalog);
 
         await Assert.That(second.Origin).IsEqualTo(first.Origin);
-        await Assert.That(fixture.Scalar($"SELECT count(DISTINCT environment_sha256) FROM native_submissions")).IsEqualTo("1");
+        await Assert.That(fixture.Scalar("SELECT count(DISTINCT json_extract(binding_json, '$.environment.resolution')) FROM native_submissions"))
+            .IsEqualTo("1");
         await Assert.That(fixture.Scalar("SELECT count(*) FROM environment_documents")).IsEqualTo("2");
     }
 
@@ -324,43 +312,23 @@ public sealed class EnvironmentSelectionTests
         var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, Catalog("http://127.0.0.1:9", "http://127.0.0.1:10"));
         async Task Refused(string sql) => await Assert.That(() => fixture.Git.State.Execute(sql)).Throws<SqliteException>();
 
-        foreach (var change in new[]
-        {
-            "environment_name = 'dotnet'", $"environment_sha256 = '{new string('0', 64)}'", "declaration_sha256 = NULL",
-            "adoption_sha256 = manifest_sha256", "binding_json = json_set(binding_json, '$.environment.resolution.name', 'dotnet')"
-        })
-            await Refused("UPDATE native_submissions SET " + change);
+        await Refused("UPDATE native_submissions SET binding_json = json_set(binding_json, '$.environment.resolution.image', 'other')");
         await Refused("UPDATE environment_documents SET content = x'00'");
         await Refused("DELETE FROM environment_documents");
-        // Another Attempt's record whose columns disagree with its binding cannot be inserted either.
+        // Another Attempt at the same B1 cannot retain a declaration read at another commit.
         var reference = WorkReference.Parse("acme/widget", 13);
         var revision = fixture.Store.AdmitSources(reference, [new("primary_issue", reference.IssueLocator,
             "Another request.\n"u8.ToArray(), entitlement: new("caller", "Reviewed"))], ContractIngressTests.Propose, ContractIngressTests.PullRequest).Revision;
         var other = fixture.Store.AdmitHttpAttempt(revision.ContractRevisionId, fixture.Git.Repository, fixture.Attempt.B1.CommitOid).AttemptId;
         var run = Guid.CreateVersion7().ToString();
-        string Copy(string column = "", string value = "")
-        {
-            var values = new Dictionary<string, string>
-            {
-                ["attempt_id"] = $"'{other}'", ["submission_key"] = $"'broodling:http:v1:{other}'",
-                ["request_json"] = $"json_set(request_json, '$.runId', '{run}', '$.submission.submissionKey', 'broodling:http:v1:{other}')",
-                ["state"] = "state", ["intended_run_id"] = $"'{run}'"
-            };
-            foreach (var retained in new[] { "asset_sha256", "binding_json", "environment_name", "environment_sha256", "adoption_sha256",
-                "manifest_sha256", "declaration_sha256" })
-                values[retained] = retained;
-            if (column != "") values[column] = value;
-            return $"INSERT INTO native_submissions ({string.Join(", ", values.Keys)}) SELECT {string.Join(", ", values.Values)} "
-                + $"FROM native_submissions WHERE attempt_id = '{prepared.AttemptId}'";
-        }
-        foreach (var (column, value) in new[]
-        {
-            ("environment_name", "'dotnet'"), ("declaration_sha256", "NULL"), ("adoption_sha256", "manifest_sha256"),
-            ("binding_json", "json_set(binding_json, '$.origin', 'http://127.0.0.1:9')"),
-            ("binding_json", "json_set(binding_json, '$.environment.requirement.declaration.commit', 'other')")
-        })
-            await Refused(Copy(column, value));
-        fixture.Git.State.Execute(Copy()); // Only the disagreement was refused.
+        string Copy(string binding) => $"""
+            INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256, binding_json)
+            SELECT '{other}', 'broodling:http:v1:{other}',
+                json_set(request_json, '$.runId', '{run}', '$.submission.submissionKey', 'broodling:http:v1:{other}'),
+                state, '{run}', asset_sha256, {binding} FROM native_submissions WHERE attempt_id = '{prepared.AttemptId}'
+            """;
+        await Refused(Copy("json_set(binding_json, '$.environment.requirement.declaration.commit', 'other')"));
+        fixture.Git.State.Execute(Copy("binding_json"));
     }
 
     [Test]
@@ -369,7 +337,7 @@ public sealed class EnvironmentSelectionTests
         using var fixture = new HttpFixture(source: git => Commit(git, Declaration, Declare("approved-alt")));
         var catalog = Catalog("http://127.0.0.1:9", "http://127.0.0.1:10");
         var prepared = fixture.Store.PrepareHttpSubmission(fixture.Attempt.AttemptId, catalog);
-        var declaration = Column(fixture, "declaration_sha256");
+        var declaration = Digests.Bytes(Declare("approved-alt"));
         fixture.Git.State.Execute("DROP TRIGGER environment_documents_no_update; "
             + $"UPDATE environment_documents SET content = CAST('{{\"version\": 1, \"environment\": \"dotnet\"}}' AS BLOB) WHERE sha256 = '{declaration}'");
 

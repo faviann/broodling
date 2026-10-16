@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -7,15 +6,10 @@ namespace Broodling;
 /// <summary>
 /// One Attempt's environment, fixed once at first preparation and retained with its Prepared submission: the
 /// requirement and its resolution to an adopted environment and the target serving it. Secret-free: no control
-/// token or token file. <see cref="Json"/> is the retained form; <see cref="Sha256"/> identifies the resolution
-/// alone, so a successor that inherits it keeps it.
+/// token or token file. <see cref="Json"/> is the retained form.
 /// </summary>
 internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement, AdoptedEnvironment Adoption, TargetIdentity Target)
 {
-    internal string Name => Target.Environment;
-
-    internal string Sha256 => Digests.Bytes(Encoding.UTF8.GetBytes(Resolution().ToJsonString()));
-
     /// <summary>The documents the resolution names by digest: adoption record, producer manifest and any declaration.</summary>
     internal IEnumerable<byte[]> Documents =>
         Requirement.Declaration is { } declaration ? [Adoption.Record, Adoption.Manifest, declaration.Bytes] : [Adoption.Record, Adoption.Manifest];
@@ -43,8 +37,6 @@ internal sealed record EnvironmentResolution(EnvironmentRequirement Requirement,
         var environment = Adoption.Environment;
         return new()
         {
-            ["basis"] = Requirement.Declaration is null ? "default" : "declared",
-            ["name"] = Name,
             ["adoption"] = new JsonObject
             {
                 ["kind"] = AdoptedEnvironments.Kind, ["release"] = Adoption.Release, ["sha256"] = Adoption.RecordSha256
@@ -123,7 +115,7 @@ public sealed record RetainedEnvironment(string Name, string Image, string Adopt
     {
         var resolution = JsonNode.Parse(bindingJson)!["environment"]!["resolution"]!;
         var target = resolution["target"]!;
-        return new((string)resolution["name"]!, (string)resolution["image"]!, (string)resolution["adoption"]!["sha256"]!,
+        return new((string)target["environment"]!, (string)resolution["image"]!, (string)resolution["adoption"]!["sha256"]!,
             (string)resolution["manifest"]!["sha256"]!,
             new((string)target["environment"]!, (string)target["origin"]!, (string)target["container"]!,
                 (string)target["stateMount"]!, (string)target["homeMount"]!));

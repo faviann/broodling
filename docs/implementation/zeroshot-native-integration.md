@@ -211,9 +211,10 @@ commits all of the following together:
   and the key `broodling:http:v1:<attempt-id>`.
 - The exact asset bytes in the content-addressed `execution_assets` row.
 - A Broodling-only binding that is never sent: protocol
-  `zeroshot.native-v2-target/v2`, the target origin, the common Git directory,
+  `zeroshot.native-v2-target/v2`, the common Git directory,
   the frozen result-fetch origin, the DirectTarget binding's native
-  release, source and executable, and the `environment` resolution.
+  release, source and executable, and the `environment` resolution, whose
+  target names the origin.
 - The adoption record, manifest and declaration bytes in the content-addressed
   `environment_documents` rows.
 
@@ -285,8 +286,7 @@ against the current catalog instead
 ```json
 {"requirement": {"name": "dotnet",
    "declaration": {"path": ".broodling/environment.json", "commit": "<B1>", "blob": "<oid>", "sha256": "<hex>"}},
- "resolution": {"basis": "declared", "name": "dotnet",
-   "adoption": {"kind": "broodling.target-environment-adoption/v1", "release": "dotnet-r2", "sha256": "<record>"},
+ "resolution": {"adoption": {"kind": "broodling.target-environment-adoption/v1", "release": "dotnet-r2", "sha256": "<record>"},
    "manifest": {"schema": "zeroshot-environment.manifest/v2", "sha256": "<manifest>"},
    "image": "ghcr.io/…@sha256:…", "platform": "linux/amd64", "os": "Debian GNU/Linux 13 (trixie)",
    "components": {"native": ["10.10.0"], "codex": ["0.155.0"], "…": ["…"]},
@@ -294,12 +294,12 @@ against the current catalog instead
      "container": "…", "stateMount": "…", "homeMount": "…"}}}
 ```
 
-An undeclared requirement has `name` and `declaration` null and basis
-`default`. A Replacement records where its environment came from on its retry
-row: its predecessor and `environment_update`. The `native_submissions` row repeats the name, the resolution's SHA-256 and the
-document digests in columns that triggers tie to the binding and freeze. No
-token value or token path is retained. Status and Attempt reads report
-`environment`: name, image, adoption and manifest digests and the target.
+An undeclared requirement has `name` and `declaration` null. A Replacement
+records where its environment came from on its retry row: its predecessor and
+`environment_update`. A trigger freezes the binding, and the documents it names
+cannot be changed or deleted. No token value or token path is retained. Status
+and Attempt reads report `environment`: name, image, adoption and manifest
+digests and the target.
 
 ### Frozen references
 

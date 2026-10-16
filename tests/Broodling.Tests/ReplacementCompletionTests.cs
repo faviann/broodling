@@ -31,10 +31,10 @@ public sealed class ReplacementCompletionTests
                     b1_repository, b1_commit_oid, b1_material_sha256, b1_requested_revision, admitted_at FROM attempts;
                 {guard};
                 INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id,
-                    asset_sha256, binding_json, environment_name, environment_sha256, adoption_sha256, manifest_sha256, declaration_sha256)
+                    asset_sha256, binding_json)
                     SELECT 'historical-completed', 'broodling:http:v1:historical-completed',
                     json_set(request_json, '$.runId', $run, '$.submission.submissionKey', 'broodling:http:v1:historical-completed'),
-                    'prepared', $run, asset_sha256, binding_json, environment_name, environment_sha256, adoption_sha256, manifest_sha256, declaration_sha256 FROM native_submissions;
+                    'prepared', $run, asset_sha256, binding_json FROM native_submissions;
                 UPDATE native_submissions SET state = 'dispatched' WHERE attempt_id = 'historical-completed';
                 UPDATE native_submissions SET state = 'correlated', run_id = $run WHERE attempt_id = 'historical-completed';
                 INSERT INTO attempt_completions SELECT attempt_id, work_unit_id, contract_revision_id,

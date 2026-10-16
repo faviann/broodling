@@ -62,12 +62,10 @@ public sealed partial class BroodlingStore
             if (RetainedDocument(Digests.Bytes(document), transaction) is null) throw RetainedDiffers();
         }
         Execute("""
-            INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id,
-                asset_sha256, binding_json, environment_name, environment_sha256, adoption_sha256, manifest_sha256,
-                declaration_sha256) VALUES ($p0, $p1, $p2, 'prepared', $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10)
+            INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256, binding_json)
+            VALUES ($p0, $p1, $p2, 'prepared', $p3, $p4, $p5)
             """, transaction, attemptId, HttpSubmissionKey(attemptId), RetainedRequest(HttpRequest(attempt, transaction, intended, asset, references!)),
-            intended, asset.Sha256, HttpBinding(attempt, resultOrigin!, environment).ToJsonString(), environment.Name, environment.Sha256,
-            environment.Adoption.RecordSha256, environment.Adoption.ManifestSha256, environment.Requirement.Declaration?.Sha256);
+            intended, asset.Sha256, HttpBinding(attempt, resultOrigin!, environment).ToJsonString());
         var result = ReadSubmission(attemptId, transaction)!;
         transaction.Commit();
         return result;
@@ -99,7 +97,7 @@ public sealed partial class BroodlingStore
                     + "(--update-environment) to sign off on what the catalog names now.");
             return inherited;
         }
-        var name = RetainedEnvironmentIdentity(predecessorId, transaction).Name;
+        var name = record.Environment.Name;
         var requirement = EnvironmentResolution.ReadRequirement(JsonNode.Parse(record.BindingJson)?["environment"]?["requirement"],
             digest => RetainedDocument(digest, transaction)) ?? throw RetainedDiffers();
         var current = environments.Find(name) ?? throw new EnvironmentRefused("environment_unapproved",
@@ -233,12 +231,11 @@ public sealed partial class BroodlingStore
     }
 
     /// <summary>
-    /// The environment <paramref name="record"/> retains, rebuilt from its binding and retained documents only and
-    /// matching its retained columns. A retained adoption this release cannot use refuses with that reason.
+    /// The environment <paramref name="record"/> retains, rebuilt from its binding and retained documents only. A
+    /// retained adoption this release cannot use refuses with that reason.
     /// </summary>
     private EnvironmentResolution RetainedEnvironment(AttemptRecord attempt, NativeSubmission record, SqliteTransaction? transaction = null)
     {
-        var (name, sha256) = RetainedEnvironmentIdentity(record.AttemptId, transaction);
         EnvironmentResolution? environment;
         try
         {
@@ -251,19 +248,10 @@ public sealed partial class BroodlingStore
             throw new SubmissionConflict("This Attempt was prepared for an environment this release's native binding does not support; "
                 + "stop and retire it, then replace it with an explicit environment update.");
         }
-        if (environment is null || environment.Name != name || environment.Sha256 != sha256
-            || environment.Requirement.Declaration is { } declaration
+        if (environment is null || environment.Requirement.Declaration is { } declaration
                 && (declaration.Path != EnvironmentDeclaration.Path || declaration.Commit != attempt.B1.CommitOid))
             throw RetainedDiffers();
         return environment;
-    }
-
-    private (string Name, string Sha256) RetainedEnvironmentIdentity(string attemptId, SqliteTransaction? transaction = null)
-    {
-        using var command = Command("SELECT environment_name, environment_sha256 FROM native_submissions WHERE attempt_id = $p0",
-            transaction, attemptId);
-        using var row = command.ExecuteReader();
-        return row.Read() ? (row.GetString(0), row.GetString(1)) : throw RetainedDiffers();
     }
 
     private byte[]? RetainedDocument(string sha256, SqliteTransaction? transaction)
@@ -316,10 +304,10 @@ public sealed partial class BroodlingStore
         }.ToJsonString();
     }
 
-    /// <summary>Broodling-only retention facts: never sent, never secrets. The origin is the resolved target's.</summary>
+    /// <summary>Broodling-only retention facts: never sent, never secrets.</summary>
     private static JsonObject HttpBinding(AttemptRecord attempt, string resultOrigin, EnvironmentResolution environment) => new()
     {
-        ["protocol"] = DirectTargetDiscovery.Kind, ["origin"] = environment.Target.Origin, ["repository"] = attempt.B1.Repository,
+        ["protocol"] = DirectTargetDiscovery.Kind, ["repository"] = attempt.B1.Repository,
         ["resultOrigin"] = resultOrigin, ["native"] = DirectTargetBinding.Native(), ["environment"] = environment.Json()
     };
 

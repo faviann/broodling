@@ -172,7 +172,7 @@ public sealed class HttpSubmissionTests
         await Assert.That((string)environment["resolution"]!["target"]!["origin"]!).IsEqualTo(HttpFixture.Target);
         await Assert.That(JsonNode.DeepEquals(binding, new JsonObject
         {
-            ["protocol"] = "zeroshot.native-v2-target/v2", ["origin"] = HttpFixture.Target, ["repository"] = attempt.B1.Repository,
+            ["protocol"] = "zeroshot.native-v2-target/v2", ["repository"] = attempt.B1.Repository,
             ["resultOrigin"] = "https://github.com/acme/widget.git",
             ["native"] = DirectTargetBinding.Native()
         })).IsTrue();
@@ -540,11 +540,9 @@ public sealed class HttpSubmissionTests
             }
             // The other Attempt's environment and binding, so only the run identities differ from a valid record.
             var insert = $"""
-                INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256, binding_json,
-                    environment_name, environment_sha256, adoption_sha256, manifest_sha256, declaration_sha256)
+                INSERT INTO native_submissions (attempt_id, submission_key, request_json, state, intended_run_id, asset_sha256, binding_json)
                 SELECT '{attempt.AttemptId}', 'broodling:http:v1:{attempt.AttemptId}', $request, 'prepared', $intended, asset_sha256,
-                    binding_json, environment_name, environment_sha256,
-                    adoption_sha256, manifest_sha256, declaration_sha256
+                    binding_json
                 FROM native_submissions WHERE attempt_id = '{other.AttemptId}'
                 """;
             // Another Attempt's intended identity, confirmed or not, is never reserved twice.

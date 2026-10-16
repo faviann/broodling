@@ -29,7 +29,8 @@ internal sealed record FrozenSubmission(string Origin, string Title, string Size
         var submission = JsonNode.Parse(requestJson)!["submission"]!;
         var binding = JsonNode.Parse(bindingJson)!;
         var source = submission["source"]!;
-        return new((string)binding["origin"]!, (string)submission["title"]!, (string)submission["runtime"]!["size"]!,
+        return new((string)binding["environment"]!["resolution"]!["target"]!["origin"]!, (string)submission["title"]!,
+            (string)submission["runtime"]!["size"]!,
             new((string)source["repository"]!, (string)source["branch"]!, (string)source["revision"]!),
             (string)binding["repository"]!, (string)binding["resultOrigin"]!);
     }
