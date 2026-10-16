@@ -167,7 +167,7 @@ names; the other observations are the manifest's:
 | `sha256sum /usr/local/bin/zeroshot` | `7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693` |
 | `sha256sum /usr/local/bin/restic` | `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, the `restic` that native run allocation requires |
 | `sha256sum /usr/local/bin/broodling-target` | The manifest's `integration.broodling-entrypoint.sha256` |
-| `find /etc/claude-code -mindepth 1 \|\| :` | Exactly `/etc/claude-code/managed-settings.json`. Claude Code also applies `managed-settings.d/*.json` drop-ins and a `CLAUDE.md` in that directory, so any other entry, or a missing file or directory, refuses with the target named |
+| `find /etc/claude-code -printf '%y %U:%G %m %p\n' \|\| :` | Exactly `d 0:0 755 /etc/claude-code` and `f 0:0 644 /etc/claude-code/managed-settings.json`. Claude Code also applies `managed-settings.d/*.json` drop-ins and a `CLAUDE.md` in that directory, and an agent that can write the file, or the target of a symbolic link, can rewrite the policy. Any other entry, type, owner or mode, or a missing file or directory, refuses with the target named |
 | `sha256sum /etc/claude-code/managed-settings.json` | `a9e2560ae3194f6bcc4068b1595b981e0f86a69087c2e0fb9cbe75a3053a809f` |
 | `/usr/bin/gh api graphql --paginate --slurp --help` | Declares the `--slurp` flag |
 | Short Python exec | `setgroups([10002])`, `setgid(10002)`, `setuid(10002)` and assertions of the resulting UID/GID succeed |

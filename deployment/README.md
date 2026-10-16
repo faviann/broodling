@@ -322,7 +322,8 @@ Adoption is checked in three places:
   digest, and its executables' bytes, every component version and its full
   Debian package list are the manifest's. Native's first agent identity,
   `20000:10002`, reads the managed settings with the approved SHA-256, and
-  they are the only entry in `/etc/claude-code`.
+  they are the only entry in `/etc/claude-code`, a regular file owned by root
+  with mode `0644` in a root-owned `0755` directory.
 - Loading the bundled adoption set, at every configuration read: it refuses a
   manifest that is not the record's bytes, a malformed manifest, a schema other
   than `v2`, a platform other than `linux/amd64` and a native, Claude Code,
@@ -333,7 +334,8 @@ Adoption is checked in three places:
 - [`check-target`](#existing-target-readiness) requires each running target to
   be its catalog image by digest and checks live its OS identity, every
   component the manifest states, the managed settings' bytes, and that they
-  are the only entry in `/etc/claude-code`. Claude Code also applies
+  are the only entry in `/etc/claude-code`, with that type, owner and mode.
+  Claude Code also applies
   `managed-settings.d` drop-ins and a `CLAUDE.md` there.
 - The [image demonstration](../tests/README.md#image-demonstration), the
   [stock witness](../tests/README.md#controlled-stock-directtarget-witness) and
@@ -372,10 +374,9 @@ Limits of the verification:
 - `check-target` ties the container to the adopted digest through Docker's
   image metadata (`RepoDigests`) and trusts the Docker daemon. It checks live
   only the native, restic, entrypoint and managed settings bytes, the entries
-  of `/etc/claude-code`, the OS identity and the versions of the components the
-  manifest states. It reads
-  the managed settings as container root; the image digest fixes the modes that
-  let agents read them. It does not detect a change to other files of a running
+  of `/etc/claude-code` with their type, owner and mode, the OS identity and the
+  versions of the components the manifest states. It reads the managed settings
+  as container root. It does not detect a change to other files of a running
   container.
 - The managed settings do not stop a target repository's own
   `.claude/settings.json` `env` entries beyond the keys they pin, or its
