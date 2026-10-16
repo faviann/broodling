@@ -37,6 +37,7 @@ public sealed class DirectTargetRunTests
     [Arguments("title")]
     [Arguments("size")]
     [Arguments("revision")]
+    [Arguments("no-source")]
     public async Task AStatusOfAnotherRunUnderTheSameIdIsForeign(string change)
     {
         var projection = Running();
@@ -45,6 +46,7 @@ public sealed class DirectTargetRunTests
             case "title": projection["title"] = "Another run"; break;
             case "size": projection["size"] = "large"; break;
             case "revision": projection["source"]!["revision"] = new string('c', 40); break;
+            case "no-source": projection.Remove("source"); break;
         }
         await using var target = new StockTarget();
         target.Projections.Enqueue(projection);
@@ -218,13 +220,17 @@ public sealed class DirectTargetRunTests
     }
 
     [Test]
-    public async Task AForeignForceReplyIsUncertain()
+    [Arguments("title")]
+    [Arguments("no-source")]
+    public async Task AForeignForceReplyIsUncertain(string change)
     {
         await using var target = new StockTarget();
-        target.Projections.Enqueue(Projection(new JsonObject
+        var reply = Projection(new JsonObject
         {
             ["phase"] = "finished", ["terminalResult"] = new JsonObject { ["status"] = "failed", ["reason"] = "force_stopped" }
-        }, Binding(target.Origin) with { Title = "Another run" }));
+        }, change == "title" ? Binding(target.Origin) with { Title = "Another run" } : null);
+        if (change == "no-source") reply.Remove("source");
+        target.Projections.Enqueue(reply);
         var stop = await DirectTargetRun.StopAsync(Binding(target.Origin), NativeRunIdentity.Confirmed, TestAccess.Live, new FakeTimeProvider(), default);
 
         await Assert.That(stop).IsEqualTo(new DirectTargetStop(DirectTargetForce.Uncertain, "foreign_run"));

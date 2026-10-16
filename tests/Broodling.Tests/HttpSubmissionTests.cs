@@ -386,8 +386,8 @@ public sealed class HttpSubmissionTests
         await Assert.That(imported.ExportUtf8().SequenceEqual(Encoding.UTF8.GetBytes(prepared.RequestJson))).IsTrue();
         await Assert.That(imported.RunId.Value).IsEqualTo(prepared.IntendedRunId);
         await Assert.That(imported.Submission.SubmissionKey.Value).IsEqualTo(prepared.SubmissionKey);
-        await Assert.That((imported.Submission.Source.Repository.Value, imported.Submission.Source.Branch.Value,
-            imported.Submission.Source.Revision.Value)).IsEqualTo(("acme/widget", "main", attempt.B1.CommitOid));
+        var source = imported.Submission.Source.Value!;
+        await Assert.That((source.Repository.Value, source.Branch.Value, source.Revision.Value)).IsEqualTo(("acme/widget", "main", attempt.B1.CommitOid));
     }
 
     [Test]

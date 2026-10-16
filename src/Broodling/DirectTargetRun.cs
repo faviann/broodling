@@ -115,10 +115,13 @@ internal static class DirectTargetRun
         return status;
     }
 
-    /// <summary>The SDK checks the run ID; the frozen title, size and PR source must match too.</summary>
-    private static void Require(NativeRunBinding run, RunTitle title, ResolvedSource source, RunSize size)
+    /// <summary>
+    /// The SDK checks the run ID; the frozen title, size and PR source must match too. A run without a source,
+    /// such as a local-folder run, is never the retained PR run.
+    /// </summary>
+    private static void Require(NativeRunBinding run, RunTitle title, ResolvedSource? source, RunSize size)
     {
-        if (title.Value != run.Title || size.ToString().ToLowerInvariant() != run.Size || source.Repository.Value != run.Source.Repository
+        if (source is null || title.Value != run.Title || size.ToString().ToLowerInvariant() != run.Size || source.Repository.Value != run.Source.Repository
             || source.Branch.Value != run.Source.Branch || source.Revision.Value != run.Source.Revision)
             throw new NativeTransportError("foreign_run");
     }
