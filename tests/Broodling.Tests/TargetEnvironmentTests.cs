@@ -270,27 +270,39 @@ public sealed class TargetEnvironmentTests
 
     /// <summary>
     /// The managed settings deny WebFetch and WebSearch, whose side calls would leave the uniform medium effort, turn
-    /// off Workflows, which could run past the session's result, and allow only claude-opus-5-5. A session started as
-    /// native's first agent identity, with the permission flag native's hosted lane always passes, offers neither web
-    /// tool nor Workflow and still offers the tools that edit the workspace. Asked for Haiku, it warns and falls back
-    /// to Claude Code's built-in default model.
+    /// off Workflows, which could run past the session's result, and restrict requested models to claude-opus-5-5. A
+    /// session started as native's first agent identity, with the permission flag native's hosted lane always passes,
+    /// offers neither web tool nor Workflow and still offers the tools that edit the workspace. Asked for native's
+    /// claude-opus-5-5, it starts on that model with no warning. Asked for Haiku, a refused model, it warns and falls
+    /// back to Claude Code's built-in default, claude-opus-5[1m].
     /// </summary>
     [Test]
-    public async Task AdoptedClaudeCodeOffersNoWebOrWorkflowToolsAndRefusesHaiku()
+    public async Task AdoptedClaudeCodeAdmitsTheApprovedModelAndRefusesHaiku()
     {
         var started = await DockerCommand("run", "--rm", "--network", "none", "--user", "20000:10002", "--tmpfs", "/tmp:exec",
             "--env", "HOME=/tmp/agent", "--env", "CLAUDE_CODE_MAX_RETRIES=0", "--env", "ANTHROPIC_API_KEY=placeholder",
-            "--entrypoint", "/bin/sh", await Direct.Value, "-c",
-            "mkdir -p \"$HOME\" && cd \"$HOME\" && claude --print --output-format stream-json --verbose --dangerously-skip-permissions --model haiku q | head -n 2");
+            "--entrypoint", "/bin/sh", await Direct.Value, "-c", """
+            mkdir -p "$HOME" && cd "$HOME"
+            claude --print --output-format stream-json --verbose --dangerously-skip-permissions --model haiku q | head -n 2
+            claude --print --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 q | head -n 2
+            """);
         RequireSuccess(started);
         var events = started.Output.TrimEnd('\n').Split('\n').Select(line => JsonNode.Parse(line)!).ToArray();
-        var init = events[0];
-        await Assert.That((string)init["permissionMode"]!).IsEqualTo("bypassPermissions");
-        await Assert.That(init["tools"]!.AsArray().Select(tool => (string)tool!)
-            .Where(tool => tool is "Bash" or "Edit" or "Write" or "WebFetch" or "WebSearch" or "Workflow"))
-            .IsEquivalentTo(["Bash", "Edit", "Write"]);
-        await Assert.That((string)init["model"]!).IsEqualTo("claude-opus-5[1m]");
+        await Assert.That(events.Length).IsEqualTo(4);
+        var refused = events[0];
+        var approved = events[2];
+        foreach (var init in new[] { refused, approved })
+        {
+            await Assert.That((string)init["subtype"]!).IsEqualTo("init");
+            await Assert.That((string)init["permissionMode"]!).IsEqualTo("bypassPermissions");
+            await Assert.That(init["tools"]!.AsArray().Select(tool => (string)tool!)
+                .Where(tool => tool is "Bash" or "Edit" or "Write" or "WebFetch" or "WebSearch" or "Workflow"))
+                .IsEquivalentTo(["Bash", "Edit", "Write"]);
+        }
+        await Assert.That((string)refused["model"]!).IsEqualTo("claude-opus-5[1m]");
         await Assert.That((string)events[1]["content"]!)
             .IsEqualTo("Model \"haiku\" is restricted by your organization's settings. Using claude-opus-5[1m] instead.");
+        await Assert.That((string)approved["model"]!).IsEqualTo("claude-opus-5-5");
+        await Assert.That((string)events[3]["type"]!).IsEqualTo("assistant").Because("no restriction warning precedes the turn");
     }
 }
