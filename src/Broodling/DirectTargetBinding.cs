@@ -36,16 +36,17 @@ internal static class DirectTargetBinding
     /// <summary>
     /// The managed settings the adopted environment installs for Claude Code. They stop its nonessential traffic and
     /// title call, set Claude Code's effort to medium and its output tokens to 32000, empty its extra request body,
-    /// allow only the claude-opus-5-5 model, turn off the advisor, background tasks and Workflows, deny WebFetch and
-    /// WebSearch, and lock out repository hooks and MCP servers. Claude Code reports nothing and runs without them
-    /// when the file is missing.
+    /// restrict requested models to claude-opus-5-5, turn off the advisor, background tasks and Workflows, deny
+    /// WebFetch and WebSearch, and lock out repository hooks and MCP servers. A session asked for a refused model falls
+    /// back to claude-opus-5[1m] with a warning. Claude Code reports nothing and runs without the settings when the
+    /// file is missing.
     /// </summary>
     internal const string ClaudeManagedSettings = "/etc/claude-code/managed-settings.json";
     internal const string ClaudeManagedSettingsSha256 = "a469a57a1f61686f006df05d41973208f0bd9f81de219db17f4034882b038f2e";
     internal const string AssetFile = "software-change-pr-claude-gateway.json";
     internal const string AssetSha256 = "7e232da54ed2ca138b31fea38a6f002d08d77b584965253b18077205b2c1e5be";
     /// <summary>SHA-256 of the exact reviewed approval manifest, execution-assets/approval.json.</summary>
-    internal const string ApprovalSha256 = "d783c50dd469dd6ddf0e3c41bab1f83cc2bbbb929e063aef15a7b6e1968941da";
+    internal const string ApprovalSha256 = "9051980e8cc335e2ab6cdbc3ba3131f24d3c02cd7cc8a6861b0d042320850453";
 
     /// <summary>The native identity as the approval manifest and a retained HTTP binding record it.</summary>
     internal static JsonObject Native() => new()

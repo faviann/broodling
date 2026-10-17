@@ -307,7 +307,7 @@ take precedence over user and repository settings. They set
 `medium`, `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to `32000` and
 `CLAUDE_CODE_EXTRA_BODY` to `{}`, set `CLAUDE_CODE_DISABLE_ADVISOR_TOOL`,
 `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` and `CLAUDE_CODE_DISABLE_WORKFLOWS`,
-allow only the model `claude-opus-5-5` (`availableModels`), set
+restrict requested models to `claude-opus-5-5` (`availableModels`), set
 `skipWebFetchPreflight`, deny the `WebFetch` and `WebSearch` tools, set empty
 commit and PR attribution, and allow only managed hooks and MCP servers, of
 which the file defines none. The image's managed effort overrides the
