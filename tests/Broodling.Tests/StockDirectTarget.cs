@@ -8,7 +8,7 @@ namespace Broodling.Tests;
 
 /// <summary>
 /// The selected unmodified native HTTP/OECP target in the DirectTarget image, with a controlled
-/// Codex provider and a controlled forge: shimmed <c>git</c>/<c>gh</c> backed by a host bare
+/// Claude Code provider and a controlled forge: shimmed <c>git</c>/<c>gh</c> backed by a host bare
 /// repository for <c>acme/widget</c>, which a test may script and whose <c>gh</c> requests it can read.
 /// State volumes are disposable and credentials are fake.
 /// The host-side application needs an origin it can reach without zeroshot-tls, so the witness binds

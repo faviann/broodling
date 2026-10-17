@@ -6,12 +6,13 @@ namespace Broodling;
 /// <summary>
 /// An adopted Zeroshot environment release, read from the exact bytes of its producer manifest. The producer
 /// states what its image carries; Broodling adopts it only when the manifest names the DirectTarget binding's
-/// native, the approved Codex, the startup interface Broodling's entrypoint implements and the native discovery
-/// the SDK binding speaks, on the supported platform. Readiness then requires the running target to be that image
-/// and checks the identities it relies on. <c>Components</c> maps each component the manifest states, by its
-/// manifest name and in manifest order, to the versions it states: native, each harness and tool, and .NET's SDKs and
-/// runtimes as <c>dotnet-sdks</c> and <c>dotnet-runtimes</c>. <c>Os</c> and <c>Components</c> are the producer's
-/// statement, which only a live probe (<see cref="EnvironmentProbe"/>) verifies.
+/// native, the approved Claude Code and its managed settings, the startup interface Broodling's entrypoint
+/// implements and the native discovery the SDK binding speaks, on the supported platform. Readiness then requires
+/// the running target to be that image and checks the identities it relies on. <c>Components</c> maps each
+/// component the manifest states, by its manifest name and in manifest order, to the versions it states: native,
+/// each harness and tool, and .NET's SDKs and runtimes as <c>dotnet-sdks</c> and <c>dotnet-runtimes</c>.
+/// <c>Os</c> and <c>Components</c> are the producer's statement, which only a live probe
+/// (<see cref="EnvironmentProbe"/>) verifies.
 /// </summary>
 internal sealed record TargetEnvironment(string Release, string Image, string Os,
     IReadOnlyDictionary<string, IReadOnlyList<string>> Components, string EntrypointSha256)
@@ -30,7 +31,8 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
 
     /// <summary>
     /// Refuses bytes other than the adopted <paramref name="sha256"/>, another schema or platform, and a manifest
-    /// whose native, Codex, startup interface or native discovery differs from what this revision supports.
+    /// whose native, Claude Code, Claude Code managed settings, startup interface or native discovery differs from
+    /// what this revision supports.
     /// </summary>
     internal static TargetEnvironment Read(byte[] manifest, string sha256)
     {
@@ -53,10 +55,12 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
                 && Text(native.GetProperty("restic"), "path") == ResticExecutable
                 && Text(native.GetProperty("restic"), "sha256") == DirectTargetBinding.ResticExecutableSha256,
                 "The environment's native identity differs from the DirectTarget binding.");
-            var tools = root.GetProperty("tools");
-            Require(Text(root.GetProperty("harnesses").GetProperty("codex"), "version") == DirectTargetBinding.CodexVersion
-                && Text(tools.GetProperty("harness-node"), "version") == DirectTargetBinding.CodexNodeVersion,
-                "The environment's Codex differs from the approved harness.");
+            var claude = root.GetProperty("harnesses").GetProperty(DirectTargetBinding.Harness);
+            Require(Text(claude, "version") == DirectTargetBinding.ClaudeVersion, "The environment's Claude Code differs from the approved harness.");
+            Require(claude.TryGetProperty("managedSettings", out var settings)
+                && Text(settings, "path") == DirectTargetBinding.ClaudeManagedSettings
+                && Text(settings, "sha256") == DirectTargetBinding.ClaudeManagedSettingsSha256,
+                "The environment's Claude Code managed settings differ from the approved ones.");
             var startup = root.GetProperty("startupInterfaces").GetProperty("entrypoint");
             Require(Text(startup, "version") == StartupInterface
                 && startup.GetProperty("command").EnumerateArray().Select(part => part.GetString()).SequenceEqual([Entrypoint]),
@@ -69,6 +73,7 @@ internal sealed record TargetEnvironment(string Release, string Image, string Os
                 "The environment's native discovery differs from the SDK binding's DirectTarget protocol.");
             var os = Text(root, "os");
             Require(os.Length > 0, "The environment manifest is malformed.");
+            var tools = root.GetProperty("tools");
             var components = new OrderedDictionary<string, IReadOnlyList<string>> { ["native"] = [Text(native, "version")] };
             foreach (var component in root.GetProperty("harnesses").EnumerateObject().Concat(tools.EnumerateObject()))
                 Require(components.TryAdd(component.Name, [Text(component.Value, "version")]), "The environment manifest is malformed.");

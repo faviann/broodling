@@ -76,23 +76,31 @@ approved environment (#235,
 [ADR 0002](../adr/0002-one-directtarget-per-environment-behind-one-tls-proxy.md)).
 It talks HTTP/OECP, through the pinned
 `Zeroshot.Client` SDK, to the stock `zeroshot target serve` of an
-operator-managed DirectTarget running native Zeroshot 10.10.0 (#215, #226). Each
+operator-managed DirectTarget running native Zeroshot 10.12.0 (#215, #226, #246). Each
 DirectTarget runs an adopted environment image (#234):
 [`zeroshot-environments`](https://github.com/faviann/zeroshot-environments)
 owns its recipe, inventory, image and publication, and Broodling owns the
 adoption record (the exact producer manifest bytes, their digest and the image
 digest), the Execution asset and its approval, and the target entrypoint's
-startup interface. The adopted `dotnet-r2` carries native 10.10.0 as upstream's
-source build and Codex 0.155.0
+startup interface. The adopted `dotnet-r6` carries native 10.12.0 as upstream's
+source build and Claude Code 2.1.276 with managed settings that send Claude
+Code's own model calls only to the gateway, keep them on `claude-opus-5-5` at
+medium effort with 32000 output tokens and no extra request body, run
+subagents and commands in the foreground with Workflows off so no background
+call follows the session's result, deny it WebFetch and WebSearch, and lock out
+repository hooks and MCP servers
 ([adopted target environment](../../deployment/README.md#adopted-target-environment)).
 Broodling submits the
-release-bundled approved execution asset (native 10.10.0's standard
-`software-change` PR workflow with one uniform Codex / `gateway` /
-`gpt-5.6-sol` / medium-effort runtime and native's default `consider` PR
-feedback) and uses exactly `https://cliproxy.local.faviann.com/v1`. Native
+release-bundled approved execution asset (native 10.12.0's standard
+`software-change` PR workflow with one uniform Claude Code / `gateway` /
+`claude-opus-5-5` / medium-effort runtime and native's default `consider` PR
+feedback) and uses exactly the sub2api gateway `https://gateway.ai.faviann.com`.
+Native's gateway provider gives the agents that base URL and key as their
+Anthropic endpoint; the bundled proposer calls its Chat Completions path with the
+same key. Native
 materializes the run from that asset's graph and runtime; Broodling passes both
 through unchanged and builds no preset or runtime of its own. Broodling needs no
-Python, SDK client state, workspace root, Codex installation or launcher. The
+Python, SDK client state, workspace root, harness installation or launcher. The
 operator's environment catalog maps each approved environment name to its
 target's origin, the file holding that target's private control token, an
 adopted image digest, and the target's container and host state and home
@@ -150,6 +158,33 @@ appropriate repository tests and CI considered before a separate merge decision.
 Broodling `SUCCEEDED`, native acceptance and automated checks certify neither
 semantic correctness nor authority to merge, deploy or release. See the
 [retained outcome summary](../../evaluation/p5/README.md).
+
+Run Attempts only under the
+[live-run preconditions](../../deployment/README.md#live-run-preconditions),
+which Broodling does not check. These residuals remain
+([limits](../../deployment/README.md#adopted-target-environment)):
+
+- A target repository's own Claude Code settings `env` beyond the pinned keys
+  and its `apiKeyHelper` still apply
+  ([#249](https://github.com/faviann/broodling/issues/249)). Further settings
+  that raise cost are [tracked on #249](https://github.com/faviann/broodling/issues/249#issuecomment-6228140697).
+- Every command an agent runs can read the gateway key. A nested `claude -p`
+  from Bash reaches `claude-opus-5`, or another model with `--model`. The key
+  has no model allowlist ([#249](https://github.com/faviann/broodling/issues/249)).
+- Automatic compaction makes a full-context medium call, by default once each
+  time the context fills. A repository's settings `env` can make it run on
+  most turns ([#249](https://github.com/faviann/broodling/issues/249)).
+- Native acts on pull-request feedback from anyone who can comment.
+- No spend bound is enforced. sub2api runs in simple mode, which does not
+  enforce key quotas ([homelab-iac#605](https://github.com/faviann/homelab-iac/issues/605)).
+  The owner watches spend, and nothing else bounds the cost of the residuals
+  above, of up to 10 change iterations or of each review retried once.
+- The key's IP whitelist trusts forwarded headers, so it is advisory. The
+  gateway is reachable only from the LAN
+  ([homelab-iac#605](https://github.com/faviann/homelab-iac/issues/605)).
+- The deployed `GH_TOKEN` is the owner's own GitHub token, given only to the
+  deliver node. [#253](https://github.com/faviann/broodling/issues/253)
+  narrows its scope.
 
 The .NET application preserves the #75–#77 callable/operator behavior. The
 [passed migration review](../migration/130-migration-review.md) and
@@ -217,7 +252,11 @@ DirectTarget image with the adopted `dotnet-r2` environment image: the images
 workflow pulls it by digest for the demonstration, the image qualification and
 the transition check, and publishes only the Broodling image, with a release
 record naming the adopted target; the binding moves to the source-built native
-executable and Codex 0.155.0 under explicit Execution asset review. #241 makes each native submission carry its RequestBundle
+executable and Codex 0.155.0 under explicit Execution asset review. #246 moves
+the binding to native 10.12.0, `Zeroshot.Client` 10.12.0.1-preview.1 and the
+adopted `dotnet-r6`, and regenerates the asset with one uniform Claude Code
+runtime through the sub2api gateway; a run status or force reply without a
+source is refused as a foreign run. #241 makes each native submission carry its RequestBundle
 references in place of #114's agent reads from Broodling; see
 [frozen references](../implementation/zeroshot-native-integration.md#frozen-references). #112 adds the callable bundled proposer: the supported model
 behind the pinned gateway prepares that bundle-bound Contract from the Executable

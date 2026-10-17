@@ -142,7 +142,7 @@ public sealed class EnvironmentSelectionTests
             "version-2" => git => Commit(git, Declaration, """{"version": 2, "environment": "dotnet"}"""u8.ToArray()),
             "sdk-member" => git => Commit(git, Declaration, """{"version": 1, "environment": "dotnet", "sdk": "10.0.401"}"""u8.ToArray()),
             // The catalog approves dotnet, never a nearest release of it.
-            _ => git => Commit(git, Declaration, Declare("dotnet-r3"))
+            _ => git => Commit(git, Declaration, Declare("dotnet-r6"))
         };
         using var fixture = new HttpFixture(source: source);
         var catalog = Catalog(first.Origin.GetLeftPart(UriPartial.Authority), second.Origin.GetLeftPart(UriPartial.Authority),
@@ -204,18 +204,18 @@ public sealed class EnvironmentSelectionTests
         {
             ["adoption"] = new JsonObject
             {
-                ["kind"] = "broodling.target-environment-adoption/v1", ["release"] = "dotnet-r2", ["sha256"] = adopted.RecordSha256
+                ["kind"] = "broodling.target-environment-adoption/v1", ["release"] = "dotnet-r6", ["sha256"] = adopted.RecordSha256
             },
             ["manifest"] = new JsonObject
             {
                 ["schema"] = "zeroshot-environment.manifest/v2",
-                ["sha256"] = "8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e"
+                ["sha256"] = "304a417ca752e22652b66f3de47a5995247a45339ccd9fad8221f8f0b29fb89b"
             },
-            ["image"] = "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:5d36313b1d38ad06c194c53b8f08a71d4bc61527e4e06d56b96c9a835ba54a1d",
+            ["image"] = "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:b10a72289a66fc9caeaa5c3bb79a953dd225c6fba75d882d42a0dfe57d69dc4c",
             ["platform"] = "linux/amd64", ["os"] = manifest.Os,
             ["components"] = JsonNode.Parse("""
-                {"native": ["10.10.0"], "codex": ["0.155.0"], "claude": ["2.1.276"], "copilot": ["1.0.86"],
-                 "node": ["v24.21.0"], "harness-node": ["v24.21.0"], "npm": ["11.19.1"], "yarn": ["1.22.22"],
+                {"native": ["10.12.0"], "codex": ["0.155.0"], "claude": ["2.1.276"], "copilot": ["1.0.86"],
+                 "node": ["v24.22.0"], "harness-node": ["v24.22.0"], "npm": ["11.19.1"], "yarn": ["1.22.22"],
                  "corepack": ["0.36.0"], "python": ["Python 3.12.14"], "pip": ["pip 25.0.1"],
                  "rust": ["rustc 1.97.0 (2d8144b78 2026-07-07)"], "rustup": ["rustup 1.29.0 (28d1352db 2026-03-05)"],
                  "rust-components": ["1.97.0-x86_64-unknown-linux-gnu: cargo-x86_64-unknown-linux-gnu clippy-x86_64-unknown-linux-gnu rust-std-x86_64-unknown-linux-gnu rustc-x86_64-unknown-linux-gnu rustfmt-x86_64-unknown-linux-gnu"],
@@ -347,7 +347,7 @@ public sealed class EnvironmentSelectionTests
 
     /// <summary>
     /// The bundled adoption plus a variant at another image digest, adopted as a stable name's image swap would be;
-    /// its native, Codex and startup interface are the bundled one's.
+    /// its native, Claude Code and startup interface are the bundled one's.
     /// </summary>
     internal static IReadOnlyList<AdoptedEnvironment> WithSwappedImage(string directory)
     {

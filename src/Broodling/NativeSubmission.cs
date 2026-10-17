@@ -42,8 +42,8 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// The largest task that preparation admits, measured as JSON-escaped UTF-8: an upper bound on what native writes
-    /// into each node input. Native bounds a node input at 1 MiB (its ledger event) and Codex a turn at 1 Mi
-    /// characters; the other half is left for node instructions, the response contract and repair feedback.
+    /// into each node input. Native bounds a node input at 1 MiB (its ledger event); the other half is left for
+    /// node instructions, the response contract and repair feedback.
     /// </summary>
     internal const int NativeTaskBytes = 512 * 1024;
 

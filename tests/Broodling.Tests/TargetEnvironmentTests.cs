@@ -8,7 +8,7 @@ using static Broodling.Tests.TargetImage;
 namespace Broodling.Tests;
 
 /// <summary>
-/// The adoption record, <c>src/Broodling/environments/dotnet-r2.adoption.json</c>, and the producer manifest bytes
+/// The adoption record, <c>src/Broodling/environments/dotnet-r6.adoption.json</c>, and the producer manifest bytes
 /// it retains: the release bundles exactly that adoption, the record's digest and image are the manifest's, the
 /// manifest is one this revision supports, every component is fixed by an artifact checksum or the base image
 /// digest, and the adopted image actually carries what the manifest states. The test-only environment T
@@ -28,12 +28,12 @@ public sealed class TargetEnvironmentTests
         internal JsonNode Manifest => JsonNode.Parse(ManifestBytes)!;
     }
 
-    /// <summary>The committed dotnet-r2 adoption, or T's, generated for this run.</summary>
+    /// <summary>The committed dotnet-r6 adoption, or T's, generated for this run.</summary>
     private static async Task<Adoption> Subject(string release) => release == TestEnvironmentImage.Release
         ? new(release, await TestEnvironmentImage.DirectoryAsync()) : new(release, Adopted.Directory);
 
     [Test]
-    [Arguments("dotnet-r2")]
+    [Arguments("dotnet-r6")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptionRecordRetainsTheSupportedProducerManifest(string release)
     {
@@ -53,7 +53,22 @@ public sealed class TargetEnvironmentTests
     }
 
     /// <summary>
-    /// T differs from dotnet-r2 only in its identity and its stated OS: the same native, Codex, startup interfaces,
+    /// Claude Code runs without its managed settings, and says nothing, when the file is missing. The adopted
+    /// manifest states the file the approval reviewed, so adoption and readiness can hold the image to it.
+    /// </summary>
+    [Test]
+    [Arguments("dotnet-r6")]
+    [Arguments(TestEnvironmentImage.Release)]
+    public async Task AdoptedClaudeCodeCarriesTheApprovedManagedSettings(string release)
+    {
+        var claude = (await Subject(release)).Manifest["harnesses"]!["claude"]!;
+        await Assert.That((string)claude["version"]!).IsEqualTo("2.1.276");
+        await Assert.That(claude["managedSettings"]!.ToJsonString()).IsEqualTo(
+            """{"path":"/etc/claude-code/managed-settings.json","sha256":"a469a57a1f61686f006df05d41973208f0bd9f81de219db17f4034882b038f2e"}""");
+    }
+
+    /// <summary>
+    /// T differs from dotnet-r6 only in its identity and its stated OS: the same native, Claude Code, startup interfaces,
     /// components and packages, so the DirectTarget binding it is adopted under is the bundled one.
     /// </summary>
     [Test]
@@ -72,31 +87,34 @@ public sealed class TargetEnvironmentTests
     }
 
     /// <summary>
-    /// The release carries exactly the dotnet-r2 adoption, as its committed bytes; nothing else is adopted. A
+    /// The release carries exactly the dotnet-r6 adoption, as its committed bytes; nothing else is adopted. A
     /// change here is a new adoption decision, not a refactoring.
     /// </summary>
     [Test]
-    public async Task ReleaseBundlesExactlyTheDotnetR2Adoption()
+    public async Task ReleaseBundlesExactlyTheAdoptedEnvironment()
     {
         var bundled = AdoptedEnvironments.LoadBundled();
-        await Assert.That(bundled.Select(environment => environment.Release)).IsEquivalentTo(["dotnet-r2"]);
+        await Assert.That(bundled.Select(environment => environment.Release)).IsEquivalentTo(["dotnet-r6"]);
         var adopted = bundled.Single();
-        await Assert.That(adopted.RecordSha256).IsEqualTo("abdd75035c7503d7e53819c64d02e204822dec4e6882dc54d399866d04acdb63");
-        await Assert.That(adopted.ManifestSha256).IsEqualTo("8d1168f339f599d1719dcdc4f4cae8c44966d3f642a3a7e6a3cf81f7e3c66f6e");
+        await Assert.That(adopted.RecordSha256).IsEqualTo("48f7d2d8b8f2d7da0e624aa57934d9ffaab43300746204cafc5f09c46acde326");
+        await Assert.That(adopted.ManifestSha256).IsEqualTo("304a417ca752e22652b66f3de47a5995247a45339ccd9fad8221f8f0b29fb89b");
         await Assert.That(adopted.Record.SequenceEqual(File.ReadAllBytes(Adopted.RecordFile))).IsTrue();
         await Assert.That(adopted.Manifest.SequenceEqual(File.ReadAllBytes(Adopted.Manifest))).IsTrue();
         await Assert.That(adopted.Image).IsEqualTo(Adopted.Image);
         await Assert.That(Directory.GetFiles(Adopted.Directory).Select(file => Path.GetFileName(file)))
-            .IsEquivalentTo(["dotnet-r2.adoption.json", "dotnet-r2.manifest.json"]);
+            .IsEquivalentTo(["dotnet-r6.adoption.json", "dotnet-r6.manifest.json"]);
     }
 
     /// <summary>
-    /// An adoption whose manifest names another native or states a component readiness cannot probe, a record that
-    /// names another image than its manifest, a manifest that is not the retained bytes and a repeated release are
-    /// refused when the set is loaded.
+    /// An adoption whose manifest names another native, Claude Code or managed settings or states a component readiness
+    /// cannot probe, a record that names another image than its manifest, a manifest that is not the retained bytes
+    /// and a repeated release are refused when the set is loaded.
     /// </summary>
     [Test]
     [Arguments("native")]
+    [Arguments("claude")]
+    [Arguments("unmanaged")]
+    [Arguments("managed-settings")]
     [Arguments("discovery")]
     [Arguments("unprobed")]
     [Arguments("image")]
@@ -112,18 +130,25 @@ public sealed class TargetEnvironmentTests
             switch (defect)
             {
                 case "native": manifest["native"]!["version"] = "10.9.0"; break;
+                case "claude": manifest["harnesses"]!["claude"]!["version"] = "2.1.237"; break;
+                case "unmanaged": manifest["harnesses"]!["claude"]!.AsObject().Remove("managedSettings"); break;
+                case "managed-settings": manifest["harnesses"]!["claude"]!["managedSettings"]!["sha256"] = new string('0', 64); break;
                 case "discovery": manifest["startupInterfaces"]!["native"]!["discovery"]!["authentication"] = "none"; break;
                 case "unprobed": manifest["tools"]!["go"] = new JsonObject { ["version"] = "go1.25.0", ["fixedBy"] = "base" }; break;
                 case "image": record["image"] = "ghcr.io/faviann/zeroshot-environments/dotnet@sha256:" + new string('0', 64); break;
             }
-            byte[] bytes = defect == "digest" ? [.. File.ReadAllBytes(Adopted.Manifest), (byte)'\n'] : defect is "native" or "discovery" or "unprobed"
+            var edited = defect is not ("image" or "digest" or "repeated");
+            byte[] bytes = defect == "digest" ? [.. File.ReadAllBytes(Adopted.Manifest), (byte)'\n'] : edited
                 ? System.Text.Encoding.UTF8.GetBytes(manifest.ToJsonString()) : File.ReadAllBytes(Adopted.Manifest);
-            if (defect is "native" or "discovery" or "unprobed") record["manifest"]!["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
-            File.WriteAllBytes(Path.Combine(directory, "dotnet-r2.manifest.json"), bytes);
-            File.WriteAllText(Path.Combine(directory, "dotnet-r2.adoption.json"), record.ToJsonString());
+            if (edited) record["manifest"]!["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            File.WriteAllBytes(Path.Combine(directory, "dotnet-r6.manifest.json"), bytes);
+            File.WriteAllText(Path.Combine(directory, "dotnet-r6.adoption.json"), record.ToJsonString());
             if (defect == "repeated") File.WriteAllText(Path.Combine(directory, "again.adoption.json"), record.ToJsonString());
             var refused = await Assert.That(() => AdoptedEnvironments.Load(directory)).Throws<UnsupportedRuntime>();
             if (defect == "unprobed") await Assert.That(refused!.Message).Contains("states go, which readiness cannot probe");
+            if (defect == "claude") await Assert.That(refused!.Message).Contains("Claude Code differs from the approved harness");
+            if (defect is "unmanaged" or "managed-settings")
+                await Assert.That(refused!.Message).Contains("Claude Code managed settings differ from the approved ones");
         }
         finally { Directory.Delete(directory, recursive: true); }
     }
@@ -133,7 +158,7 @@ public sealed class TargetEnvironmentTests
     /// checksums of its downloaded artifacts or the base image digest: nothing is installed at run time.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r2")]
+    [Arguments("dotnet-r6")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task EveryComponentIsFixedByAnArtifactChecksumOrTheBaseDigest(string release)
     {
@@ -176,7 +201,7 @@ public sealed class TargetEnvironmentTests
     /// exact Broodling commit; an entrypoint change is adopted only with an environment release that carries it.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r2")]
+    [Arguments("dotnet-r6")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptedImageEmbedsThisRevisionsEntrypoint(string release)
     {
@@ -191,11 +216,13 @@ public sealed class TargetEnvironmentTests
 
     /// <summary>
     /// Broodling's own qualification of the image bytes by digest: the pulled image is the manifest's platform and
-    /// digest, and its native, restic and entrypoint bytes, every component version and every Debian package are those
-    /// the manifest states.
+    /// digest, and its native, restic and entrypoint bytes, the Claude Code managed settings as native's first agent
+    /// identity reads them, every component version and every Debian package are those the manifest states. The
+    /// managed settings directory holds only that file, because Claude Code also applies drop-ins and a CLAUDE.md there.
+    /// Root owns the directory and the regular file, at modes 0755 and 0644, so no agent can rewrite the settings.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r2")]
+    [Arguments("dotnet-r6")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptedImageCarriesWhatItsManifestStates(string release)
     {
@@ -222,11 +249,16 @@ public sealed class TargetEnvironmentTests
             (string)manifest["native"]!["zeroshot"]!["sha256"]! + "  /usr/local/bin/zeroshot",
             (string)manifest["native"]!["restic"]!["sha256"]! + "  /usr/local/bin/restic",
             (string)manifest["integration"]!["broodling-entrypoint"]!["sha256"]! + "  /usr/local/bin/broodling-target",
+            (string)manifest["harnesses"]!["claude"]!["managedSettings"]!["sha256"]! + "  /etc/claude-code/managed-settings.json",
+            "d 0:0 755 /etc/claude-code",
+            "f 0:0 644 /etc/claude-code/managed-settings.json",
             .. manifest["osPackages"]!.AsArray().Select(package =>
                 $"{(string)package!["name"]!} {(string)package["version"]!} {(string)package["architecture"]!}")
         ];
         var observed = await DockerCommand("run", "--rm", "--network", "none", "--entrypoint", "/bin/sh", image, "-ec", """
             sha256sum /usr/local/bin/zeroshot /usr/local/bin/restic /usr/local/bin/broodling-target
+            setpriv --reuid 20000 --regid 10002 --clear-groups sha256sum /etc/claude-code/managed-settings.json
+            find /etc/claude-code -printf '%y %U:%G %m %p\n'
             dpkg-query --show --showformat '${Package} ${Version} ${Architecture}\n'
             """);
         RequireSuccess(observed);
@@ -234,5 +266,43 @@ public sealed class TargetEnvironmentTests
         await Assert.That(string.Join('\n', expected.Except(lines))).IsEqualTo("").Because("stated but not observed");
         await Assert.That(string.Join('\n', lines.Except(expected))).IsEqualTo("").Because("observed but not stated");
         await Assert.That(lines.Length).IsEqualTo(expected.Length);
+    }
+
+    /// <summary>
+    /// The managed settings deny WebFetch and WebSearch, whose side calls would leave the uniform medium effort, turn
+    /// off Workflows, which could run past the session's result, and restrict requested models to claude-opus-5-5. A
+    /// session started as native's first agent identity, with the permission flag native's hosted lane always passes,
+    /// offers neither web tool nor Workflow and still offers the tools that edit the workspace. Asked for native's
+    /// claude-opus-5-5, it starts on that model with no warning. Asked for Haiku, a refused model, it warns and falls
+    /// back to Claude Code's built-in default, claude-opus-5[1m].
+    /// </summary>
+    [Test]
+    public async Task AdoptedClaudeCodeAdmitsTheApprovedModelAndRefusesHaiku()
+    {
+        var started = await DockerCommand("run", "--rm", "--network", "none", "--user", "20000:10002", "--tmpfs", "/tmp:exec",
+            "--env", "HOME=/tmp/agent", "--env", "CLAUDE_CODE_MAX_RETRIES=0", "--env", "ANTHROPIC_API_KEY=placeholder",
+            "--entrypoint", "/bin/sh", await Direct.Value, "-c", """
+            mkdir -p "$HOME" && cd "$HOME"
+            claude --print --output-format stream-json --verbose --dangerously-skip-permissions --model haiku q | head -n 2
+            claude --print --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 q | head -n 2
+            """);
+        RequireSuccess(started);
+        var events = started.Output.TrimEnd('\n').Split('\n').Select(line => JsonNode.Parse(line)!).ToArray();
+        await Assert.That(events.Length).IsEqualTo(4);
+        var refused = events[0];
+        var approved = events[2];
+        foreach (var init in new[] { refused, approved })
+        {
+            await Assert.That((string)init["subtype"]!).IsEqualTo("init");
+            await Assert.That((string)init["permissionMode"]!).IsEqualTo("bypassPermissions");
+            await Assert.That(init["tools"]!.AsArray().Select(tool => (string)tool!)
+                .Where(tool => tool is "Bash" or "Edit" or "Write" or "WebFetch" or "WebSearch" or "Workflow"))
+                .IsEquivalentTo(["Bash", "Edit", "Write"]);
+        }
+        await Assert.That((string)refused["model"]!).IsEqualTo("claude-opus-5[1m]");
+        await Assert.That((string)events[1]["content"]!)
+            .IsEqualTo("Model \"haiku\" is restricted by your organization's settings. Using claude-opus-5[1m] instead.");
+        await Assert.That((string)approved["model"]!).IsEqualTo("claude-opus-5-5");
+        await Assert.That((string)events[3]["type"]!).IsEqualTo("assistant").Because("no restriction warning precedes the turn");
     }
 }

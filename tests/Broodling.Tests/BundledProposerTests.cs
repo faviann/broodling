@@ -31,9 +31,11 @@ public sealed class BundledProposerTests
 
         // The initial context is the request, fixed authority and member identities, never member content.
         var first = gateway.Requests[0];
-        await Assert.That(gateway.Uris[0]).IsEqualTo(new Uri(DirectTargetBinding.GatewayBaseUrl + "/chat/completions"));
+        await Assert.That(gateway.Uris[0]).IsEqualTo(new Uri("https://gateway.ai.faviann.com/v1/chat/completions"));
         await Assert.That(gateway.Authorizations[0]).IsEqualTo("Bearer " + ApiKey);
-        await Assert.That((string)first["model"]!).IsEqualTo("gpt-5.6-sol");
+        await Assert.That((string)first["model"]!).IsEqualTo("claude-opus-5-5");
+        await Assert.That(gateway.Requests.Select(turn => (int)turn["max_tokens"]!).Distinct()).IsEquivalentTo([12000]);
+        await Assert.That(gateway.Requests.Select(turn => (string)turn["reasoning_effort"]!).Distinct()).IsEquivalentTo(["medium"]);
         await Assert.That((string)first["tools"]![0]!["function"]!["name"]!).IsEqualTo("read_reference");
         var context = JsonNode.Parse((string)first["messages"]![1]!["content"]!)!;
         var request = bundle.References.Single(reference => reference.ReferenceId == "request");
@@ -120,6 +122,7 @@ public sealed class BundledProposerTests
     [Arguments("http-503", true)]
     [Arguments("transport", true)]
     [Arguments("missing-key", false)]
+    [Arguments("version-path", false)]
     public async Task GatewayFailureRetainsNothingAndALaterCallProposesAgain(string failure, bool retryable)
     {
         using var fixture = Fixture(out var store, out var submissionId, out _);
@@ -129,11 +132,16 @@ public sealed class BundledProposerTests
             : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("overloaded") });
 
         var error = await Assert.That(async () => await store.AdmitRequestBundleAsync(submissionId,
-                failure == "missing-key" ? new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, null) : Credentials,
+                failure switch
+                {
+                    "missing-key" => new GatewayCredentials(DirectTargetBinding.GatewayBaseUrl, null),
+                    "version-path" => new GatewayCredentials("https://gateway.ai.faviann.com/v1", ApiKey),
+                    _ => Credentials
+                },
                 failing, default))
             .Throws<ContractProposerError>();
         await Assert.That(error!.Retryable).IsEqualTo(retryable);
-        await Assert.That(failing.Requests.Count).IsEqualTo(failure == "missing-key" ? 0 : 1);
+        await Assert.That(failing.Requests.Count).IsEqualTo(retryable ? 1 : 0);
         var pending = store.GetIssueSubmission(submissionId);
         await Assert.That(pending.State).IsEqualTo("capturing");
         await Assert.That(pending.ProposalRefusal).IsNull();

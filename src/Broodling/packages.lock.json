@@ -15,11 +15,12 @@
       },
       "Zeroshot.Client": {
         "type": "Direct",
-        "requested": "[10.10.0.1-preview.1, 10.10.0.1-preview.1]",
-        "resolved": "10.10.0.1-preview.1",
-        "contentHash": "m2+uSkQbhLCDDEdQ3Y397BFgwM1IKNYO3BSnMkMsje0Jr0GSTNAxXW0/HEdHTj5EkXYhxNOI5OmcbfWsmGvxXg==",
+        "requested": "[10.12.0.1-preview.1, 10.12.0.1-preview.1]",
+        "resolved": "10.12.0.1-preview.1",
+        "contentHash": "K6lfhI/LvJdl5Zslp62cQlPzjQr/bzXIzETukN29mJy3pvyMxNMmxyfvt/Cdxl1u3kC418i0NxNA7gtQZmcKuA==",
         "dependencies": {
-          "JsonSchema.Net": "9.4.0"
+          "JsonSchema.Net": "9.4.0",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0"
         }
       },
       "Humanizer.Core": {
@@ -56,6 +57,11 @@
         "dependencies": {
           "SQLitePCLRaw.core": "2.1.12"
         }
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "L3AdmZ1WOK4XXT5YFPEwyt0ep6l8lGIPs7F5OOBZc77Zqeo01Of7XXICy47628sdVl0v/owxYJTe86DTgFwKCA=="
       },
       "SQLitePCLRaw.bundle_e_sqlite3": {
         "type": "Transitive",

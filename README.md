@@ -68,11 +68,30 @@ environment (#235). C# owns authority, policy, recovery, persistence
 and receipt validation, and there is no production Python source.
 
 Exactly one authorized GitHub `pull_request` effect naming a target branch
-selects DirectTarget PR delivery: the stock native 10.10.0
+selects DirectTarget PR delivery: the stock native 10.12.0
 `zeroshot target serve` receives the release-bundled approved asset (one uniform
-Codex / `gateway` / `gpt-5.6-sol` / medium-effort runtime) through exactly
-`https://cliproxy.local.faviann.com/v1`. The DirectTarget runs an adopted
-`zeroshot-environments` image (`dotnet-r2`) with Codex **0.155.0**.
+Claude Code / `gateway` / `claude-opus-5-5` / medium-effort runtime) through
+exactly the sub2api gateway `https://gateway.ai.faviann.com`. The DirectTarget
+runs an adopted `zeroshot-environments` image (`dotnet-r6`) with Claude Code
+**2.1.276** and managed settings that send Claude Code's own model calls only to
+the gateway on `claude-opus-5-5` at medium effort with 32000 output tokens and
+no extra request body, keep subagents and commands in the foreground with
+Workflows off, and deny it WebFetch and WebSearch. Run Attempts only under the
+[live-run preconditions](deployment/README.md#live-run-preconditions), which
+Broodling does not check. The settings leave open a target repository's
+settings `env` beyond the pinned keys and its `apiKeyHelper`
+([#249](https://github.com/faviann/broodling/issues/249)), and agent commands
+that read the gateway key, including a nested `claude -p` that reaches
+`claude-opus-5` or another model.
+Automatic compaction makes a full-context medium call once each time the
+context fills by default, and a repository's settings `env` can make it run on
+most turns.
+Further settings that raise cost are [tracked on #249](https://github.com/faviann/broodling/issues/249#issuecomment-6228140697)
+([limits](deployment/README.md#adopted-target-environment)).
+No spend bound is enforced, so only the owner's watch on spend bounds these
+costs ([homelab-iac#605](https://github.com/faviann/homelab-iac/issues/605)).
+The deployed `GH_TOKEN` is the owner's own token, given only to the deliver
+node; [#253](https://github.com/faviann/broodling/issues/253) narrows it.
 Current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` are required for
 dispatch/replay; their values are not frozen in the invocation. Durable
 correlation permits reconnection without those dispatch credentials. Every

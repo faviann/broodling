@@ -1,25 +1,25 @@
 {
   "schema": "zeroshot-environment.manifest/v2",
   "environment": {
-    "release": "r2",
+    "release": "r6",
     "name": "dotnet"
   },
   "image": {
-    "tag": "r2",
-    "digest": "sha256:5d36313b1d38ad06c194c53b8f08a71d4bc61527e4e06d56b96c9a835ba54a1d",
+    "tag": "r6",
+    "digest": "sha256:b10a72289a66fc9caeaa5c3bb79a953dd225c6fba75d882d42a0dfe57d69dc4c",
     "repository": "ghcr.io/faviann/zeroshot-environments/dotnet"
   },
   "platform": "linux/amd64",
   "base": {
-    "revision": "3ee1192cec359a0b997f464e703a936e8b67d63c",
-    "reference": "ghcr.io/the-open-engine/zeroshot-target:10.10.0@sha256:9769f74865d7e1137b82c9ed2ced4cbedb56cfd5fef6c9e8c0647955ba0c438b",
-    "digest": "sha256:9769f74865d7e1137b82c9ed2ced4cbedb56cfd5fef6c9e8c0647955ba0c438b"
+    "revision": "928de8ff918488749ca9d23e0a7349873401b7f7",
+    "reference": "ghcr.io/the-open-engine/zeroshot-target:10.12.0@sha256:9eca152ead38e6589b76b13cca802ce2e7538579b851566a891ed470b069bd51",
+    "digest": "sha256:9eca152ead38e6589b76b13cca802ce2e7538579b851566a891ed470b069bd51"
   },
   "native": {
-    "version": "10.10.0",
+    "version": "10.12.0",
     "zeroshot": {
       "path": "/usr/local/bin/zeroshot",
-      "sha256": "fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5"
+      "sha256": "7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693"
     },
     "restic": {
       "path": "/usr/local/bin/restic",
@@ -27,7 +27,7 @@
       "sha256": "90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf"
     },
     "fixedBy": "base",
-    "sourceRevision": "3ee1192cec359a0b997f464e703a936e8b67d63c"
+    "sourceRevision": "928de8ff918488749ca9d23e0a7349873401b7f7"
   },
   "startupInterfaces": {
     "entrypoint": {
@@ -40,19 +40,25 @@
       "discovery": {
         "kind": "zeroshot.native-v2-target/v2",
         "authentication": "private_capability",
-        "runPath": "/native-v2/run",
-        "sessionPath": "/native-v2/oecp-session",
-        "oecpPath": "/native-v2/oecp",
-        "audience": "controller",
-        "privateBootstrapPath": "/native-v2/private-bootstrap",
         "extensions": {
           "workspace_recovery": {
             "kind": "openengine.workspace-recovery/v1"
           },
           "workspace_checkpoints": {
             "kind": "openengine.workspace-checkpoints/v1"
+          },
+          "node_runtime_lanes": {
+            "kind": "openengine.node-runtime-lanes/v1"
+          },
+          "git_transport": {
+            "kind": "openengine.git-transport/v1"
           }
-        }
+        },
+        "runPath": "/native-v2/run",
+        "sessionPath": "/native-v2/oecp-session",
+        "oecpPath": "/native-v2/oecp",
+        "audience": "controller",
+        "privateBootstrapPath": "/native-v2/private-bootstrap"
       }
     }
   },
@@ -109,6 +115,10 @@
     },
     "claude": {
       "version": "2.1.276",
+      "managedSettings": {
+        "path": "/etc/claude-code/managed-settings.json",
+        "sha256": "a469a57a1f61686f006df05d41973208f0bd9f81de219db17f4034882b038f2e"
+      },
       "artifacts": {
         "@anthropic-ai/claude-code@2.1.276": {
           "integrity": "sha512-xgVXCbFdqOhSAcMTSC61gjL1jCQuoAA4TNU1I7Dmf/yuYcDxHf796r6LaB3Jswm1floKnP1V+/zfphtDlPdlkg==",
@@ -150,17 +160,17 @@
   },
   "recipe": {
     "repository": "https://github.com/faviann/zeroshot-environments",
-    "revision": "57a5df2fb410e31f233ff9d91fe8f8b96ae6f50b",
+    "revision": "5b631927f3eee46c7ac83c969f4f99be83d26979",
     "path": "environments/dotnet"
   },
   "os": "Debian GNU/Linux 13 (trixie)",
   "tools": {
     "node": {
-      "version": "v24.21.0",
+      "version": "v24.22.0",
       "fixedBy": "base"
     },
     "harness-node": {
-      "version": "v24.21.0",
+      "version": "v24.22.0",
       "fixedBy": "base"
     },
     "npm": {
@@ -317,7 +327,7 @@
     },
     {
       "name": "curl",
-      "version": "8.14.1-2+deb13u5",
+      "version": "8.14.1-2+deb13u7",
       "architecture": "amd64",
       "fixedBy": "base"
     },
@@ -592,6 +602,12 @@
       "fixedBy": "base"
     },
     {
+      "name": "libcbor0.10",
+      "version": "0.10.2-2",
+      "architecture": "amd64",
+      "fixedBy": "base"
+    },
+    {
       "name": "libcc1-0",
       "version": "14.2.0-19",
       "architecture": "amd64",
@@ -629,13 +645,13 @@
     },
     {
       "name": "libcurl3t64-gnutls",
-      "version": "8.14.1-2+deb13u5",
+      "version": "8.14.1-2+deb13u7",
       "architecture": "amd64",
       "fixedBy": "base"
     },
     {
       "name": "libcurl4t64",
-      "version": "8.14.1-2+deb13u5",
+      "version": "8.14.1-2+deb13u7",
       "architecture": "amd64",
       "fixedBy": "base"
     },
@@ -655,6 +671,12 @@
       "name": "libdpkg-perl",
       "version": "1.22.22",
       "architecture": "all",
+      "fixedBy": "base"
+    },
+    {
+      "name": "libedit2",
+      "version": "3.1-20250104-1",
+      "architecture": "amd64",
       "fixedBy": "base"
     },
     {
@@ -678,6 +700,12 @@
     {
       "name": "libffi8",
       "version": "3.4.8-2",
+      "architecture": "amd64",
+      "fixedBy": "base"
+    },
+    {
+      "name": "libfido2-1",
+      "version": "1.15.0-1+b1",
       "architecture": "amd64",
       "fixedBy": "base"
     },
@@ -833,7 +861,7 @@
     },
     {
       "name": "liblzma5",
-      "version": "5.8.1-1+deb13u1",
+      "version": "5.8.1-1+deb13u2",
       "architecture": "amd64",
       "fixedBy": "base"
     },
@@ -894,6 +922,12 @@
     {
       "name": "libngtcp2-crypto-gnutls8",
       "version": "1.11.0-1+deb13u1",
+      "architecture": "amd64",
+      "fixedBy": "base"
+    },
+    {
+      "name": "libnss-wrapper",
+      "version": "1.1.16-1",
       "architecture": "amd64",
       "fixedBy": "base"
     },
@@ -1174,6 +1208,12 @@
       "fixedBy": "base"
     },
     {
+      "name": "openssh-client",
+      "version": "1:10.0p1-7+deb13u4",
+      "architecture": "amd64",
+      "fixedBy": "base"
+    },
+    {
       "name": "openssl",
       "version": "3.5.7-1~deb13u3",
       "architecture": "amd64",
@@ -1289,7 +1329,7 @@
     },
     {
       "name": "xz-utils",
-      "version": "5.8.1-1+deb13u1",
+      "version": "5.8.1-1+deb13u2",
       "architecture": "amd64",
       "fixedBy": "base"
     },
@@ -1301,7 +1341,7 @@
     }
   ],
   "qualification": {
-    "workflowRun": "https://github.com/faviann/zeroshot-environments/actions/runs/38574004698",
+    "workflowRun": "https://github.com/faviann/zeroshot-environments/actions/runs/38988306010",
     "log": "qualification.log"
   }
 }

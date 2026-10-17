@@ -25,70 +25,154 @@
     "root": {
       "children": [
         {
-          "attempts": 1,
-          "input": {
-            "fields": {
-              "task": {
-                "required": true,
-                "type": {
-                  "kind": "string"
-                }
-              }
-            },
-            "kind": "record"
-          },
-          "inputBindings": [
-            {
-              "target": [
-                "task"
-              ],
-              "value": {
-                "path": [
-                  "task"
-                ],
-                "source": "state"
-              }
-            }
-          ],
-          "instructions": "Implement the requested software change fully in the shared workspace. Follow the repository's guidance, keep the change focused, and run relevant checks. Delivery runs `git add --all`; do not leave unrelated unignored files in the repository checkout.",
-          "kind": "step",
-          "name": "worker",
-          "output": {
-            "kind": "null"
-          },
-          "worker": "builtin.agent.software-worker@1",
-          "writeBindings": []
-        },
-        {
-          "branches": [
-            {
-              "node": {
-                "kind": "fail",
-                "name": "worker_failed",
-                "reason": "worker_failed"
-              },
-              "when": {
-                "kind": "in",
-                "labels": [
-                  "crash",
-                  "malformed",
-                  "refusal",
-                  "timeout"
-                ],
-                "value": {
-                  "field": null,
-                  "name": "worker",
-                  "source": "error"
-                }
-              }
-            }
-          ],
-          "kind": "choice",
-          "name": "worker_result",
-          "otherwise": {
+          "body": {
             "children": [
               {
-                "body": {
+                "attempts": 1,
+                "input": {
+                  "fields": {
+                    "acceptanceFeedback": {
+                      "required": true,
+                      "type": {
+                        "kind": "string"
+                      }
+                    },
+                    "codeFeedback": {
+                      "required": true,
+                      "type": {
+                        "kind": "string"
+                      }
+                    },
+                    "deliveryFeedback": {
+                      "required": true,
+                      "type": {
+                        "kind": "string"
+                      }
+                    },
+                    "phase": {
+                      "required": true,
+                      "type": {
+                        "fields": {
+                          "after": {
+                            "required": false,
+                            "type": {
+                              "kind": "enum",
+                              "values": [
+                                "accepted",
+                                "ci_failed",
+                                "conflict",
+                                "ready",
+                                "rejected",
+                                "repair_required"
+                              ]
+                            }
+                          }
+                        },
+                        "kind": "record"
+                      }
+                    },
+                    "task": {
+                      "required": true,
+                      "type": {
+                        "kind": "string"
+                      }
+                    }
+                  },
+                  "kind": "record"
+                },
+                "inputBindings": [
+                  {
+                    "target": [
+                      "task"
+                    ],
+                    "value": {
+                      "path": [
+                        "task"
+                      ],
+                      "source": "state"
+                    }
+                  },
+                  {
+                    "target": [
+                      "phase"
+                    ],
+                    "value": {
+                      "path": [
+                        "phase"
+                      ],
+                      "source": "state"
+                    }
+                  },
+                  {
+                    "target": [
+                      "acceptanceFeedback"
+                    ],
+                    "value": {
+                      "path": [
+                        "acceptanceFeedback"
+                      ],
+                      "source": "state"
+                    }
+                  },
+                  {
+                    "target": [
+                      "codeFeedback"
+                    ],
+                    "value": {
+                      "path": [
+                        "codeFeedback"
+                      ],
+                      "source": "state"
+                    }
+                  },
+                  {
+                    "target": [
+                      "deliveryFeedback"
+                    ],
+                    "value": {
+                      "path": [
+                        "deliveryFeedback"
+                      ],
+                      "source": "state"
+                    }
+                  }
+                ],
+                "instructions": "Implement the requested software change fully in the shared workspace. Follow the repository's guidance, keep the change focused, and run relevant checks. Delivery runs `git add --all`; do not leave unrelated unignored files in the repository checkout. Use current input on every visit. An empty phase means implementation; phase.after accepted or rejected means repair the latest acceptanceFeedback and codeFeedback; ci_failed, conflict, or repair_required means repair deliveryFeedback. Other feedback is historical. Resolve Git/CI issues without weakening the task; preserve integrated upstream changes. sourceRevision is original provenance, reviewBaseRevision the captured target. Do not restore files merely to match sourceRevision. Run relevant checks after repairs.",
+                "kind": "step",
+                "name": "worker",
+                "output": {
+                  "kind": "null"
+                },
+                "worker": "builtin.agent.software-worker@1",
+                "writeBindings": []
+              },
+              {
+                "branches": [
+                  {
+                    "node": {
+                      "kind": "fail",
+                      "name": "worker_failed",
+                      "reason": "worker_failed"
+                    },
+                    "when": {
+                      "kind": "in",
+                      "labels": [
+                        "crash",
+                        "malformed",
+                        "refusal",
+                        "timeout"
+                      ],
+                      "value": {
+                        "field": null,
+                        "name": "worker",
+                        "source": "error"
+                      }
+                    }
+                  }
+                ],
+                "kind": "choice",
+                "name": "worker_result",
+                "otherwise": {
                   "children": [
                     {
                       "branches": [
@@ -174,6 +258,19 @@
                           },
                           "worker": "builtin.agent.acceptance-verifier@1",
                           "writeBindings": [
+                            {
+                              "target": [
+                                "phase",
+                                "after"
+                              ],
+                              "value": {
+                                "channel": "signal",
+                                "node": "acceptance",
+                                "path": [
+                                  "verdict"
+                                ]
+                              }
+                            },
                             {
                               "target": [
                                 "title"
@@ -308,6 +405,9 @@
                           "codeFeedback"
                         ],
                         [
+                          "phase"
+                        ],
+                        [
                           "title"
                         ],
                         [
@@ -326,6 +426,15 @@
                             "required": true,
                             "type": {
                               "kind": "string"
+                            }
+                          },
+                          "continueItems": {
+                            "required": true,
+                            "type": {
+                              "items": {
+                                "kind": "null"
+                              },
+                              "kind": "array"
                             }
                           },
                           "deliveryFeedback": {
@@ -371,6 +480,28 @@
                                 "ready",
                                 "repair_required"
                               ]
+                            }
+                          },
+                          "phase": {
+                            "required": true,
+                            "type": {
+                              "fields": {
+                                "after": {
+                                  "required": false,
+                                  "type": {
+                                    "kind": "enum",
+                                    "values": [
+                                      "accepted",
+                                      "ci_failed",
+                                      "conflict",
+                                      "ready",
+                                      "rejected",
+                                      "repair_required"
+                                    ]
+                                  }
+                                }
+                              },
+                              "kind": "record"
                             }
                           },
                           "pullRequestId": {
@@ -698,6 +829,19 @@
                                         "message"
                                       ]
                                     }
+                                  },
+                                  {
+                                    "target": [
+                                      "phase",
+                                      "after"
+                                    ],
+                                    "value": {
+                                      "channel": "signal",
+                                      "node": "deliver",
+                                      "path": [
+                                        "delivery"
+                                      ]
+                                    }
                                   }
                                 ]
                               },
@@ -726,17 +870,79 @@
                                   },
                                   {
                                     "node": {
-                                      "attempts": 1,
-                                      "input": {
+                                      "body": {
+                                        "kind": "fail",
+                                        "name": "delivery_retry_invalid",
+                                        "reason": "invalid_retry_state"
+                                      },
+                                      "kind": "map",
+                                      "maxItems": 1,
+                                      "name": "delivery_retry",
+                                      "over": {
+                                        "path": [
+                                          "continueItems"
+                                        ],
+                                        "source": "state"
+                                      },
+                                      "promotedStatePaths": [],
+                                      "state": {
                                         "fields": {
+                                          "acceptanceFeedback": {
+                                            "required": true,
+                                            "type": {
+                                              "kind": "string"
+                                            }
+                                          },
+                                          "codeFeedback": {
+                                            "required": true,
+                                            "type": {
+                                              "kind": "string"
+                                            }
+                                          },
+                                          "continueItems": {
+                                            "required": true,
+                                            "type": {
+                                              "items": {
+                                                "kind": "null"
+                                              },
+                                              "kind": "array"
+                                            }
+                                          },
                                           "deliveryFeedback": {
                                             "required": true,
                                             "type": {
                                               "kind": "string"
                                             }
                                           },
-                                          "outcome": {
+                                          "description": {
                                             "required": true,
+                                            "type": {
+                                              "kind": "string"
+                                            }
+                                          },
+                                          "headRevision": {
+                                            "required": false,
+                                            "type": {
+                                              "kind": "string"
+                                            }
+                                          },
+                                          "issueNumber": {
+                                            "required": true,
+                                            "type": {
+                                              "kind": "string"
+                                            }
+                                          },
+                                          "mode": {
+                                            "required": false,
+                                            "type": {
+                                              "kind": "enum",
+                                              "values": [
+                                                "pr"
+                                              ]
+                                            }
+                                          },
+                                          "outcome": {
+                                            "required": false,
                                             "type": {
                                               "kind": "enum",
                                               "values": [
@@ -747,58 +953,70 @@
                                               ]
                                             }
                                           },
+                                          "phase": {
+                                            "required": true,
+                                            "type": {
+                                              "fields": {
+                                                "after": {
+                                                  "required": false,
+                                                  "type": {
+                                                    "kind": "enum",
+                                                    "values": [
+                                                      "accepted",
+                                                      "ci_failed",
+                                                      "conflict",
+                                                      "ready",
+                                                      "rejected",
+                                                      "repair_required"
+                                                    ]
+                                                  }
+                                                }
+                                              },
+                                              "kind": "record"
+                                            }
+                                          },
+                                          "pullRequestId": {
+                                            "required": false,
+                                            "type": {
+                                              "kind": "string"
+                                            }
+                                          },
+                                          "repository": {
+                                            "required": false,
+                                            "type": {
+                                              "kind": "string"
+                                            }
+                                          },
+                                          "targetBranch": {
+                                            "required": false,
+                                            "type": {
+                                              "kind": "string"
+                                            }
+                                          },
                                           "task": {
                                             "required": true,
                                             "type": {
                                               "kind": "string"
                                             }
+                                          },
+                                          "title": {
+                                            "required": true,
+                                            "type": {
+                                              "kind": "string"
+                                            }
+                                          },
+                                          "version": {
+                                            "required": false,
+                                            "type": {
+                                              "kind": "enum",
+                                              "values": [
+                                                "v2"
+                                              ]
+                                            }
                                           }
                                         },
                                         "kind": "record"
-                                      },
-                                      "inputBindings": [
-                                        {
-                                          "target": [
-                                            "task"
-                                          ],
-                                          "value": {
-                                            "path": [
-                                              "task"
-                                            ],
-                                            "source": "state"
-                                          }
-                                        },
-                                        {
-                                          "target": [
-                                            "outcome"
-                                          ],
-                                          "value": {
-                                            "path": [
-                                              "outcome"
-                                            ],
-                                            "source": "state"
-                                          }
-                                        },
-                                        {
-                                          "target": [
-                                            "deliveryFeedback"
-                                          ],
-                                          "value": {
-                                            "path": [
-                                              "deliveryFeedback"
-                                            ],
-                                            "source": "state"
-                                          }
-                                        }
-                                      ],
-                                      "instructions": "Diagnose the reported Git, delivery, CI failure, or merge conflict using the original diagnostics. Repair the shared workspace when needed and run relevant checks, preserving the requested behavior and verifier-approved change. Delivery will retry with the updated workspace. Delivery runs `git add --all`; do not leave unrelated unignored files in the repository checkout. Delivery feedback's sourceRevision is immutable checkout provenance. When reviewBaseRevision is provided, assess the change against that captured target revision and preserve integrated upstream changes. Never restore original-source files solely because they differ. If the review base is unavailable, do not infer that a rollback is needed.",
-                                      "kind": "step",
-                                      "name": "delivery_repair",
-                                      "output": {
-                                        "kind": "null"
-                                      },
-                                      "worker": "builtin.agent.delivery-repair@1",
-                                      "writeBindings": []
+                                      }
                                     },
                                     "when": {
                                       "kind": "in",
@@ -974,6 +1192,15 @@
                                         "kind": "string"
                                       }
                                     },
+                                    "continueItems": {
+                                      "required": true,
+                                      "type": {
+                                        "items": {
+                                          "kind": "null"
+                                        },
+                                        "kind": "array"
+                                      }
+                                    },
                                     "deliveryFeedback": {
                                       "required": true,
                                       "type": {
@@ -1017,6 +1244,28 @@
                                           "ready",
                                           "repair_required"
                                         ]
+                                      }
+                                    },
+                                    "phase": {
+                                      "required": true,
+                                      "type": {
+                                        "fields": {
+                                          "after": {
+                                            "required": false,
+                                            "type": {
+                                              "kind": "enum",
+                                              "values": [
+                                                "accepted",
+                                                "ci_failed",
+                                                "conflict",
+                                                "ready",
+                                                "rejected",
+                                                "repair_required"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "kind": "record"
                                       }
                                     },
                                     "pullRequestId": {
@@ -1068,6 +1317,9 @@
                             "promotedStatePaths": [
                               [
                                 "deliveryFeedback"
+                              ],
+                              [
+                                "phase"
                               ]
                             ],
                             "state": {
@@ -1082,6 +1334,15 @@
                                   "required": true,
                                   "type": {
                                     "kind": "string"
+                                  }
+                                },
+                                "continueItems": {
+                                  "required": true,
+                                  "type": {
+                                    "items": {
+                                      "kind": "null"
+                                    },
+                                    "kind": "array"
                                   }
                                 },
                                 "deliveryFeedback": {
@@ -1127,6 +1388,28 @@
                                       "ready",
                                       "repair_required"
                                     ]
+                                  }
+                                },
+                                "phase": {
+                                  "required": true,
+                                  "type": {
+                                    "fields": {
+                                      "after": {
+                                        "required": false,
+                                        "type": {
+                                          "kind": "enum",
+                                          "values": [
+                                            "accepted",
+                                            "ci_failed",
+                                            "conflict",
+                                            "ready",
+                                            "rejected",
+                                            "repair_required"
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "kind": "record"
                                   }
                                 },
                                 "pullRequestId": {
@@ -1204,8 +1487,22 @@
                       "kind": "choice",
                       "name": "review_result",
                       "otherwise": {
-                        "attempts": 1,
-                        "input": {
+                        "body": {
+                          "kind": "fail",
+                          "name": "review_retry_invalid",
+                          "reason": "invalid_retry_state"
+                        },
+                        "kind": "map",
+                        "maxItems": 1,
+                        "name": "review_retry",
+                        "over": {
+                          "path": [
+                            "continueItems"
+                          ],
+                          "source": "state"
+                        },
+                        "promotedStatePaths": [],
+                        "state": {
                           "fields": {
                             "acceptanceFeedback": {
                               "required": true,
@@ -1219,8 +1516,96 @@
                                 "kind": "string"
                               }
                             },
+                            "continueItems": {
+                              "required": true,
+                              "type": {
+                                "items": {
+                                  "kind": "null"
+                                },
+                                "kind": "array"
+                              }
+                            },
                             "deliveryFeedback": {
                               "required": true,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "description": {
+                              "required": true,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "headRevision": {
+                              "required": false,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "issueNumber": {
+                              "required": true,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "mode": {
+                              "required": false,
+                              "type": {
+                                "kind": "enum",
+                                "values": [
+                                  "pr"
+                                ]
+                              }
+                            },
+                            "outcome": {
+                              "required": false,
+                              "type": {
+                                "kind": "enum",
+                                "values": [
+                                  "ci_failed",
+                                  "conflict",
+                                  "ready",
+                                  "repair_required"
+                                ]
+                              }
+                            },
+                            "phase": {
+                              "required": true,
+                              "type": {
+                                "fields": {
+                                  "after": {
+                                    "required": false,
+                                    "type": {
+                                      "kind": "enum",
+                                      "values": [
+                                        "accepted",
+                                        "ci_failed",
+                                        "conflict",
+                                        "ready",
+                                        "rejected",
+                                        "repair_required"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "kind": "record"
+                              }
+                            },
+                            "pullRequestId": {
+                              "required": false,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "repository": {
+                              "required": false,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "targetBranch": {
+                              "required": false,
                               "type": {
                                 "kind": "string"
                               }
@@ -1230,68 +1615,32 @@
                               "type": {
                                 "kind": "string"
                               }
+                            },
+                            "title": {
+                              "required": true,
+                              "type": {
+                                "kind": "string"
+                              }
+                            },
+                            "version": {
+                              "required": false,
+                              "type": {
+                                "kind": "enum",
+                                "values": [
+                                  "v2"
+                                ]
+                              }
                             }
                           },
                           "kind": "record"
-                        },
-                        "inputBindings": [
-                          {
-                            "target": [
-                              "task"
-                            ],
-                            "value": {
-                              "path": [
-                                "task"
-                              ],
-                              "source": "state"
-                            }
-                          },
-                          {
-                            "target": [
-                              "acceptanceFeedback"
-                            ],
-                            "value": {
-                              "path": [
-                                "acceptanceFeedback"
-                              ],
-                              "source": "state"
-                            }
-                          },
-                          {
-                            "target": [
-                              "codeFeedback"
-                            ],
-                            "value": {
-                              "path": [
-                                "codeFeedback"
-                              ],
-                              "source": "state"
-                            }
-                          },
-                          {
-                            "target": [
-                              "deliveryFeedback"
-                            ],
-                            "value": {
-                              "path": [
-                                "deliveryFeedback"
-                              ],
-                              "source": "state"
-                            }
-                          }
-                        ],
-                        "instructions": "Address both verifier diagnostics in the shared workspace without weakening the requested behavior. Account for any delivery feedback and run the relevant checks before returning. Delivery runs `git add --all`; do not leave unrelated unignored files in the repository checkout. Delivery feedback's sourceRevision is immutable checkout provenance. When reviewBaseRevision is provided, assess the change against that captured target revision and preserve integrated upstream changes. Never restore original-source files solely because they differ. If the review base is unavailable, do not infer that a rollback is needed.",
-                        "kind": "step",
-                        "name": "review_repair",
-                        "output": {
-                          "kind": "null"
-                        },
-                        "worker": "builtin.agent.review-repair@1",
-                        "writeBindings": []
+                        }
                       },
                       "promotedStatePaths": [
                         [
                           "deliveryFeedback"
+                        ],
+                        [
+                          "phase"
                         ]
                       ],
                       "state": {
@@ -1306,6 +1655,15 @@
                             "required": true,
                             "type": {
                               "kind": "string"
+                            }
+                          },
+                          "continueItems": {
+                            "required": true,
+                            "type": {
+                              "items": {
+                                "kind": "null"
+                              },
+                              "kind": "array"
                             }
                           },
                           "deliveryFeedback": {
@@ -1353,6 +1711,28 @@
                               ]
                             }
                           },
+                          "phase": {
+                            "required": true,
+                            "type": {
+                              "fields": {
+                                "after": {
+                                  "required": false,
+                                  "type": {
+                                    "kind": "enum",
+                                    "values": [
+                                      "accepted",
+                                      "ci_failed",
+                                      "conflict",
+                                      "ready",
+                                      "rejected",
+                                      "repair_required"
+                                    ]
+                                  }
+                                }
+                              },
+                              "kind": "record"
+                            }
+                          },
                           "pullRequestId": {
                             "required": false,
                             "type": {
@@ -1398,13 +1778,16 @@
                     }
                   ],
                   "kind": "seq",
-                  "name": "change_iteration",
+                  "name": "reviews",
                   "promotedStatePaths": [
                     [
                       "acceptanceFeedback"
                     ],
                     [
                       "codeFeedback"
+                    ],
+                    [
+                      "phase"
                     ],
                     [
                       "deliveryFeedback"
@@ -1422,6 +1805,15 @@
                         "required": true,
                         "type": {
                           "kind": "string"
+                        }
+                      },
+                      "continueItems": {
+                        "required": true,
+                        "type": {
+                          "items": {
+                            "kind": "null"
+                          },
+                          "kind": "array"
                         }
                       },
                       "deliveryFeedback": {
@@ -1469,6 +1861,28 @@
                           ]
                         }
                       },
+                      "phase": {
+                        "required": true,
+                        "type": {
+                          "fields": {
+                            "after": {
+                              "required": false,
+                              "type": {
+                                "kind": "enum",
+                                "values": [
+                                  "accepted",
+                                  "ci_failed",
+                                  "conflict",
+                                  "ready",
+                                  "rejected",
+                                  "repair_required"
+                                ]
+                              }
+                            }
+                          },
+                          "kind": "record"
+                        }
+                      },
                       "pullRequestId": {
                         "required": false,
                         "type": {
@@ -1512,15 +1926,15 @@
                     "kind": "record"
                   }
                 },
-                "kind": "loop",
-                "maxIterations": 10,
-                "name": "change_loop",
                 "promotedStatePaths": [
                   [
                     "acceptanceFeedback"
                   ],
                   [
                     "codeFeedback"
+                  ],
+                  [
+                    "phase"
                   ],
                   [
                     "deliveryFeedback"
@@ -1538,6 +1952,15 @@
                       "required": true,
                       "type": {
                         "kind": "string"
+                      }
+                    },
+                    "continueItems": {
+                      "required": true,
+                      "type": {
+                        "items": {
+                          "kind": "null"
+                        },
+                        "kind": "array"
                       }
                     },
                     "deliveryFeedback": {
@@ -1585,6 +2008,28 @@
                         ]
                       }
                     },
+                    "phase": {
+                      "required": true,
+                      "type": {
+                        "fields": {
+                          "after": {
+                            "required": false,
+                            "type": {
+                              "kind": "enum",
+                              "values": [
+                                "accepted",
+                                "ci_failed",
+                                "conflict",
+                                "ready",
+                                "rejected",
+                                "repair_required"
+                              ]
+                            }
+                          }
+                        },
+                        "kind": "record"
+                      }
+                    },
                     "pullRequestId": {
                       "required": false,
                       "type": {
@@ -1627,16 +2072,24 @@
                   },
                   "kind": "record"
                 }
-              },
-              {
-                "kind": "fail",
-                "name": "change_attempts_exhausted",
-                "reason": "change_attempts_exhausted"
               }
             ],
             "kind": "seq",
-            "name": "changes",
-            "promotedStatePaths": [],
+            "name": "change_iteration",
+            "promotedStatePaths": [
+              [
+                "acceptanceFeedback"
+              ],
+              [
+                "codeFeedback"
+              ],
+              [
+                "phase"
+              ],
+              [
+                "deliveryFeedback"
+              ]
+            ],
             "state": {
               "fields": {
                 "acceptanceFeedback": {
@@ -1649,6 +2102,15 @@
                   "required": true,
                   "type": {
                     "kind": "string"
+                  }
+                },
+                "continueItems": {
+                  "required": true,
+                  "type": {
+                    "items": {
+                      "kind": "null"
+                    },
+                    "kind": "array"
                   }
                 },
                 "deliveryFeedback": {
@@ -1696,6 +2158,28 @@
                     ]
                   }
                 },
+                "phase": {
+                  "required": true,
+                  "type": {
+                    "fields": {
+                      "after": {
+                        "required": false,
+                        "type": {
+                          "kind": "enum",
+                          "values": [
+                            "accepted",
+                            "ci_failed",
+                            "conflict",
+                            "ready",
+                            "rejected",
+                            "repair_required"
+                          ]
+                        }
+                      }
+                    },
+                    "kind": "record"
+                  }
+                },
                 "pullRequestId": {
                   "required": false,
                   "type": {
@@ -1739,7 +2223,23 @@
               "kind": "record"
             }
           },
-          "promotedStatePaths": [],
+          "kind": "loop",
+          "maxIterations": 10,
+          "name": "change_loop",
+          "promotedStatePaths": [
+            [
+              "acceptanceFeedback"
+            ],
+            [
+              "codeFeedback"
+            ],
+            [
+              "phase"
+            ],
+            [
+              "deliveryFeedback"
+            ]
+          ],
           "state": {
             "fields": {
               "acceptanceFeedback": {
@@ -1752,6 +2252,15 @@
                 "required": true,
                 "type": {
                   "kind": "string"
+                }
+              },
+              "continueItems": {
+                "required": true,
+                "type": {
+                  "items": {
+                    "kind": "null"
+                  },
+                  "kind": "array"
                 }
               },
               "deliveryFeedback": {
@@ -1799,6 +2308,28 @@
                   ]
                 }
               },
+              "phase": {
+                "required": true,
+                "type": {
+                  "fields": {
+                    "after": {
+                      "required": false,
+                      "type": {
+                        "kind": "enum",
+                        "values": [
+                          "accepted",
+                          "ci_failed",
+                          "conflict",
+                          "ready",
+                          "rejected",
+                          "repair_required"
+                        ]
+                      }
+                    }
+                  },
+                  "kind": "record"
+                }
+              },
               "pullRequestId": {
                 "required": false,
                 "type": {
@@ -1841,6 +2372,11 @@
             },
             "kind": "record"
           }
+        },
+        {
+          "kind": "fail",
+          "name": "change_attempts_exhausted",
+          "reason": "change_attempts_exhausted"
         }
       ],
       "kind": "seq",
@@ -1858,6 +2394,15 @@
             "required": true,
             "type": {
               "kind": "string"
+            }
+          },
+          "continueItems": {
+            "required": true,
+            "type": {
+              "items": {
+                "kind": "null"
+              },
+              "kind": "array"
             }
           },
           "deliveryFeedback": {
@@ -1905,6 +2450,28 @@
               ]
             }
           },
+          "phase": {
+            "required": true,
+            "type": {
+              "fields": {
+                "after": {
+                  "required": false,
+                  "type": {
+                    "kind": "enum",
+                    "values": [
+                      "accepted",
+                      "ci_failed",
+                      "conflict",
+                      "ready",
+                      "rejected",
+                      "repair_required"
+                    ]
+                  }
+                }
+              },
+              "kind": "record"
+            }
+          },
           "pullRequestId": {
             "required": false,
             "type": {
@@ -1950,7 +2517,7 @@
     }
   },
   "runtime": {
-    "harness": "codex",
+    "harness": "claude",
     "nodes": {
       "acceptance": {
         "connections": {
@@ -1961,7 +2528,7 @@
         },
         "effort": "medium",
         "kind": "agent",
-        "model": "gpt-5.6-sol"
+        "model": "claude-opus-5-5"
       },
       "code": {
         "connections": {
@@ -1972,7 +2539,7 @@
         },
         "effort": "medium",
         "kind": "agent",
-        "model": "gpt-5.6-sol"
+        "model": "claude-opus-5-5"
       },
       "deliver": {
         "connections": {
@@ -1981,28 +2548,6 @@
           ]
         },
         "kind": "git_delivery"
-      },
-      "delivery_repair": {
-        "connections": {
-          "gateway": [
-            "GATEWAY_API_KEY",
-            "GATEWAY_BASE_URL"
-          ]
-        },
-        "effort": "medium",
-        "kind": "agent",
-        "model": "gpt-5.6-sol"
-      },
-      "review_repair": {
-        "connections": {
-          "gateway": [
-            "GATEWAY_API_KEY",
-            "GATEWAY_BASE_URL"
-          ]
-        },
-        "effort": "medium",
-        "kind": "agent",
-        "model": "gpt-5.6-sol"
       },
       "worker": {
         "connections": {
@@ -2013,7 +2558,7 @@
         },
         "effort": "medium",
         "kind": "agent",
-        "model": "gpt-5.6-sol"
+        "model": "claude-opus-5-5"
       }
     },
     "provider": "gateway",

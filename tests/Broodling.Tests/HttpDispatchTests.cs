@@ -66,6 +66,7 @@ public sealed class HttpDispatchTests
     [Arguments("no-credentials", "prepared")]
     [Arguments("foreign-gateway", "dispatched")]
     [Arguments("gateway-suffix", "prepared")]
+    [Arguments("gateway-version-path", "dispatched")]
     [Arguments("blank-token", "prepared")]
     [Arguments("blank-key", "dispatched")]
     [Arguments("oversized-token", "prepared")]
@@ -91,6 +92,7 @@ public sealed class HttpDispatchTests
             case "no-credentials": credentials = null; break;
             case "foreign-gateway": credentials = new("github-token", "https://gateway.example.test/v1", "gateway-key"); break;
             case "gateway-suffix": credentials = new("github-token", DirectTargetBinding.GatewayBaseUrl + "/", "gateway-key"); break;
+            case "gateway-version-path": credentials = new("github-token", "https://gateway.ai.faviann.com/v1", "gateway-key"); break;
             case "blank-token": credentials = new("", DirectTargetBinding.GatewayBaseUrl, "gateway-key"); break;
             case "blank-key": credentials = new("github-token", DirectTargetBinding.GatewayBaseUrl, " "); break;
             case "oversized-token": credentials = new(new string('s', 4097), DirectTargetBinding.GatewayBaseUrl, "gateway-key"); break;
@@ -110,7 +112,7 @@ public sealed class HttpDispatchTests
             "stale" => typeof(StaleAttempt),
             "paused" => typeof(InstallationPaused),
             "blocked" or "asset" => typeof(SubmissionConflict),
-            "no-credentials" or "foreign-gateway" or "gateway-suffix" or "blank-token" or "blank-key" or "oversized-token" => typeof(UnsupportedRuntime),
+            "no-credentials" or "foreign-gateway" or "gateway-suffix" or "gateway-version-path" or "blank-token" or "blank-key" or "oversized-token" => typeof(UnsupportedRuntime),
             _ => typeof(SubmissionNotReady)
         });
         await Assert.That(target.Connections).IsEqualTo(0);
@@ -141,7 +143,7 @@ public sealed class HttpDispatchTests
         foreach (var (body, suffix) in target.Bodies.Zip(["first", "rotated"]))
         {
             await Assert.That(JsonNode.DeepEquals(body["connections"], JsonNode.Parse($$$"""
-                {"gateway":{"GATEWAY_BASE_URL":"{{{DirectTargetBinding.GatewayBaseUrl}}}","GATEWAY_API_KEY":"gateway-canary-{{{suffix}}}"},"github":{"GH_TOKEN":"github-canary-{{{suffix}}}"}}
+                {"gateway":{"GATEWAY_BASE_URL":"https://gateway.ai.faviann.com","GATEWAY_API_KEY":"gateway-canary-{{{suffix}}}"},"github":{"GH_TOKEN":"github-canary-{{{suffix}}}"}}
                 """))).IsTrue();
             await Assert.That((string)body["githubToken"]!).IsEqualTo("github-canary-" + suffix);
             body.Remove("connections");

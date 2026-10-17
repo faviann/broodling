@@ -70,7 +70,7 @@ origin or noncanonical spelling is accepted. Targets bound to a loopback origin
 are not adopted.
 
 Success returns `{"targets": [...]}`, with one element per target:
-`environment`, the adopted `release` (such as `dotnet-r2`), `containerName`,
+`environment`, the adopted `release` (such as `dotnet-r6`), `containerName`,
 `containerId`, `imageId`, `directOrigin`, the live `os` and the checked
 `versions`.
 Version facts are the checked pins, not raw process output. Refusal returns
@@ -89,7 +89,8 @@ that is malformed, of a schema other than `zeroshot-environment.manifest/v2` or
 a platform other than `linux/amd64`, or that does not name the
 [DirectTarget binding](zeroshot-native-integration.md#pinned-dependencies)'s
 native release, source revision and `zeroshot` and `restic` paths and SHA-256,
-the approved Codex version and its harness Node.js, the startup interface
+the approved Claude Code version and managed settings path and SHA-256, the
+startup interface
 `zeroshot-environment.direct-target-startup/v1` with the command
 `/usr/local/bin/broodling-target`
 ([entrypoint boundary](../../deployment/README.md#entrypoint-boundary)) and
@@ -104,7 +105,8 @@ Each target must have its recorded image, be running, run as
 container root (`""`, `0`, `0:0`, or `root`), use ordinary isolation (not
 privileged or host networking), drop no capabilities and use restart policy
 `no`. It rejects installed `GH_TOKEN`, `GITHUB_TOKEN`, `GATEWAY_API_KEY`,
-`OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and `CODEX_API_KEY`, including empty
+`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `CODEX_API_KEY`, `ANTHROPIC_AUTH_TOKEN`,
+`CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_CODE_OAUTH_REFRESH_TOKEN`, including empty
 values. Its mounts must be exactly its catalog state and home as read/write
 binds at `/state` and `/home/node`, the public root directory bound read-only at
 `/tls-root` and its recorded bootstrap key file bound read-only at
@@ -148,23 +150,25 @@ name. One shell exec per target runs a probe for the live OS identity and every
 component its manifest states, and reports each missing or differing component
 by name; a manifest stating a component with no probe below is refused when the
 adoption set loads; one target's mismatch makes the whole installation
-not ready. The native version, the Codex version and the `zeroshot` and
-`restic` hashes are the binding's, which the manifest names; the other
-observations are the manifest's:
+not ready. The native version, the Claude Code version and the `zeroshot`,
+`restic` and managed settings hashes are the binding's, which the manifest
+names; the other observations are the manifest's:
 
 | Probe | Required observation |
 | --- | --- |
 | `grep '^PRETTY_NAME=' /etc/os-release` | The manifest's `os` (`Debian GNU/Linux 13 (trixie)`) |
-| `/usr/local/bin/zeroshot --version` | `zeroshot 10.10.0` |
-| `codex --version` | `codex-cli 0.155.0` |
-| `/opt/zeroshot/bin/node --version` | The manifest's harness Node.js (`v24.21.0`) |
+| `/usr/local/bin/zeroshot --version` | `zeroshot 10.12.0` |
+| `claude --version` | `2.1.276 (Claude Code)` |
+| `/opt/zeroshot/bin/node --version` | The manifest's harness Node.js (`v24.22.0`) |
 | `node`, `npm`, `yarn`, `corepack`, `python3`, `rustc`, `rustup`, `git`, `docker --version`; `gh --version` (first line); `pip --version` (first two fields); `gcc -dumpfullversion` | The manifest's versions of `node`, `npm`, `yarn`, `corepack`, `python`, `rust`, `rustup`, `git`, `docker-cli`, `gh`, `pip` and `gcc` |
 | `rustup show active-toolchain` and `rustup component list --installed`, as `<toolchain>: <components>` | The manifest's `rust-components` |
-| `claude --version`, `copilot --version` (first line) | The manifest's versions, when it lists them; checking a version approves nothing |
+| `codex --version`, `copilot --version` (first line) | The manifest's versions, when it lists them; checking a version approves nothing |
 | `dotnet --list-sdks`, `dotnet --list-runtimes` | Exactly the manifest's SDKs and runtimes, when it lists them |
-| `sha256sum /usr/local/bin/zeroshot` | `fd5ffef2d825d9035b3956b0026911a22e2c1b56f7fa205dd00310cfe88aeff5` |
+| `sha256sum /usr/local/bin/zeroshot` | `7b3c74db2c4ce06d2b483813a05c6b5928f81b10c471366d677ec25371b52693` |
 | `sha256sum /usr/local/bin/restic` | `90ab22a5e731063c27590e704e8da2f4d9bae59a67899bd45d0904afc868a8cf`, the `restic` that native run allocation requires |
 | `sha256sum /usr/local/bin/broodling-target` | The manifest's `integration.broodling-entrypoint.sha256` |
+| `find /etc/claude-code -printf '%y %U:%G %m %p\n' \|\| :` | Exactly `d 0:0 755 /etc/claude-code` and `f 0:0 644 /etc/claude-code/managed-settings.json`. Claude Code also applies `managed-settings.d/*.json` drop-ins and a `CLAUDE.md` in that directory, and an agent that can write the file, or the target of a symbolic link, can rewrite the policy. Any other entry, type, owner or mode, or a missing file or directory, refuses with the target named |
+| `sha256sum /etc/claude-code/managed-settings.json` | `a469a57a1f61686f006df05d41973208f0bd9f81de219db17f4034882b038f2e` |
 | `/usr/bin/gh api graphql --paginate --slurp --help` | Declares the `--slurp` flag |
 | Short Python exec | `setgroups([10002])`, `setgid(10002)`, `setuid(10002)` and assertions of the resulting UID/GID succeed |
 
@@ -228,12 +232,13 @@ token, refuse overlapping storage or a shared token across targets and a name
 answered by more than one container, and make the whole installation not ready
 when one target's live OS or a tool is missing or differs. Image refusal cases
 (another digest, no digest, another architecture or OS) refuse before any exec.
-Manifest refusals (other bytes, malformed, schema, platform, native, Codex,
-startup interface or discovery) belong to adoption loading, in
-`TargetEnvironmentTests`. Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check
+Manifest refusals (other bytes, malformed, schema, platform, native, Claude Code,
+Claude Code managed settings, startup interface or discovery) belong to adoption
+loading, in `TargetEnvironmentTests`. Refusal cases own every target, `zeroshot-tls` and `broodling` inspection check
 (including the bootstrap key mount and its absence from other services),
 inventory validity, credential, version/hash/help, UID and stock-discovery schema
-checks, and private control: unauthenticated control accepted or answered otherwise than
+checks, the managed settings directory (a missing file, a `managed-settings.d`
+drop-in or a `CLAUDE.md`) and the managed settings bytes, and private control: unauthenticated control accepted or answered otherwise than
 `401`, and a refused or missing token, plus a
 controlled-clock discovery stall that expires as refusal and
 cancels as cancellation. Invalid configuration and origin witnesses require zero

@@ -11,7 +11,7 @@ services:
       Broodling__Invocation: /etc/broodling/invocation.json
       Broodling__RepositoryRoot: /var/lib/broodling/repositories
       GH_TOKEN: demo-token
-      GATEWAY_BASE_URL: https://cliproxy.local.faviann.com/v1
+      GATEWAY_BASE_URL: https://gateway.ai.faviann.com
       GATEWAY_API_KEY: demo-key
       SSL_CERT_FILE: /tls-root/root.crt
     volumes:
@@ -29,7 +29,7 @@ services:
     image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
     networks:
       default:
-        aliases: [cliproxy.local.faviann.com]
+        aliases: [gateway.ai.faviann.com]
     volumes:
       - { type: bind, source: "${DEMO_ROOT:?}/tls-root-key", target: /tls-root-key, read_only: true }
       - { type: bind, source: "${DEMO_ROOT:?}/tls-root", target: /tls-root, read_only: true }

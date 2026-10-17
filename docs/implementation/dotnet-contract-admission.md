@@ -116,9 +116,21 @@ runs.
 same admission with the one built-in proposer
 ([#112](https://github.com/faviann/broodling/issues/112)). It is not
 caller-selectable and has producer `model_extraction`. It calls the supported
-model `gpt-5.6-sol` through the OpenAI-compatible Chat Completions API
-(`POST /chat/completions`, JSON-object response format) at exactly
-`https://cliproxy.local.faviann.com/v1`. The
+model `claude-opus-5-5` through the OpenAI-compatible Chat Completions API
+(`POST /v1/chat/completions`) of the sub2api gateway at exactly
+`https://gateway.ai.faviann.com`. Each call sends `reasoning_effort` `medium`
+and requests at most 12,000 output tokens. Without that limit the gateway caps
+a call at 8,192 tokens, adaptive thinking included. The proposer waits at most
+3 minutes for a reply, which arrives only when it is complete. The 2026-10-16
+gateway probe measured about 105 tokens a second, latency included, so a full
+12,000 tokens takes about 115 seconds and leaves margin for slower replies. At
+that rate 180 seconds hold about 19,000 tokens, and a limit near that would end
+a long reply in a timeout rather than a `length` finish. The
+gateway still finishes and bills a call after the proposer gives up on it. Each call also asks for the
+`json_object` response format,
+but on this gateway the format is advisory: sub2api drops `response_format` on
+its Claude Chat Completions path. The strict parse of the final reply, below,
+is what enforces the JSON object. The
 [operations guide](../../deployment/README.md#bundled-contract-proposer)
 describes its configuration.
 
