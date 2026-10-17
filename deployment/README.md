@@ -111,7 +111,7 @@ builds and publishes ([adopted target environment](#adopted-target-environment))
 | Service | Source | Image | User |
 | --- | --- | --- | --- |
 | `broodling` | [`Broodling.Dockerfile`](Broodling.Dockerfile), repository root | `ghcr.io/faviann/broodling` | `1654:1654` |
-| `zeroshot-<name>`, such as `zeroshot-dotnet` | the adoption record, such as [`dotnet-r5.adoption.json`](../src/Broodling/environments/dotnet-r5.adoption.json) | the record's `image` by digest (`dotnet-r5`) | container root |
+| `zeroshot-<name>`, such as `zeroshot-dotnet` | the adoption record, such as [`dotnet-r6.adoption.json`](../src/Broodling/environments/dotnet-r6.adoption.json) | the record's `image` by digest (`dotnet-r6`) | container root |
 | `zeroshot-tls` | not built | `caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b` | `10443:10443` |
 
 To build and check them locally from the repository root:
@@ -120,7 +120,7 @@ To build and check them locally from the repository root:
 export NuGetPackageSourceCredentials_github="Username=YOUR_GITHUB_USER;Password=READ_PACKAGES_TOKEN"
 docker build -f deployment/Broodling.Dockerfile \
   --secret id=nuget-github,env=NuGetPackageSourceCredentials_github -t broodling:REVIEWED_REVISION .
-target="$(jq -r .image src/Broodling/environments/dotnet-r5.adoption.json)"
+target="$(jq -r .image src/Broodling/environments/dotnet-r6.adoption.json)"
 docker pull "$target"
 tests/images/demonstrate.sh broodling:REVIEWED_REVISION "$target"
 ```
@@ -271,18 +271,18 @@ Publication alone neither adopts nor deploys an image, and adoption deploys
 nothing.
 
 The adoption record bundled with the release,
-[`dotnet-r5.adoption.json`](../src/Broodling/environments/dotnet-r5.adoption.json)
+[`dotnet-r6.adoption.json`](../src/Broodling/environments/dotnet-r6.adoption.json)
 (`broodling.target-environment-adoption/v1`), names one adopted environment
 release:
 
-- `environment`: the environment release identifier, `dotnet-r5`. It is the
+- `environment`: the environment release identifier, `dotnet-r6`. It is the
   producer's `<environment>-r<N>`, separate from the native release that the
   manifest records. Several environments can carry one native release.
 - `producer`: the repository, the release and the release asset the manifest
   came from.
 - `manifest`: the retained exact bytes of that `manifest.json`
   (`zeroshot-environment.manifest/v2`), at
-  [`dotnet-r5.manifest.json`](../src/Broodling/environments/dotnet-r5.manifest.json),
+  [`dotnet-r6.manifest.json`](../src/Broodling/environments/dotnet-r6.manifest.json),
   and their SHA-256. A mutable registry or release lookup is not evidence.
 - `image`: the adopted image by digest, which the manifest also records.
 
@@ -290,27 +290,45 @@ The manifest states the image digest, the recipe revision, the platform, the
 OS and base image identity, every installed component with its exact version,
 native's identity, the harness versions and the startup interface versions.
 Each component names what fixes its bytes: its downloaded artifacts' checksums,
-or the base image digest that encloses it. `dotnet-r5` carries native 10.12.0
+or the base image digest that encloses it. `dotnet-r6` carries native 10.12.0
 (upstream's source build, executable SHA-256 `7b3c74db…`), Claude Code 2.1.276,
 Codex 0.155.0 and Copilot CLI 1.0.86 on harness Node.js v24.22.0, .NET SDK
 10.0.401, gh 2.101.0 and Debian 13. Claude Code is a native executable; the
 image's harness launcher starts it directly, without Node.js.
 
-`dotnet-r5` also installs Claude Code's managed settings,
+`dotnet-r6` also installs Claude Code's managed settings,
 `/etc/claude-code/managed-settings.json`, owned by root with mode `0644` in a
 `0755` directory. The manifest records their SHA-256 under
 `harnesses.claude.managedSettings`:
-`a9e2560ae3194f6bcc4068b1595b981e0f86a69087c2e0fb9cbe75a3053a809f`. Claude Code
+`a469a57a1f61686f006df05d41973208f0bd9f81de219db17f4034882b038f2e`. Claude Code
 reads them in every process, whatever environment native gives it, and they
 take precedence over user and repository settings. They set
 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, pin `CLAUDE_CODE_EFFORT_LEVEL` to
-`medium` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to `32000`, set
+`medium`, `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to `32000` and
+`CLAUDE_CODE_EXTRA_BODY` to `{}`, set `CLAUDE_CODE_DISABLE_ADVISOR_TOOL`,
+`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` and `CLAUDE_CODE_DISABLE_WORKFLOWS`,
+allow only the model `claude-opus-5-5` (`availableModels`), set
 `skipWebFetchPreflight`, deny the `WebFetch` and `WebSearch` tools, set empty
 commit and PR attribution, and allow only managed hooks and MCP servers, of
 which the file defines none. The image's managed effort overrides the
 Execution asset's per-node effort, so changing effort needs a new environment
 release. The deny holds under native's hosted lane, which always passes
-`--dangerously-skip-permissions`.
+`--dangerously-skip-permissions`. What the pins bound:
+
+- **Model.** A subagent that asks for another model, through the `Agent`
+  tool, a repository agent or skill, or a repository's
+  `CLAUDE_CODE_SUBAGENT_MODEL`, runs on `claude-opus-5-5`. The model is not
+  told; only the stream output logs a warning. A session started with another
+  `--model` falls back to Claude Code's built-in default, `claude-opus-5`
+  with the 1M-context beta. Native passes the asset's `claude-opus-5-5`, so
+  its sessions never take that path.
+- **Request body.** A repository's or a mid-run settings file's
+  `CLAUDE_CODE_EXTRA_BODY` cannot add effort, output tokens, `speed` or the
+  advisor tool to a request, and the advisor stays off.
+- **Background work.** `Agent` and `Bash` run in the foreground, and the
+  `Workflow` tool and its `deep-research` and `workflow-authoring` skills are
+  gone, so no call comes after the session's result. Native and the asset's
+  prompts use none of them.
 When the file is missing, Claude Code runs without these settings and reports
 nothing. Adoption and `check-target` therefore require the file's bytes.
 
@@ -327,7 +345,9 @@ Adoption is checked in three places:
   they are the only entry in `/etc/claude-code`, a regular file owned by root
   with mode `0644` in a root-owned `0755` directory. Started as that identity
   with the permission flag native's hosted lane always passes, the adopted
-  Claude Code offers neither WebFetch nor WebSearch.
+  Claude Code offers neither WebFetch, WebSearch nor Workflow, and asked for
+  Haiku it warns that the model is restricted and starts on its built-in
+  default.
 - Loading the bundled adoption set, at every configuration read: it refuses a
   manifest that is not the record's bytes, a malformed manifest, a schema other
   than `v2`, a platform other than `linux/amd64` and a native, Claude Code,
@@ -389,6 +409,14 @@ Limits of the verification:
   elsewhere. Native also acts on pull-request feedback from anyone who can
   comment. Run Attempts only under the
   [live-run preconditions](#live-run-preconditions).
+- The managed settings bound Claude Code's own requests, not the commands an
+  agent runs. Every such command can read the gateway key. A nested
+  `claude -p` from Bash reads the same settings but starts on the built-in
+  default, `claude-opus-5`, and a `curl` to the gateway bypasses them. The
+  dedicated key's model allowlist refuses any other model on either path, and
+  its quota bounds spend ([live-run preconditions](#live-run-preconditions)).
+- Automatic compaction makes one full-context call on `claude-opus-5-5` at
+  medium effort with 32000 output tokens.
 - An image inventory or an approved environment catalog does not enforce R13's
   prohibition against arbitrary unprivileged downloads: execution agents can
   still fetch and run tools in their own run home.
@@ -552,7 +580,7 @@ Transitions are established only within one native release and executable,
 the DirectTarget binding's, so a listed image must carry this revision's native
 `zeroshot 10.12.0` with its executable SHA-256 (`7b3c74db…`). A source is a
 previously adopted environment image, or another published image with that
-native. The list is empty. `dotnet-r5` is the only adopted environment with
+native. The list is empty. `dotnet-r6` is the only adopted environment with
 native 10.12.0, and its own manifest lists no `nativeStateTransitions.from`
 either. #246 moved the binding to native 10.12.0, so `dotnet-r2` and the other
 images with native 10.10.0 are not sources. Earlier, #215 replaced the initial native, asset, receipt and store definition, and
@@ -954,7 +982,7 @@ native ends runs interrupted by a restart, and no dispatch passes the pause, so
 no agent starts on a target before its check.
 
 The [adopted environment](#adopted-target-environment) supplies each target
-image: `dotnet-r5` carries native **10.12.0**, Claude Code **2.1.276** with its
+image: `dotnet-r6` carries native **10.12.0**, Claude Code **2.1.276** with its
 managed settings, and gh
 **2.101.0**. Target provisioning is operator-owned and
 separately authorized; nothing here deploys it.
@@ -1282,7 +1310,7 @@ its own origin (by convention `https://zeroshot-<name>.dev.faviann.com`), with
 its own site file, state, home, bootstrap key and control token. A stable name
 such as `dotnet` is upgraded by swapping its image in drained maintenance
 ([native-state transitions](#native-state-transitions)); a release-specific
-name such as `dotnet-r5` is a separate target for testing, removed once the
+name such as `dotnet-r6` is a separate target for testing, removed once the
 stable name is promoted. There is no load balancing, failover or on-demand
 target creation.
 
@@ -1326,8 +1354,10 @@ the first live Attempt and keeps them for every later one:
   Broodling uses. The owner configures it in sub2api with a model allowlist of
   exactly `claude-opus-5-5`, a spend quota and an IP whitelist of the Broodling
   host's and every target's egress addresses. Every command an agent runs can
-  read the key. The allowlist keeps every model call on `claude-opus-5-5`, the
-  quota bounds spend, and the whitelist limits where a leaked key works.
+  read the key. The allowlist keeps every model call on `claude-opus-5-5`,
+  including a nested `claude -p`, which would otherwise reach `claude-opus-5`,
+  and a direct request with the key. The quota bounds spend, and the whitelist
+  limits where a leaked key works.
 
 ## Invocation and recovery
 

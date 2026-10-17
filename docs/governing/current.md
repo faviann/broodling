@@ -82,11 +82,13 @@ DirectTarget runs an adopted environment image (#234):
 owns its recipe, inventory, image and publication, and Broodling owns the
 adoption record (the exact producer manifest bytes, their digest and the image
 digest), the Execution asset and its approval, and the target entrypoint's
-startup interface. The adopted `dotnet-r5` carries native 10.12.0 as upstream's
+startup interface. The adopted `dotnet-r6` carries native 10.12.0 as upstream's
 source build and Claude Code 2.1.276 with managed settings that send Claude
-Code's own model calls only to the gateway, set its effort and output-token
-bounds, deny it WebFetch and WebSearch, and lock out repository hooks and MCP
-servers
+Code's own model calls only to the gateway, keep them on `claude-opus-5-5` at
+medium effort with 32000 output tokens and no extra request body, run
+subagents and commands in the foreground with Workflows off so no background
+call follows the session's result, deny it WebFetch and WebSearch, and lock out
+repository hooks and MCP servers
 ([adopted target environment](../../deployment/README.md#adopted-target-environment)).
 Broodling submits the
 release-bundled approved execution asset (native 10.12.0's standard
@@ -159,12 +161,17 @@ semantic correctness nor authority to merge, deploy or release. See the
 
 Run Attempts only under the
 [live-run preconditions](../../deployment/README.md#live-run-preconditions),
-which Broodling does not check. A target repository's own Claude Code settings
-`env` and `apiKeyHelper` still apply
-([#249](https://github.com/faviann/broodling/issues/249)), native acts on
-pull-request feedback from anyone who can comment, and every command an agent
-runs can read the gateway key
-([limits](../../deployment/README.md#adopted-target-environment)).
+which Broodling does not check. These residuals remain
+([limits](../../deployment/README.md#adopted-target-environment)):
+
+- A target repository's own Claude Code settings `env` beyond the pinned keys
+  and its `apiKeyHelper` still apply
+  ([#249](https://github.com/faviann/broodling/issues/249)).
+- Every command an agent runs can read the gateway key. A nested `claude -p`
+  from Bash reaches `claude-opus-5`; the dedicated key's model allowlist, a
+  live-run precondition, refuses it.
+- Automatic compaction makes one full-context medium call.
+- Native acts on pull-request feedback from anyone who can comment.
 
 The .NET application preserves the #75–#77 callable/operator behavior. The
 [passed migration review](../migration/130-migration-review.md) and
@@ -234,7 +241,7 @@ the transition check, and publishes only the Broodling image, with a release
 record naming the adopted target; the binding moves to the source-built native
 executable and Codex 0.155.0 under explicit Execution asset review. #246 moves
 the binding to native 10.12.0, `Zeroshot.Client` 10.12.0.1-preview.1 and the
-adopted `dotnet-r5`, and regenerates the asset with one uniform Claude Code
+adopted `dotnet-r6`, and regenerates the asset with one uniform Claude Code
 runtime through the sub2api gateway; a run status or force reply without a
 source is refused as a foreign run. #241 makes each native submission carry its RequestBundle
 references in place of #114's agent reads from Broodling; see

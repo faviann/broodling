@@ -124,7 +124,7 @@ native digest. The [approval manifest](../../src/Broodling/execution-assets/appr
   (`native.image`).
 - Claude Code `2.1.276` (`claude`), the harness the asset's runtime runs on,
   with the managed settings `/etc/claude-code/managed-settings.json`
-  (`a9e2560a…3a809f`) that the adopted environment installs.
+  (`a469a57a…b038f2e`) that the adopted environment installs.
   Codex and Copilot CLI are not approved.
 - The policy: Claude Code / `gateway` / `claude-opus-5-5` / medium / small / execution
   sessions, the symbolic `gateway` connection on every agent node, native's
@@ -303,7 +303,7 @@ predecessor's environment name against the current catalog instead
 ```json
 {"requirement": {"name": "dotnet",
    "declaration": {"path": ".broodling/environment.json", "commit": "<B1>", "blob": "<oid>", "sha256": "<hex>"}},
- "resolution": {"adoption": {"kind": "broodling.target-environment-adoption/v1", "release": "dotnet-r5", "sha256": "<record>"},
+ "resolution": {"adoption": {"kind": "broodling.target-environment-adoption/v1", "release": "dotnet-r6", "sha256": "<record>"},
    "manifest": {"schema": "zeroshot-environment.manifest/v2", "sha256": "<manifest>"},
    "image": "ghcr.io/…@sha256:…", "platform": "linux/amd64", "os": "Debian GNU/Linux 13 (trixie)",
    "components": {"native": ["10.12.0"], "claude": ["2.1.276"], "…": ["…"]},

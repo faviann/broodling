@@ -72,12 +72,18 @@ selects DirectTarget PR delivery: the stock native 10.12.0
 `zeroshot target serve` receives the release-bundled approved asset (one uniform
 Claude Code / `gateway` / `claude-opus-5-5` / medium-effort runtime) through
 exactly the sub2api gateway `https://gateway.ai.faviann.com`. The DirectTarget
-runs an adopted `zeroshot-environments` image (`dotnet-r5`) with Claude Code
+runs an adopted `zeroshot-environments` image (`dotnet-r6`) with Claude Code
 **2.1.276** and managed settings that send Claude Code's own model calls only to
-the gateway, set its effort and output-token bounds, and deny it WebFetch and
-WebSearch. Run Attempts only under the
+the gateway on `claude-opus-5-5` at medium effort with 32000 output tokens and
+no extra request body, keep subagents and commands in the foreground with
+Workflows off, and deny it WebFetch and WebSearch. Run Attempts only under the
 [live-run preconditions](deployment/README.md#live-run-preconditions), which
-Broodling does not check.
+Broodling does not check. The settings leave open a target repository's
+settings `env` beyond the pinned keys and its `apiKeyHelper`
+([#249](https://github.com/faviann/broodling/issues/249)), agent commands that
+read the gateway key, including a nested `claude -p` that reaches
+`claude-opus-5`, and one medium compaction call
+([limits](deployment/README.md#adopted-target-environment)).
 Current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` are required for
 dispatch/replay; their values are not frozen in the invocation. Durable
 correlation permits reconnection without those dispatch credentials. Every
