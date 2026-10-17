@@ -14,47 +14,33 @@ public sealed class BundledProposerTests
 {
     private const string ApiKey = "gateway-key-7f3a9c";
     private static readonly GatewayCredentials Credentials = new(DirectTargetBinding.GatewayBaseUrl, ApiKey);
-    private const string DesignBody = "Supporting design: rows are comma separated.";
-    private const string SchemaFile = "Schema: id, name, total\n";
 
     [Test]
-    public async Task ProposerStartsFromTheRequestAndManifestReadsAReferenceOnDemandAndIsAdmittedBundleBound()
+    public async Task ProposerSendsOnlyTheRequestAndAuthorityInOneCallAndIsAdmittedBundleBound()
     {
         using var fixture = Fixture(out var store, out var submissionId, out var bundle);
         using var session = store;
-        var schema = bundle.References.Single(reference => reference.CaptureKind == "git_blob");
         var gateway = new ControlledGateway(
-            _ => ControlledGateway.ToolCall("call-1", new JsonObject { ["referenceId"] = schema.ReferenceId }),
-            _ => ControlledGateway.Final("""{"criteria": [{"criterionId": "csv", "statement": "Export CSV with the schema columns."}]}"""));
+            _ => ControlledGateway.Final("""{"criteria": [{"criterionId": "csv", "statement": "Export CSV."}]}"""));
 
         var status = await store.AdmitRequestBundleAsync(submissionId, Credentials, gateway, default);
 
-        // The initial context is the request, fixed authority and member identities, never member content.
-        var first = gateway.Requests[0];
+        var sent = gateway.Requests.Single();
         await Assert.That(gateway.Uris[0]).IsEqualTo(new Uri("https://gateway.ai.faviann.com/v1/chat/completions"));
         await Assert.That(gateway.Authorizations[0]).IsEqualTo("Bearer " + ApiKey);
-        await Assert.That((string)first["model"]!).IsEqualTo("claude-opus-5-5");
-        await Assert.That(gateway.Requests.Select(turn => (int)turn["max_tokens"]!).Distinct()).IsEquivalentTo([12000]);
-        await Assert.That(gateway.Requests.Select(turn => (string)turn["reasoning_effort"]!).Distinct()).IsEquivalentTo(["medium"]);
-        await Assert.That((string)first["tools"]![0]!["function"]!["name"]!).IsEqualTo("read_reference");
-        var context = JsonNode.Parse((string)first["messages"]![1]!["content"]!)!;
+        await Assert.That((string)sent["model"]!).IsEqualTo("claude-opus-5-5");
+        await Assert.That((int)sent["max_tokens"]!).IsEqualTo(12000);
+        await Assert.That((string)sent["reasoning_effort"]!).IsEqualTo("medium");
+        await Assert.That(sent.ContainsKey("tools")).IsFalse();
+        var context = JsonNode.Parse((string)sent["messages"]![1]!["content"]!)!.AsObject();
+        await Assert.That(string.Join(",", context.Select(field => field.Key))).IsEqualTo("executableRequest,authority");
+        await Assert.That((string)context["executableRequest"]!).IsEqualTo(RequestAdmissionTests.Request());
+
         var request = bundle.References.Single(reference => reference.ReferenceId == "request");
-        await Assert.That((string)context["executableRequest"]!)
-            .IsEqualTo(Encoding.UTF8.GetString(store.ReadRequestBundleReference(bundle.BundleId, "request").Content));
-        await Assert.That(context["manifest"]!["references"]!.AsArray().Select(item => (string)item!["referenceId"]!))
-            .IsEquivalentTo(bundle.References.Select(reference => reference.ReferenceId));
-        await Assert.That(first.ToJsonString()).DoesNotContain(DesignBody);
-        await Assert.That(first.ToJsonString()).DoesNotContain("id, name, total");
-
-        // The on-demand read returns the frozen member through the bundle-scoped read.
-        var read = JsonNode.Parse((string)gateway.Requests[1]["messages"]!.AsArray().Last()!["content"]!)!;
-        await Assert.That((string)read["content"]!).IsEqualTo(SchemaFile);
-        await Assert.That((string)read["contentSha256"]!).IsEqualTo(schema.ContentSha256);
-
         using var reopened = fixture.State.Open();
         var admitted = reopened.Status(status.Revision.ContractRevisionId);
         await Assert.That(admitted.Decision!.Admitted).IsTrue();
-        await Assert.That(admitted.Revision.Contract.Criteria.Single().Statement).IsEqualTo("Export CSV with the schema columns.");
+        await Assert.That(admitted.Revision.Contract.Criteria.Single().Statement).IsEqualTo("Export CSV.");
         await Assert.That(admitted.Revision.ConstructedBy).IsEqualTo("model_extraction");
         await Assert.That(admitted.Revision.Contract.RequestBundle)
             .IsEqualTo(new ContractRequestBundle(bundle.BundleId, bundle.ManifestSha256!));
@@ -192,10 +178,7 @@ public sealed class BundledProposerTests
         out string submissionId, out RequestBundle bundle)
     {
         var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
-        fixture.SetIssue(12, RequestAdmissionTests.Request("- schema: repo:docs/schema.md",
-            "- design: https://github.com/acme/widget/issues/7"));
-        fixture.SetIssue(7, DesignBody);
-        fixture.CommitFile("docs/schema.md", SchemaFile);
+        fixture.SetIssue(12, RequestAdmissionTests.Request());
         store = fixture.State.Initialize();
         submissionId = store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
         bundle = RequestAdmissionTests.Capture(store, fixture, submissionId).GetAwaiter().GetResult();
@@ -220,16 +203,6 @@ public sealed class BundledProposerTests
 
         internal static HttpResponseMessage Final(string content) =>
             Reply(new JsonObject { ["role"] = "assistant", ["content"] = content });
-
-        internal static HttpResponseMessage ToolCall(string id, JsonObject arguments) => Reply(new JsonObject
-        {
-            ["role"] = "assistant", ["content"] = null,
-            ["tool_calls"] = new JsonArray(new JsonObject
-            {
-                ["id"] = id, ["type"] = "function",
-                ["function"] = new JsonObject { ["name"] = "read_reference", ["arguments"] = arguments.ToJsonString() }
-            })
-        });
 
         private static HttpResponseMessage Reply(JsonObject message) => new(HttpStatusCode.OK)
         {

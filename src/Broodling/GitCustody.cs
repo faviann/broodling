@@ -48,54 +48,6 @@ internal static class GitCustody
         return new(PhysicalPaths.Resolve(common), commit, revision);
     }
 
-    internal sealed record PinnedBlob(string BlobOid, byte[] Content);
-
-    /// <summary>Read one exact tree entry through a retained direct commit pin.</summary>
-    internal static PinnedBlob ReadPinnedBlob(string repository, string commit, string path,
-        string? expectedBlobOid = null, long? maxBytes = null)
-    {
-        var reference = "refs/broodling/starting/" + commit;
-        if (RetentionOid(repository, reference) != commit)
-            throw new UnsupportedStartingState("The selected Git commit no longer has its exact Broodling retention pin.");
-
-        byte[] entry;
-        try
-        {
-            entry = Checked(repository, ["ls-tree", "-rz", "--full-tree", "-r", commit, "--", ":(top,literal)" + path]);
-        }
-        catch (UnsupportedStartingState)
-        {
-            throw;
-        }
-        var separator = Array.IndexOf(entry, (byte)'\t');
-        var end = Array.IndexOf(entry, (byte)0);
-        if (separator <= 0 || end <= separator)
-            throw new UnresolvedRepositoryPath("The exact Git path is not present in the pinned commit.");
-        string metadata;
-        string returnedPath;
-        try
-        {
-            metadata = Encoding.ASCII.GetString(entry, 0, separator);
-            returnedPath = StrictUtf8.GetString(entry, separator + 1, end - separator - 1);
-        }
-        catch (DecoderFallbackException)
-        {
-            throw new UnsupportedStartingState("The selected Git path is not valid UTF-8.");
-        }
-        var fields = metadata.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (returnedPath != path || fields.Length != 3 || fields[1] != "blob")
-            throw new UnresolvedRepositoryPath("The exact Git path does not identify a file in the pinned commit.");
-        if (fields[2].Length != 40 || fields[2].Any(c => !char.IsAsciiHexDigitLower(c)))
-            throw new UnsupportedStartingState("The exact Git path does not identify a retained file blob.");
-        var blob = fields[2];
-        if (expectedBlobOid is not null && blob != expectedBlobOid)
-            throw new UnsupportedStartingState("The pinned Git path no longer resolves to its captured blob.");
-        // Check the recorded size before reading, so an oversized file is never buffered.
-        if (maxBytes is { } max && BlobSize(repository, blob) is var size && size > max)
-            throw new GitBlobTooLarge(size);
-        return new(blob, Checked(repository, ["cat-file", "blob", blob]));
-    }
-
     /// <summary>What one exact path names in a pinned commit: nothing, a regular file, or anything else.</summary>
     internal abstract record TreeEntry
     {

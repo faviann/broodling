@@ -17,7 +17,7 @@ public sealed class RevisionTests
 {
     private const string Issue = "https://github.com/acme/widget/issues/12";
     private const string Proposal = """{"criteria": [{"criterionId": "export", "statement": "Export the data."}]}""";
-    private static readonly string Revised = "## Request\n<!-- broodling-request:v1 -->\nAdd CSV and JSON export.\n";
+    private static readonly string Revised = "Add CSV and JSON export.\n";
 
     [Test]
     public async Task OneSuccessorIsCreatedFromTheLatestEndedSubmissionAndReplayFindsItAfterLaterHistory()
@@ -117,30 +117,22 @@ public sealed class RevisionTests
     {
         await using var revisions = new Revisions();
         var store = revisions.Store;
-        string[] activity = ["/repos/acme/widget/issues/12", "/repos/acme/widget/issues/8", "/repos/acme/widget/issues/comments/5"];
-        var declared = RequestAdmissionTests.Request("- background: https://github.com/acme/widget/issues/8",
-            "- decision: https://github.com/acme/widget/issues/12#issuecomment-5");
-        revisions.Fixture.SetIssue(12, declared);
-        revisions.Fixture.SetIssue(8, "Auditors need every row.");
-        revisions.Fixture.SetComment(12, 5, "Use a header row.");
         var first = store.SubmitIssue(Issue).SubmissionId;
         await revisions.Prepare(first);
         var admitted = store.GetIssueSubmission(first);
         store.AbandonAttempt(store.AdmitHttpAttempt(first).AttemptId, "Never dispatched.");
         // An intermediate revision is refused before any Contract; the next one restores the admitted inputs.
-        revisions.Fixture.SetIssue(12, "## Request\nNo marked request.\n");
+        revisions.Fixture.SetIssue(12, " \n");
         var refused = store.ReviseIssueSubmission(first).SubmissionId;
         await Assert.That(await revisions.Prepare(refused)).IsTypeOf<IssueSubmissionPreparation.CaptureRefused>();
-        // Meanwhile the issue and the referenced issue and comment gained activity that GitHub reports with them.
-        revisions.Fixture.SetIssue(12, declared);
-        foreach (var apiPath in activity)
-            AddActivity(revisions.Fixture, apiPath);
+        // Meanwhile the issue gained activity that GitHub reports with it.
+        revisions.Fixture.SetIssue(12, RequestAdmissionTests.Request());
+        AddActivity(revisions.Fixture, "/repos/acme/widget/issues/12");
         var second = store.ReviseIssueSubmission(refused).SubmissionId;
 
         var ended = (IssueSubmissionPreparation.Unchanged)await revisions.Prepare(second);
         // Only bookkeeping differs: the retained responses themselves are not equal.
-        foreach (var reference in new[] { "primary", "github:acme/widget/issues/8", "github:acme/widget/issues/12#issuecomment-5" })
-            await Assert.That(Captured(store, second, reference)).IsNotEqualTo(Captured(store, first, reference));
+        await Assert.That(Captured(store, second, "primary")).IsNotEqualTo(Captured(store, first, "primary"));
         var unchanged = store.GetIssueSubmission(second);
         await Assert.That(ended.Explanation).IsEqualTo(unchanged.Unchanged);
         await Assert.That(unchanged.State).IsEqualTo("unchanged");
@@ -172,15 +164,16 @@ public sealed class RevisionTests
     }
 
     [Test]
-    public async Task AChangedIssueBodyProceedsEvenWhenItsExecutableRequestIsTheSame()
+    public async Task AChangedIssueTitleProceedsEvenWhenItsExecutableRequestIsTheSame()
     {
         await using var revisions = new Revisions();
         var store = revisions.Store;
         var first = store.SubmitIssue(Issue).SubmissionId;
         await revisions.Prepare(first);
         store.AbandonAttempt(store.AdmitHttpAttempt(first).AttemptId, "Never dispatched.");
-        // Only text outside the marked request section changes.
-        revisions.Fixture.SetIssue(12, "Context: exports are for auditors.\n\n" + RequestAdmissionTests.Request());
+        var retitled = JsonNode.Parse(File.ReadAllText(revisions.Fixture.ResponseFile("/repos/acme/widget/issues/12")))!;
+        retitled["title"] = "Export for auditors";
+        File.WriteAllText(revisions.Fixture.ResponseFile("/repos/acme/widget/issues/12"), retitled.ToJsonString());
         var second = store.ReviseIssueSubmission(first).SubmissionId;
 
         await Assert.That(await revisions.Prepare(second)).IsTypeOf<IssueSubmissionPreparation.Decided>();
@@ -235,11 +228,11 @@ public sealed class RevisionTests
         await Assert.That(store.IssueHistory(Issue).Count).IsEqualTo(history);
     }
 
-    /// <summary>The captured content digest of one reference in a submission's bundle.</summary>
+    /// <summary>The captured content digest of one member of a submission's bundle.</summary>
     private static string Captured(BroodlingStore store, string submissionId, string referenceId) =>
         store.GetRequestBundle(submissionId).References.Single(reference => reference.ReferenceId == referenceId).ContentSha256!;
 
-    /// <summary>GitHub's bookkeeping after activity on an issue or comment: a later update, a comment count, a reaction.</summary>
+    /// <summary>GitHub's bookkeeping after activity on an issue: a later update, a comment count, a reaction.</summary>
     private static void AddActivity(PreparationFixture fixture, string apiPath)
     {
         var file = fixture.ResponseFile(apiPath);

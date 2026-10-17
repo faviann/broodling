@@ -109,7 +109,7 @@ public sealed class IssueSubmissionPreparer(BroodlingApplication application, st
             if (submission.ContractRevisionId is null)
             {
                 var bundle = await store.CaptureRequestBundleAsync(submissionId, repositoryRoot, github,
-                    IssueSource, RepositorySource, null, lifetime);
+                    IssueSource, RepositorySource, lifetime);
                 if (bundle.State != "complete")
                     return Ended(store, store.GetIssueSubmission(submissionId))
                         ?? throw new InvalidOperationException("A refused capture left its submission unrejected.");

@@ -102,7 +102,7 @@ public sealed class SubmissionProgressorTests
         await using var target = new StockTarget();
         using var fixture = new PreparationFixture();
         fixture.SetIssue(12, RequestAdmissionTests.Request());
-        fixture.SetIssue(13, "## Request\n<!-- broodling-request:v1 -->\nAdd JSON export.\n");
+        fixture.SetIssue(13, "Add JSON export.\n");
         var blocked = Submit(fixture, 12).Single();
         using var store = fixture.State.Open();
         using var entered = new SemaphoreSlim(0);
@@ -206,7 +206,7 @@ public sealed class SubmissionProgressorTests
         target.Submit = _ => Task.FromResult((409, StockTarget.Conflict));
         using var fixture = new PreparationFixture();
         fixture.SetIssue(12, RequestAdmissionTests.Request());
-        fixture.SetIssue(13, "## Request\n<!-- broodling-request:v1 -->\nAdd JSON export.\n");
+        fixture.SetIssue(13, "Add JSON export.\n");
         var ids = Submit(fixture, 12, 13, 14);
         var (conflicting, abandoned, cancelled) = (ids[0], ids[1], ids[2]);
         using var store = fixture.State.Open();

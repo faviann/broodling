@@ -124,10 +124,6 @@ public class UnsupportedStartingState(string message)
 /// <summary>A retention pin that can never be created as asked: the object is not a commit, or the ref names something else.</summary>
 public sealed class RetentionRefused(string message) : UnsupportedStartingState(message);
 
-/// <summary>A selected repository path that is absent or not a file at its pinned commit.</summary>
-public sealed class UnresolvedRepositoryPath(string message)
-    : BroodlingException("unresolved_repository_path", message);
-
 public class ResultRetentionError(string message)
     : BroodlingException("result_retention_error", message);
 

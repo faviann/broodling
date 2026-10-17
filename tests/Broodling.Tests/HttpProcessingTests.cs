@@ -31,7 +31,7 @@ public sealed class HttpProcessingTests
         using var fixture = new PreparationFixture();
         using (fixture.State.Initialize()) { }
         fixture.SetIssue(12, RequestAdmissionTests.Request());
-        fixture.SetIssue(13, "## Request\n<!-- broodling-request:v1 -->\nAdd JSON export.\n");
+        fixture.SetIssue(13, "Add JSON export.\n");
         using var store = fixture.State.Open();
         using var entered = new SemaphoreSlim(0);
         var held = new TaskCompletionSource<HttpResponseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);

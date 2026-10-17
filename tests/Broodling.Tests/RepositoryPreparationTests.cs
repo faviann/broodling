@@ -9,18 +9,17 @@ namespace Broodling.Tests;
 public sealed class RepositoryPreparationTests
 {
     [Test]
-    public async Task ServiceAcquisitionRefreshesAnExistingBareRepositoryButOldCaptureReadsStayPinned()
+    public async Task ServiceAcquisitionRefreshesAnExistingBareRepositoryButTheFirstStartingCommitStaysPinned()
     {
         using var fixture = new RepositoryPreparationFixture();
         RequestBundle firstBundle;
-        RequestBundle completed;
         RepositoryPreparation first;
         RepositoryPreparation second;
         using (var store = fixture.State.Initialize())
         {
             var firstSubmission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
             firstBundle = store.BeginRequestBundleCapture(firstSubmission.SubmissionId,
-                new RequestBundlePlan("inputs-v1"u8.ToArray(), "policy-v1"u8.ToArray(), "limits-v1"u8.ToArray()));
+                new RequestBundlePlan("inputs-v1"u8.ToArray(), "policy-v1"u8.ToArray()));
             first = await store.PrepareRequestBundleRepositoryAsync(firstBundle.BundleId, fixture.RepositoryRoot,
                 new GitHubRepositoryCredentials("configured-token"), fixture.Source);
             await Assert.That(first.DefaultBranch).IsEqualTo("main");
@@ -45,15 +44,10 @@ public sealed class RepositoryPreparationTests
             fixture.SetDefaultBranch("develop");
             var secondSubmission = store.SubmitIssue("https://github.com/acme/widget/issues/13");
             var secondBundle = store.BeginRequestBundleCapture(secondSubmission.SubmissionId,
-                new RequestBundlePlan("inputs-v2"u8.ToArray(), "policy-v1"u8.ToArray(), "limits-v1"u8.ToArray()));
+                new RequestBundlePlan("inputs-v2"u8.ToArray(), "policy-v1"u8.ToArray()));
             second = await store.PrepareRequestBundleRepositoryAsync(secondBundle.BundleId, fixture.RepositoryRoot,
                 new GitHubRepositoryCredentials("configured-token"), fixture.Source);
-
-            // This registration deliberately happens after the second acquisition.
-            // The helper must use the first retained preparation, not the refreshed branch.
-            store.RegisterRequestBundleRepositoryFile(firstBundle.BundleId, "request", "request"u8.ToArray(), "request.txt");
-            store.CaptureRequestBundleGitBlob(firstBundle.BundleId, "request");
-            completed = store.CompleteRequestBundleCapture(firstBundle.BundleId);
+            store.CompleteRequestBundleCapture(firstBundle.BundleId);
             store.CompleteRequestBundleCapture(secondBundle.BundleId);
 
             await Assert.That(second.Repository).IsEqualTo(first.Repository);
@@ -76,8 +70,8 @@ public sealed class RepositoryPreparationTests
             await Assert.That(replayed).IsEqualTo(first);
             await Assert.That(File.ReadAllText(fixture.GhCalls)).IsEqualTo(callsBeforeReplay);
 
-            var oldRead = reopened.ReadRequestBundleReference(completed.BundleId, "request");
-            await Assert.That(oldRead.Content.SequenceEqual("initial request\n"u8.ToArray())).IsTrue();
+            await Assert.That(RunGit(first.Repository, "show", "refs/broodling/starting/" + first.StartingCommit + ":request.txt"))
+                .IsEqualTo("initial request\n");
         }
 
         await Assert.That(File.ReadAllText(fixture.GitCalls))
@@ -95,7 +89,7 @@ public sealed class RepositoryPreparationTests
         using var store = fixture.State.Initialize();
         var first = store.SubmitIssue("https://github.com/acme/widget/issues/12");
         var bundle = store.BeginRequestBundleCapture(first.SubmissionId,
-            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
+            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray()));
         var prepared = await store.PrepareRequestBundleRepositoryAsync(bundle.BundleId, fixture.RepositoryRoot,
             new GitHubRepositoryCredentials("configured-token"), fixture.Source);
         var serviceRepository = prepared.Repository;
@@ -104,7 +98,7 @@ public sealed class RepositoryPreparationTests
         var callsBefore = File.ReadAllText(fixture.GitCalls);
         var second = store.SubmitIssue("https://github.com/acme/widget/issues/13");
         var secondBundle = store.BeginRequestBundleCapture(second.SubmissionId,
-            new RequestBundlePlan("inputs-2"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
+            new RequestBundlePlan("inputs-2"u8.ToArray(), "policy"u8.ToArray()));
 
         var refused = await Assert.That(async () => await store.PrepareRequestBundleRepositoryAsync(secondBundle.BundleId,
             fixture.RepositoryRoot, new GitHubRepositoryCredentials("configured-token"), fixture.Source))
@@ -127,7 +121,7 @@ public sealed class RepositoryPreparationTests
             var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
             submissionId = submission.SubmissionId;
             bundleId = store.BeginRequestBundleCapture(submissionId,
-                new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray())).BundleId;
+                new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray())).BundleId;
         }
         using var firstStore = fixture.State.Open();
         using var secondStore = fixture.State.Open();
@@ -162,7 +156,7 @@ public sealed class RepositoryPreparationTests
     {
         using var fixture = new RepositoryPreparationFixture();
         using var store = fixture.State.Initialize();
-        fixture.SetIssue(12, "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n");
+        fixture.SetIssue(12, "Add CSV export.\n");
         var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
         var bundle = await store.CaptureRequestBundleAsync(submission.SubmissionId, fixture.RepositoryRoot,
             new GitHubRepositoryCredentials("configured-token"), new GitHubIssueSource(fixture.Gh), fixture.Source);
@@ -171,7 +165,7 @@ public sealed class RepositoryPreparationTests
         fixture.SetDefaultBranch("develop");
         var refreshSubmission = store.SubmitIssue("https://github.com/acme/widget/issues/13");
         var refreshBundle = store.BeginRequestBundleCapture(refreshSubmission.SubmissionId,
-            new RequestBundlePlan("refresh-inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
+            new RequestBundlePlan("refresh-inputs"u8.ToArray(), "policy"u8.ToArray()));
         await store.PrepareRequestBundleRepositoryAsync(refreshBundle.BundleId, fixture.RepositoryRoot,
             new GitHubRepositoryCredentials("configured-token"), fixture.Source);
         await Assert.That(RunGit(prepared.Repository, "rev-parse", "refs/broodling/upstream/main").Trim())
@@ -218,7 +212,7 @@ public sealed class RepositoryPreparationTests
         using var store = fixture.State.Initialize();
         var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
         var bundle = store.BeginRequestBundleCapture(submission.SubmissionId,
-            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
+            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray()));
 
         var changed = await Assert.That(async () => await store.PrepareRequestBundleRepositoryAsync(bundle.BundleId,
             fixture.RepositoryRoot, new GitHubRepositoryCredentials("configured-token"), fixture.Source))
@@ -258,7 +252,7 @@ public sealed class RepositoryPreparationTests
         {
             var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
             bundleId = store.BeginRequestBundleCapture(submission.SubmissionId,
-                new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray())).BundleId;
+                new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray())).BundleId;
         }
 
         fixture.EnableInterruptedInitialEstablishment();
@@ -468,16 +462,6 @@ public sealed class RepositoryPreparationTests
                 html_url = $"https://github.com/{owner}/{repository}/issues/{number}",
                 repository_url = $"https://api.github.com/repos/{owner}/{repository}",
                 node_id = "I_" + number
-            });
-
-        internal void SetComment(long issue, long id, string body) =>
-            SetResponse("/repos/acme/widget/issues/comments/" + id, new
-            {
-                id,
-                body,
-                html_url = $"https://github.com/acme/widget/issues/{issue}#issuecomment-{id}",
-                issue_url = "https://api.github.com/repos/acme/widget/issues/" + issue,
-                node_id = "IC_" + id
             });
 
         internal void Gone(string apiPath)

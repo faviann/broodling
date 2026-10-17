@@ -10,9 +10,7 @@ target's fixed dependency paths:
   `--json-schema`, as Claude Code's `stream-json` session start and `result`
   event with `structured_output`. Its worker writes known candidate bytes to
   `README.md`, verifiers accept, and a resumed turn reports the session ID native
-  passed in `--resume`. When the task lists a RequestBundle, the worker
-  also writes each listed reference's bytes, decoded from the task, to
-  `references/<index>`. While the forge holds a
+  passed in `--resume`. While the forge holds a
   `hold` file, the worker waits, so the image demonstration's run stays active
   until it is stopped. When the worker's input phase is a non-ready delivery
   outcome (`ci_failed`, `conflict` or `repair_required`), it repairs instead: it
