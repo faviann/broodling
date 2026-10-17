@@ -170,12 +170,21 @@ which Broodling does not check. These residuals remain
   that raise cost are [tracked on #249](https://github.com/faviann/broodling/issues/249#issuecomment-6228140697).
 - Every command an agent runs can read the gateway key. A nested `claude -p`
   from Bash reaches `claude-opus-5`, or another model with `--model`. The key
-  has no model allowlist; its spend quota, a live-run precondition, bounds the
-  cost ([#249](https://github.com/faviann/broodling/issues/249)).
+  has no model allowlist ([#249](https://github.com/faviann/broodling/issues/249)).
 - Automatic compaction makes a full-context medium call, by default once each
   time the context fills. A repository's settings `env` can make it run on
   most turns ([#249](https://github.com/faviann/broodling/issues/249)).
 - Native acts on pull-request feedback from anyone who can comment.
+- No spend bound is enforced. sub2api runs in simple mode, which does not
+  enforce key quotas ([homelab-iac#605](https://github.com/faviann/homelab-iac/issues/605)).
+  The owner watches spend, and nothing else bounds the cost of the residuals
+  above, of up to 10 change iterations or of each review retried once.
+- The key's IP whitelist trusts forwarded headers, so it is advisory. The
+  gateway is reachable only from the LAN
+  ([homelab-iac#605](https://github.com/faviann/homelab-iac/issues/605)).
+- The deployed `GH_TOKEN` is the owner's own GitHub token, given only to the
+  deliver node. [#253](https://github.com/faviann/broodling/issues/253)
+  narrows its scope.
 
 The .NET application preserves the #75–#77 callable/operator behavior. The
 [passed migration review](../migration/130-migration-review.md) and

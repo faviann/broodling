@@ -417,8 +417,8 @@ Limits of the verification:
   default, `claude-opus-5`, and with `--model` it can reach another model; a
   `curl` to the gateway bypasses the settings altogether. The gateway key has
   no model allowlist, so this is an accepted residual tracked in
-  [#249](https://github.com/faviann/broodling/issues/249), and the key's spend
-  quota bounds its cost ([live-run preconditions](#live-run-preconditions)).
+  [#249](https://github.com/faviann/broodling/issues/249). No spend bound
+  limits its cost ([live-run preconditions](#live-run-preconditions)).
 - Automatic compaction makes a full-context call on `claude-opus-5-5` at
   medium effort with 32000 output tokens, by default once each time the
   context fills. A repository's settings `env` can make it run on most turns
@@ -1355,14 +1355,30 @@ the first live Attempt and keeps them for every later one:
   `apiKeyHelper` still apply ([#249](https://github.com/faviann/broodling/issues/249)).
   GitHub interaction limits expire after at most six months; the limit on the
   canary, `faviann/broodling-canary`, expires on 2027-04-16. Renew the limit
-  before it expires, or make the repository private.
+  before it expires, or make the repository private. `faviann/broodling` does
+  not meet this yet; [#253](https://github.com/faviann/broodling/issues/253)
+  covers limiting its comments before any run targets it.
 - **A dedicated gateway key.** `GATEWAY_API_KEY` is a sub2api key that only
-  Broodling uses. The owner configures it in sub2api with a spend quota and an
-  IP whitelist of the Broodling host's and every target's egress addresses. It
-  has no model allowlist. Every command an agent runs can read the key, so a
-  nested `claude -p` or a direct request with the key can reach another model.
-  The quota bounds what that costs, and the whitelist limits where a leaked key
-  works.
+  Broodling uses. It has no model allowlist. Every command an agent runs can
+  read the key, so a nested `claude -p` or a direct request with the key can
+  reach another model.
+
+These residuals remain under the preconditions:
+
+- **No enforced spend bound.** sub2api runs in simple mode, which does not
+  enforce key quotas ([homelab-iac#605](https://github.com/faviann/homelab-iac/issues/605)).
+  The owner watches spend by hand. Nothing else bounds the cost of a nested
+  `claude -p`, a direct request naming any model, a repository's settings `env`
+  ([#249](https://github.com/faviann/broodling/issues/249)), automatic
+  compaction, up to 10 change iterations, or each review retried once.
+- **An advisory IP whitelist.** The key's IP whitelist trusts forwarded
+  headers, so it does not limit where a leaked key works. The gateway is
+  reachable only from the LAN
+  ([homelab-iac#605](https://github.com/faviann/homelab-iac/issues/605)).
+- **The owner's own GitHub token.** The deployed `GH_TOKEN` is the owner's own
+  GitHub token, not a fine-grained one. Native gives it only to the deliver
+  node. [#253](https://github.com/faviann/broodling/issues/253) narrows its
+  scope.
 
 ## Invocation and recovery
 

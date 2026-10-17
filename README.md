@@ -82,12 +82,16 @@ Broodling does not check. The settings leave open a target repository's
 settings `env` beyond the pinned keys and its `apiKeyHelper`
 ([#249](https://github.com/faviann/broodling/issues/249)), and agent commands
 that read the gateway key, including a nested `claude -p` that reaches
-`claude-opus-5` or another model, which only the key's spend quota bounds.
+`claude-opus-5` or another model.
 Automatic compaction makes a full-context medium call once each time the
 context fills by default, and a repository's settings `env` can make it run on
 most turns.
 Further settings that raise cost are [tracked on #249](https://github.com/faviann/broodling/issues/249#issuecomment-6228140697)
 ([limits](deployment/README.md#adopted-target-environment)).
+No spend bound is enforced, so only the owner's watch on spend bounds these
+costs ([homelab-iac#605](https://github.com/faviann/homelab-iac/issues/605)).
+The deployed `GH_TOKEN` is the owner's own token, given only to the deliver
+node; [#253](https://github.com/faviann/broodling/issues/253) narrows it.
 Current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` are required for
 dispatch/replay; their values are not frozen in the invocation. Durable
 correlation permits reconnection without those dispatch credentials. Every
