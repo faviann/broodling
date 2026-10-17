@@ -166,12 +166,15 @@ which Broodling does not check. These residuals remain
 
 - A target repository's own Claude Code settings `env` beyond the pinned keys
   and its `apiKeyHelper` still apply
-  ([#249](https://github.com/faviann/broodling/issues/249)).
+  ([#249](https://github.com/faviann/broodling/issues/249)). Further settings
+  that raise cost are [tracked on #249](https://github.com/faviann/broodling/issues/249#issuecomment-6228140697).
 - Every command an agent runs can read the gateway key. A nested `claude -p`
   from Bash reaches `claude-opus-5`, or another model with `--model`. The key
   has no model allowlist; its spend quota, a live-run precondition, bounds the
   cost ([#249](https://github.com/faviann/broodling/issues/249)).
-- Automatic compaction makes one full-context medium call.
+- Automatic compaction makes a full-context medium call, by default once each
+  time the context fills. A repository's settings `env` can make it run on
+  most turns ([#249](https://github.com/faviann/broodling/issues/249)).
 - Native acts on pull-request feedback from anyone who can comment.
 
 The .NET application preserves the #75–#77 callable/operator behavior. The

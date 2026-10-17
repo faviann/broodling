@@ -406,8 +406,10 @@ Limits of the verification:
   `.claude/settings.json` `env` entries beyond the keys they pin, or its
   `apiKeyHelper` ([#249](https://github.com/faviann/broodling/issues/249)).
   Such a repository can set environment variables that send the gateway key
-  elsewhere. Native also acts on pull-request feedback from anyone who can
-  comment. Run Attempts only under the
+  elsewhere. Further settings that raise cost are
+  [tracked on #249](https://github.com/faviann/broodling/issues/249#issuecomment-6228140697).
+  Native also acts on pull-request feedback from anyone who can comment. Run
+  Attempts only under the
   [live-run preconditions](#live-run-preconditions).
 - The managed settings bound Claude Code's own requests, not the commands an
   agent runs. Every such command can read the gateway key. A nested
@@ -417,8 +419,10 @@ Limits of the verification:
   no model allowlist, so this is an accepted residual tracked in
   [#249](https://github.com/faviann/broodling/issues/249), and the key's spend
   quota bounds its cost ([live-run preconditions](#live-run-preconditions)).
-- Automatic compaction makes one full-context call on `claude-opus-5-5` at
-  medium effort with 32000 output tokens.
+- Automatic compaction makes a full-context call on `claude-opus-5-5` at
+  medium effort with 32000 output tokens, by default once each time the
+  context fills. A repository's settings `env` can make it run on most turns
+  ([#249](https://github.com/faviann/broodling/issues/249)).
 - An image inventory or an approved environment catalog does not enforce R13's
   prohibition against arbitrary unprivileged downloads: execution agents can
   still fetch and run tools in their own run home.

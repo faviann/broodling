@@ -46,7 +46,7 @@ internal static class DirectTargetBinding
     internal const string AssetFile = "software-change-pr-claude-gateway.json";
     internal const string AssetSha256 = "7e232da54ed2ca138b31fea38a6f002d08d77b584965253b18077205b2c1e5be";
     /// <summary>SHA-256 of the exact reviewed approval manifest, execution-assets/approval.json.</summary>
-    internal const string ApprovalSha256 = "9051980e8cc335e2ab6cdbc3ba3131f24d3c02cd7cc8a6861b0d042320850453";
+    internal const string ApprovalSha256 = "726af313a3081ff72acbae0a9a552cd585f41c64d64f56a912c3df4981ce7ad2";
 
     /// <summary>The native identity as the approval manifest and a retained HTTP binding record it.</summary>
     internal static JsonObject Native() => new()
