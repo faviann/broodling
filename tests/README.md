@@ -458,7 +458,7 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
 
 ### Current adoption record
 
-- Tested code revision: `ed4cb5e01ae73cf701bb2332a67c3c30a7cefd64` (#246). Later commits that only
+- Tested code revision: `629b39cb1ebc9f746a6169dc39263d5c95df2b79` (#246). Later commits that only
   edit this record or other documentation leave it valid; a code change
   requires a new run. #246 moves the SDK, native, adopted image and asset
   together.
@@ -487,11 +487,14 @@ gh run download RUN_ID -R faviann/zeroshot-dotnet-sdk -n publication
   from nothing, unchanged from the #235 record; it is not yet frozen.
 - Results, on Linux x86-64 with .NET SDK 10.0.401 and Docker 29.9.1, with no
   Python environment and every image test on the pulled adopted image, on a
-  16-core host whose load average from other work was 6 to 7: the full suite
-  passed 776 of 777, none skipped, and the lane passed 293 of 294, each on its
-  first run. In both, the one failure was
+  16-core host whose load average was 9 to 25: the full suite
+  passed 778 of 779, none skipped, on its second run, and the lane passed 293
+  of 294 on its first. In both, the one failure was
   `ApprovalDecisionIsAPublicCommentOnTheRepository`, which fails by design
-  while the approval decision is pending. The Release build succeeded
+  while the approval decision is pending. The full suite's first run also
+  failed `ReplacementTests.StoppedTargetRetiredDirectTargetWorkIsReplacedWithinThePauseFromItsFrozenAuthorityAndDispatchedOnlyAfterRelease`
+  with "A local dispatch is still initiating", the
+  [#201](https://github.com/faviann/broodling/issues/201) class. The Release build succeeded
   with no warnings, and the [image demonstration](#image-demonstration) passed
   on the Broodling image built from that revision with the adopted image,
   where `check-target` reported `dotnet-r6`. That Broodling image restored the
