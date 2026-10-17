@@ -49,7 +49,7 @@ Application behavior is callable without HTTP. Follow the seam you need:
 | Safe never-dispatched retirement and explicit replacement | [Lifecycle](docs/implementation/dotnet-retirement-replacement.md) |
 | Inspect an existing selected DirectTarget | [Target readiness](docs/implementation/dotnet-target-readiness.md) |
 
-The ASP.NET host serves retained work, frozen references and bounded native
+The ASP.NET host serves retained work and bounded native
 progress over HTTP from existing state. With its
 [processing configuration](deployment/README.md#processing-server) it also
 accepts URL-only Issue submissions and resumes and stops exact work, while

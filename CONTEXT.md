@@ -21,18 +21,13 @@ does not prove physical cessation of any execution that has already started.
 
 **Executable Request**:
 The complete, current description of a Work Unit's requested outcome, completion
-criteria and scope, from which a Contract is constructed. Explicit references
-may define technical details or conformance targets; the request itself defines
-the work and can be edited as it is clarified.
+criteria and scope, from which a Contract is constructed. For an Issue
+submission it is the primary issue's whole body. The request defines the work
+and can be edited as it is clarified.
 
 **RequestBundle**:
-The immutable request environment containing an exact Executable Request, its
-starting source revision and the fixed set of references available to interpret
-and carry out that request.
-
-**Available reference**:
-Material included in a RequestBundle for agents to consult as needed. Its
-availability alone does not add requested work or authorize effects.
+The immutable request environment containing an exact Executable Request, the
+primary issue it was taken from and its starting source revision.
 
 **Contract**:
 An immutable, source-attributed statement of what a Work Unit must satisfy,

@@ -70,10 +70,9 @@ as supplied sources; there is no second Contract pipeline.
   `executable_request` at the recorded digest. The PR target branch is the
   manifest's repository selection, which the retained preparation row must
   equal.
-- The proposer receives that Executable Request as its only source, plus
-  `RequestBundle` for the manifest and members. The primary issue and available
-  references are supporting material read through the bundle. A proposal that
-  attributes them refuses, so their capture cannot add requested work.
+- The proposer receives that Executable Request as its only source. The
+  captured primary issue response stays in the bundle. A proposal that
+  attributes it refuses, so its capture cannot add requested work.
 - Broodling supplies one `pull_request` effect to that retained PR target
   branch. The proposal must preserve it and carry `BundleBinding`
   unchanged.
@@ -127,28 +126,19 @@ gateway probe measured about 105 tokens a second, latency included, so a full
 that rate 180 seconds hold about 19,000 tokens, and a limit near that would end
 a long reply in a timeout rather than a `length` finish. The
 gateway still finishes and bills a call after the proposer gives up on it. Each call also asks for the
-`json_object` response format,
+`json_object` response format and offers no tools,
 but on this gateway the format is advisory: sub2api drops `response_format` on
 its Claude Chat Completions path. The strict parse of the final reply, below,
 is what enforces the JSON object. The
 [operations guide](../../deployment/README.md#bundled-contract-proposer)
 describes its configuration.
 
-- The initial context is the Executable Request text, the fixed authority
-  (Work Unit, request pin, PR effect, producer and bundle binding) and a
-  compact manifest projected from the digest-verified retained manifest: each
-  member's reference identity, capture kind, selector, digest and any Git commit
-  and path, without the content that native agents' tasks carry (#241). Fixed instructions describe the output
+- One proposal is one model call. Its context is the Executable Request text
+  and the fixed authority (Work Unit, request pin, PR effect, producer and
+  bundle binding), nothing else. Fixed instructions describe the output
   shape. They tell the model to preserve every requirement, expressing other
   requested actions as obligations and unmet conditions as prerequisites, and
   never to change the authority.
-- The model reads members on demand with one `read_reference` tool. Each read
-  goes through `ReadRequestBundleReference` for this bundle, so it returns only
-  frozen captured bytes: a non-member is an error reply, and nothing is fetched
-  upstream or read from a working tree. A read returns at most 64 KiB, with an
-  offset to continue; one proposal reads at most 512 KiB and makes at most 8
-  model calls. The last call forbids tools (`tool_choice: none`), so the model
-  must answer.
 - The final reply is parsed into a `Contract` with its canonical field names;
   unrecognized fields and repeated properties are refused. An omitted authority field takes its fixed
   value. A supplied one is kept, so any change refuses rather than being
@@ -158,18 +148,12 @@ describes its configuration.
   missing or invalid credentials and other gateway refusals (`Retryable` false),
   and transport failure, a 3-minute call timeout, HTTP 408/429/5xx, a reply cut
   off at the output limit (`finish_reason: length`), any other finish reason
-  than `stop` (absent counts as `stop`; `tool_calls` only with tool calls),
-  non-text content, tool calls on the final call, or another unusable gateway
-  response or tool call (`Retryable` true). A text-free `stop` reply remains a
+  than `stop` (absent counts as `stop`), non-text content, a tool call, or
+  another unusable gateway response (`Retryable` true). A text-free `stop` reply remains a
   retained refusal. The submission stays
   `capturing`, and a later call proposes again from the same frozen inputs. A
   bound or refused submission is never proposed again. Neither the key nor the
   gateway's response text appears in an error or a retained record.
-
-A frozen-state integrity or custody failure during a proposal, such as a failed
-compact-manifest check or an on-demand read that fails for a reason other than an
-unknown member, throws a conflict that needs attention. It is neither a retained
-refusal nor a `ContractProposerError`, and it retains nothing.
 
 The proposer runs only after capture completes and cannot add bundle members.
 Controlled tests do not establish model interpretation quality; the supervised

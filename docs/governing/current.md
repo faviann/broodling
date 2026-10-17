@@ -194,15 +194,18 @@ pre-Contract Issue submission identity and inspection through the callable
 SQLite store. #157 adds persisted admission/dispatch pause controls and drain
 status; host containment, process supervision and physical-cessation maintenance
 remain operator/host responsibilities. #106 adds interruption-safe RequestBundle
-capture checkpoints, immutable completion and bundle-scoped reads. #115 fetches
+capture checkpoints and immutable completion. #115 fetches
 and pins each exact accepted commit under a Broodling-owned ref before successful
 disposition. #107 adds
 service-owned GitHub repository preparation: the retained default PR branch and
 exact starting commit are separate facts, and prepared Attempt admission uses
 those retained facts rather than caller checkout or later repository state.
-Repository-file capture continues through the retained commit. #108 captures the
-marked v1 Executable Request and its declared, bounded GitHub reference closure,
-or retains deterministic refusal findings before any Contract. #111 admits a
+Capture (#256, replacing #108's marked section and reference closure) takes the
+primary issue's whole body, exactly as GitHub returns it, as the Executable
+Request. It captures no other material and follows no links. An unavailable
+issue or an empty or whitespace-only body retains a refusal finding
+(`issue_unavailable`, `request_empty`) before any Contract, so nothing is
+dispatched. #111 admits a
 completed bundle as a Contract bound to its identity and manifest digest,
 attributing only the Executable Request and granting one PR to the retained
 target branch. #119 adds bounded, unretained
@@ -245,8 +248,7 @@ against controlled forge scenarios
 status reader now drops native's workspace-recovery facts on failed runs.
 The Compose installation
 (homelab-iac#353) remains open. #113 serves retained
-work and frozen references over read-only HTTP from the ASP.NET host, opening
-existing state only. #118 adds a callable completion observer that retains
+work over read-only HTTP from the ASP.NET host, opening existing state only. #118 adds a callable completion observer that retains
 correlated HTTP results with no caller waiting. #234 replaces the Broodling-built
 DirectTarget image with the adopted `dotnet-r2` environment image: the images
 workflow pulls it by digest for the demonstration, the image qualification and
@@ -256,11 +258,12 @@ executable and Codex 0.155.0 under explicit Execution asset review. #246 moves
 the binding to native 10.12.0, `Zeroshot.Client` 10.12.0.1-preview.1 and the
 adopted `dotnet-r6`, and regenerates the asset with one uniform Claude Code
 runtime through the sub2api gateway; a run status or force reply without a
-source is refused as a foreign run. #241 makes each native submission carry its RequestBundle
-references in place of #114's agent reads from Broodling; see
-[frozen references](../implementation/zeroshot-native-integration.md#frozen-references). #112 adds the callable bundled proposer: the supported model
-behind the pinned gateway prepares that bundle-bound Contract from the Executable
-Request, a compact manifest and on-demand frozen-reference reads. Malformed or
+source is refused as a foreign run. A native submission is self-contained: its
+task carries the Contract, the Executable Request and B1, and no agent reads from
+Broodling ([task size](../implementation/zeroshot-native-integration.md#task-size)).
+#112 adds the callable bundled proposer: the supported model behind the pinned
+gateway prepares that bundle-bound Contract from the Executable Request in one
+call. Malformed or
 authority-changing proposals retain findings and reject the submission; gateway
 failures retain nothing and may be retried. #116 composes capture and that
 proposer into one callable operation that prepares an exact submission to its
@@ -286,8 +289,7 @@ Unconfigured, it stays a reader. #124 adds an explicit revision: a new Issue
 submission that names the Work Unit's latest, ended submission as its
 predecessor, created at most once and returned exactly on replay. Progression
 captures and prepares it afresh; if its work-defining request identity (#207:
-primary and referenced issue titles and bodies, referenced comment bodies,
-other references' content, starting commit and PR target, ignoring GitHub
+the issue's title and body, starting commit and PR target, ignoring GitHub
 bookkeeping) equals that of an already-admitted submission whose Contract has
 an Attempt, it ends with a retained explanation linking that authority instead
 of being proposed or executed. #205 runs `retire-attempt` and

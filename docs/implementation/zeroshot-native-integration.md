@@ -204,8 +204,7 @@ origin must name the admitted GitHub repository and carry no credentials: a URL
 has no user information except the `git` user of an `ssh://` URL. A
 crash after pinning but before the SQLite commit leaves only the pin, which grants
 nothing. The environment declaration is then read from exact B1 and resolved
-against the catalog, and a bundle-bound Attempt's references are read, all
-outside any SQLite writer; a refusal leaves no record. Preparation then rechecks current authority and pause in one immediate
+against the catalog, both outside any SQLite writer; a refusal leaves no record. Preparation then rechecks current authority and pause in one immediate
 transaction, including the explicit-replacement exception. That transaction
 commits all of the following together:
 
@@ -215,10 +214,10 @@ commits all of the following together:
   asset's values. `task` carries the complete Contract, every exact entitled
   source byte and original B1 authority. Valid UTF-8 source content stays exact
   text, including CRLF; other content is base64 with `"encoding": "base64"`.
-  Construction is deterministic. For a bundle-bound Contract, whose only
-  entitled source is the Executable Request, the task adds the bound
-  RequestBundle's manifest with every member's exact captured bytes; see
-  [frozen references](#frozen-references). `source` names the
+  Construction is deterministic. A bundle-bound Contract's only entitled
+  source is the Executable Request, the issue's whole body, so agents receive
+  that body and nothing else from the bundle; see [task size](#task-size).
+  `source` names the
   admitted owner/repository and the authorized PR branch, separate from exact
   original B1.
 - The intended run ID, a canonical UUIDv7 generated only when no record exists,
@@ -318,22 +317,12 @@ cannot be changed or deleted. No token value or token path is retained. Status
 and Attempt reads report `environment`: name, image, adoption and manifest
 digests and the target.
 
-### Frozen references
+### Task size
 
-A bundle-bound task (#241) carries a `requestBundle` object beside the Contract,
-the Executable Request and B1: the bundle identity, the manifest digest the
-Contract binds, and each member in manifest order with its reference ID, capture
-kind, selector (the capture's JSON; any other selector stays base64), content
-digest, the pinned commit and path of a Git capture, and its exact captured
-bytes, encoded like entitled sources. The text tells agents that a reference
-adds no work, cannot amend the Contract or Executable Request and authorizes no
-effect.
-
-The members are exactly the sealed manifest's, fixed in the prepared request, so
-a run needs no Broodling access and agents have no way to refresh or extend the
-bundle. The target image has no Broodling helper or reader address, and
-the target needs no route to Broodling. An acknowledgement-loss replay sends the
-same bytes, references included.
+The task is fixed in the prepared request, so a run needs no Broodling access.
+The target image has no Broodling helper or reader address, and the target
+needs no route to Broodling. An acknowledgement-loss replay sends the same
+bytes.
 
 Native puts the whole task into every agent node's input. A node input is one
 ledger event of at most 1 MiB, so preparation refuses a task over Broodling's

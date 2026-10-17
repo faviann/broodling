@@ -26,10 +26,10 @@ boundaries.
 
 Only the explicitly acquired and validated primary issue receives policy
 entitlement. Supplied sources and supplementary material need explicit caller
-grants. On these admission paths, links, comments and repository guidance are
-not implicitly fetched or entitled; the separate
-[RequestBundle capture](dotnet-github-ingress.md#executable-request-capture)
-acquires only declared references and their bounded GitHub link closure. Every exact source digest, the declared producer and all caller effect
+grants. Links, comments and repository guidance are never fetched or entitled.
+The separate [RequestBundle capture](dotnet-github-ingress.md#executable-request-capture)
+acquires only the primary issue and takes its whole body as the Executable
+Request. Every exact source digest, the declared producer and all caller effect
 fields must remain in the proposal. Unsupported obligations/prerequisites remain
 visible to admission; a proposer cannot delete them to obtain acceptance.
 
