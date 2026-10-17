@@ -111,7 +111,8 @@ jobs:
           git config --global --remove-section filter.lfs || :
           dotnet test --project tests/Broodling.Tests/Broodling.Tests.csproj --treenode-filter '/*/*/(TargetEnvironmentTests)|(TargetImageTransitionTests)|(ApplicationSchemaFreezeTests)/*'
 
-      # The release record copies the execution asset approval, so only a decided one publishes.
+      # The published image bundles approval.json, so only a decided approval publishes. The release record copies
+      # only its asset hash and its native and Claude blocks.
       - name: Require a decided execution asset approval
         run: |
           jq -e '.approval.decision | test("^https://github\\.com/faviann/broodling/(issues|pull)/[0-9]+#issuecomment-[0-9]+$")' \
