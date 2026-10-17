@@ -1476,68 +1476,101 @@ gateway and received `structured_output`. Proposal quality on real issues is
 still unverified.
 
 <a id="claude-code-agent-traffic"></a>The agents' Claude Code traffic was
-captured offline on 2026-10-16 (#246) in the published `dotnet-r5` image
-(`0a8829f1…`). Every case ran with `--network none` and dummy keys. A fresh
-CA sat in the container's system trust store, and no proxy variable was set.
-A DNS server answered every name with a local address and logged the query,
-and a TLS terminator issued a certificate for any name and logged every
-request. A scripted model served the gateway name. It called Bash, Read, Edit
-and Write, then WebFetch and WebSearch although neither was offered, then Bash
-again to check the workspace, then the structured result. The cases were:
+captured offline on 2026-10-17 UTC (#246) in the published `dotnet-r6` image
+(`b10a7228…`, managed settings `a469a57a…`). Every case ran with
+`--network none` and dummy keys. A fresh CA sat in the container's system
+trust store, and no proxy variable or `NODE_EXTRA_CA_CERTS` was set. A DNS
+server answered every name with a loopback address and logged the query. A
+TLS terminator issued a certificate for any name and logged the SNI and every
+request, plain HTTP was logged too, and a raw-socket logger recorded every TCP
+SYN and UDP datagram on any loopback port. A scripted model served the
+gateway name. The 21 cases were:
 
-- **Hosted.** Native 10.12.0's hosted lane in the image: `zeroshot target
-  serve`, `zeroshot target add --direct` and a `single-worker` run submitted
-  with `--target` from a local Git source. The runtime was Claude Code /
-  `gateway` / `claude-opus-5-5` / medium, and the run declared one
-  connection, `gateway`, with `GATEWAY_API_KEY` and `GATEWAY_BASE_URL`. A
-  wrapper in place of `/usr/local/bin/claude` logged the process and started
-  the real one. Native started Claude Code as `20000:10002` with only
-  `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `GATEWAY_API_KEY`,
-  `GATEWAY_BASE_URL`, `HOME`, `PATH`, `TMPDIR` and `ZEROSHOT_TOOLS`, and with
-  argv ending `--model claude-opus-5-5 --json-schema … --effort medium
-  --dangerously-skip-permissions`.
-- **Direct.** Claude Code alone as `20000:10002`, with native's hosted argv and
-  those environment names plus `LANG`.
-- **Hostile repository.** The same, against a repository whose
-  `.claude/settings.json` and `settings.local.json` allow WebFetch and
-  WebSearch, set `defaultMode` `bypassPermissions`, effort `max`, 128000
-  output tokens, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=0` and
-  `skipWebFetchPreflight: false`, with a repository agent and a skill that
-  allow both tools at effort `max`. The model first called that agent, which
-  tried both tools, and that skill.
+- **Hosted, approved asset.** Native 10.12.0's hosted lane in the image
+  (`zeroshot target serve`, `zeroshot target add --direct`) ran the approved
+  #246 asset from a local Git source. The harness removed deliver's `github`
+  connection, so the runs declared only `gateway` and ended `delivery_failed`
+  by design, with no push. In one run the worker called Bash, Edit and Write,
+  wrote `.claude/settings.json` with a `CLAUDE_CODE_EXTRA_BODY` of effort
+  `max`, 64000 tokens and `speed` `fast`, called `Agent` with model `haiku`,
+  then checked the workspace; both reviewers then read that file. In another,
+  every node called `Agent` with model `fable`. In a third, every node wrote
+  that `CLAUDE_CODE_EXTRA_BODY` first.
+- **Hosted, single worker.** A `single-worker` run with the runtime Claude
+  Code / `gateway` / `claude-opus-5-5` / medium, which declared exactly one
+  connection, `{"gateway": ["GATEWAY_API_KEY", "GATEWAY_BASE_URL"]}`, with no
+  proxy or CA field. Its values were set at user scope with `zeroshot
+  connection set gateway --json-stdin`. One run called Bash, Read, Edit and
+  Write, WebFetch and WebSearch although neither was offered, the Explore,
+  `fable` and `statusline-setup` agents, an agent asked to run in the
+  background, `Workflow` and a skill, and compacted once. One called a
+  background agent and planned an edit after the result, and one started a
+  `Workflow` meant to outlive the result.
+- **Direct.** Claude Code alone as `20000:10002` with native's hosted argv and
+  exactly its environment names. Hostile repositories set, through
+  `.claude/settings.json`, `CLAUDE_CODE_EXTRA_BODY` (effort `max` with 64000
+  tokens, or `speed` `fast`), `CLAUDE_CODE_SUBAGENT_MODEL=claude-fable-5-1`,
+  the advisor env and `advisorModel` `fable`, or `advisorModel` alone, or
+  carried an agent with model `fable` and a skill with model `haiku`. The
+  dotnet-r5 capture's hostile repository came along too: web tools allowed,
+  `defaultMode` `bypassPermissions`, effort `max`, 128000 tokens,
+  nonessential traffic on, and a repository agent and skill that use the web
+  tools. Other direct cases wrote those settings mid-run, called a background
+  agent, started a `Workflow` meant to outlive the result, asked `Agent` and
+  `Workflow` for `fable`, `sonnet`, `haiku` and full model IDs, and ran Bash,
+  Read, Edit and Write.
 
-| Case | Claude Code's requests | Model calls (effort, `max_tokens`) | Web tools offered | Title, `domain_info` or web side calls | Result |
-| --- | --- | --- | --- | --- | --- |
-| Hosted | gateway: `HEAD /api/hello` 1, `POST /v1/messages` 8 | 8 (medium, 32000) | none | none | run `succeeded` |
-| Hosted, hostile repository | gateway: `HEAD /api/hello` 1, `POST /v1/messages` 13 | 13 (medium, 32000) | none | none | run `succeeded` |
-| Direct | gateway: `HEAD /api/hello` 1, `POST /v1/messages` 8 | 8 (medium, 32000) | none | none | `success` |
-| Direct, hostile repository | gateway: `HEAD /api/hello` 1, `POST /v1/messages` 13 | 13 (medium, 32000) | none | none | `success` |
+| Cases | Claude Code's requests | Model calls | Run result |
+| --- | --- | --- | --- |
+| Hosted, approved asset (3) | gateway: `HEAD /api/hello` 1 per node, `POST /v1/messages` 13, 12 and 9 | 34 | `delivery_failed` |
+| Hosted, single worker (3) | gateway: `HEAD /api/hello` 1, `POST /v1/messages` 26 (one compaction), 4 and 2 | 32 | `succeeded` |
+| Direct, hostile repository (7) | gateway: `HEAD /api/hello` 1, `POST /v1/messages` 9, 6, 6, 6, 6, 6 and 5 | 44 | one `result` each |
+| Direct, other (8) | gateway: `HEAD /api/hello` 1, `POST /v1/messages` 6, 4, 2, 17, 12, 3, 3 and 6 | 53 | one `result` each |
 
-Claude Code resolved no name but the gateway's. Its `HEAD /api/hello` carried
-no key, and every model call carried the key as `x-api-key`. In the hosted
-cases, the only other requests were native's and the test client's fetches
-from the local Git source. Bash, Edit and Write ran as `20000` and left their
-changes in the workspace. WebFetch and WebSearch returned "No such tool
-available … disabled for this session, in subagents as well as here", and the
-turn went on. The repository agent ran with Bash only. The hostile settings
-raised neither effort nor output tokens and restored neither tool. Claude Code
-ignored the untrusted workspace's `permissions.allow` entries, which is how
-native runs it. The only Claude Code diagnostic was `unrecognized_model` for
-`claude-opus-5-5`. The same harnesses on `dotnet-r4`, whose settings lack the
-pins and the deny, recorded WebFetch's `domain_info` request to
-`api.anthropic.com` and a high-effort summary call, and every hostile-repository
-call at effort `max` with 128000 tokens.
+Every one of the 163 model calls went to `claude-opus-5-5` at medium effort
+with `max_tokens` 32000 and adaptive thinking. None carried a body key beyond
+Claude Code's standard ones, so no extra body or `speed`, and none carried
+the advisor tool or its beta or the 1M-context beta. No request followed a
+session's structured result, counted by timestamp per session, subagents
+included. In the background cases the late edit was never requested. No
+model request offered WebFetch, WebSearch or `Workflow`; each forced call got
+"No such tool available … disabled for this session, in subagents as well as
+here", and the turn went on. Subagents that asked for another model ran on
+`claude-opus-5-5`, and the stream output of the direct cases logged that the
+model is restricted. Bash, Edit and Write ran as `20000`: the worker's checks printed
+`bash-ran-uid-20000`, `write-ran` and the edited line, with ` M README.md`,
+`?? BASH.txt` and `?? WRITE.txt`, and the `haiku` subagent's Bash ran too.
+
+Claude Code resolved and reached no name but the gateway's, and only the
+gateway received the key, as `x-api-key` on every model call; `HEAD
+/api/hello` carried none. In the hosted cases the only other traffic was the
+Git source (`git.example`, or `github.com` for the asset runs: 3 `GET
+info/refs` and 5 `POST git-upload-pack` each, from the test client's clone
+and native's fetch, with no key), DNS lookups of the container's own hostname
+with no connection, and connections to native's own `target serve` on
+loopback port 18770. Native started every Claude Code process as
+`20000:10002` with only `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`,
+`GATEWAY_API_KEY`, `GATEWAY_BASE_URL`, `HOME`, `PATH`, `TMPDIR` and
+`ZEROSHOT_TOOLS` (a wrapper's shell added `PWD`), with argv ending `--model
+claude-opus-5-5 --json-schema … --effort medium
+--dangerously-skip-permissions`. The only Claude Code diagnostic was
+`unrecognized_model` for `claude-opus-5-5`.
+
+The same harnesses on `dotnet-r5`, whose settings lack the r6 pins, sent
+`fable`, `sonnet` and `haiku` subagent calls, the Haiku one with no effort,
+sent every call at effort `max` with 64000 tokens once a repository or a
+mid-run settings file set `CLAUDE_CODE_EXTRA_BODY`, offered the advisor tool,
+and made calls after the structured result for a background agent. On
+`dotnet-r4`, without the r5 pins, they recorded WebFetch's `domain_info`
+request to `api.anthropic.com` and a high-effort summary call.
 
 The capture used a scripted model, not the real gateway, and no real task has
-run through native and the gateway against GitHub. Its subagent ran in the
-foreground. Upstream Claude Code also runs subagents in the background: on
-`dotnet-r4` such a subagent's completion re-entered the session after the
-structured result and cost two more medium calls. Native waits for the process
-to exit but keeps only the first result, so edits made in that extra turn
-reach the workspace without appearing in the reported result.
-In a later #246 review run of native's hosted lane on `dotnet-r5`, automatic
-compaction made one full-context call on `claude-opus-5-5` at medium effort
-with 32000 output tokens, the bounds the adopted image's managed settings set.
+run through native and the gateway against GitHub. It did not run a nested
+`claude -p` from an agent's Bash; the #246 review measured that on the r6
+settings: one call to `claude-opus-5` at medium with 32000 tokens and the
+1M-context beta. The gateway key has no model allowlist, so that path, and any
+other model it names, is an accepted residual tracked in
+[#249](https://github.com/faviann/broodling/issues/249).
 
 Supply the key through the same secret source as dispatch credentials.
 Broodling's proposer sends it only to the gateway, as the bearer token, and the
