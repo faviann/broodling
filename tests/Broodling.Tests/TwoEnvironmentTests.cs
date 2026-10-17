@@ -7,7 +7,7 @@ namespace Broodling.Tests;
 
 /// <summary>
 /// Two environments whose manifests state incompatible OS identities, each served by its own target: the adopted
-/// dotnet-r5 as <c>dotnet</c>, the default, and the test-only T (<see cref="TestEnvironmentImage"/>) as
+/// dotnet-r6 as <c>dotnet</c>, the default, and the test-only T (<see cref="TestEnvironmentImage"/>) as
 /// <c>t235</c>, pinned by digest and adopted through the same record rules. Each target is its own container with
 /// its own state and home. The controlled stock targets run the selected unmodified native under the application;
 /// the readiness case runs both actual images behind one zeroshot-tls.
@@ -205,7 +205,7 @@ public sealed class TwoEnvironmentTests
 
         var report = await readiness.CheckAsync(await stack.Inventory(), catalog);
         await Assert.That(string.Join("; ", report.Targets.Select(target => $"{target.Environment} {target.Release} {target.Os}")))
-            .IsEqualTo($"dotnet dotnet-r5 {TestEnvironments.Adopted.Environment.Os}; {Name} {TestEnvironmentImage.Release} {TestEnvironmentImage.Os}");
+            .IsEqualTo($"dotnet dotnet-r6 {TestEnvironments.Adopted.Environment.Os}; {Name} {TestEnvironmentImage.Release} {TestEnvironmentImage.Os}");
 
         var (dotnet, test) = (stack.Targets[0], stack.Targets[1]);
         string[] Swapped(TargetStack.StackTarget target, TargetStack.StackTarget other) =>

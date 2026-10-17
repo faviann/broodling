@@ -1,12 +1,12 @@
 {
   "schema": "zeroshot-environment.manifest/v2",
   "environment": {
-    "release": "r5",
+    "release": "r6",
     "name": "dotnet"
   },
   "image": {
-    "tag": "r5",
-    "digest": "sha256:0a8829f14fbc3a1442877ebfada5ffea8af2d176efc995bb98d8a0f39ee6a81e",
+    "tag": "r6",
+    "digest": "sha256:b10a72289a66fc9caeaa5c3bb79a953dd225c6fba75d882d42a0dfe57d69dc4c",
     "repository": "ghcr.io/faviann/zeroshot-environments/dotnet"
   },
   "platform": "linux/amd64",
@@ -117,7 +117,7 @@
       "version": "2.1.276",
       "managedSettings": {
         "path": "/etc/claude-code/managed-settings.json",
-        "sha256": "a9e2560ae3194f6bcc4068b1595b981e0f86a69087c2e0fb9cbe75a3053a809f"
+        "sha256": "a469a57a1f61686f006df05d41973208f0bd9f81de219db17f4034882b038f2e"
       },
       "artifacts": {
         "@anthropic-ai/claude-code@2.1.276": {
@@ -160,7 +160,7 @@
   },
   "recipe": {
     "repository": "https://github.com/faviann/zeroshot-environments",
-    "revision": "44ab6444937114510d7fdc4384a96705718abef4",
+    "revision": "5b631927f3eee46c7ac83c969f4f99be83d26979",
     "path": "environments/dotnet"
   },
   "os": "Debian GNU/Linux 13 (trixie)",
@@ -1341,7 +1341,7 @@
     }
   ],
   "qualification": {
-    "workflowRun": "https://github.com/faviann/zeroshot-environments/actions/runs/38964176049",
+    "workflowRun": "https://github.com/faviann/zeroshot-environments/actions/runs/38988306010",
     "log": "qualification.log"
   }
 }

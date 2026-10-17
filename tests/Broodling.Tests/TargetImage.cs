@@ -6,13 +6,13 @@ namespace Broodling.Tests;
 
 /// <summary>
 /// The adopted target environment as its committed adoption record,
-/// <c>src/Broodling/environments/dotnet-r5.adoption.json</c>, names it: the image by digest and the retained
+/// <c>src/Broodling/environments/dotnet-r6.adoption.json</c>, names it: the image by digest and the retained
 /// manifest bytes with their digest.
 /// </summary>
 internal static class Adopted
 {
     internal static readonly string Directory = Path.Combine(TestRepository.Root, "src", "Broodling", "environments");
-    internal static string RecordFile => Path.Combine(Directory, "dotnet-r5.adoption.json");
+    internal static string RecordFile => Path.Combine(Directory, "dotnet-r6.adoption.json");
     internal static JsonNode Record { get; } = JsonNode.Parse(File.ReadAllText(RecordFile))!;
     internal static string Release => (string)Record["environment"]!;
     internal static string Image => (string)Record["image"]!;

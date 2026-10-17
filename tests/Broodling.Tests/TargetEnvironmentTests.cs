@@ -8,7 +8,7 @@ using static Broodling.Tests.TargetImage;
 namespace Broodling.Tests;
 
 /// <summary>
-/// The adoption record, <c>src/Broodling/environments/dotnet-r5.adoption.json</c>, and the producer manifest bytes
+/// The adoption record, <c>src/Broodling/environments/dotnet-r6.adoption.json</c>, and the producer manifest bytes
 /// it retains: the release bundles exactly that adoption, the record's digest and image are the manifest's, the
 /// manifest is one this revision supports, every component is fixed by an artifact checksum or the base image
 /// digest, and the adopted image actually carries what the manifest states. The test-only environment T
@@ -28,12 +28,12 @@ public sealed class TargetEnvironmentTests
         internal JsonNode Manifest => JsonNode.Parse(ManifestBytes)!;
     }
 
-    /// <summary>The committed dotnet-r5 adoption, or T's, generated for this run.</summary>
+    /// <summary>The committed dotnet-r6 adoption, or T's, generated for this run.</summary>
     private static async Task<Adoption> Subject(string release) => release == TestEnvironmentImage.Release
         ? new(release, await TestEnvironmentImage.DirectoryAsync()) : new(release, Adopted.Directory);
 
     [Test]
-    [Arguments("dotnet-r5")]
+    [Arguments("dotnet-r6")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptionRecordRetainsTheSupportedProducerManifest(string release)
     {
@@ -57,18 +57,18 @@ public sealed class TargetEnvironmentTests
     /// manifest states the file the approval reviewed, so adoption and readiness can hold the image to it.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r5")]
+    [Arguments("dotnet-r6")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptedClaudeCodeCarriesTheApprovedManagedSettings(string release)
     {
         var claude = (await Subject(release)).Manifest["harnesses"]!["claude"]!;
         await Assert.That((string)claude["version"]!).IsEqualTo("2.1.276");
         await Assert.That(claude["managedSettings"]!.ToJsonString()).IsEqualTo(
-            """{"path":"/etc/claude-code/managed-settings.json","sha256":"a9e2560ae3194f6bcc4068b1595b981e0f86a69087c2e0fb9cbe75a3053a809f"}""");
+            """{"path":"/etc/claude-code/managed-settings.json","sha256":"a469a57a1f61686f006df05d41973208f0bd9f81de219db17f4034882b038f2e"}""");
     }
 
     /// <summary>
-    /// T differs from dotnet-r5 only in its identity and its stated OS: the same native, Claude Code, startup interfaces,
+    /// T differs from dotnet-r6 only in its identity and its stated OS: the same native, Claude Code, startup interfaces,
     /// components and packages, so the DirectTarget binding it is adopted under is the bundled one.
     /// </summary>
     [Test]
@@ -87,22 +87,22 @@ public sealed class TargetEnvironmentTests
     }
 
     /// <summary>
-    /// The release carries exactly the dotnet-r5 adoption, as its committed bytes; nothing else is adopted. A
+    /// The release carries exactly the dotnet-r6 adoption, as its committed bytes; nothing else is adopted. A
     /// change here is a new adoption decision, not a refactoring.
     /// </summary>
     [Test]
     public async Task ReleaseBundlesExactlyTheAdoptedEnvironment()
     {
         var bundled = AdoptedEnvironments.LoadBundled();
-        await Assert.That(bundled.Select(environment => environment.Release)).IsEquivalentTo(["dotnet-r5"]);
+        await Assert.That(bundled.Select(environment => environment.Release)).IsEquivalentTo(["dotnet-r6"]);
         var adopted = bundled.Single();
-        await Assert.That(adopted.RecordSha256).IsEqualTo("dbf5a997683bb436f0acb678a51b8bfa0354d2333aabbeeef0ed34ca6112bff4");
-        await Assert.That(adopted.ManifestSha256).IsEqualTo("4f981bdc88b21f5fa12a92add57aa362e8e69aff3d21d778e7c2ef3a20ed2a48");
+        await Assert.That(adopted.RecordSha256).IsEqualTo("48f7d2d8b8f2d7da0e624aa57934d9ffaab43300746204cafc5f09c46acde326");
+        await Assert.That(adopted.ManifestSha256).IsEqualTo("304a417ca752e22652b66f3de47a5995247a45339ccd9fad8221f8f0b29fb89b");
         await Assert.That(adopted.Record.SequenceEqual(File.ReadAllBytes(Adopted.RecordFile))).IsTrue();
         await Assert.That(adopted.Manifest.SequenceEqual(File.ReadAllBytes(Adopted.Manifest))).IsTrue();
         await Assert.That(adopted.Image).IsEqualTo(Adopted.Image);
         await Assert.That(Directory.GetFiles(Adopted.Directory).Select(file => Path.GetFileName(file)))
-            .IsEquivalentTo(["dotnet-r5.adoption.json", "dotnet-r5.manifest.json"]);
+            .IsEquivalentTo(["dotnet-r6.adoption.json", "dotnet-r6.manifest.json"]);
     }
 
     /// <summary>
@@ -141,8 +141,8 @@ public sealed class TargetEnvironmentTests
             byte[] bytes = defect == "digest" ? [.. File.ReadAllBytes(Adopted.Manifest), (byte)'\n'] : edited
                 ? System.Text.Encoding.UTF8.GetBytes(manifest.ToJsonString()) : File.ReadAllBytes(Adopted.Manifest);
             if (edited) record["manifest"]!["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
-            File.WriteAllBytes(Path.Combine(directory, "dotnet-r5.manifest.json"), bytes);
-            File.WriteAllText(Path.Combine(directory, "dotnet-r5.adoption.json"), record.ToJsonString());
+            File.WriteAllBytes(Path.Combine(directory, "dotnet-r6.manifest.json"), bytes);
+            File.WriteAllText(Path.Combine(directory, "dotnet-r6.adoption.json"), record.ToJsonString());
             if (defect == "repeated") File.WriteAllText(Path.Combine(directory, "again.adoption.json"), record.ToJsonString());
             var refused = await Assert.That(() => AdoptedEnvironments.Load(directory)).Throws<UnsupportedRuntime>();
             if (defect == "unprobed") await Assert.That(refused!.Message).Contains("states go, which readiness cannot probe");
@@ -158,7 +158,7 @@ public sealed class TargetEnvironmentTests
     /// checksums of its downloaded artifacts or the base image digest: nothing is installed at run time.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r5")]
+    [Arguments("dotnet-r6")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task EveryComponentIsFixedByAnArtifactChecksumOrTheBaseDigest(string release)
     {
@@ -201,7 +201,7 @@ public sealed class TargetEnvironmentTests
     /// exact Broodling commit; an entrypoint change is adopted only with an environment release that carries it.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r5")]
+    [Arguments("dotnet-r6")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptedImageEmbedsThisRevisionsEntrypoint(string release)
     {
@@ -222,7 +222,7 @@ public sealed class TargetEnvironmentTests
     /// Root owns the directory and the regular file, at modes 0755 and 0644, so no agent can rewrite the settings.
     /// </summary>
     [Test]
-    [Arguments("dotnet-r5")]
+    [Arguments("dotnet-r6")]
     [Arguments(TestEnvironmentImage.Release)]
     public async Task AdoptedImageCarriesWhatItsManifestStates(string release)
     {
@@ -269,21 +269,28 @@ public sealed class TargetEnvironmentTests
     }
 
     /// <summary>
-    /// The managed settings deny WebFetch and WebSearch, whose side calls would leave the uniform medium effort. A
-    /// session started as native's first agent identity, with the permission flag native's hosted lane always passes,
-    /// offers neither and still offers the tools that edit the workspace.
+    /// The managed settings deny WebFetch and WebSearch, whose side calls would leave the uniform medium effort, turn
+    /// off Workflows, which could run past the session's result, and allow only claude-opus-5-5. A session started as
+    /// native's first agent identity, with the permission flag native's hosted lane always passes, offers neither web
+    /// tool nor Workflow and still offers the tools that edit the workspace. Asked for Haiku, it warns and falls back
+    /// to Claude Code's built-in default model.
     /// </summary>
     [Test]
-    public async Task AdoptedClaudeCodeOffersHostedAgentsNoWebTools()
+    public async Task AdoptedClaudeCodeOffersNoWebOrWorkflowToolsAndRefusesHaiku()
     {
         var started = await DockerCommand("run", "--rm", "--network", "none", "--user", "20000:10002", "--tmpfs", "/tmp:exec",
             "--env", "HOME=/tmp/agent", "--env", "CLAUDE_CODE_MAX_RETRIES=0", "--env", "ANTHROPIC_API_KEY=placeholder",
             "--entrypoint", "/bin/sh", await Direct.Value, "-c",
-            "mkdir -p \"$HOME\" && cd \"$HOME\" && claude --print --output-format stream-json --verbose --dangerously-skip-permissions q | head -n 1");
+            "mkdir -p \"$HOME\" && cd \"$HOME\" && claude --print --output-format stream-json --verbose --dangerously-skip-permissions --model haiku q | head -n 2");
         RequireSuccess(started);
-        var init = JsonNode.Parse(started.Output)!;
+        var events = started.Output.TrimEnd('\n').Split('\n').Select(line => JsonNode.Parse(line)!).ToArray();
+        var init = events[0];
         await Assert.That((string)init["permissionMode"]!).IsEqualTo("bypassPermissions");
         await Assert.That(init["tools"]!.AsArray().Select(tool => (string)tool!)
-            .Where(tool => tool is "Bash" or "Edit" or "Write" or "WebFetch" or "WebSearch")).IsEquivalentTo(["Bash", "Edit", "Write"]);
+            .Where(tool => tool is "Bash" or "Edit" or "Write" or "WebFetch" or "WebSearch" or "Workflow"))
+            .IsEquivalentTo(["Bash", "Edit", "Write"]);
+        await Assert.That((string)init["model"]!).IsEqualTo("claude-opus-5[1m]");
+        await Assert.That((string)events[1]["content"]!)
+            .IsEqualTo("Model \"haiku\" is restricted by your organization's settings. Using claude-opus-5[1m] instead.");
     }
 }
