@@ -412,9 +412,11 @@ Limits of the verification:
 - The managed settings bound Claude Code's own requests, not the commands an
   agent runs. Every such command can read the gateway key. A nested
   `claude -p` from Bash reads the same settings but starts on the built-in
-  default, `claude-opus-5`, and a `curl` to the gateway bypasses them. The
-  dedicated key's model allowlist refuses any other model on either path, and
-  its quota bounds spend ([live-run preconditions](#live-run-preconditions)).
+  default, `claude-opus-5`, and with `--model` it can reach another model; a
+  `curl` to the gateway bypasses the settings altogether. The gateway key has
+  no model allowlist, so this is an accepted residual tracked in
+  [#249](https://github.com/faviann/broodling/issues/249), and the key's spend
+  quota bounds its cost ([live-run preconditions](#live-run-preconditions)).
 - Automatic compaction makes one full-context call on `claude-opus-5-5` at
   medium effort with 32000 output tokens.
 - An image inventory or an approved environment catalog does not enforce R13's
@@ -1351,13 +1353,12 @@ the first live Attempt and keeps them for every later one:
   canary, `faviann/broodling-canary`, expires on 2027-04-16. Renew the limit
   before it expires, or make the repository private.
 - **A dedicated gateway key.** `GATEWAY_API_KEY` is a sub2api key that only
-  Broodling uses. The owner configures it in sub2api with a model allowlist of
-  exactly `claude-opus-5-5`, a spend quota and an IP whitelist of the Broodling
-  host's and every target's egress addresses. Every command an agent runs can
-  read the key. The allowlist keeps every model call on `claude-opus-5-5`,
-  including a nested `claude -p`, which would otherwise reach `claude-opus-5`,
-  and a direct request with the key. The quota bounds spend, and the whitelist
-  limits where a leaked key works.
+  Broodling uses. The owner configures it in sub2api with a spend quota and an
+  IP whitelist of the Broodling host's and every target's egress addresses. It
+  has no model allowlist. Every command an agent runs can read the key, so a
+  nested `claude -p` or a direct request with the key can reach another model.
+  The quota bounds what that costs, and the whitelist limits where a leaked key
+  works.
 
 ## Invocation and recovery
 

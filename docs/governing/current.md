@@ -168,8 +168,9 @@ which Broodling does not check. These residuals remain
   and its `apiKeyHelper` still apply
   ([#249](https://github.com/faviann/broodling/issues/249)).
 - Every command an agent runs can read the gateway key. A nested `claude -p`
-  from Bash reaches `claude-opus-5`; the dedicated key's model allowlist, a
-  live-run precondition, refuses it.
+  from Bash reaches `claude-opus-5`, or another model with `--model`. The key
+  has no model allowlist; its spend quota, a live-run precondition, bounds the
+  cost ([#249](https://github.com/faviann/broodling/issues/249)).
 - Automatic compaction makes one full-context medium call.
 - Native acts on pull-request feedback from anyone who can comment.
 

@@ -82,7 +82,8 @@ Broodling does not check. The settings leave open a target repository's
 settings `env` beyond the pinned keys and its `apiKeyHelper`
 ([#249](https://github.com/faviann/broodling/issues/249)), agent commands that
 read the gateway key, including a nested `claude -p` that reaches
-`claude-opus-5`, and one medium compaction call
+`claude-opus-5` or another model, which only the key's spend quota bounds, and
+one medium compaction call
 ([limits](deployment/README.md#adopted-target-environment)).
 Current `GH_TOKEN`, `GATEWAY_BASE_URL` and `GATEWAY_API_KEY` are required for
 dispatch/replay; their values are not frozen in the invocation. Durable
