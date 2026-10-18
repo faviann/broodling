@@ -46,8 +46,7 @@ public sealed partial class BroodlingStore
         var now = DateTimeOffset.UtcNow.ToString("O");
         Execute("UPDATE issue_submissions SET state = 'capturing' WHERE submission_id = $p0 AND state = 'accepted'",
             transaction, submissionId);
-        // Capture sets no limits, but the schema still requires acquisition_limits.
-        Execute("INSERT INTO request_bundles VALUES ($p0, $p1, $p2, $p3, X'', 'capturing', NULL, NULL, $p4, NULL, NULL)",
+        Execute("INSERT INTO request_bundles VALUES ($p0, $p1, $p2, $p3, 'capturing', NULL, NULL, $p4, NULL, NULL)",
             transaction, bundleId, submissionId, inputs, policy, now);
         var result = ReadRequestBundle(submissionId, transaction)!;
         transaction.Commit();
@@ -82,8 +81,8 @@ public sealed partial class BroodlingStore
         using (var next = Command("SELECT COALESCE(MAX(ordinal), -1) + 1 FROM request_bundle_references WHERE bundle_id = $p0",
             transaction, bundleId))
             ordinal = Convert.ToInt64(next.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
-        Execute("INSERT INTO request_bundle_references (bundle_id, reference_id, ordinal, capture_kind, selector) "
-            + "VALUES ($p0, $p1, $p2, 'source', $p3)", transaction, bundleId, referenceId, ordinal, selector);
+        Execute("INSERT INTO request_bundle_references (bundle_id, reference_id, ordinal, selector) "
+            + "VALUES ($p0, $p1, $p2, $p3)", transaction, bundleId, referenceId, ordinal, selector);
         var result = ReadBundleReference(bundleId, referenceId, transaction)!;
         transaction.Commit();
         return result;

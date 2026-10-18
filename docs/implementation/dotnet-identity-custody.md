@@ -72,8 +72,8 @@ These reads take no writer reservation. Source lists are ordered by source ID.
 
 An accepted Issue submission can begin one `RequestBundle` capture with opaque
 acquisition inputs and policy. Register each member, then persist its first
-source snapshot before continuing. Membership may grow while capture is
-incomplete, including after reopening the store; replaying a committed capture
+source snapshot before continuing. An interrupted capture resumes its
+remaining members after the store reopens; replaying a committed capture
 returns its original identity and never refreshes it.
 `CompleteRequestBundleCapture` seals the reached membership and records a
 manifest plus SHA-256 digest. A completed bundle cannot gain members or change

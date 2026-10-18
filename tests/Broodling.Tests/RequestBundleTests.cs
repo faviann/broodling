@@ -33,11 +33,11 @@ public sealed class RequestBundleTests
             .Throws<RequestBundleConflict>();
 
         var resumed = reopened.BeginRequestBundleCapture(submission.SubmissionId, plan);
-        reopened.RegisterRequestBundleReference(resumed.BundleId, "supporting", "discovered from primary"u8.ToArray());
+        reopened.RegisterRequestBundleReference(resumed.BundleId, "request", "request selector"u8.ToArray());
         var retainedFirst = reopened.CaptureRequestBundleSource(resumed.BundleId, "primary",
             CallerSource("caller://issue/12", "edited after interruption\n"u8.ToArray()));
-        var supporting = reopened.CaptureRequestBundleSource(resumed.BundleId, "supporting",
-            CallerSource("caller://supporting", "captured after reopen\n"u8.ToArray()));
+        var request = reopened.CaptureRequestBundleSource(resumed.BundleId, "request",
+            CallerSource("caller://request", "captured after reopen\n"u8.ToArray()));
         var complete = reopened.CompleteRequestBundleCapture(resumed.BundleId);
         var retained = reopened.GetRequestBundle(submission.SubmissionId);
 
@@ -47,9 +47,9 @@ public sealed class RequestBundleTests
         await Assert.That(retained.AcquisitionPolicy).IsEquivalentTo("policy-v1"u8.ToArray());
         await Assert.That(retained.ManifestSha256).IsEqualTo(complete.ManifestSha256);
         await Assert.That(retainedFirst.SourceId).IsEqualTo(firstSourceId);
-        await Assert.That(supporting.IsCaptured).IsTrue();
+        await Assert.That(request.IsCaptured).IsTrue();
         await Assert.That(retained.References.Select(reference => reference.ReferenceId))
-            .IsEquivalentTo(["primary", "supporting"]);
+            .IsEquivalentTo(["primary", "request"]);
         await Assert.That(reopened.GetEntitledSource(firstSourceId).Content.SequenceEqual("captured first\n"u8.ToArray())).IsTrue();
     }
 
@@ -116,7 +116,7 @@ public sealed class RequestBundleTests
             .Throws<SqliteException>();
         await Assert.That(() => fixture.Execute($"UPDATE request_bundle_references SET selector = X'00' WHERE bundle_id = '{completed.BundleId}' AND reference_id = 'primary'"))
             .Throws<SqliteException>();
-        await Assert.That(() => fixture.Execute($"INSERT INTO request_bundle_references (bundle_id, reference_id, ordinal, capture_kind, selector) VALUES ('{completed.BundleId}', 'extra', 1, 'source', X'00')"))
+        await Assert.That(() => fixture.Execute($"INSERT INTO request_bundle_references (bundle_id, reference_id, ordinal, selector) VALUES ('{completed.BundleId}', 'extra', 1, X'00')"))
             .Throws<SqliteException>();
 
         var reopened = store.GetRequestBundle(submission.SubmissionId);
@@ -141,11 +141,11 @@ public sealed class RequestBundleTests
             .Throws<IssueSubmissionConflict>();
         await Assert.That(store.GetIssueSubmission(submission.SubmissionId).ContractRevisionId).IsNull();
 
-        store.RegisterRequestBundleReference(bundle.BundleId, "supporting", "discovered later"u8.ToArray());
+        store.RegisterRequestBundleReference(bundle.BundleId, "request", "request selector"u8.ToArray());
         store.CaptureRequestBundleSource(bundle.BundleId, "primary",
             CallerSource("caller://primary", "primary bytes"u8.ToArray()));
-        store.CaptureRequestBundleSource(bundle.BundleId, "supporting",
-            CallerSource("caller://supporting", "supporting bytes"u8.ToArray()));
+        store.CaptureRequestBundleSource(bundle.BundleId, "request",
+            CallerSource("caller://request", "request bytes"u8.ToArray()));
         var completed = store.CompleteRequestBundleCapture(bundle.BundleId);
         await Assert.That(completed.State).IsEqualTo("complete");
 
