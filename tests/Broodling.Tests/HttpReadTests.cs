@@ -40,7 +40,7 @@ public sealed class HttpReadTests
     }
 
     [Test]
-    public async Task RetainedWorkAndFrozenReferencesAreServedWithoutExternalServices()
+    public async Task RetainedWorkAndBundlesAreServedWithoutExternalServices()
     {
         using var fixture = new CompletionFixture();
         await fixture.Dispatch();
@@ -48,28 +48,20 @@ public sealed class HttpReadTests
         var store = fixture.Store;
         var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12");
         var bundle = store.BeginRequestBundleCapture(submission.SubmissionId,
-            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
-        store.RegisterRequestBundleReference(bundle.BundleId,
-            RequestBundleReferenceInput.Source("issue/12", "primary"u8.ToArray()));
-        store.CaptureRequestBundleSource(bundle.BundleId, "issue/12", new SourceSubmission("caller_statement",
+            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray()));
+        store.RegisterRequestBundleReference(bundle.BundleId, "primary", "primary"u8.ToArray());
+        store.CaptureRequestBundleSource(bundle.BundleId, "primary", new SourceSubmission("caller_statement",
             "caller://issue/12", [0, 255, 1, 128], origin: "caller", entitlement: new("caller", "captured request")));
-        store.RegisterRequestBundleReference(bundle.BundleId, RequestBundleReferenceInput.GitBlob("repo:original.txt",
-            "repository file"u8.ToArray(), fixture.Git.Repository, "HEAD", "original.txt"));
-        store.CaptureRequestBundleGitBlob(bundle.BundleId, "repo:original.txt");
         store.CompleteRequestBundleCapture(bundle.BundleId);
         // A separate Work Unit's bundle-bound Contract and Attempt, admitted from its submission.
         using var github = new RepositoryPreparationTests.RepositoryPreparationFixture();
-        github.SetIssue(13, "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n");
+        github.SetIssue(13, "Add CSV export.");
         var bound = store.SubmitIssue("https://github.com/acme/widget/issues/13");
         await store.CaptureRequestBundleAsync(bound.SubmissionId, github.RepositoryRoot,
             new GitHubRepositoryCredentials("configured-token"), new GitHubIssueSource(github.Gh), github.Source);
         var boundRevision = store.AdmitRequestBundle(bound.SubmissionId, ContractIngressTests.Propose, "caller")
             .Revision.ContractRevisionId;
         var boundAttempt = store.AdmitHttpAttempt(bound.SubmissionId);
-        var capturing = store.SubmitIssue("https://github.com/acme/widget/issues/14");
-        var incomplete = store.BeginRequestBundleCapture(capturing.SubmissionId,
-            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray()));
-        store.RegisterRequestBundleReference(incomplete.BundleId, RequestBundleReferenceInput.Source("pending", "pending"u8.ToArray()));
         var contacted = false;
         fixture.Target.Reply = (_, _) => { contacted = true; return null; };
         var before = Dump(fixture.Git.State);
@@ -103,9 +95,6 @@ public sealed class HttpReadTests
                 revisions = store.History(WorkReference.Parse("acme/widget", 13))
             }),
             ($"/submissions/{submission.SubmissionId}/bundle", store.GetRequestBundle(submission.SubmissionId)),
-            ($"/bundles/{bundle.BundleId}/reference?id=issue%2F12", store.ReadRequestBundleReference(bundle.BundleId, "issue/12")),
-            ($"/bundles/{bundle.BundleId}/reference?id=repo%3Aoriginal.txt",
-                store.ReadRequestBundleReference(bundle.BundleId, "repo:original.txt")),
             ($"/revisions/{fixture.Attempt.ContractRevisionId}", store.Status(fixture.Attempt.ContractRevisionId)),
             ($"/attempts/{fixture.Attempt.AttemptId}", new
             {
@@ -134,18 +123,11 @@ public sealed class HttpReadTests
         await Assert.That((string)environment["image"]!).IsEqualTo(TestEnvironments.Adopted.Image);
         await Assert.That(environment["target"].Deserialize<TargetIdentity>(Json)).IsEqualTo(retained.Environment.Target);
         await Assert.That((string)environment["target"]!["origin"]!).IsEqualTo(retained.Origin);
-        var source = await Body(await client.GetAsync($"/bundles/{bundle.BundleId}/reference?id=issue%2F12"));
-        await Assert.That(Convert.FromBase64String(source["content"]!.GetValue<string>())).IsEquivalentTo(new byte[] { 0, 255, 1, 128 });
 
         var unknownIssue = await Body(await client.GetAsync("/issues?url=https%3A%2F%2Fgithub.com%2Facme%2Fwidget%2Fissues%2F99"));
         await Assert.That(unknownIssue["submissions"]!.AsArray().Count + unknownIssue["revisions"]!.AsArray().Count).IsEqualTo(0);
-        foreach (var (path, status) in new[]
-        {
-            ($"/bundles/{bundle.BundleId}/reference?id=pending", HttpStatusCode.NotFound),
-            ("/issues?url=https%3A%2F%2Fgithub.com%2Facme%2Fwidget%2Fpull%2F12", HttpStatusCode.BadRequest),
-            ($"/bundles/{incomplete.BundleId}/reference?id=pending", HttpStatusCode.Conflict)
-        })
-            await Assert.That((await client.GetAsync(path)).StatusCode).IsEqualTo(status);
+        await Assert.That((await client.GetAsync("/issues?url=https%3A%2F%2Fgithub.com%2Facme%2Fwidget%2Fpull%2F12")).StatusCode)
+            .IsEqualTo(HttpStatusCode.BadRequest);
 
         await Assert.That(contacted).IsFalse();
         await Assert.That(Dump(fixture.Git.State)).IsEqualTo(before);

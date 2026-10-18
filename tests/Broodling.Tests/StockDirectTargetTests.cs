@@ -112,31 +112,6 @@ public sealed class StockDirectTargetTests
         return unresolved;
     }
 
-    [Test]
-    public async Task NativeAgentReadsBundleReferencesFromItsSubmissionWithNoBroodlingToReach()
-    {
-        using var fixture = await BundleHttpFixture.CreateAsync();
-        var (bundle, attempt) = (fixture.Bundle, fixture.Attempt);
-        // No Broodling reader runs anywhere, and the target is given no name or route for one.
-        await using var target = await StockDirectTarget.StartAsync(fixture.Git.State.Root);
-        fixture.Git.State.Environments = TestEnvironments.For(target.Origin);
-        using var store = fixture.Git.State.Open();
-        var repository = attempt.B1.Repository;
-        AttemptFixture.RunGit(repository, "config", "url." + target.Forge + ".insteadOf", "https://github.com/acme/widget.git");
-        await target.PushAsync(repository, attempt.B1.CommitOid + ":refs/heads/main");
-
-        await new Invocation(store, TestEnvironments.For(target.Origin)).ResumeAsync(attempt.ContractRevisionId, credentials: Credentials);
-        var completion = await store.WaitAsync(attempt.AttemptId);
-
-        // The controlled agent committed each listed reference as its task carried it: bytes matching the manifest digest.
-        var accepted = completion.AcceptedRevision;
-        await Assert.That(AttemptFixture.RunGit(repository, "ls-tree", "--name-only", accepted + ":references").Split('\n',
-            StringSplitOptions.RemoveEmptyEntries).Length).IsEqualTo(bundle.References.Count);
-        foreach (var (reference, index) in bundle.References.Select((reference, index) => (reference, index)))
-            await Assert.That(Digests.Bytes(GitCustody.Run(repository, ["cat-file", "blob", $"{accepted}:references/{index}"]).Output))
-                .IsEqualTo(reference.ContentSha256);
-    }
-
     /// <summary>
     /// An authorized-PR revision whose result fetch resolves only to the controlled forge, in a store configured with
     /// <paramref name="target"/>'s environment.

@@ -14,8 +14,8 @@ commands. The retired Python API is preserved at the
 | --- | --- |
 | Initialize or open a store | `BroodlingApplication.InitializeStore/OpenStore/UpgradeStore`: [state lifecycle](dotnet-identity-custody.md) |
 | Accept and inspect a URL-only Issue submission before Contract preparation | `BroodlingStore.SubmitIssue/FindIssueSubmission/GetIssueSubmission/IssueHistory`: [state lifecycle](dotnet-identity-custody.md) |
-| Retain, resume, complete and read pre-Contract RequestBundle capture | `BeginRequestBundleCapture/RegisterRequestBundleReference/CaptureRequestBundleSource/CaptureRequestBundleGitBlob/CompleteRequestBundleCapture/GetRequestBundle/ReadRequestBundleReference`: [state lifecycle](dotnet-identity-custody.md) |
-| Prepare a service-owned GitHub repository and consume its retained B1 | `PrepareRequestBundleRepositoryAsync/RegisterRequestBundleRepositoryFile/AdmitHttpAttempt(submissionId)`: [GitHub preparation](dotnet-github-ingress.md), [B1 custody](dotnet-attempt-allocation.md) |
+| Retain, resume, complete and read pre-Contract RequestBundle capture | `BeginRequestBundleCapture/RegisterRequestBundleReference/CaptureRequestBundleSource/CompleteRequestBundleCapture/GetRequestBundle`: [state lifecycle](dotnet-identity-custody.md) |
+| Prepare a service-owned GitHub repository and consume its retained B1 | `PrepareRequestBundleRepositoryAsync/AdmitHttpAttempt(submissionId)`: [GitHub preparation](dotnet-github-ingress.md), [B1 custody](dotnet-attempt-allocation.md) |
 | Admit a completed RequestBundle under the retained PR authority | `BroodlingStore.AdmitRequestBundle`: [bundle-bound admission](dotnet-contract-admission.md#bundle-bound-admission) |
 | Prepare and admit that Contract with the bundled proposer | `BroodlingStore.AdmitRequestBundleAsync`: [bundled proposer](dotnet-contract-admission.md#bundled-proposer) |
 | Submit an explicit GitHub reference with typed proposer and exact effect authority | `Invocation.SubmitAsync`: [composed invocation](zeroshot-native-integration.md#composed-invocation) |
@@ -229,16 +229,13 @@ URL keeps returning its latest submission; revised work names its predecessor.
   whose bundle-bound Contract was admitted and has at least one Attempt. The
   identity is the digest-verified manifest with the bundle and submission IDs
   blanked (the manifest records no capture time), in which the retained GitHub
-  responses of the primary issue and of each referenced issue or comment count
-  only through their work-defining fields: an issue's `title` and `body`, and a
-  comment's `body`. Each reference's ID and selection still identify which
-  issue or comment was captured. GitHub bookkeeping in those responses, such as
-  `updated_at`, `comments`, `reactions`, `labels`, `assignees`, `state`, and
-  user or URL metadata, never makes a revision changed. Everything else is
-  compared exactly: acquisition inputs (the primary issue locator), policy and
-  limits, the repository, PR target branch, starting revision and commit, each
-  reference's selection, and every other reference's content digest and pinned
-  blob. The comparison is literal, not semantic, and retained bundles and
+  response of the primary issue counts only through its work-defining `title`
+  and `body`. GitHub bookkeeping in that response, such as `updated_at`,
+  `comments`, `reactions`, `labels`, `assignees`, `state`, and user or URL
+  metadata, never makes a revision changed. Everything else is compared
+  exactly: acquisition inputs (the primary issue locator) and policy, the
+  repository, PR target branch, starting revision and commit, each member's
+  selection, and the request's content digest. The comparison is literal, not semantic, and retained bundles and
   their digests are never changed. On a match the successor ends `unchanged`
   with a retained explanation linking the latest matching submission and its
   Contract, whose Attempts carry the existing outcome; another execution of

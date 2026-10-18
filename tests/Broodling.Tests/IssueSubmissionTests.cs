@@ -220,7 +220,7 @@ public sealed class IssueSubmissionTests
         await Assert.That(() => reopened.AssociateIssueSubmission(submission.SubmissionId, fixture.RevisionId))
             .Throws<IssueSubmissionConflict>();
         await Assert.That(() => reopened.BeginRequestBundleCapture(submission.SubmissionId,
-            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray(), "limits"u8.ToArray())))
+            new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray())))
             .Throws<RequestBundleConflict>();
 
         if (associated.Bound is not null)

@@ -24,55 +24,22 @@ public sealed class GitHubSourceError(string message, bool retryable = true, boo
 
 public sealed record AcquiredIssue(WorkReference Reference, SourceSubmission Source);
 
-/// <summary>Acquire only explicitly selected issues or comments through the authenticated GitHub CLI.</summary>
+/// <summary>Acquire one primary issue through the authenticated GitHub CLI.</summary>
 public sealed class GitHubIssueSource(string executable = "gh")
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     public Task<AcquiredIssue> AcquireAsync(WorkReference reference, CancellationToken cancellationToken = default) =>
-        AcquireAsync(reference, null, "primary_issue", cancellationToken);
+        AcquireAsync(reference, null, cancellationToken);
 
     internal async Task<AcquiredIssue> AcquireAsync(WorkReference reference, GitHubRepositoryCredentials? credentials,
-        string kind, CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         var content = await ReadAsync(reference,
             $"/repos/{reference.Owner}/{reference.Repository}/issues/{reference.IssueNumber.ToString(CultureInfo.InvariantCulture)}",
             credentials, cancellationToken);
-        return Validate(reference, content, kind);
+        return Validate(reference, content);
     }
-
-    /// <summary>Acquire one exact issue comment, without its surrounding discussion.</summary>
-    internal async Task<SourceSubmission> AcquireCommentAsync(WorkReference issue, long commentId,
-        GitHubRepositoryCredentials? credentials, CancellationToken cancellationToken)
-    {
-        var id = commentId.ToString(CultureInfo.InvariantCulture);
-        var locator = issue.IssueLocator + "#issuecomment-" + id;
-        var content = await ReadAsync(issue, $"/repos/{issue.Owner}/{issue.Repository}/issues/comments/{id}",
-            credentials, cancellationToken);
-        try
-        {
-            _ = StrictUtf8.GetCharCount(content);
-            using var document = JsonDocument.Parse(content);
-            var comment = document.RootElement;
-            if (comment.ValueKind != JsonValueKind.Object)
-                throw new GitHubSourceError("GitHub comment response is not an object.");
-            RequireLocator(comment, "html_url", locator);
-            RequireLocator(comment, "issue_url",
-                $"https://api.github.com/repos/{issue.Owner}/{issue.Repository}/issues/{issue.IssueNumber.ToString(CultureInfo.InvariantCulture)}");
-            if (!comment.TryGetProperty("body", out var body) || body.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
-                throw new GitHubSourceError("GitHub comment response has an invalid body.");
-            _ = body.ValueKind == JsonValueKind.String ? body.GetString() : null;
-        }
-        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or DecoderFallbackException)
-        {
-            throw new GitHubSourceError("GitHub comment response is not valid comment JSON.");
-        }
-        return new("referenced_document", locator, content, mediaType: "application/json",
-            retrievedAt: DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture), origin: "broodling_policy",
-            entitlement: ReferenceEntitlement);
-    }
-
-    internal static readonly SourceEntitlement ReferenceEntitlement = new("broodling_policy", "request_bundle_reference");
 
     private async Task<byte[]> ReadAsync(WorkReference reference, string path,
         GitHubRepositoryCredentials? credentials, CancellationToken cancellationToken)
@@ -163,7 +130,7 @@ public sealed class GitHubIssueSource(string executable = "gh")
         catch (Exception exception) when (exception is InvalidOperationException or Win32Exception) { }
     }
 
-    private static AcquiredIssue Validate(WorkReference reference, byte[] content, string kind)
+    private static AcquiredIssue Validate(WorkReference reference, byte[] content)
     {
         try
         {
@@ -196,9 +163,9 @@ public sealed class GitHubIssueSource(string executable = "gh")
                 throw new GitHubSourceError("GitHub issue identity does not match the reference.", unavailable: true);
             var acquiredReference = WorkReference.Parse(reference.SubmittedRepository, reference.SubmittedIssue,
                 reference.RepositoryIdentity, nodeId);
-            return new(acquiredReference, new(kind, reference.IssueLocator, content,
+            return new(acquiredReference, new("primary_issue", reference.IssueLocator, content,
                 mediaType: "application/json", retrievedAt: DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
-                origin: "broodling_policy", entitlement: kind == "primary_issue" ? null : ReferenceEntitlement));
+                origin: "broodling_policy"));
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or DecoderFallbackException)
         {

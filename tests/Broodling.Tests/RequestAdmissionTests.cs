@@ -12,9 +12,7 @@ public sealed class RequestAdmissionTests
     public async Task AdmissionBindsTheCompletedBundleAttributesOnlyTheRequestAndGrantsTheRetainedPrTarget()
     {
         using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
-        fixture.SetIssue(12, Request("- schema: repo:docs/schema.md", "- design: https://github.com/acme/widget/issues/7"));
-        fixture.SetIssue(7, "Also deploy the release and publish a blog post.");
-        fixture.CommitFile("docs/schema.md", "Schema\n");
+        fixture.SetIssue(12, Request());
         string submissionId;
         RequestBundle bundle;
         AdmissionStatus admitted;
@@ -30,10 +28,8 @@ public sealed class RequestAdmissionTests
             }, "caller");
         }
 
-        // Captured references are available material, not attributed requested work or effects.
+        // The captured issue response is retained, but only the request is attributed.
         await Assert.That(seen!.Sources.Single().Kind).IsEqualTo("executable_request");
-        await Assert.That(seen.RequestBundle!.References.Select(reference => reference.ReferenceId))
-            .Contains("github:acme/widget/issues/7");
         var request = bundle.References.Single(reference => reference.ReferenceId == "request");
         using var reopened = fixture.State.Open();
         var status = reopened.Status(admitted.Revision.ContractRevisionId);
@@ -51,22 +47,21 @@ public sealed class RequestAdmissionTests
     }
 
     [Test]
-    [Arguments("reference-attribution")]
+    [Arguments("primary-attribution")]
     [Arguments("target-branch")]
     [Arguments("bundle-binding")]
-    public async Task ProposalCannotAddReferencesToItsAuthorityOrChangeItsPrTargetOrBundle(string variant)
+    public async Task ProposalCannotAddTheIssueToItsAuthorityOrChangeItsPrTargetOrBundle(string variant)
     {
         using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
-        fixture.SetIssue(12, Request("- design: https://github.com/acme/widget/issues/7"));
-        fixture.SetIssue(7, "Supporting design.");
+        fixture.SetIssue(12, Request());
         using var store = fixture.State.Initialize();
         var submissionId = store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
         var bundle = await Capture(store, fixture, submissionId);
-        var design = bundle.References.Single(reference => reference.ReferenceId == "github:acme/widget/issues/7");
+        var issue = bundle.References.Single(reference => reference.ReferenceId == "primary");
 
         Contract Propose(ContractProposalInput input) => new(input.WorkUnit.WorkUnitId,
-            variant == "reference-attribution"
-                ? [.. input.SourceAttribution, new(design.SourceId!, design.ContentSha256!)]
+            variant == "primary-attribution"
+                ? [.. input.SourceAttribution, new(issue.SourceId!, issue.ContentSha256!)]
                 : input.SourceAttribution,
             [new("acceptance", "Preserve the complete request.")],
             requiredEffects: variant == "target-branch"
@@ -158,9 +153,7 @@ public sealed class RequestAdmissionTests
         await Assert.That(store.History(ContractIngressTests.Reference).Count).IsEqualTo(1);
     }
 
-    internal static string Request(params string[] declarations) =>
-        "## Request\n<!-- broodling-request:v1 -->\nAdd CSV export.\n"
-        + (declarations.Length == 0 ? "" : "\n### Available references\n" + string.Join("\n", declarations) + "\n");
+    internal static string Request() => "Add CSV export.\n";
 
     internal static async Task<RequestBundle> Capture(BroodlingStore store,
         RepositoryPreparationTests.RepositoryPreparationFixture fixture, string submissionId)

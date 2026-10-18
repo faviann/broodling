@@ -89,11 +89,9 @@ a time within the process, so concurrent fetches cannot contend for its ref
 locks.
 
 The resulting immutable `RepositoryPreparation` separately retains the default
-branch, requested branch ref and exact starting commit. `RegisterRequestBundleRepositoryFile`
-constructs the existing Git-blob capture input from that exact commit, so later
-refreshes, branch/default changes and worktree changes cannot retarget a
-completed bundle. Replaying an already prepared bundle returns its durable
-selection without re-acquisition. [Bundle-bound admission](dotnet-contract-admission.md#bundle-bound-admission)
+branch, requested branch ref and exact starting commit, so later refreshes and
+branch or default changes cannot retarget a completed bundle. Replaying an
+already prepared bundle returns its durable selection without re-acquisition. [Bundle-bound admission](dotnet-contract-admission.md#bundle-bound-admission)
 grants the pull-request effect to the retained target branch, and
 `AdmitHttpAttempt(submissionId)` consumes this state for that bound Contract. It
 visibly refuses an unbound Contract, missing preparation or unsupported retained
@@ -127,12 +125,11 @@ The complete sources remain authority alongside the Contract.
 Any byte change—including JSON reformatting or metadata—requires fresh operator
 review; the proposer does not silently refresh its reviewed input. F consumes
 this boundary for composed operator submission. D adds no separate command or
-public HTTP intake. The callable pre-Contract `RequestBundle` capture seam now
-retains acquisition inputs, policy and limits with the #105 submission identity,
-supports registering references as they are discovered, and seals completed
-membership for bundle-scoped reads. #107's repository preparation is limited to
-the Work Unit's service-owned repository, default branch and retained starting
-commit. The v1 request convention and reference traversal follow.
+public HTTP intake. The callable pre-Contract `RequestBundle` capture seam
+retains acquisition inputs and policy with the #105 submission identity,
+registers members before their first capture, and seals completed membership.
+#107's repository preparation is limited to the Work Unit's service-owned
+repository, default branch and retained starting commit.
 
 ## Executable Request capture
 
@@ -142,89 +139,49 @@ checkpoints above and #107 preparation, so it adds no second capture lifecycle.
 Every GitHub read uses the configured credentials. Durable acceptance never
 waits for this operation.
 
-The primary issue body must contain exactly one `<!-- broodling-request:v1 -->`
-line directly beneath an ATX Markdown heading of any name or level. Blank lines
-may separate them. The section runs from that heading to the next heading of the
-same or higher level, or to the body end, and includes nested subsections.
-Only a whole, visible line indented by at most three spaces is a marker, so an
-inline mention or an indented code example is ignored; indented code also never
-opens or forms an HTML comment.
-Lines inside fenced code or HTML comments are never headings, markers or
-declarations. The exact section text is
-retained as the `request` member (`executable_request` source kind), next to the
-exact primary issue response (`primary`):
+The Executable Request is the primary issue's whole body, exactly as GitHub
+returns it. There is no marker and no section selection. The bundle has two
+members: `primary`, the exact issue response, and `request`, the body text as
+an `executable_request` source. Broodling captures no other material. It
+follows no links in the body, and it reads no comments, other issues or
+repository files.
 
-```markdown
-## Executable Request
-<!-- broodling-request:v1 -->
-Add CSV export. Conform to `export-schema`.
-
-### Available references
-- export-schema: repo:docs/export-schema.md
-- export-example: https://github.com/acme/widget/issues/123#issuecomment-456
-```
-
-The optional Available references subsection may contain only
-`- label: target` lines. A target is `repo:PATH` (a file at the retained
-starting commit) or `https://github.com/OWNER/REPOSITORY/issues/N`, optionally
-with `#issuecomment-ID`. Any other non-blank line, a repeated label or target, a
-declaration of the primary issue, or a second such subsection is an invalid
-declaration. Labels are compared without regard to case. Links anywhere else in the request do not select material.
-
-Traversal is breadth-first in registration order, starting with the
-declarations in their written order. An issue reference captures GitHub's exact
-issue response (title and body, no comments). A comment reference captures that
-exact comment response. Links in captured GitHub reference bodies are followed
-only when they are absolute issue or comment URLs of that form, not embedded in
-another URL and not continued by a path, query, fragment or file extension.
-Pull-request URLs, shorthand such as `#12`, `.`/`..` repository segments,
-external links and links inside repository files are ordinary text. Reference IDs are normalized
-identities (`repo:PATH`, `github:owner/repository/issues/N[#issuecomment-ID]`),
-so repeats and cycles are captured once. The primary issue itself is never
-re-captured. Each member's selector records its role and its label or the first
-reference that linked to it.
-
-The retained plan records the convention, the traversal and the limits:
-50 available references, 1 MiB per captured member, and 8 MiB in total,
-including `primary` and `request`. Callers cannot choose other bounds. Capture
-resumes or returns only a bundle frozen under exactly this v1 plan. A bundle
-begun with any other inputs, policy or limits, even through the generic
+The retained plan records the primary issue and the `primary_issue_body`
+policy. Capture resumes or returns only a bundle frozen under exactly this
+plan. A bundle begun with other inputs or policy, even through the generic
 checkpoint API, is a `RequestBundleConflict`.
-A repository file's size is read from Git first; a file over the per-member
-limit or the remaining total is refused without being read or captured. Other
-acquired sources are measured before their first capture, so an oversized
-source is refused without being captured either.
-The following retain a refusal instead of an incomplete bundle:
+
+The following retain a refusal instead of a complete bundle:
 
 | Finding code | Cause |
 | --- | --- |
-| `request_section_missing`, `request_section_multiple`, `request_section_ambiguous`, `request_section_unsupported` | No usable v1 section |
-| `invalid_reference_declaration` | A declaration outside the grammar |
-| `reference_unavailable` | GitHub reports 410, or 404 while the same credentials can read the object's repository; the response names another object (including a pull request for an issue); or a repository path is not a file at the starting commit |
-| `reference_limit_exceeded` | Count, per-member or total size |
+| `issue_unavailable` | GitHub reports 410, or 404 while the same credentials can read the issue's repository, or the response names another object (including a pull request) |
+| `request_empty` | The issue body is empty, null or only whitespace |
 
 A refusal seals the bundle as `refused` with its findings and marks the
-submission `rejected`, so Contract association is refused. `GetRequestBundle`
-exposes the state, `Findings` and captured membership, and
-`ReadRequestBundleReference` reads the members captured before refusal.
+submission `rejected`. Contract association is refused, so the submission gets
+no Attempt and nothing is dispatched. `GetRequestBundle` exposes the state,
+`Findings` and the captured membership.
 GitHub also answers 404 for private objects that the credentials cannot see. So
-after an issue or comment 404, capture reads `/repos/OWNER/REPOSITORY` with the
-same credentials. The absence is deterministic only when that repository is
-readable. Any failure of that read leaves the 404 retryable, with no finding and
-no rejection. Other GitHub failures, including 403, rate limiting, 5xx, timeouts
-and malformed or incomplete responses, throw `GitHubSourceError` with `Retryable`
-true. A `gh` that cannot be started throws it with `Retryable` false: that local
-configuration needs attention and is not a refusal. #107 preparation
-errors propagate unchanged. A later call resumes without refetching committed
-members. A completed or refused bundle is returned without acquisition.
+after a 404, capture reads `/repos/OWNER/REPOSITORY` with the same credentials.
+The absence is deterministic only when that repository is readable. Any failure
+of that read leaves the 404 retryable, with no finding and no rejection. Other
+GitHub failures, including 403, rate limiting, 5xx, timeouts and malformed or
+incomplete responses, throw `GitHubSourceError` with `Retryable` true. A `gh`
+that cannot be started throws it with `Retryable` false: that local
+configuration needs attention and is not a refusal. #107 preparation errors
+propagate unchanged. A later call resumes from the captured issue without
+reading it again. A completed or refused bundle is returned without
+acquisition.
 
 ## Validation
 
-`RequestCaptureTests` owns the request grammar, deterministic closure, bounds and
-retained refusals, through the same controlled `gh` and real Git/SQLite. It
-covers one composed capture and replay, a 404 in an unreadable repository resumed
-as retryable after upstream edits, and one refusal case per grammar and
-acquisition policy, including 404 in a readable repository and 410.
+`RequestCaptureTests` owns the whole-body request rule and its retained
+refusals, through the same controlled `gh` and real Git/SQLite. It covers one
+capture and replay, a resumed capture that does not read the issue again, a
+bundle frozen under another plan, empty, whitespace-only and null bodies, an
+unavailable issue (404 in a readable repository and 410), and a 404 in a
+repository the token cannot read, which stays retryable.
 `GitHubAdmissionTests` and `RepositoryPreparationTests` run controlled local
 `gh` and Git executables through the real process boundary and real SQLite
 admission, with no network or provider calls. Preparation tests cover canonical

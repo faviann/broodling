@@ -449,8 +449,7 @@ share only the read-only public root.
   `ready` receipt, no client checkout, failure rather than fallback for an
   unavailable B1, same-run replay after a lost acknowledgement, restart
   retention and offline
-  completion replay, and an agent reading frozen references from its submission
-  with no Broodling reader. It is not production topology (homelab-iac#353), a
+  completion replay. It is not production topology (homelab-iac#353), a
   real GitHub PR or provider quality evidence.
 - Submit timing: native 10.12.0 acknowledges a run once recorded and checks out
   exact B1 afterwards, so a slow real fetch does not hold Broodling's fixed
@@ -767,8 +766,7 @@ Without processing configuration it only reads; with it, it is the
 [processing server](#processing-server). Each request uses its own session and
 never contacts GitHub or a provider. `GET /health` opens the store and answers
 503 when it is unavailable. Retained reads are `/issues?url=<issue-url>`,
-`/submissions/{id}`, `/submissions/{id}/bundle`,
-`/bundles/{id}/reference?id=<reference-id>`, `/revisions/{id}` and
+`/submissions/{id}`, `/submissions/{id}/bundle`, `/revisions/{id}` and
 `/attempts/{id}`, mapping the application reads in
 [invocation](../docs/implementation/invocation.md).
 
@@ -1196,7 +1194,7 @@ This does not yet stop an agent from acting through Broodling. The agents share
 the project network with `broodling`, whose port 8080 serves, with processing
 configuration, the unauthenticated mutating routes (`POST /submissions`,
 revisions, resume and stops). Runs need nothing from Broodling, since each
-submission carries its references (#241), but an agent can still call those
+submission carries everything its agents read, but an agent can still call those
 routes, and Broodling then acts with its own token and authority. #240 adds
 authorization to those routes after the MVP; it does not block the first
 deployment. Until it lands, strict agent isolation is not established.
@@ -1492,8 +1490,10 @@ the same keys (`stop`, 992 completion tokens, 9.4 s). The reply does not show
 which effort the gateway applied upstream. Earlier probes, on 2026-10-15 and
 2026-10-16, sent neither `max_tokens` nor `reasoning_effort`; the 2026-10-15
 probe also ran Claude Code with `--json-schema` and a Read tool through the
-gateway and received `structured_output`. Proposal quality on real issues is
-still unverified.
+gateway and received `structured_output`. #256 removed the `read_reference`
+tool: the proposer now sends that request once, without `tools` or
+`tool_choice`, and the exact body without them has not been probed. Proposal
+quality on real issues is still unverified.
 
 <a id="claude-code-agent-traffic"></a>The agents' Claude Code traffic was
 captured offline on 2026-10-17 UTC (#246) in the published `dotnet-r6` image

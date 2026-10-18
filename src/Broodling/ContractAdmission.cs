@@ -14,7 +14,6 @@ public sealed class ContractProposalInput
         SourceAttribution = Array.AsReadOnly(Sources.Select(source => new SourceAttribution(source.SourceId, source.ContentSha256)).ToArray());
         RequiredEffects = Array.AsReadOnly(requiredEffects.ToArray());
         ConstructedBy = constructedBy;
-        RequestBundle = requestBundle;
         BundleBinding = requestBundle is null ? null : new(requestBundle.BundleId, requestBundle.ManifestSha256!);
     }
 
@@ -23,12 +22,6 @@ public sealed class ContractProposalInput
     public IReadOnlyList<SourceAttribution> SourceAttribution { get; }
     public IReadOnlyList<RequiredEffect> RequiredEffects { get; }
     public string ConstructedBy { get; }
-
-    /// <summary>
-    /// The completed bundle for bundle-bound admission: its members other than the Executable
-    /// Request are supporting material, read through the store, never attributed sources.
-    /// </summary>
-    public RequestBundle? RequestBundle { get; }
 
     /// <summary>The exact binding the proposal must carry; null outside bundle-bound admission.</summary>
     public ContractRequestBundle? BundleBinding { get; }
@@ -148,10 +141,9 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// Admit one Issue submission's completed RequestBundle under the trusted URL-to-PR profile.
-    /// The Executable Request is the only attributed source: the primary issue and available
-    /// references are supporting material reached through the bound bundle, so their capture
-    /// adds no work. Broodling supplies the one pull-request effect to the retained PR target
-    /// branch. The revision and its submission association commit together and the decision
+    /// The Executable Request is the only attributed source: the captured primary issue response
+    /// stays in the bound bundle and adds no work. Broodling supplies the one pull-request effect
+    /// to the retained PR target branch. The revision and its submission association commit together and the decision
     /// goes through <see cref="Admit"/>; a bound submission is never proposed again. A malformed
     /// or authority-changing proposal is retained as the submission's refusal and throws
     /// <see cref="ContractProposalRefused"/>, then and on every later call. A bundle whose work-defining identity
@@ -181,7 +173,7 @@ public sealed partial class BroodlingStore
     /// <summary>Tests supply the gateway's HTTP handler; production uses the pinned endpoint.</summary>
     internal Task<AdmissionStatus> AdmitRequestBundleAsync(string submissionId, GatewayCredentials? credentials,
         HttpMessageHandler? gateway, CancellationToken cancellationToken) =>
-        AdmitRequestBundle(submissionId, new BundledProposer(this, credentials ?? GatewayCredentials.FromEnvironment(),
+        AdmitRequestBundle(submissionId, new BundledProposer(credentials ?? GatewayCredentials.FromEnvironment(),
             gateway).ProposeAsync, "model_extraction", cancellationToken);
 
     private async Task<AdmissionStatus> AdmitRequestBundle(string submissionId,

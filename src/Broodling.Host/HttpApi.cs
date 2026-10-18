@@ -90,9 +90,6 @@ internal static class HttpApi
         }));
         app.MapGet("/submissions/{id}", (string id) => Respond(async store => Results.Json(await Submission(store, id), Json)));
         app.MapGet("/submissions/{id}/bundle", (string id) => Read(store => store.GetRequestBundle(id)));
-        // Reference identities can contain '/', which a route segment cannot carry decoded.
-        app.MapGet("/bundles/{bundleId}/reference", (string bundleId, string id) =>
-            Read(store => store.ReadRequestBundleReference(bundleId, id)));
         app.MapGet("/revisions/{id}", (string id) => Read(store => store.Status(id)));
         app.MapGet("/attempts/{id}", (string id) => Respond(async store =>
         {

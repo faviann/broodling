@@ -71,22 +71,18 @@ facts. `FindWorkUnit` checks supplied pins without adding pins or submissions.
 These reads take no writer reservation. Source lists are ordered by source ID.
 
 An accepted Issue submission can begin one `RequestBundle` capture with opaque
-acquisition inputs, policy and limits. Register each selected reference as it is
-discovered, then persist its first source snapshot or exact local Git blob before
-continuing. The reference set may grow while capture is incomplete, including
-after reopening the store; replaying a committed capture returns its original
-identity and never refreshes it. `CompleteRequestBundleCapture` seals the reached
-membership and records a manifest plus SHA-256 digest. A completed bundle cannot
-gain references or change its identity, manifest, inputs or captured objects.
+acquisition inputs and policy. Register each member, then persist its first
+source snapshot before continuing. An interrupted capture resumes its
+remaining members after the store reopens; replaying a committed capture
+returns its original identity and never refreshes it.
+`CompleteRequestBundleCapture` seals the reached membership and records a
+manifest plus SHA-256 digest. A completed bundle cannot gain members or change
+its identity, manifest, inputs or captured objects.
 Capture requires an unbound submission, so `AssociateIssueSubmission` refuses a
 submission whose bundle is still capturing; association and completion are
 ordered by the store's writer reservation.
-`ReadRequestBundleReference(bundleId, referenceId)` only serves captured members
-of a sealed (completed or refused) bundle. It returns the immutable source bytes or reads the exact
-Git blob through its Broodling-pinned commit, checking the recorded digest. Git
-content remains in the source repository's retained object store; it is not
-copied into a second archive. These checkpoint operations record inputs without
-defining reference-selection policy or performing remote traversal;
+Each member's captured bytes are an entitled source, read by its source ID.
+These checkpoint operations record inputs without defining what is captured;
 [`CaptureRequestBundleAsync`](dotnet-github-ingress.md#executable-request-capture)
 owns that policy. A refused bundle keeps its captured members, seals its
 membership and retains its findings in `RequestBundle.Findings`.
@@ -94,9 +90,7 @@ membership and retains its findings in `RequestBundle.Findings`.
 For a service-owned GitHub preparation, `PrepareRequestBundleRepositoryAsync`
 retains the selected canonical repository, default PR branch, requested branch
 ref and exact starting commit in an immutable bundle-scoped row. It reuses the
-existing Git retention pin and does not retain credentials. Repository-file
-registration uses that starting commit as its Git-blob revision input; it never
-re-resolves the default branch. See [GitHub preparation](dotnet-github-ingress.md)
+existing Git retention pin and does not retain credentials. See [GitHub preparation](dotnet-github-ingress.md)
 for the credential and existing-bare-repository boundary.
 
 `SourceSubmission` is the trusted low-level presentation boundary from baseline

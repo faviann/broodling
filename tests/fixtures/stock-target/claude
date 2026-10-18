@@ -1,6 +1,5 @@
 #!/usr/local/bin/python3
 """Controlled provider for the hosted target: each node's reply follows its response schema."""
-import base64
 import json
 import subprocess
 import sys
@@ -49,15 +48,6 @@ elif schema["type"] == "null":
     if Path("/forge/report-os").exists():
         Path("observed-os").write_text(next(line for line in Path("/etc/os-release").read_text().splitlines()
                                             if line.startswith("PRETTY_NAME=")) + "\n")
-    # Like an agent consulting its available references, it writes each one's exact bytes as its frozen
-    # task carries them, with no reader to call.
-    task = node_input["task"]
-    bundle = json.loads(task.split("\n\n", 1)[1]).get("requestBundle")
-    for index, reference in enumerate(bundle["references"] if bundle else []):
-        content = reference["content"]
-        Path("references").mkdir(exist_ok=True)
-        Path("references", str(index)).write_bytes(
-            base64.b64decode(content) if reference["encoding"] == "base64" else content.encode())
 # Native resumes a node's session by its ID and refuses a turn that reports another one.
 session = arguments[arguments.index("--resume") + 1] if "--resume" in arguments else str(uuid.uuid4())
 for event in (

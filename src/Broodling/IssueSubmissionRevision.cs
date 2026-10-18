@@ -98,8 +98,8 @@ public sealed partial class BroodlingStore
                     throw new IssueSubmissionConflict("The Issue submission can no longer be prepared.");
                 Execute("INSERT INTO issue_submission_unchanged VALUES ($p0, $p1, $p2, $p3, $p4)", transaction,
                     submission.SubmissionId, admitted.SubmissionId, admitted.ContractRevisionId,
-                    "This submission's work-defining request (the primary and referenced issues' titles and bodies, "
-                    + "referenced comments' bodies, other references' content, starting commit and PR target) is identical to that "
+                    "This submission's work-defining request (the issue's title and body, starting commit and PR target) "
+                    + "is identical to that "
                     + $"of already-admitted Issue submission {admitted.SubmissionId} (Contract revision {admitted.ContractRevisionId}), so it is neither "
                     + "proposed nor executed again; that Contract and its Attempts carry the existing outcome. Another execution of "
                     + "unchanged authority uses the explicit replacement operation.", Now());
@@ -114,11 +114,10 @@ public sealed partial class BroodlingStore
 
     /// <summary>
     /// A completed bundle's digest-verified manifest with its own bundle and submission IDs blanked, and with the
-    /// retained GitHub responses of the primary issue and of each referenced issue or comment reduced to their
-    /// work-defining fields: an issue's title and body, a comment's body. GitHub bookkeeping in those responses,
-    /// such as <c>updated_at</c>, comment counts or reactions, therefore changes nothing. Every reference's
-    /// selection and every other reference's content digest stay, as do the acquisition inputs, policy and
-    /// limits, the starting revision and commit and the PR target branch. The manifest records no capture times.
+    /// retained GitHub response of the primary issue reduced to its work-defining title and body. GitHub
+    /// bookkeeping in that response, such as <c>updated_at</c>, comment counts or reactions, therefore changes
+    /// nothing. Every member's selection and the request's content digest stay, as do the acquisition inputs
+    /// and policy, the starting revision and commit and the PR target branch. The manifest records no capture times.
     /// It serves only this comparison; retained bundles are never changed.
     /// </summary>
     private byte[] WorkDefiningIdentity(RequestBundle bundle, SqliteTransaction transaction)
@@ -133,10 +132,7 @@ public sealed partial class BroodlingStore
             throw new RequestBundleConflict("The retained RequestBundle manifest is malformed.");
         var references = manifest.References.Select(reference =>
         {
-            string[] fields = reference.ReferenceId == "primary" ? ["title", "body"]
-                : !reference.ReferenceId.StartsWith("github:", StringComparison.Ordinal) ? []
-                : reference.ReferenceId.Contains("#issuecomment-", StringComparison.Ordinal) ? ["body"] : ["title", "body"];
-            if (fields.Length == 0 || reference.SourceId is not { } sourceId)
+            if (reference.ReferenceId != "primary" || reference.SourceId is not { } sourceId)
                 return reference;
             var source = ReadSource(sourceId, transaction);
             if (source.ContentSha256 != reference.ContentSha256)
@@ -145,7 +141,7 @@ public sealed partial class BroodlingStore
             try
             {
                 using var document = JsonDocument.Parse(source.Content);
-                values = fields.Select(field => document.RootElement.TryGetProperty(field, out var value)
+                values = new[] { "title", "body" }.Select(field => document.RootElement.TryGetProperty(field, out var value)
                     && value.ValueKind == JsonValueKind.String ? value.GetString() : null).ToArray();
             }
             // Only GitHub acquisition validates the response shape; a source captured otherwise keeps its digest.

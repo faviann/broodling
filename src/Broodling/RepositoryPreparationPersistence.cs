@@ -61,19 +61,6 @@ public sealed partial class BroodlingStore
         return result;
     }
 
-    /// <summary>Register a repository file using the retained starting commit, never a moving branch.</summary>
-    public RequestBundleReference RegisterRequestBundleRepositoryFile(string bundleId, string referenceId,
-        byte[] selector, string path)
-    {
-        using var transaction = connection.BeginTransaction(deferred: true);
-        var preparation = ReadRepositoryPreparation(bundleId, transaction)
-            ?? throw new RequestBundleConflict("Repository preparation is required before repository-file selection.");
-        transaction.Commit();
-        return RegisterRequestBundleReference(bundleId,
-            RequestBundleReferenceInput.GitBlob(referenceId, selector, preparation.Repository,
-                preparation.StartingCommit, path));
-    }
-
     private static bool SamePreparation(RepositoryPreparation prepared, AcquiredRepository acquired) =>
         prepared.Repository == acquired.Repository
         && prepared.DefaultBranch == acquired.DefaultBranch

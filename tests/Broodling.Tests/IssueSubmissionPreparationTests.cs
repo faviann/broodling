@@ -24,7 +24,7 @@ public sealed class IssueSubmissionPreparationTests
     {
         using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
         fixture.SetIssue(12, RequestAdmissionTests.Request());
-        fixture.SetIssue(13, "## Request\n<!-- broodling-request:v1 -->\nAdd JSON export.\n");
+        fixture.SetIssue(13, "Add JSON export.\n");
         var (blocked, independent) = Submit(fixture, 12, 13);
         using var entered = new SemaphoreSlim(0);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -87,7 +87,7 @@ public sealed class IssueSubmissionPreparationTests
         }
         var reads = fixture.ReadGhPaths().Length;
         // The upstream edit after capture cannot reach the repeated proposal.
-        fixture.SetIssue(12, "## Request\n<!-- broodling-request:v1 -->\nAdd XML export instead.\n");
+        fixture.SetIssue(12, "Add XML export instead.\n");
         var restarted = new Gateway((_, _) => Task.FromResult(ControlledGateway.Final(Proposal)));
 
         var result = await Preparer(fixture, restarted, CancellationToken.None).PrepareAsync(submissionId, GitHub, Credentials);
@@ -145,7 +145,7 @@ public sealed class IssueSubmissionPreparationTests
     public async Task PreparationReturnsRetainedFindingsOrAVisibleRetryableFailure(string variant)
     {
         using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
-        fixture.SetIssue(12, variant == "capture-refused" ? "Please add CSV export." : RequestAdmissionTests.Request());
+        fixture.SetIssue(12, variant == "capture-refused" ? " \n\t\n" : RequestAdmissionTests.Request());
         var (submissionId, _) = Submit(fixture, 12);
         var gateway = new Gateway(async (_, _) =>
         {
@@ -172,8 +172,12 @@ public sealed class IssueSubmissionPreparationTests
             case "capture-refused":
                 var capture = (IssueSubmissionPreparation.CaptureRefused)first;
                 await Assert.That(capture.Bundle.Findings.Select(finding => finding.Code))
-                    .IsEquivalentTo(["request_section_missing"]);
+                    .IsEquivalentTo(["request_empty"]);
                 await Assert.That(capture.Submission.State).IsEqualTo("rejected");
+                // No Attempt exists and progression never selects the submission again, so nothing is dispatched.
+                await Assert.That(capture.Submission.AttemptIds).IsEmpty();
+                using (var store = fixture.State.Open())
+                    await Assert.That(store.UnfinishedSubmissions()).DoesNotContain(submissionId);
                 await Assert.That(calls).IsEqualTo(0);
                 break;
             case "proposal-refused":
