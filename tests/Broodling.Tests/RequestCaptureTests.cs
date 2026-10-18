@@ -14,7 +14,7 @@ public sealed class RequestCaptureTests
     public async Task TheWholeIssueBodyIsTheRequestAndNothingElseIsCaptured()
     {
         using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
-        const string body = """
+        const string body = "\r\n \t" + """
             # Widget
 
             <!-- broodling-request:v1 -->
@@ -24,7 +24,7 @@ public sealed class RequestCaptureTests
             - schema: repo:docs/schema.md
             - design: https://github.com/acme/widget/issues/7
 
-            """;
+            """ + "\r\n  ";
         fixture.SetIssue(12, body);
         fixture.SetIssue(7, "Design.");
         fixture.CommitFile("docs/schema.md", "Schema\n");
@@ -140,6 +140,29 @@ public sealed class RequestCaptureTests
 
         await AssertRefused(store, bundle, "issue_unavailable");
         await Assert.That(bundle.References.Single().IsCaptured).IsFalse();
+    }
+
+    [Test]
+    public async Task NotFoundInARepositoryTheTokenCannotSeeIsRetryableNotARefusal()
+    {
+        using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
+        using var store = fixture.State.Initialize();
+        var submissionId = store.SubmitIssue("https://github.com/acme/private/issues/3").SubmissionId;
+
+        var error = await Assert.That(async () => await Capture(store, fixture, submissionId))
+            .Throws<GitHubSourceError>();
+
+        await Assert.That(error!.Message).IsEqualTo("GitHub acquisition failed.");
+        await Assert.That(error.Retryable).IsTrue();
+        var open = store.GetRequestBundle(submissionId);
+        await Assert.That(open.State).IsEqualTo("capturing");
+        await Assert.That(open.Findings.Count).IsEqualTo(0);
+        await Assert.That(store.GetIssueSubmission(submissionId).State).IsEqualTo("capturing");
+
+        // Once the token can read the repository, the same 404 is genuine absence.
+        fixture.SetResponse("/repos/acme/private", new { full_name = "acme/private" });
+        var bundle = await Capture(store, fixture, submissionId);
+        await AssertRefused(store, bundle, "issue_unavailable");
     }
 
     private static async Task AssertRefused(BroodlingStore store, RequestBundle bundle, string code)

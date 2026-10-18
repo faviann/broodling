@@ -141,6 +141,33 @@ public sealed class BundledProposerTests
     }
 
     [Test]
+    public async Task AToolCallReplyIsUnusableAndRetainsNothing()
+    {
+        using var fixture = Fixture(out var store, out var submissionId, out _);
+        using var session = store;
+        var gateway = new ControlledGateway(_ => ControlledGateway.Reply(new JsonObject
+        {
+            ["role"] = "assistant",
+            ["content"] = """{"criteria": [{"criterionId": "csv", "statement": "Export CSV."}]}""",
+            ["tool_calls"] = new JsonArray(new JsonObject
+            {
+                ["id"] = "call_1", ["type"] = "function",
+                ["function"] = new JsonObject { ["name"] = "read_reference", ["arguments"] = "{}" }
+            })
+        }));
+
+        var error = await Assert.That(async () => await store.AdmitRequestBundleAsync(submissionId, Credentials, gateway, default))
+            .Throws<ContractProposerError>();
+
+        await Assert.That(error!.Message).IsEqualTo("The model gateway returned an unusable response.");
+        await Assert.That(error.Retryable).IsTrue();
+        var pending = store.GetIssueSubmission(submissionId);
+        await Assert.That(pending.State).IsEqualTo("capturing");
+        await Assert.That(pending.ProposalRefusal).IsNull();
+        await Assert.That(pending.ContractRevisionId).IsNull();
+    }
+
+    [Test]
     public async Task GatewayKeyIsAbsentFromRetainedState()
     {
         using var fixture = new RepositoryPreparationTests.RepositoryPreparationFixture();
@@ -204,7 +231,7 @@ public sealed class BundledProposerTests
         internal static HttpResponseMessage Final(string content) =>
             Reply(new JsonObject { ["role"] = "assistant", ["content"] = content });
 
-        private static HttpResponseMessage Reply(JsonObject message) => new(HttpStatusCode.OK)
+        internal static HttpResponseMessage Reply(JsonObject message) => new(HttpStatusCode.OK)
         {
             Content = new StringContent(new JsonObject
             {

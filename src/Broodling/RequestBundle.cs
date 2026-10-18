@@ -78,13 +78,3 @@ public sealed class RequestBundle
 
 /// <summary>One retained reason a capture was refused before admission.</summary>
 public sealed record RequestCaptureFinding(string Code, string Subject, string Detail);
-
-public sealed class RequestBundleReferenceContent(string bundleId, string referenceId,
-    string contentSha256, byte[] content)
-{
-    private readonly byte[] bytes = (byte[])content.Clone();
-    public string BundleId { get; } = bundleId;
-    public string ReferenceId { get; } = referenceId;
-    public string ContentSha256 { get; } = contentSha256;
-    public byte[] Content => (byte[])bytes.Clone();
-}
