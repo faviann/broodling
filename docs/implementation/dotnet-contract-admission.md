@@ -137,7 +137,8 @@ describes its configuration.
   and the fixed authority (Work Unit, request pin, PR effect, producer and
   bundle binding), nothing else. Fixed instructions describe the output
   shape. They tell the model to preserve every requirement, expressing other
-  requested actions as obligations and unmet conditions as prerequisites, and
+  requested actions as obligations and only conditions outside the target
+  repository and the supported environment's tools as prerequisites, and
   never to change the authority.
 - The final reply is parsed into a `Contract` with its canonical field names;
   unrecognized fields and repeated properties are refused. An omitted authority field takes its fixed

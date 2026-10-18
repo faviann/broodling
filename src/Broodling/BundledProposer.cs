@@ -64,7 +64,9 @@ internal sealed class BundledProposer(GatewayCredentials credentials, HttpMessag
         - Record each requested action beyond the one authorized pull request as an obligation of kind merge,
           deployment, publication, issue_mutation, push or external_effect. Use kind candidate_change or
           local_validation only for the code change and local checks.
-        - Record anything that must happen or hold first as a prerequisite. Set satisfiedWithinProfile to
+        - The target repository's contents and the supported .NET environment's tools are given, never
+          prerequisites. Record as a prerequisite only something outside them that must happen or hold first,
+          such as other work landing, an external system or a human action. Set satisfiedWithinProfile to
           true only when the request shows that it already holds.
         - Omit workUnitId, sourceAttribution, requiredEffects, constructedBy and requestBundle, or copy them
           exactly from authority. Never add, remove or change an effect, attributed source or binding.
