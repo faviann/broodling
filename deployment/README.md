@@ -1492,8 +1492,11 @@ which effort the gateway applied upstream. Earlier probes, on 2026-10-15 and
 probe also ran Claude Code with `--json-schema` and a Read tool through the
 gateway and received `structured_output`. #256 removed the `read_reference`
 tool: the proposer now sends that request once, without `tools` or
-`tool_choice`, and the exact body without them has not been probed. Proposal
-quality on real issues is still unverified.
+`tool_choice`. On 2026-10-17 (#259), with the instructions that treat the
+target repository and the adopted environment's tools as given, that tool-less
+body was sent once for canary issue faviann/broodling-canary#3 and returned a
+Contract with no prerequisites, which `Closability` admitted. Proposal quality on
+real issues is still unverified.
 
 <a id="claude-code-agent-traffic"></a>The agents' Claude Code traffic was
 captured offline on 2026-10-17 UTC (#246) in the published `dotnet-r6` image
