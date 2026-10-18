@@ -128,6 +128,53 @@ public sealed class RequestBundleTests
     }
 
     [Test]
+    public async Task OpenBundleSqlRefusesHalfCaptureForeignOrMismatchedSourceRecaptureAndEarlyCompletion()
+    {
+        using var fixture = new StoreFixture();
+        using var store = fixture.Initialize();
+        var plan = new RequestBundlePlan("inputs"u8.ToArray(), "policy"u8.ToArray());
+        var submission = store.SubmitIssue("https://github.com/acme/widget/issues/12").SubmissionId;
+        var bundle = store.BeginRequestBundleCapture(submission, plan).BundleId;
+        foreach (var member in new[] { "primary", "request", "other" })
+            store.RegisterRequestBundleReference(bundle, member, "selector"u8.ToArray());
+        var primary = store.CaptureRequestBundleSource(bundle, "primary",
+            CallerSource("caller://primary", "primary bytes"u8.ToArray()));
+        var other = store.CaptureRequestBundleSource(bundle, "other",
+            CallerSource("caller://other", "other bytes"u8.ToArray()));
+        var foreignBundle = store.BeginRequestBundleCapture(
+            store.SubmitIssue("https://github.com/acme/widget/issues/13").SubmissionId, plan).BundleId;
+        store.RegisterRequestBundleReference(foreignBundle, "primary", "selector"u8.ToArray());
+        var foreign = store.CaptureRequestBundleSource(foreignBundle, "primary",
+            CallerSource("caller://foreign", "foreign bytes"u8.ToArray()));
+
+        string Capture(string member, string sourceId, string digest) =>
+            $"UPDATE request_bundle_references SET source_id = '{sourceId}', content_sha256 = '{digest}' "
+            + $"WHERE bundle_id = '{bundle}' AND reference_id = '{member}'";
+        const string captureRefusal = "first capture are immutable";
+
+        await Assert.That(() => fixture.Execute("INSERT INTO request_bundle_references (bundle_id, reference_id, ordinal, selector, source_id) "
+            + $"VALUES ('{bundle}', 'half-source', 5, X'00', '{primary.SourceId}')"))
+            .Throws<SqliteException>().WithMessageContaining("CHECK constraint failed");
+        await Assert.That(() => fixture.Execute("INSERT INTO request_bundle_references (bundle_id, reference_id, ordinal, selector, content_sha256) "
+            + $"VALUES ('{bundle}', 'half-digest', 6, X'00', '{primary.ContentSha256}')"))
+            .Throws<SqliteException>().WithMessageContaining("CHECK constraint failed");
+        await Assert.That(() => fixture.Execute(Capture("request", foreign.SourceId!, foreign.ContentSha256!)))
+            .Throws<SqliteException>().WithMessageContaining(captureRefusal);
+        await Assert.That(() => fixture.Execute(Capture("request", primary.SourceId!, other.ContentSha256!)))
+            .Throws<SqliteException>().WithMessageContaining(captureRefusal);
+        await Assert.That(() => fixture.Execute(Capture("primary", other.SourceId!, other.ContentSha256!)))
+            .Throws<SqliteException>().WithMessageContaining(captureRefusal);
+        await Assert.That(() => fixture.Execute("UPDATE request_bundles SET state = 'complete', manifest_json = '{}', "
+            + $"manifest_sha256 = '{new string('0', 64)}', completed_at = 't1' WHERE bundle_id = '{bundle}'"))
+            .Throws<SqliteException>().WithMessageContaining("completed manifest are immutable");
+
+        var retained = store.GetRequestBundle(submission);
+        await Assert.That(retained.State).IsEqualTo("capturing");
+        await Assert.That(retained.References.Select(member => (member.ReferenceId, member.SourceId)))
+            .IsEquivalentTo([("primary", primary.SourceId), ("request", (string?)null), ("other", other.SourceId)]);
+    }
+
+    [Test]
     public async Task ContractAssociationWaitsForIncompleteBundleAndThenRequiresItsBinding()
     {
         using var fixture = new AttemptFixture();

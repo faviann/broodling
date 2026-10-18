@@ -179,8 +179,9 @@ acquisition.
 `RequestCaptureTests` owns the whole-body request rule and its retained
 refusals, through the same controlled `gh` and real Git/SQLite. It covers one
 capture and replay, a resumed capture that does not read the issue again, a
-bundle frozen under another plan, empty, whitespace-only and null bodies, and
-an unavailable issue (404 in a readable repository and 410).
+bundle frozen under another plan, empty, whitespace-only and null bodies, an
+unavailable issue (404 in a readable repository and 410), and a 404 in a
+repository the token cannot read, which stays retryable.
 `GitHubAdmissionTests` and `RepositoryPreparationTests` run controlled local
 `gh` and Git executables through the real process boundary and real SQLite
 admission, with no network or provider calls. Preparation tests cover canonical

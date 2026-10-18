@@ -236,14 +236,12 @@ included; a loser never generates or compares another identity or resolution,
 whatever catalog it holds. Repeating preparation does not read the
 installed asset. It validates the retained record against the retained asset
 bytes, the approved identity and native binding, and a rebuild of the request
-from admitted authority. That rebuild takes the reference bytes from the retained
-task itself and checks each against the admitted manifest digest, so it reads no
-Git. A missing or corrupt asset, a request whose graph, runtime or task differs,
-reference bytes that differ from their digest, missing or differing environment
-documents, or an unsupported binding refuses. A retained manifest that this
-release's native binding no longer accepts refuses with a reason to retire and
-replace the Attempt. The repository, the catalog and the default are not read
-again. Nothing is regenerated or rebound.
+from admitted authority, which reads SQLite and no Git. A missing or corrupt
+asset, a request whose graph, runtime or task differs, missing or differing
+environment documents, or an unsupported binding refuses. A retained manifest
+that this release's native binding no longer accepts refuses with a reason to
+retire and replace the Attempt. The repository, the catalog and the default are
+not read again. Nothing is regenerated or rebound.
 
 The record's retained binding is a `NativeRunBinding`: the target origin, the
 frozen title and runtime size, and the frozen repository, authorized branch and
